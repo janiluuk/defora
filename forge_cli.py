@@ -10,6 +10,7 @@ Features
 - Optional **auto-switch** to Flux1-schnell (or a chosen model).
 - Submit **Deforum** animation batches (when Forge is started with --deforum-api).
 - Optional **Deforum JSON preset** support.
+- **Audioreactive** animations: map audio frequency bands to Deforum parameters.
 
 Usage examples
 --------------
@@ -37,6 +38,13 @@ Usage examples
   "cosmic fractal cathedral" \
   -N "lowres, text, watermark"
 
+# 7) Audioreactive Deforum: map audio to zoom and rotation
+./forge_cli.py deforum -f 240 --fps 24 \
+  --audio music.mp3 \
+  --audio-map-zoom-low 0.05 \
+  --audio-map-angle-high 2.0 \
+  "pulsating cosmic energy, abstract art"
+
 Environment variables
 ---------------------
 FORGE_API_BASE   Base URL of Forge API (default: http://127.0.0.1:7860)
@@ -55,6 +63,14 @@ import requests
 
 DEFAULT_BASE_URL = os.getenv("FORGE_API_BASE", "http://127.0.0.1:7860")
 DEFAULT_OUT_DIR = os.getenv("FORGE_OUT_DIR", "forge_cli_output")
+
+# Audio analysis dependencies (optional)
+try:
+    import librosa
+    import numpy as np
+    AUDIO_AVAILABLE = True
+except ImportError:
+    AUDIO_AVAILABLE = False
 
 
 # --- Model detection + defaults -------------------------------------------------
@@ -116,6 +132,195 @@ MODEL_DEFAULTS: Dict[str, Dict[str, Any]] = {
 
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
+
+
+# --- Audio analysis for audioreactive animations --------------------------------
+
+
+def analyze_audio_frequencies(
+    audio_path: str,
+    fps: int,
+    num_frames: int,
+    low_freq: Tuple[float, float] = (100, 300),
+    mid_freq: Tuple[float, float] = (300, 3000),
+    high_freq: Tuple[float, float] = (3000, 8000),
+) -> Dict[str, List[float]]:
+    """
+    Analyze audio file and extract frequency band energies for each frame.
+    
+    Args:
+        audio_path: Path to audio file
+        fps: Frames per second for the animation
+        num_frames: Total number of frames
+        low_freq: Low frequency range (min, max) in Hz
+        mid_freq: Mid frequency range (min, max) in Hz
+        high_freq: High frequency range (min, max) in Hz
+    
+    Returns:
+        Dictionary with 'low', 'mid', 'high' keys, each containing a list of
+        normalized energy values (0.0 to 1.0) for each frame.
+    """
+    if not AUDIO_AVAILABLE:
+        raise RuntimeError(
+            "Audio analysis requires librosa and numpy. "
+            "Install them with: pip install librosa numpy"
+        )
+    
+    # Load audio file
+    y, sr = librosa.load(audio_path, sr=None)
+    
+    # Calculate duration per frame
+    frame_duration = 1.0 / fps
+    total_duration = num_frames * frame_duration
+    
+    # If audio is shorter than needed, pad with silence
+    required_samples = int(total_duration * sr)
+    if len(y) < required_samples:
+        y = np.pad(y, (0, required_samples - len(y)), mode='constant')
+    
+    # Compute Short-Time Fourier Transform
+    hop_length = 512
+    n_fft = 2048
+    D = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=hop_length))
+    
+    # Get frequency bins
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    
+    # Find frequency bin indices for each band
+    low_bins = np.where((freqs >= low_freq[0]) & (freqs < low_freq[1]))[0]
+    mid_bins = np.where((freqs >= mid_freq[0]) & (freqs < mid_freq[1]))[0]
+    high_bins = np.where((freqs >= high_freq[0]) & (freqs < high_freq[1]))[0]
+    
+    # Extract energy for each frequency band over time
+    low_energy = np.sum(D[low_bins, :], axis=0) if len(low_bins) > 0 else np.zeros(D.shape[1])
+    mid_energy = np.sum(D[mid_bins, :], axis=0) if len(mid_bins) > 0 else np.zeros(D.shape[1])
+    high_energy = np.sum(D[high_bins, :], axis=0) if len(high_bins) > 0 else np.zeros(D.shape[1])
+    
+    # Convert from STFT frames to animation frames
+    def resample_to_frames(energy: np.ndarray, num_frames: int) -> List[float]:
+        # Calculate how many STFT frames correspond to each animation frame
+        stft_frames_per_anim_frame = len(energy) / num_frames
+        
+        result = []
+        for i in range(num_frames):
+            start_idx = int(i * stft_frames_per_anim_frame)
+            end_idx = int((i + 1) * stft_frames_per_anim_frame)
+            if end_idx > len(energy):
+                end_idx = len(energy)
+            
+            # Average energy over this frame's time window
+            if start_idx < end_idx:
+                frame_energy = np.mean(energy[start_idx:end_idx])
+            else:
+                frame_energy = energy[start_idx] if start_idx < len(energy) else 0.0
+            
+            result.append(float(frame_energy))
+        
+        return result
+    
+    low_values = resample_to_frames(low_energy, num_frames)
+    mid_values = resample_to_frames(mid_energy, num_frames)
+    high_values = resample_to_frames(high_energy, num_frames)
+    
+    # Normalize each band to 0.0-1.0 range
+    def normalize(values: List[float]) -> List[float]:
+        if not values:
+            return values
+        min_val = min(values)
+        max_val = max(values)
+        if max_val - min_val < 1e-10:  # Avoid division by zero
+            return [0.5] * len(values)
+        return [(v - min_val) / (max_val - min_val) for v in values]
+    
+    return {
+        'low': normalize(low_values),
+        'mid': normalize(mid_values),
+        'high': normalize(high_values),
+    }
+
+
+def create_schedule_from_values(
+    values: List[float],
+    base_value: float,
+    modulation_strength: float,
+) -> str:
+    """
+    Create a Deforum schedule string from a list of values.
+    
+    Args:
+        values: List of normalized values (0.0 to 1.0) for each frame
+        base_value: Base value for the parameter
+        modulation_strength: How much the parameter should vary (± from base)
+    
+    Returns:
+        Schedule string like "0:(value0), 10:(value1), 20:(value2), ..."
+    """
+    if not values:
+        return f"0:({base_value})"
+    
+    schedule_parts = []
+    for frame_idx, norm_val in enumerate(values):
+        # Map normalized value (0-1) to (base - modulation, base + modulation)
+        actual_val = base_value + (norm_val - 0.5) * 2 * modulation_strength
+        schedule_parts.append(f"{frame_idx}:({actual_val:.4f})")
+    
+    return ", ".join(schedule_parts)
+
+
+def apply_audioreactive_modulation(
+    settings: Dict[str, Any],
+    audio_path: str,
+    mappings: Dict[str, Dict[str, Any]],
+    low_freq: Tuple[float, float] = (100, 300),
+    mid_freq: Tuple[float, float] = (300, 3000),
+    high_freq: Tuple[float, float] = (3000, 8000),
+) -> Dict[str, Any]:
+    """
+    Apply audioreactive modulation to Deforum settings.
+    
+    Args:
+        settings: Deforum settings dictionary
+        audio_path: Path to audio file
+        mappings: Dictionary mapping frequency bands to parameters.
+                  Format: {
+                      'low': {'param_name': {'base': float, 'modulation': float}},
+                      'mid': {'param_name': {'base': float, 'modulation': float}},
+                      'high': {'param_name': {'base': float, 'modulation': float}},
+                  }
+        low_freq: Low frequency range tuple (min, max) in Hz
+        mid_freq: Mid frequency range tuple (min, max) in Hz
+        high_freq: High frequency range tuple (min, max) in Hz
+    
+    Returns:
+        Modified settings dictionary
+    """
+    fps = settings.get('fps', 24)
+    num_frames = settings.get('max_frames', 120)
+    
+    # Analyze audio
+    freq_data = analyze_audio_frequencies(
+        audio_path, fps, num_frames, low_freq, mid_freq, high_freq
+    )
+    
+    # Apply mappings for each frequency band
+    for band in ['low', 'mid', 'high']:
+        if band not in mappings or band not in freq_data:
+            continue
+        
+        band_mappings = mappings[band]
+        band_values = freq_data[band]
+        
+        for param_name, param_config in band_mappings.items():
+            base_value = param_config['base']
+            modulation = param_config['modulation']
+            
+            # Create schedule string
+            schedule = create_schedule_from_values(band_values, base_value, modulation)
+            
+            # Update settings
+            settings[param_name] = schedule
+    
+    return settings
 
 
 # --- Low-level API helpers ------------------------------------------------------
@@ -624,6 +829,135 @@ def cmd_deforum(args: argparse.Namespace) -> None:
             strength=params["strength"],
         )
 
+    # Apply audioreactive modulation if audio file is provided
+    if hasattr(args, 'audio') and args.audio:
+        if not AUDIO_AVAILABLE:
+            print(
+                "[error] Audioreactive features require librosa and numpy. "
+                "Install with: pip install librosa numpy",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        
+        if not os.path.exists(args.audio):
+            print(f"[error] Audio file not found: {args.audio}", file=sys.stderr)
+            sys.exit(1)
+        
+        if not args.quiet:
+            print(f"[info] Applying audioreactive modulation from: {args.audio}", file=sys.stderr)
+        
+        # Parse frequency ranges if provided
+        low_freq = (args.audio_low_min, args.audio_low_max)
+        mid_freq = (args.audio_mid_min, args.audio_mid_max)
+        high_freq = (args.audio_high_min, args.audio_high_max)
+        
+        # Build mappings from command-line arguments
+        mappings: Dict[str, Dict[str, Dict[str, float]]] = {'low': {}, 'mid': {}, 'high': {}}
+        
+        # Helper to parse mapping arguments
+        def add_mapping(band: str, param: str, base: float, mod: float) -> None:
+            if mod > 0:  # Only add if modulation is specified
+                mappings[band][param] = {'base': base, 'modulation': mod}
+        
+        # Strength mappings
+        if hasattr(args, 'audio_map_strength_low') and args.audio_map_strength_low > 0:
+            add_mapping('low', 'strength_schedule', params['strength'], args.audio_map_strength_low)
+        if hasattr(args, 'audio_map_strength_mid') and args.audio_map_strength_mid > 0:
+            add_mapping('mid', 'strength_schedule', params['strength'], args.audio_map_strength_mid)
+        if hasattr(args, 'audio_map_strength_high') and args.audio_map_strength_high > 0:
+            add_mapping('high', 'strength_schedule', params['strength'], args.audio_map_strength_high)
+        
+        # Zoom mappings
+        if hasattr(args, 'audio_map_zoom_low') and args.audio_map_zoom_low > 0:
+            add_mapping('low', 'zoom', params['zoom'], args.audio_map_zoom_low)
+        if hasattr(args, 'audio_map_zoom_mid') and args.audio_map_zoom_mid > 0:
+            add_mapping('mid', 'zoom', params['zoom'], args.audio_map_zoom_mid)
+        if hasattr(args, 'audio_map_zoom_high') and args.audio_map_zoom_high > 0:
+            add_mapping('high', 'zoom', params['zoom'], args.audio_map_zoom_high)
+        
+        # Rotation mappings (angle)
+        if hasattr(args, 'audio_map_angle_low') and args.audio_map_angle_low > 0:
+            add_mapping('low', 'angle', 0.0, args.audio_map_angle_low)
+        if hasattr(args, 'audio_map_angle_mid') and args.audio_map_angle_mid > 0:
+            add_mapping('mid', 'angle', 0.0, args.audio_map_angle_mid)
+        if hasattr(args, 'audio_map_angle_high') and args.audio_map_angle_high > 0:
+            add_mapping('high', 'angle', 0.0, args.audio_map_angle_high)
+        
+        # Translation X mappings
+        if hasattr(args, 'audio_map_translation_x_low') and args.audio_map_translation_x_low > 0:
+            add_mapping('low', 'translation_x', 0.0, args.audio_map_translation_x_low)
+        if hasattr(args, 'audio_map_translation_x_mid') and args.audio_map_translation_x_mid > 0:
+            add_mapping('mid', 'translation_x', 0.0, args.audio_map_translation_x_mid)
+        if hasattr(args, 'audio_map_translation_x_high') and args.audio_map_translation_x_high > 0:
+            add_mapping('high', 'translation_x', 0.0, args.audio_map_translation_x_high)
+        
+        # Translation Y mappings
+        if hasattr(args, 'audio_map_translation_y_low') and args.audio_map_translation_y_low > 0:
+            add_mapping('low', 'translation_y', 0.0, args.audio_map_translation_y_low)
+        if hasattr(args, 'audio_map_translation_y_mid') and args.audio_map_translation_y_mid > 0:
+            add_mapping('mid', 'translation_y', 0.0, args.audio_map_translation_y_mid)
+        if hasattr(args, 'audio_map_translation_y_high') and args.audio_map_translation_y_high > 0:
+            add_mapping('high', 'translation_y', 0.0, args.audio_map_translation_y_high)
+        
+        # Translation Z mappings
+        if hasattr(args, 'audio_map_translation_z_low') and args.audio_map_translation_z_low > 0:
+            add_mapping('low', 'translation_z', 1.75, args.audio_map_translation_z_low)
+        if hasattr(args, 'audio_map_translation_z_mid') and args.audio_map_translation_z_mid > 0:
+            add_mapping('mid', 'translation_z', 1.75, args.audio_map_translation_z_mid)
+        if hasattr(args, 'audio_map_translation_z_high') and args.audio_map_translation_z_high > 0:
+            add_mapping('high', 'translation_z', 1.75, args.audio_map_translation_z_high)
+        
+        # 3D Rotation mappings
+        if hasattr(args, 'audio_map_rotation_3d_x_low') and args.audio_map_rotation_3d_x_low > 0:
+            add_mapping('low', 'rotation_3d_x', 0.0, args.audio_map_rotation_3d_x_low)
+        if hasattr(args, 'audio_map_rotation_3d_x_mid') and args.audio_map_rotation_3d_x_mid > 0:
+            add_mapping('mid', 'rotation_3d_x', 0.0, args.audio_map_rotation_3d_x_mid)
+        if hasattr(args, 'audio_map_rotation_3d_x_high') and args.audio_map_rotation_3d_x_high > 0:
+            add_mapping('high', 'rotation_3d_x', 0.0, args.audio_map_rotation_3d_x_high)
+        
+        if hasattr(args, 'audio_map_rotation_3d_y_low') and args.audio_map_rotation_3d_y_low > 0:
+            add_mapping('low', 'rotation_3d_y', 0.0, args.audio_map_rotation_3d_y_low)
+        if hasattr(args, 'audio_map_rotation_3d_y_mid') and args.audio_map_rotation_3d_y_mid > 0:
+            add_mapping('mid', 'rotation_3d_y', 0.0, args.audio_map_rotation_3d_y_mid)
+        if hasattr(args, 'audio_map_rotation_3d_y_high') and args.audio_map_rotation_3d_y_high > 0:
+            add_mapping('high', 'rotation_3d_y', 0.0, args.audio_map_rotation_3d_y_high)
+        
+        if hasattr(args, 'audio_map_rotation_3d_z_low') and args.audio_map_rotation_3d_z_low > 0:
+            add_mapping('low', 'rotation_3d_z', 0.0, args.audio_map_rotation_3d_z_low)
+        if hasattr(args, 'audio_map_rotation_3d_z_mid') and args.audio_map_rotation_3d_z_mid > 0:
+            add_mapping('mid', 'rotation_3d_z', 0.0, args.audio_map_rotation_3d_z_mid)
+        if hasattr(args, 'audio_map_rotation_3d_z_high') and args.audio_map_rotation_3d_z_high > 0:
+            add_mapping('high', 'rotation_3d_z', 0.0, args.audio_map_rotation_3d_z_high)
+        
+        # Noise mappings
+        if hasattr(args, 'audio_map_noise_low') and args.audio_map_noise_low > 0:
+            add_mapping('low', 'noise_schedule', params['noise'], args.audio_map_noise_low)
+        if hasattr(args, 'audio_map_noise_mid') and args.audio_map_noise_mid > 0:
+            add_mapping('mid', 'noise_schedule', params['noise'], args.audio_map_noise_mid)
+        if hasattr(args, 'audio_map_noise_high') and args.audio_map_noise_high > 0:
+            add_mapping('high', 'noise_schedule', params['noise'], args.audio_map_noise_high)
+        
+        # CFG scale mappings
+        if hasattr(args, 'audio_map_cfg_low') and args.audio_map_cfg_low > 0:
+            add_mapping('low', 'cfg_scale_schedule', params['cfg_scale'], args.audio_map_cfg_low)
+        if hasattr(args, 'audio_map_cfg_mid') and args.audio_map_cfg_mid > 0:
+            add_mapping('mid', 'cfg_scale_schedule', params['cfg_scale'], args.audio_map_cfg_mid)
+        if hasattr(args, 'audio_map_cfg_high') and args.audio_map_cfg_high > 0:
+            add_mapping('high', 'cfg_scale_schedule', params['cfg_scale'], args.audio_map_cfg_high)
+        
+        if not any(mappings.values()):
+            print("[warn] No audioreactive mappings specified. Use --audio-map-* flags.", file=sys.stderr)
+        else:
+            try:
+                settings = apply_audioreactive_modulation(
+                    settings, args.audio, mappings, low_freq, mid_freq, high_freq
+                )
+                if not args.quiet:
+                    print("[info] Audioreactive modulation applied successfully", file=sys.stderr)
+            except Exception as e:  # noqa: BLE001
+                print(f"[error] Failed to apply audioreactive modulation: {e}", file=sys.stderr)
+                sys.exit(1)
+
     payload = {
         "deforum_settings": settings,
         "options_overrides": {},
@@ -948,6 +1282,271 @@ Examples:
         default=10.0,
         help="Seconds between status checks when --poll is set.",
     )
+    
+    # Audioreactive arguments
+    p_def.add_argument(
+        "--audio",
+        help="Path to audio file for audioreactive animation. Requires librosa and numpy.",
+    )
+    
+    # Frequency range configuration
+    p_def.add_argument(
+        "--audio-low-min",
+        type=float,
+        default=100.0,
+        help="Minimum frequency for low band (Hz). Default: 100",
+    )
+    p_def.add_argument(
+        "--audio-low-max",
+        type=float,
+        default=300.0,
+        help="Maximum frequency for low band (Hz). Default: 300",
+    )
+    p_def.add_argument(
+        "--audio-mid-min",
+        type=float,
+        default=300.0,
+        help="Minimum frequency for mid band (Hz). Default: 300",
+    )
+    p_def.add_argument(
+        "--audio-mid-max",
+        type=float,
+        default=3000.0,
+        help="Maximum frequency for mid band (Hz). Default: 3000",
+    )
+    p_def.add_argument(
+        "--audio-high-min",
+        type=float,
+        default=3000.0,
+        help="Minimum frequency for high band (Hz). Default: 3000",
+    )
+    p_def.add_argument(
+        "--audio-high-max",
+        type=float,
+        default=8000.0,
+        help="Maximum frequency for high band (Hz). Default: 8000",
+    )
+    
+    # Strength mappings
+    p_def.add_argument(
+        "--audio-map-strength-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for strength from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-strength-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for strength from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-strength-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for strength from high frequency band (0 = disabled).",
+    )
+    
+    # Zoom mappings
+    p_def.add_argument(
+        "--audio-map-zoom-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for zoom from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-zoom-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for zoom from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-zoom-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for zoom from high frequency band (0 = disabled).",
+    )
+    
+    # Rotation (angle) mappings
+    p_def.add_argument(
+        "--audio-map-angle-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 2D rotation angle from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-angle-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 2D rotation angle from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-angle-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 2D rotation angle from high frequency band (0 = disabled).",
+    )
+    
+    # Translation X mappings
+    p_def.add_argument(
+        "--audio-map-translation-x-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation X from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-translation-x-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation X from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-translation-x-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation X from high frequency band (0 = disabled).",
+    )
+    
+    # Translation Y mappings
+    p_def.add_argument(
+        "--audio-map-translation-y-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation Y from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-translation-y-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation Y from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-translation-y-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation Y from high frequency band (0 = disabled).",
+    )
+    
+    # Translation Z mappings
+    p_def.add_argument(
+        "--audio-map-translation-z-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation Z from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-translation-z-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation Z from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-translation-z-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for translation Z from high frequency band (0 = disabled).",
+    )
+    
+    # 3D Rotation X mappings
+    p_def.add_argument(
+        "--audio-map-rotation-3d-x-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation X from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-rotation-3d-x-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation X from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-rotation-3d-x-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation X from high frequency band (0 = disabled).",
+    )
+    
+    # 3D Rotation Y mappings
+    p_def.add_argument(
+        "--audio-map-rotation-3d-y-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation Y from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-rotation-3d-y-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation Y from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-rotation-3d-y-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation Y from high frequency band (0 = disabled).",
+    )
+    
+    # 3D Rotation Z mappings
+    p_def.add_argument(
+        "--audio-map-rotation-3d-z-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation Z from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-rotation-3d-z-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation Z from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-rotation-3d-z-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for 3D rotation Z from high frequency band (0 = disabled).",
+    )
+    
+    # Noise mappings
+    p_def.add_argument(
+        "--audio-map-noise-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for noise from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-noise-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for noise from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-noise-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for noise from high frequency band (0 = disabled).",
+    )
+    
+    # CFG scale mappings
+    p_def.add_argument(
+        "--audio-map-cfg-low",
+        type=float,
+        default=0.0,
+        help="Modulation amount for CFG scale from low frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-cfg-mid",
+        type=float,
+        default=0.0,
+        help="Modulation amount for CFG scale from mid frequency band (0 = disabled).",
+    )
+    p_def.add_argument(
+        "--audio-map-cfg-high",
+        type=float,
+        default=0.0,
+        help="Modulation amount for CFG scale from high frequency band (0 = disabled).",
+    )
+    
     p_def.set_defaults(func=cmd_deforum)
 
     # ------- models --------
