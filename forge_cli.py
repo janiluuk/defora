@@ -136,6 +136,11 @@ def ensure_dir(path: str) -> None:
 
 # --- Audio analysis for audioreactive animations --------------------------------
 
+# Audio analysis constants
+STFT_HOP_LENGTH = 512  # Hop length for Short-Time Fourier Transform
+STFT_N_FFT = 2048  # FFT window size for Short-Time Fourier Transform
+NORMALIZATION_EPSILON = 1e-10  # Small value to avoid division by zero
+
 
 def analyze_audio_frequencies(
     audio_path: str,
@@ -179,12 +184,10 @@ def analyze_audio_frequencies(
         y = np.pad(y, (0, required_samples - len(y)), mode='constant')
     
     # Compute Short-Time Fourier Transform
-    hop_length = 512
-    n_fft = 2048
-    D = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=hop_length))
+    D = np.abs(librosa.stft(y, n_fft=STFT_N_FFT, hop_length=STFT_HOP_LENGTH))
     
     # Get frequency bins
-    freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=STFT_N_FFT)
     
     # Find frequency bin indices for each band
     low_bins = np.where((freqs >= low_freq[0]) & (freqs < low_freq[1]))[0]
@@ -228,7 +231,7 @@ def analyze_audio_frequencies(
             return values
         min_val = min(values)
         max_val = max(values)
-        if max_val - min_val < 1e-10:  # Avoid division by zero
+        if max_val - min_val < NORMALIZATION_EPSILON:  # Avoid division by zero
             return [0.5] * len(values)
         return [(v - min_val) / (max_val - min_val) for v in values]
     
@@ -954,7 +957,7 @@ def cmd_deforum(args: argparse.Namespace) -> None:
                 )
                 if not args.quiet:
                     print("[info] Audioreactive modulation applied successfully", file=sys.stderr)
-            except Exception as e:  # noqa: BLE001
+            except (RuntimeError, ValueError, OSError) as e:
                 print(f"[error] Failed to apply audioreactive modulation: {e}", file=sys.stderr)
                 sys.exit(1)
 
