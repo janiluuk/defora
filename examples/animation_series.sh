@@ -5,10 +5,11 @@
 # Configuration
 CLI_PATH="./forge_cli.py"
 OUTPUT_BASE="animations"
+FORGE_URL="${FORGE_API_BASE:-http://127.0.0.1:7860}"
 
 # Check if Forge has Deforum API enabled
 echo "Testing Deforum API availability..."
-if ! curl -s http://127.0.0.1:7860/deforum_api/batches > /dev/null 2>&1; then
+if ! curl -s "${FORGE_URL}/deforum_api/batches" > /dev/null 2>&1; then
   echo "ERROR: Deforum API not available!"
   echo "Please start Forge with: ./webui.sh --deforum-api"
   exit 1
@@ -77,8 +78,11 @@ echo "=========================================="
 echo "All animations submitted!"
 echo "=========================================="
 echo ""
-echo "Animations will be saved to Forge's Deforum output directory:"
-echo "  (usually: stable-diffusion-webui-forge/outputs/deforum/)"
+echo "Animations will be saved to Forge's Deforum output directory."
+echo "Common locations:"
+echo "  - Linux: ~/stable-diffusion-webui-forge/outputs/deforum/"
+echo "  - Check Forge settings for your configured output path"
+echo "  - Look in the Forge UI under Settings -> Paths"
 echo ""
 echo "Monitor progress in the Forge web UI or use --poll flag:"
 echo "  $CLI_PATH deforum --poll \"prompt\""

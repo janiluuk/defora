@@ -21,6 +21,8 @@ mkdir -p "$OUTPUT_DIR"
 
 # Generate with specific seeds
 echo "=== Specific Seeds ==="
+# These are example seed values - you can use any integers you like
+# Common choices: round numbers, lucky numbers, or seeds from good generations
 SEEDS=(42 123 1337 9999 777777)
 
 for seed in "${SEEDS[@]}"; do
