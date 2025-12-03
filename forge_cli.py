@@ -273,7 +273,7 @@ def create_schedule_from_values(
 def apply_audioreactive_modulation(
     settings: Dict[str, Any],
     audio_path: str,
-    mappings: Dict[str, Dict[str, Any]],
+    mappings: Dict[str, Dict[str, Dict[str, float]]],
     low_freq: Tuple[float, float] = (100, 300),
     mid_freq: Tuple[float, float] = (300, 3000),
     high_freq: Tuple[float, float] = (3000, 8000),
@@ -859,93 +859,93 @@ def cmd_deforum(args: argparse.Namespace) -> None:
         
         # Helper to parse mapping arguments
         def add_mapping(band: str, param: str, base: float, mod: float) -> None:
-            if mod > 0:  # Only add if modulation is specified
+            if mod != 0:  # Only add if modulation is specified (allows negative values)
                 mappings[band][param] = {'base': base, 'modulation': mod}
         
         # Strength mappings
-        if hasattr(args, 'audio_map_strength_low') and args.audio_map_strength_low > 0:
+        if hasattr(args, 'audio_map_strength_low') and args.audio_map_strength_low != 0:
             add_mapping('low', 'strength_schedule', params['strength'], args.audio_map_strength_low)
-        if hasattr(args, 'audio_map_strength_mid') and args.audio_map_strength_mid > 0:
+        if hasattr(args, 'audio_map_strength_mid') and args.audio_map_strength_mid != 0:
             add_mapping('mid', 'strength_schedule', params['strength'], args.audio_map_strength_mid)
-        if hasattr(args, 'audio_map_strength_high') and args.audio_map_strength_high > 0:
+        if hasattr(args, 'audio_map_strength_high') and args.audio_map_strength_high != 0:
             add_mapping('high', 'strength_schedule', params['strength'], args.audio_map_strength_high)
         
         # Zoom mappings
-        if hasattr(args, 'audio_map_zoom_low') and args.audio_map_zoom_low > 0:
+        if hasattr(args, 'audio_map_zoom_low') and args.audio_map_zoom_low != 0:
             add_mapping('low', 'zoom', params['zoom'], args.audio_map_zoom_low)
-        if hasattr(args, 'audio_map_zoom_mid') and args.audio_map_zoom_mid > 0:
+        if hasattr(args, 'audio_map_zoom_mid') and args.audio_map_zoom_mid != 0:
             add_mapping('mid', 'zoom', params['zoom'], args.audio_map_zoom_mid)
-        if hasattr(args, 'audio_map_zoom_high') and args.audio_map_zoom_high > 0:
+        if hasattr(args, 'audio_map_zoom_high') and args.audio_map_zoom_high != 0:
             add_mapping('high', 'zoom', params['zoom'], args.audio_map_zoom_high)
         
         # Rotation mappings (angle)
-        if hasattr(args, 'audio_map_angle_low') and args.audio_map_angle_low > 0:
+        if hasattr(args, 'audio_map_angle_low') and args.audio_map_angle_low != 0:
             add_mapping('low', 'angle', 0.0, args.audio_map_angle_low)
-        if hasattr(args, 'audio_map_angle_mid') and args.audio_map_angle_mid > 0:
+        if hasattr(args, 'audio_map_angle_mid') and args.audio_map_angle_mid != 0:
             add_mapping('mid', 'angle', 0.0, args.audio_map_angle_mid)
-        if hasattr(args, 'audio_map_angle_high') and args.audio_map_angle_high > 0:
+        if hasattr(args, 'audio_map_angle_high') and args.audio_map_angle_high != 0:
             add_mapping('high', 'angle', 0.0, args.audio_map_angle_high)
         
         # Translation X mappings
-        if hasattr(args, 'audio_map_translation_x_low') and args.audio_map_translation_x_low > 0:
+        if hasattr(args, 'audio_map_translation_x_low') and args.audio_map_translation_x_low != 0:
             add_mapping('low', 'translation_x', 0.0, args.audio_map_translation_x_low)
-        if hasattr(args, 'audio_map_translation_x_mid') and args.audio_map_translation_x_mid > 0:
+        if hasattr(args, 'audio_map_translation_x_mid') and args.audio_map_translation_x_mid != 0:
             add_mapping('mid', 'translation_x', 0.0, args.audio_map_translation_x_mid)
-        if hasattr(args, 'audio_map_translation_x_high') and args.audio_map_translation_x_high > 0:
+        if hasattr(args, 'audio_map_translation_x_high') and args.audio_map_translation_x_high != 0:
             add_mapping('high', 'translation_x', 0.0, args.audio_map_translation_x_high)
         
         # Translation Y mappings
-        if hasattr(args, 'audio_map_translation_y_low') and args.audio_map_translation_y_low > 0:
+        if hasattr(args, 'audio_map_translation_y_low') and args.audio_map_translation_y_low != 0:
             add_mapping('low', 'translation_y', 0.0, args.audio_map_translation_y_low)
-        if hasattr(args, 'audio_map_translation_y_mid') and args.audio_map_translation_y_mid > 0:
+        if hasattr(args, 'audio_map_translation_y_mid') and args.audio_map_translation_y_mid != 0:
             add_mapping('mid', 'translation_y', 0.0, args.audio_map_translation_y_mid)
-        if hasattr(args, 'audio_map_translation_y_high') and args.audio_map_translation_y_high > 0:
+        if hasattr(args, 'audio_map_translation_y_high') and args.audio_map_translation_y_high != 0:
             add_mapping('high', 'translation_y', 0.0, args.audio_map_translation_y_high)
         
         # Translation Z mappings
-        if hasattr(args, 'audio_map_translation_z_low') and args.audio_map_translation_z_low > 0:
+        if hasattr(args, 'audio_map_translation_z_low') and args.audio_map_translation_z_low != 0:
             add_mapping('low', 'translation_z', 1.75, args.audio_map_translation_z_low)
-        if hasattr(args, 'audio_map_translation_z_mid') and args.audio_map_translation_z_mid > 0:
+        if hasattr(args, 'audio_map_translation_z_mid') and args.audio_map_translation_z_mid != 0:
             add_mapping('mid', 'translation_z', 1.75, args.audio_map_translation_z_mid)
-        if hasattr(args, 'audio_map_translation_z_high') and args.audio_map_translation_z_high > 0:
+        if hasattr(args, 'audio_map_translation_z_high') and args.audio_map_translation_z_high != 0:
             add_mapping('high', 'translation_z', 1.75, args.audio_map_translation_z_high)
         
         # 3D Rotation mappings
-        if hasattr(args, 'audio_map_rotation_3d_x_low') and args.audio_map_rotation_3d_x_low > 0:
+        if hasattr(args, 'audio_map_rotation_3d_x_low') and args.audio_map_rotation_3d_x_low != 0:
             add_mapping('low', 'rotation_3d_x', 0.0, args.audio_map_rotation_3d_x_low)
-        if hasattr(args, 'audio_map_rotation_3d_x_mid') and args.audio_map_rotation_3d_x_mid > 0:
+        if hasattr(args, 'audio_map_rotation_3d_x_mid') and args.audio_map_rotation_3d_x_mid != 0:
             add_mapping('mid', 'rotation_3d_x', 0.0, args.audio_map_rotation_3d_x_mid)
-        if hasattr(args, 'audio_map_rotation_3d_x_high') and args.audio_map_rotation_3d_x_high > 0:
+        if hasattr(args, 'audio_map_rotation_3d_x_high') and args.audio_map_rotation_3d_x_high != 0:
             add_mapping('high', 'rotation_3d_x', 0.0, args.audio_map_rotation_3d_x_high)
         
-        if hasattr(args, 'audio_map_rotation_3d_y_low') and args.audio_map_rotation_3d_y_low > 0:
+        if hasattr(args, 'audio_map_rotation_3d_y_low') and args.audio_map_rotation_3d_y_low != 0:
             add_mapping('low', 'rotation_3d_y', 0.0, args.audio_map_rotation_3d_y_low)
-        if hasattr(args, 'audio_map_rotation_3d_y_mid') and args.audio_map_rotation_3d_y_mid > 0:
+        if hasattr(args, 'audio_map_rotation_3d_y_mid') and args.audio_map_rotation_3d_y_mid != 0:
             add_mapping('mid', 'rotation_3d_y', 0.0, args.audio_map_rotation_3d_y_mid)
-        if hasattr(args, 'audio_map_rotation_3d_y_high') and args.audio_map_rotation_3d_y_high > 0:
+        if hasattr(args, 'audio_map_rotation_3d_y_high') and args.audio_map_rotation_3d_y_high != 0:
             add_mapping('high', 'rotation_3d_y', 0.0, args.audio_map_rotation_3d_y_high)
         
-        if hasattr(args, 'audio_map_rotation_3d_z_low') and args.audio_map_rotation_3d_z_low > 0:
+        if hasattr(args, 'audio_map_rotation_3d_z_low') and args.audio_map_rotation_3d_z_low != 0:
             add_mapping('low', 'rotation_3d_z', 0.0, args.audio_map_rotation_3d_z_low)
-        if hasattr(args, 'audio_map_rotation_3d_z_mid') and args.audio_map_rotation_3d_z_mid > 0:
+        if hasattr(args, 'audio_map_rotation_3d_z_mid') and args.audio_map_rotation_3d_z_mid != 0:
             add_mapping('mid', 'rotation_3d_z', 0.0, args.audio_map_rotation_3d_z_mid)
-        if hasattr(args, 'audio_map_rotation_3d_z_high') and args.audio_map_rotation_3d_z_high > 0:
+        if hasattr(args, 'audio_map_rotation_3d_z_high') and args.audio_map_rotation_3d_z_high != 0:
             add_mapping('high', 'rotation_3d_z', 0.0, args.audio_map_rotation_3d_z_high)
         
         # Noise mappings
-        if hasattr(args, 'audio_map_noise_low') and args.audio_map_noise_low > 0:
+        if hasattr(args, 'audio_map_noise_low') and args.audio_map_noise_low != 0:
             add_mapping('low', 'noise_schedule', params['noise'], args.audio_map_noise_low)
-        if hasattr(args, 'audio_map_noise_mid') and args.audio_map_noise_mid > 0:
+        if hasattr(args, 'audio_map_noise_mid') and args.audio_map_noise_mid != 0:
             add_mapping('mid', 'noise_schedule', params['noise'], args.audio_map_noise_mid)
-        if hasattr(args, 'audio_map_noise_high') and args.audio_map_noise_high > 0:
+        if hasattr(args, 'audio_map_noise_high') and args.audio_map_noise_high != 0:
             add_mapping('high', 'noise_schedule', params['noise'], args.audio_map_noise_high)
         
         # CFG scale mappings
-        if hasattr(args, 'audio_map_cfg_low') and args.audio_map_cfg_low > 0:
+        if hasattr(args, 'audio_map_cfg_low') and args.audio_map_cfg_low != 0:
             add_mapping('low', 'cfg_scale_schedule', params['cfg_scale'], args.audio_map_cfg_low)
-        if hasattr(args, 'audio_map_cfg_mid') and args.audio_map_cfg_mid > 0:
+        if hasattr(args, 'audio_map_cfg_mid') and args.audio_map_cfg_mid != 0:
             add_mapping('mid', 'cfg_scale_schedule', params['cfg_scale'], args.audio_map_cfg_mid)
-        if hasattr(args, 'audio_map_cfg_high') and args.audio_map_cfg_high > 0:
+        if hasattr(args, 'audio_map_cfg_high') and args.audio_map_cfg_high != 0:
             add_mapping('high', 'cfg_scale_schedule', params['cfg_scale'], args.audio_map_cfg_high)
         
         if not any(mappings.values()):
