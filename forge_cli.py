@@ -531,7 +531,7 @@ def resolve_deforum_params(
         frames = args.frames
     elif args.duration is not None:
         # Calculate frames from duration and fps
-        frames = int(args.duration * fps)
+        frames = round(args.duration * fps)
     else:
         frames = 120
     
@@ -602,7 +602,7 @@ def cmd_deforum(args: argparse.Namespace) -> None:
         elif args.duration is not None:
             # Calculate frames from duration. Need fps from args or preset
             fps = args.fps if args.fps is not None else settings.get("fps", 24)
-            settings["max_frames"] = int(args.duration * fps)
+            settings["max_frames"] = round(args.duration * fps)
         if args.fps is not None:
             settings["fps"] = int(args.fps)
         if args.width is not None:
