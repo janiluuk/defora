@@ -4,6 +4,8 @@ This directory contains practical example scripts demonstrating various use case
 
 ## Available Examples
 
+**Note**: All example scripts should be run from the repository root directory where `forge_cli.py` is located.
+
 ### 1. Batch Generation (`batch_generate.sh`)
 Generate multiple images from a predefined list of prompts. Great for creating themed image sets.
 
@@ -60,11 +62,13 @@ chmod +x examples/animation_series.sh
 
 All example scripts can be customized by editing these variables at the top of each file:
 
-- `CLI_PATH`: Path to forge_cli.py (default: `./forge_cli.py`)
+- `CLI_PATH`: Path to forge_cli.py (default: `./forge_cli.py` - assumes running from repo root)
 - `PROMPT`: The generation prompt
 - `NEGATIVE`: Negative prompt to avoid unwanted features
 - `WIDTH` / `HEIGHT`: Output dimensions
 - Various other settings specific to each script
+
+**Important**: If you move scripts or run them from a different location, update the `CLI_PATH` variable to point to the correct location of `forge_cli.py`.
 
 ## Making All Examples Executable
 
