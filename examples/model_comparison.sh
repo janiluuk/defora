@@ -7,12 +7,6 @@ CLI_PATH="./forge_cli.py"
 PROMPT="a magical forest with glowing mushrooms, fairy tale, detailed"
 NEGATIVE="blurry, low quality, bad anatomy"
 
-# Get list of available models
-echo "Fetching available models..."
-$CLI_PATH models > /tmp/models_list.txt
-
-# Extract model names (simplified - in practice you'd parse this properly)
-echo ""
 echo "Generating with different models..."
 echo "Prompt: $PROMPT"
 echo ""
