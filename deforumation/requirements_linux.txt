@@ -1,0 +1,13 @@
+PySide6>=6.6.0
+numpy>=1.26.1
+pyeaze>=0.8.1
+websockets~=12.0
+python-osc~=1.8.3
+inputs~=0.5
+pyjoystick~=1.2.4
+pyqtgraph~=0.13.3
+python3-pyaudio
+pydub
+librosa~=0.10.1
+scipy~=1.11.4
+SpeechRecognition~=3.10.3
