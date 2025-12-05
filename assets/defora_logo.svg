@@ -1,0 +1,30 @@
+<svg width="640" height="360" viewBox="0 0 640 360" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="g1" x1="120" y1="40" x2="560" y2="320" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ff53d9"/>
+      <stop offset="0.5" stop-color="#8a5bff"/>
+      <stop offset="1" stop-color="#2de2ff"/>
+    </linearGradient>
+    <radialGradient id="g2" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(320 180) rotate(90) scale(240 320)">
+      <stop stop-color="#1b2540" stop-opacity="0.9"/>
+      <stop offset="1" stop-color="#06080f"/>
+    </radialGradient>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="12" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="640" height="360" rx="24" fill="url(#g2)"/>
+  <g filter="url(#glow)">
+    <path d="M160 250C160 170 220 110 320 110C420 110 480 170 480 250C480 290 450 320 410 320H230C190 320 160 290 160 250Z" fill="url(#g1)" fill-opacity="0.12"/>
+    <circle cx="200" cy="130" r="50" fill="url(#g1)" fill-opacity="0.35"/>
+    <circle cx="460" cy="120" r="60" fill="url(#g1)" fill-opacity="0.28"/>
+  </g>
+  <path d="M280 270C260 270 240 255 240 230V140C240 130 248 122 258 122H350C360 122 368 130 368 140C368 150 360 158 350 158H288V230C288 245 300 254 315 254H360C370 254 378 262 378 272C378 282 370 290 360 290H300C292 290 286 288 280 285Z" fill="#e8edf7"/>
+  <path d="M390 118C399 107 415 106 425 116L450 141C458 149 458 162 449 171L413 206C405 215 391 214 383 205L358 179C350 171 350 158 359 149L390 118Z" fill="url(#g1)"/>
+  <path d="M231 250H360C373 250 384 261 384 274C384 287 373 298 360 298H244C238 298 231 296 226 292C211 280 201 262 201 242V206C201 194 211 184 223 184C235 184 245 194 245 206V234C245 243 250 250 259 250Z" fill="url(#g1)" fill-opacity="0.6"/>
+  <text x="244" y="95" fill="#e8edf7" font-family="'Space Grotesk', Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="2">DEFORA</text>
+</svg>

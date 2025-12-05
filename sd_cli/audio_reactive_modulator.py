@@ -65,6 +65,8 @@ def compute_modulations(
 ) -> Dict[str, List[float]]:
     if np is None:
         raise ImportError("numpy is required for compute_modulations")
+    if fps <= 0:
+        raise ValueError("fps must be > 0")
     samples_per_frame = max(1, int(sample_rate / fps))
     frame_count = math.ceil(len(audio) / samples_per_frame)
     spectra: Dict[str, List[float]] = {m.param: [] for m in mappings}
@@ -150,7 +152,7 @@ def parse_mappings(mapping_arg: Optional[str]) -> List[BandMapping]:
 def main():
     parser = argparse.ArgumentParser(description="Audio-reactive modulator for Deforumation.")
     parser.add_argument("--audio", required=True, help="Path to audio file (wav recommended)")
-    parser.add_argument("--fps", type=int, default=24, help="Target frames per second")
+    parser.add_argument("--fps", type=int, default=24, help="Target frames per second (must be > 0)")
     parser.add_argument("--mapping", help="JSON file or inline JSON array of band mappings")
     parser.add_argument("--output", help="Path to write schedule JSON (offline mode)")
     parser.add_argument("--live", action="store_true", help="Send values live to mediator")
@@ -158,6 +160,8 @@ def main():
     parser.add_argument("--mediator-port", default="8766", help="Mediator port")
     args = parser.parse_args()
 
+    if args.fps <= 0:
+        raise SystemExit("fps must be greater than zero")
     mappings = parse_mappings(args.mapping)
     audio, sr = load_audio_mono(Path(args.audio))
     schedule = compute_modulations(audio, sr, args.fps, mappings)

@@ -1,0 +1,14 @@
+#!/usr/bin/env python3
+"""
+Wrapper entrypoint for sd_cli.deforumation_runs_cli (curses UI).
+"""
+import curses
+from sd_cli import deforumation_runs_cli as _runs
+
+
+def _main():
+    curses.wrapper(_runs.main)
+
+
+if __name__ == "__main__":
+    _main()

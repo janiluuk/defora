@@ -1,0 +1,20 @@
+{
+  "name": "sd-cli-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo 'static assets only'",
+    "start": "node server.js",
+    "test": "mocha test/ui.spec.js"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.3",
+    "express": "^4.19.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "chai": "^4.4.1",
+    "jsdom": "^24.1.0",
+    "mocha": "^10.7.0"
+  }
+}

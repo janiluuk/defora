@@ -1,0 +1,58 @@
+version: "3.9"
+
+services:
+  encoder:
+    image: jrottenberg/ffmpeg:4.4-alpine
+    command: >
+      sh -c "
+        until ls /data/frames/frame_00001.png >/dev/null 2>&1; do
+          echo 'Waiting for frames in /data/frames ...';
+          sleep 2;
+        done;
+        ffmpeg -re -framerate ${FPS:-24} -pattern_type glob -i '/data/frames/frame_*.png'
+          -vf scale=${RESOLUTION:-1280:720}
+          -c:v libx264 -preset veryfast -tune zerolatency -g $(( ${FPS:-24} * 2 ))
+          -f flv rtmp://web:1935/live/deforum
+      "
+    volumes:
+      - frames:/data/frames
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    ports:
+      - "8080:80"
+      - "1935:1935"
+    volumes:
+      - frames:/data/frames:ro
+      - hls:/var/www/hls
+    environment:
+      - RABBIT_URL=amqp://mq
+
+  mq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    volumes:
+      - mqdata:/var/lib/rabbitmq
+
+  control-bridge:
+    build:
+      context: .
+      dockerfile: docker/bridge/Dockerfile
+    environment:
+      - MQ_URL=amqp://mq
+      - MQ_QUEUE=controls
+      - MEDIATOR_HOST=${MEDIATOR_HOST:-host.docker.internal}
+      - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
+    depends_on:
+      - mq
+
+volumes:
+  frames:
+  hls:
+  mqdata:

@@ -28,6 +28,14 @@ class TestAudioReactiveModulator(unittest.TestCase):
         self.assertAlmostEqual(max(sched["low"]), 1.0, places=3)
         self.assertAlmostEqual(max(sched["mid"]), 1.0, places=3)
 
+    def test_fps_validation(self):
+        if np is None:
+            self.skipTest("numpy not installed")
+        audio = np.zeros(10, dtype=np.float32)
+        mappings = [BandMapping("x", 0, 1, 0.0, 1.0)]
+        with self.assertRaises(ValueError):
+            compute_modulations(audio, 100, 0, mappings)
+
 
 if __name__ == "__main__":
     unittest.main()

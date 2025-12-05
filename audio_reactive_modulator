@@ -1,0 +1,9 @@
+#!/usr/bin/env python3
+"""
+Wrapper entrypoint for sd_cli.audio_reactive_modulator.
+"""
+from sd_cli import audio_reactive_modulator as _arm
+
+
+if __name__ == "__main__":
+    _arm.main()

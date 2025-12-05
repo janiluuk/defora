@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Defora Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://unpkg.com/vue@3.4.27/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+  <style>
+    :root {
+      --bg: #06080f;
+      --panel: #0f1422;
+      --panel-2: #11182d;
+      --border: #1f2a44;
+      --glow1: #ff53d9;
+      --glow2: #2de2ff;
+      --text: #e8edf7;
+      --muted: #9bb1d0;
+      --success: #5af2a9;
+      --danger: #ff4d6d;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Space Grotesk", Arial, sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(255, 83, 217, 0.12), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(45, 226, 255, 0.12), transparent 25%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 12px 16px;
+      background: rgba(13, 18, 34, 0.8);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(6px);
+      display: grid;
+      grid-template-columns: 1.4fr 1fr 1fr;
+      gap: 10px;
+      align-items: center;
+    }
+    .brand { font-weight: 700; letter-spacing: 0.5px; font-size: 18px; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: var(--muted); cursor: pointer; }
+    .tab.active { border-color: var(--glow2); color: var(--text); box-shadow: 0 6px 20px rgba(45,226,255,0.12); }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: #11182d; color: var(--muted); font-size: 12px; }
+    .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); }
+    .pill.danger .dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
+    .btn { background: linear-gradient(90deg, var(--glow1), var(--glow2)); color: #0a0c12; border: none; border-radius: 999px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+    .btn.ghost { background: #0f172a; color: var(--text); border: 1px solid var(--border); }
+    .layout { flex: 1; display: grid; grid-template-columns: 1.8fr 1fr; gap: 10px; padding: 10px; }
+    .preview { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; display: grid; gap: 10px; }
+    .video-wrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: #000; }
+    video { width: 100%; display: block; background: #000; }
+    .overlay { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 8px 10px; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); font-size: 12px; }
+    .timeline { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; }
+    .thumbs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 6px; }
+    .thumb { width: 70px; height: 40px; border-radius: 8px; background: #11182a; border: 1px solid var(--border); }
+    .wave { height: 40px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,83,217,0.2), rgba(45,226,255,0.2)); border: 1px solid var(--border); }
+    .rack { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
+    .rack h3 { margin: 0 0 8px 0; }
+    .slider-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; color: var(--muted); }
+    .slider-row input[type=range] { width: 100%; accent-color: var(--glow2); }
+    .source { display: inline-flex; gap: 6px; font-size: 12px; color: var(--muted); align-items: center; }
+    .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip { padding: 8px 12px; border-radius: 999px; border: 1px solid var(--border); background: #11182a; color: var(--text); cursor: pointer; }
+    .chip.active { border-color: var(--glow2); color: var(--glow2); }
+    .context { grid-column: 1 / span 2; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; }
+    .context h4 { margin: 0 0 6px 0; }
+    .table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
+    .table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; }
+    .xy-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--glow2); box-shadow: 0 0 10px var(--glow2); }
+    @media (max-width: 1100px) {
+      .layout { grid-template-columns: 1fr; }
+      .context { grid-column: 1; }
+    }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="brand">Defora · Session: {{ session }}</div>
+      <div class="tabs">
+        <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
+          {{ tab.label }}
+        </button>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn" @click="sendControl('transport',{action:'toggle'})">⏯</button>
+        <button class="btn ghost" @click="sendControl('transport',{action:'stop'})">⏹</button>
+        <button class="btn ghost" @click="sendControl('transport',{action:'record'})">● Rec</button>
+        <div class="pill"><span>FPS</span><strong>{{ stats.fps }}</strong></div>
+        <div class="pill"><span>Lat</span><strong>{{ stats.lat }}ms</strong></div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- Left: video + mini timeline -->
+      <div class="preview">
+        <div class="video-wrap">
+          <video id="player" controls autoplay muted playsinline></video>
+          <div class="overlay">
+            <div>Time {{ timecode }}</div>
+            <div>Seed {{ hud.seed }}</div>
+          </div>
+        </div>
+        <div class="timeline">
+          <div class="thumbs">
+            <div class="thumb" v-for="n in 10" :key="'t'+n"></div>
+          </div>
+          <div class="wave"></div>
+        </div>
+      </div>
+
+      <!-- Right: control rack per tab -->
+      <div>
+        <div v-if="currentTab==='LIVE'">
+          <div class="rack">
+            <h3>Vibe & Style</h3>
+            <div class="slider-row" v-for="p in liveVibe" :key="p.key">
+              <div>{{ p.label }}</div>
+              <div>
+                <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)">
+                <div class="source">
+                  <span :title="sourceTip(p)">Source: </span>
+                  <span class="chip" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</span>
+                  <span class="chip" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</span>
+                  <span class="chip" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Camera</h3>
+            <div class="slider-row" v-for="p in liveCam" :key="p.key">
+              <div>{{ p.label }}</div>
+              <div>
+                <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)">
+                <div class="source" v-if="p.sourceable">
+                  <span class="chip" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</span>
+                  <span class="chip" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</span>
+                  <span class="chip" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</span>
+                </div>
+              </div>
+            </div>
+            <div class="chips">
+              <span class="chip" v-for="p in motionPresets" :key="p" @click="sendPreset(p)">{{ p }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='PROMPTS'">
+          <div class="rack">
+            <h3>Positive prompt</h3>
+            <input class="select" v-model="prompts.pos" placeholder="positive prompt" />
+            <button class="btn ghost" style="margin-top:6px;">Edit full prompt</button>
+          </div>
+          <div class="rack">
+            <h3>Negative prompt</h3>
+            <input class="select" v-model="prompts.neg" placeholder="negative prompt" />
+            <button class="btn ghost" style="margin-top:6px;">Edit negative</button>
+          </div>
+          <div class="rack">
+            <h3>Prompt morphing</h3>
+            <div class="chips">
+              <span class="chip" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</span>
+              <span class="chip" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</span>
+            </div>
+            <div class="wave" style="margin-top:6px; height:24px; background: linear-gradient(90deg, var(--glow1), var(--glow2));"></div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='MOTION'">
+          <div class="rack">
+            <h3>Camera pad</h3>
+            <div class="xy-pad">
+              <div class="xy-dot" :style="{left:'60px', top:'60px'}"></div>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Zoom & Tilt</h3>
+            <div class="slider-row">
+              <div>Zoom</div>
+              <input type="range" min="-5" max="5" step="0.05" value="0.8" @input="sendControl('liveParam',{translation_z: parseFloat($event.target.value)})">
+            </div>
+            <div class="slider-row">
+              <div>Tilt</div>
+              <input type="range" min="-180" max="180" step="0.5" value="0" @input="sendControl('liveParam',{rotation_z: parseFloat($event.target.value)})">
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Motion style</h3>
+            <div class="chips">
+              <span class="chip" v-for="m in motionStyles" :key="m" @click="sendControl('motionStyle',{style:m})">{{ m }}</span>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='AUDIO'">
+          <div class="rack">
+            <h3>Track & tempo</h3>
+            <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track"></div>
+            <div class="slider-row"><div>BPM</div><input class="select" type="number" v-model.number="audio.bpm"></div>
+            <div class="chips" style="margin-top:6px;">
+              <span class="chip">Re-detect</span>
+              <span class="chip">Tap tempo</span>
+              <span class="chip">Add tempo change</span>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Beat macros</h3>
+            <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" style="border:1px solid var(--border); border-radius:10px; padding:8px; margin-bottom:6px;">
+              <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
+                <span>Macro {{ idx+1 }}</span>
+                <span class="chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
+              </div>
+              <div class="slider-row"><div>Target</div><select class="select" v-model="m.target"><option>Vibe (CFG)</option><option>Zoom</option><option>Noise</option></select></div>
+              <div class="slider-row"><div>Shape</div><select class="select" v-model="m.shape"><option>Sine</option><option>Saw</option><option>Noise</option></select></div>
+              <div class="slider-row"><div>Speed</div><select class="select" v-model="m.speed"><option>1/4 note</option><option>1 bar</option><option>1/8 note</option></select></div>
+              <div class="slider-row"><div>Depth</div><input type="range" min="0" max="1" step="0.01" v-model.number="m.depth"></div>
+              <div class="slider-row"><div>Offset</div><input type="range" min="-1" max="1" step="0.01" v-model.number="m.offset"></div>
+              <div class="chips"><span class="chip" @click="m.show=true">Show in graph</span></div>
+            </div>
+            <div class="chips"><span class="chip" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</span></div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='CONTROLNET'">
+          <div class="rack">
+            <h3>ControlNet slots</h3>
+            <div class="chips">
+              <span class="chip" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</span>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>{{ activeSlot.label }}</h3>
+            <div class="chips" style="margin-bottom:8px;">
+              <span class="chip">Change image</span>
+              <span class="chip">Model: {{ activeSlot.model }}</span>
+            </div>
+            <div class="slider-row"><div>Weight</div><input type="range" min="0" max="1" step="0.01" :value="activeSlot.weight"></div>
+            <div class="slider-row"><div>Start</div><input type="range" min="0" max="1" step="0.01" value="0"></div>
+            <div class="slider-row"><div>End</div><input type="range" min="0" max="1" step="0.01" value="0.9"></div>
+            <div class="chips"><span class="chip">Enabled</span><span class="chip">Bypass</span></div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='SETTINGS'">
+          <div class="rack">
+            <h3>Engine</h3>
+            <div class="slider-row"><div>Resolution</div><select class="select"><option>1024x576</option><option>1280x720</option></select></div>
+            <div class="slider-row"><div>FPS</div><select class="select"><option>24</option><option selected>30</option><option>60</option></select></div>
+            <div class="slider-row"><div>Steps</div><select class="select"><option>24</option><option>30</option><option>40</option></select></div>
+            <div class="chips">
+              <span class="chip">Seed: 42490527</span>
+              <span class="chip">Sampler: DPM++ 2M Karras</span>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Controllers (WebMIDI)</h3>
+            <div v-if="!midi.supported" style="color:var(--muted);">WebMIDI not supported or not enabled.</div>
+            <div v-else>
+              <div class="chips" style="margin-bottom:6px;">
+                <span class="chip" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</span>
+                <span class="chip" @click="scanMidi()">Rescan</span>
+              </div>
+              <div class="chips"><span class="chip">Learn mode</span><span class="chip">Status: {{ midiStatus }}</span></div>
+              <table class="table">
+                <thead><tr><th>Source</th><th>Target</th><th>Mode</th><th>Curve</th></tr></thead>
+                <tbody>
+                  <tr v-for="m in midi.mappings" :key="m.control">
+                    <td>{{ m.control }}</td><td>{{ m.param }}</td><td>Absolute</td><td>Linear</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom context panel -->
+      <div class="context">
+        <div v-if="currentTab==='LIVE'">
+          <h4>Beat & MIDI status</h4>
+          <div style="display:flex; gap:12px; flex-wrap:wrap;">
+            <div style="min-width:240px;">
+              <strong>Beat macros ({{ macrosRack.length }})</strong>
+              <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--muted);">
+                • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
+              </div>
+            </div>
+            <div style="min-width:240px;">
+              <strong>MIDI mappings</strong>
+              <div style="font-size:12px; color:var(--muted);">
+                • LaunchControl CC21 → Vibe<br/>
+                • LaunchControl CC22 → Strength<br/>
+                • LaunchControl CC23 → Zoom
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='PROMPTS'">
+          <h4>Morph slots</h4>
+          <table class="table">
+            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
+            <tbody>
+              <tr v-for="slot in morphSlots" :key="slot.id">
+                <td>{{ slot.id }}</td>
+                <td>{{ slot.on ? '●' : '○' }}</td>
+                <td>{{ slot.name }}</td>
+                <td>{{ slot.a }}</td>
+                <td>{{ slot.b }}</td>
+                <td>{{ slot.range }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
+        </div>
+
+        <div v-else-if="currentTab==='MOTION'">
+          <h4>Camera curves</h4>
+          <div class="wave" style="height:100px; background:#11182a; margin-bottom:8px;"></div>
+          <div style="font-size:12px; color:var(--muted);">Pan X/Y and Zoom curves over beats. Tools: Apply Sine/Saw, Smooth, Snap to Beats.</div>
+        </div>
+
+        <div v-else-if="currentTab==='AUDIO'">
+          <h4>Active macro curve</h4>
+          <div class="wave" style="height:120px; background:#11182a; margin-bottom:8px;"></div>
+          <div class="chips">
+            <span class="chip">◠ Sine</span><span class="chip">△ Triangle</span><span class="chip">/ Saw</span><span class="chip">⧠ Square</span><span class="chip">~ Noise</span><span class="chip">♫ From audio peaks</span>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='CONTROLNET'">
+          <h4>Drive parameters</h4>
+          <div class="chips">
+            <span class="chip">Vibe / CFG</span><span class="chip">Camera pan</span><span class="chip">Zoom pulses</span><span class="chip">Noise / Glitch</span>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='SETTINGS'">
+          <h4>MIDI mappings</h4>
+          <table class="table">
+            <thead><tr><th>Source</th><th>Target</th><th>Mode</th><th>Curve</th></tr></thead>
+            <tbody>
+              <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
+                <td>{{ m.control }}</td><td>{{ m.param }}</td><td>Absolute</td><td>Linear</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const { createApp } = Vue;
+    createApp({
+      data() {
+        return {
+          session: "clown_set_01",
+          tabs: [
+            { id: "LIVE", label: "LIVE" },
+            { id: "PROMPTS", label: "PROMPTS" },
+            { id: "MOTION", label: "MOTION" },
+            { id: "AUDIO", label: "AUDIO/BEATS" },
+            { id: "CONTROLNET", label: "CN" },
+            { id: "SETTINGS", label: "SETTINGS" },
+          ],
+          currentTab: "LIVE",
+          stats: { fps: 27, lat: 120 },
+          hud: { seed: 42490527 },
+          timecode: "00:00.00",
+          liveVibe: [
+            { key: "cfg", label: "Vibe (CFG)", val: 0.63, min: 0, max: 1.5, step: 0.01 },
+            { key: "strength", label: "Strength", val: 0.78, min: 0, max: 1.5, step: 0.01 },
+            { key: "noise", label: "Noise/Glitch", val: 0.2, min: 0, max: 1, step: 0.01 },
+            { key: "cfgscale", label: "CFG scale", val: 5.0, min: 0, max: 15, step: 0.1 },
+          ],
+          liveCam: [
+            { key: "zoom", label: "Zoom", val: 0.8, min: -5, max: 5, step: 0.05, sourceable: true },
+            { key: "panx", label: "Pan X", val: 0.1, min: -1, max: 1, step: 0.05, sourceable: false },
+            { key: "pany", label: "Pan Y", val: 0.0, min: -1, max: 1, step: 0.05, sourceable: false },
+            { key: "tilt", label: "Tilt / Rotate", val: 0.0, min: -180, max: 180, step: 0.5, sourceable: false },
+          ],
+          paramSources: {
+            cfg: "Manual",
+            strength: "Manual",
+            noise: "Beat",
+            cfgscale: "Manual",
+            zoom: "Beat",
+          },
+          prompts: { pos: "", neg: "", morphOn: true },
+          morphSlots: [
+            { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
+            { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
+            { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
+          ],
+          motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
+          motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
+          audio: { track: "my_track.wav", bpm: 114.8 },
+          macrosRack: [
+            { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
+            { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
+            { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
+          ],
+          cn: {
+            slots: [
+              { id: "CN1", label: "CN1", model: "Canny", weight: 0.4 },
+              { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4 },
+              { id: "CN3", label: "CN3", model: "Pose", weight: 0.4 },
+              { id: "CN4", label: "CN4", model: "Tile", weight: 0.4 },
+              { id: "CN5", label: "CN5", model: "Control", weight: 0.4 },
+            ],
+            active: "CN2",
+          },
+          midi: {
+            supported: !!navigator.requestMIDIAccess,
+            devices: [],
+            selected: null,
+            mappings: [
+              { control: "LaunchControl CC21", param: "Vibe (CFG)" },
+              { control: "LaunchControl CC22", param: "Strength" },
+              { control: "LaunchControl CC23", param: "Zoom" },
+            ],
+          },
+          midiStatus: "Ready",
+          ws: null,
+        };
+      },
+      computed: {
+        activeSlot() {
+          return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
+        },
+      },
+      mounted() {
+        this.attachPlayer();
+        this.setupWS();
+        this.scanMidi();
+      },
+      methods: {
+        switchTab(id) {
+          this.currentTab = id;
+        },
+        attachPlayer() {
+          const video = document.getElementById("player");
+          const hlsSource = "/hls/deforum.m3u8";
+          if (video.canPlayType("application/vnd.apple.mpegurl")) {
+            video.src = hlsSource;
+          } else if (Hls.isSupported()) {
+            const hls = new Hls();
+            hls.loadSource(hlsSource);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+          }
+          setInterval(() => {
+            if (!isNaN(video.currentTime)) {
+              const t = video.currentTime;
+              const m = Math.floor(t / 60);
+              const s = (t % 60).toFixed(2).padStart(5, "0");
+              this.timecode = `${String(m).padStart(2, "0")}:${s}`;
+            }
+          }, 200);
+        },
+        setupWS() {
+          this.ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
+          this.ws.onopen = () => console.log("WS connected");
+          this.ws.onmessage = (evt) => {
+            try {
+              const msg = JSON.parse(evt.data);
+              if (msg.type === "event") console.log(msg.msg || "event");
+            } catch (_) {}
+          };
+        },
+        sendControl(controlType, payload) {
+          if (!this.ws || this.ws.readyState !== 1) return;
+          const msg = { type: "control", controlType, payload };
+          this.ws.send(JSON.stringify(msg));
+        },
+        updateParam(p, evt) {
+          const val = parseFloat(evt.target.value);
+          p.val = val;
+          this.sendControl("liveParam", { [p.key]: val });
+        },
+        setSource(key, source) {
+          this.paramSources[key] = source;
+          this.sendControl("paramSource", { key, source });
+        },
+        sourceTip(p) {
+          const src = this.paramSources[p.key];
+          if (src === "Beat") return "Beat/LFO";
+          if (src === "MIDI") return "MIDI mapping";
+          return "Manual";
+        },
+        sendPreset(name) {
+          this.sendControl("motionPreset", { name });
+        },
+        setMorph(on) {
+          this.prompts.morphOn = on;
+          this.sendControl("prompts", { morphOn: on });
+        },
+        addMacro() {
+          if (this.macrosRack.length >= 6) return;
+          this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.5, offset: 0.0, show: false });
+        },
+        async scanMidi() {
+          if (!navigator.requestMIDIAccess) {
+            this.midi.supported = false;
+            return;
+          }
+          try {
+            const access = await navigator.requestMIDIAccess({ sysex: false });
+            const devices = [];
+            access.inputs.forEach((input) => {
+              devices.push({ id: input.id, name: input.name });
+              input.onmidimessage = (msg) => this.handleMidi(input, msg);
+            });
+            this.midi.devices = devices;
+            if (!this.midi.selected && devices.length) this.midi.selected = devices[0].id;
+          } catch (e) {
+            this.midiStatus = "MIDI not available";
+          }
+        },
+        handleMidi(input, msg) {
+          const [status, cc, value] = msg.data;
+          const isCC = (status & 0xf0) === 0xb0;
+          if (!isCC) return;
+          const idx = cc % this.midi.mappings.length;
+          const mapping = this.midi.mappings[idx];
+          const norm = value / 127;
+          if (mapping && mapping.param) {
+            this.sendControl("liveParam", { [mapping.param.toLowerCase().replace(/[^a-z]+/g, "")]: norm });
+          }
+        },
+      },
+    }).mount("#app");
+  </script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+#!/usr/bin/env python3
+"""
+Wrapper entrypoint for sd_cli.deforumation_cli_panel (curses UI).
+"""
+import argparse
+import curses
+from sd_cli import deforumation_cli_panel as _panel
+
+
+def _main():
+    parser = argparse.ArgumentParser(description="Deforumation terminal control panel")
+    parser.add_argument("--host", default=None, help="Mediator host (default: localhost)")
+    parser.add_argument("--port", default=None, help="Mediator port (default: 8766)")
+    args = parser.parse_args()
+    curses.wrapper(lambda stdscr: _panel.main(stdscr, args.host, args.port))
+
+
+if __name__ == "__main__":
+    _main()
