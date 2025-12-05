@@ -27,11 +27,14 @@ Usage examples
 # 4) Switch to a specific model by substring (see `models` output)
 ./forge_cli.py --model "revAnimated" img "anime girl in a city"
 
-# 5) Deforum animation with sane defaults (no preset)
+# 5) Deforum animation with duration in seconds (simplest form)
+./forge_cli.py deforum -d 10 "surreal biomechanical landscape, slowly zooming"
+
+# 6) Deforum animation with explicit frame count
 ./forge_cli.py deforum -f 240 --fps 24 \
   "surreal biomechanical landscape, slowly zooming"
 
-# 6) Deforum with a JSON preset exported from the Deforum UI.
+# 7) Deforum with a JSON preset exported from the Deforum UI.
 #    Only prompts (+ optional frames/fps/size if you specify flags) are overridden.
 ./forge_cli.py deforum --preset my_deforum_preset.json \
   "cosmic fractal cathedral" \
@@ -521,8 +524,17 @@ def resolve_deforum_params(
     sampler = args.sampler if args.sampler is not None else profile["def_sampler"]
 
     # Generic base defaults when no preset is used
-    frames = args.frames if args.frames is not None else 120
     fps = args.fps if args.fps is not None else 24
+    
+    # Handle duration vs frames: --frames takes precedence over --duration
+    if args.frames is not None:
+        frames = args.frames
+    elif args.duration is not None:
+        # Calculate frames from duration and fps
+        frames = round(args.duration * fps)
+    else:
+        frames = 120
+    
     width = args.width if args.width is not None else 1024
     height = args.height if args.height is not None else 576
     zoom = args.zoom if args.zoom is not None else 1.02
@@ -584,8 +596,13 @@ def cmd_deforum(args: argparse.Namespace) -> None:
             settings["animation_prompts_negative"] = args.negative
 
         # These overrides are applied ONLY if user explicitly provides them.
+        # Handle duration: if --frames is provided, use it; elif --duration is provided, calculate frames
         if args.frames is not None:
             settings["max_frames"] = int(args.frames)
+        elif args.duration is not None:
+            # Calculate frames from duration. Need fps from args or preset
+            fps = args.fps if args.fps is not None else settings.get("fps", 24)
+            settings["max_frames"] = round(args.duration * fps)
         if args.fps is not None:
             settings["fps"] = int(args.fps)
         if args.width is not None:
@@ -705,8 +722,8 @@ Examples:
   forge_cli.py models
       List all known checkpoints, their detected class and which one is active.
 
-  forge_cli.py deforum "cosmic fractal cathedral"
-      Fire a Deforum run with model-aware defaults (no preset, server must be started with --deforum-api).
+  forge_cli.py deforum -d 10 "cosmic fractal cathedral"
+      Fire a Deforum run with 10-second duration (240 frames at 24fps default) with model-aware defaults.
 
   forge_cli.py deforum --preset preset.json "dreamlike forest"
       Use a Deforum JSON preset file and only override prompts (+ optional frames/fps/size if given).
@@ -861,11 +878,18 @@ Examples:
         ),
     )
     p_def.add_argument(
+        "-d",
+        "--duration",
+        type=float,
+        default=None,
+        help="Duration in seconds for the animation. Calculates frames as duration * fps. If both --duration and --frames are given, --frames takes precedence.",
+    )
+    p_def.add_argument(
         "-f",
         "--frames",
         type=int,
         default=None,
-        help="Number of frames to render. Default 120 (no preset); with preset, only overrides if set.",
+        help="Number of frames to render. Default 120 (no preset); with preset, only overrides if set. Overrides --duration if both are specified.",
     )
     p_def.add_argument(
         "--fps",
