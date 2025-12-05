@@ -1,1 +1,0 @@
-rw.bat "--mediator_deforum_address 127.0.0.1" "--use_named_pipes --use_osc --osc_port 7777"
