@@ -1,10 +1,17 @@
-# defora — audio-visual instrument for Forge/Deforumation
+# Defora — audio-visual instrument for Stahle Diffusion Forge/Deforumation
 
 <p align="center">
   <img src="assets/defora_logo.svg" alt="defora logo" width="480" />
 </p>
 
-defora turns Stable Diffusion Forge + Deforumation into a playable instrument: live visuals, prompt morphing, camera motion, beat-synced controls, and a neon-styled web UI for performance.
+Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: live visuals, prompt morphing, camera motion, beat-synced controls, and a neon-styled web UI for performance.
+
+## Requires
+- Moderately fast GPU (4070ti / 5060ti tested) with at least 12G VRAM
+- Models that have either Lightning support or accompanying LORa that need 1-2 steps for a frame. SDXL Lightning is proven to be working fine
+- 32GB ram is minimum, 64gb ram recommended
+- Stable Diffusion Forge + Deforum extension from **https://github.com/Tok/sd-forge-deforum** and **https://github.com/lllyasviel/stable-diffusion-webui-forge**
+- There is docker stack including these in the package but it is recommended to run on external node 
 
 ## What’s inside
 - `forge_cli` — model-aware txt2img/Deforum CLI with preset support and sensible defaults.
