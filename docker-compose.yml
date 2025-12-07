@@ -31,6 +31,34 @@ services:
       - hls:/var/www/hls
     environment:
       - RABBIT_URL=amqp://mq
+      - FRAMES_DIR=/data/frames
+      - HLS_STREAM=/hls/live/deforum.m3u8
+      - HLS_DIR=/var/www/hls
+
+  sd-forge:
+    image: sd-forge:latest
+    command: ["sleep", "infinity"]
+    volumes:
+      - frames:/data/frames
+      - hls:/var/www/hls
+    environment:
+      - OUTPUT_DIR=/data/frames
+      - HLS_PATH=/var/www/hls
+    depends_on:
+      - web
+
+  dev-frame-seeder:
+    build:
+      context: .
+      dockerfile: docker/frame-seeder/Dockerfile
+    environment:
+      - OUTPUT_DIR=/data/frames
+      - FPS=12
+      - CLEAR=1
+    volumes:
+      - frames:/data/frames
+    depends_on:
+      - web
 
   mq:
     image: rabbitmq:3-management

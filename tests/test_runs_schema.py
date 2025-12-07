@@ -1,6 +1,6 @@
 import unittest
 
-from sd_cli.run_manifest_schema import validate_run_manifest
+from defora_cli.run_manifest_schema import validate_run_manifest
 
 
 class TestRunManifestSchema(unittest.TestCase):

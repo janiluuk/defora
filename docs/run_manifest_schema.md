@@ -18,4 +18,4 @@ Fields:
 
 Example: see `docs/run_manifest_example.json`.
 
-Validation: `sd_cli/run_manifest_schema.py` provides a minimal validator used by `sd_cli/deforumation_runs_cli.py` and tests in `tests/test_runs_schema.py`.
+Validation: `defora_cli/run_manifest_schema.py` provides a minimal validator used by `defora_cli/deforumation_runs_cli.py` and tests in `tests/test_runs_schema.py`.

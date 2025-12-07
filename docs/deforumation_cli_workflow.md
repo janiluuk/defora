@@ -12,7 +12,7 @@
   - `./deforumation_request_dispatcher --mode continue --init-image last.png --preset my_preset.json --execute`
 
 ### Rerun/continue from saved runs
-- In `sd_cli/deforumation_runs_cli.py` (or `./deforumation_runs_cli`): select a run, set overrides, `R` (rerun) or `c` (continue). It writes `*_request.json` and, if `DEFORUMATION_AUTO_DISPATCH=1`, dispatches in the background via `sd_cli/forge_cli.py`.
+- In `defora_cli/deforumation_runs_cli.py` (or `./deforumation_runs_cli`): select a run, set overrides, `R` (rerun) or `c` (continue). It writes `*_request.json` and, if `DEFORUMATION_AUTO_DISPATCH=1`, dispatches in the background via `defora_cli/forge_cli.py`.
 - Dispatcher can execute a saved request:
   - `./deforumation_request_dispatcher --request runs/<id>/rerun_request.json --execute`
 
@@ -31,5 +31,5 @@
   - `--live` sends values to the mediator in real time; `--mapping` can be a JSON file or inline array with `param`, `freq_min/freq_max`, `out_min/out_max`.
 
 ### Live controls
-- `sd_cli/deforumation_cli_panel.py` (or `./deforumation_cli_panel`): live tweak strength/CFG/noise/xyz/rot/fov via mediator.
+- `defora_cli/deforumation_cli_panel.py` (or `./deforumation_cli_panel`): live tweak strength/CFG/noise/xyz/rot/fov via mediator.
 - Mediator host/port can be set via env or config; ensures “should_use” flags are enabled on start.

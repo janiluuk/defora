@@ -2,7 +2,7 @@ import asyncio
 import pickle
 import unittest
 
-from sd_cli.mediator_client import MediatorClient
+from defora_cli.mediator_client import MediatorClient
 
 
 class FakeWebSocket:

@@ -1,66 +1,167 @@
 #!/usr/bin/env node
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
+const fsp = fs.promises;
 const WebSocket = require("ws");
 const amqp = require("amqplib");
 
-const app = express();
-const PORT = process.env.PORT || 80;
-const RABBIT_URL = process.env.RABBIT_URL || "amqp://localhost";
-const CONTROL_TOKEN = process.env.CONTROL_TOKEN || "";
-const QUEUE = "controls";
+async function start(opts = {}) {
+  const port = opts.port || process.env.PORT || 3000;
+  const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
+  const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
+  const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
+  const framesDir = opts.framesDir || process.env.FRAMES_DIR || "/data/frames";
+  const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
+  const hlsDir = opts.hlsDir || process.env.HLS_DIR || "/var/www/hls";
+  const enableMq = opts.enableMq ?? (process.env.DISABLE_MQ ? false : true);
 
-app.use(express.static(path.join(__dirname, "public")));
+  const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
 
-const server = app.listen(PORT, () => {
-  console.log(`[web] Listening on ${PORT}`);
-});
+  const app = express();
+  app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
 
-const wss = new WebSocket.Server({ server });
-
-let amqpConn = null;
-let channel = null;
-
-async function setupQueue() {
-  try {
-    amqpConn = await amqp.connect(RABBIT_URL);
-    channel = await amqpConn.createChannel();
-    await channel.assertQueue(QUEUE, { durable: false });
-    console.log("[mq] Connected to RabbitMQ");
-  } catch (err) {
-    console.error("[mq] connection failed", err);
-  }
-}
-
-setupQueue();
-
-wss.on("connection", (ws) => {
-  ws.send(JSON.stringify({ type: "hello", msg: "Connected to sd-cli web control" }));
-
-  ws.on("message", async (raw) => {
+  app.get("/api/health", async (_req, res) => {
     try {
-      const payload = JSON.parse(raw.toString());
-      if (payload.type !== "control") return;
-      if (CONTROL_TOKEN && payload.token !== CONTROL_TOKEN) {
-        ws.send(JSON.stringify({ type: "error", msg: "unauthorized" }));
-        return;
-      }
-      if (!payload.controlType || typeof payload.payload !== "object") {
-        ws.send(JSON.stringify({ type: "error", msg: "invalid schema" }));
-        return;
-      }
-      const msg = { controlType: payload.controlType, payload: payload.payload };
-      if (channel) {
-        channel.sendToQueue(QUEUE, Buffer.from(JSON.stringify(msg)));
-      }
-      // echo to all listeners
-      wss.clients.forEach((client) => {
-        if (client.readyState === WebSocket.OPEN) {
-          client.send(JSON.stringify({ type: "event", msg: "control forwarded", payload: msg }));
-        }
-      });
-    } catch (err) {
-      console.error("bad ws message", err);
+      const stat = await fsp.stat(playlistPath);
+      res.json({ ok: true, stream: hlsStream, updated: stat.mtimeMs });
+    } catch (_e) {
+      res.json({ ok: true, stream: hlsStream, updated: null });
     }
   });
-});
+
+  app.get("/api/frames", async (req, res) => {
+    try {
+      const limit = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 12));
+      const entries = await fsp.readdir(framesDir, { withFileTypes: true });
+      const files = entries.filter((e) => e.isFile()).map((e) => e.name);
+      const stats = await Promise.all(
+        files.map(async (name) => {
+          const stat = await fsp.stat(path.join(framesDir, name));
+          return { name, mtime: stat.mtimeMs };
+        })
+      );
+      stats.sort((a, b) => b.mtime - a.mtime);
+      const items = stats.slice(0, limit).map((f) => `/frames/${f.name}`);
+      res.json({ items });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.json({ items: [] });
+      } else {
+        console.error("[api] frames error", err);
+        res.status(500).json({ error: "frames unavailable" });
+      }
+    }
+  });
+
+  const server = app.listen(port, () => {
+    const actualPort = server.address().port;
+    console.log(`[web] API/WS listening on ${actualPort}`);
+  });
+  const actualPort = () => server.address() && server.address().port;
+  const wss = new WebSocket.Server({ server, path: "/ws" });
+
+  let amqpConn = null;
+  let channel = null;
+  async function setupQueue() {
+    if (!enableMq) return;
+    try {
+      amqpConn = await amqp.connect(rabbitUrl);
+      channel = await amqpConn.createChannel();
+      await channel.assertQueue(queue, { durable: false });
+      console.log("[mq] Connected to RabbitMQ");
+    } catch (err) {
+      console.error("[mq] connection failed", err);
+      setTimeout(setupQueue, 2000);
+    }
+  }
+  setupQueue();
+
+  function broadcast(obj) {
+    const msg = JSON.stringify(obj);
+    wss.clients.forEach((client) => {
+      if (client.readyState === WebSocket.OPEN) client.send(msg);
+    });
+  }
+
+  wss.on("connection", (ws) => {
+    ws.send(JSON.stringify({ type: "hello", msg: "Connected to defora web control" }));
+
+    ws.on("message", async (raw) => {
+      try {
+        const payload = JSON.parse(raw.toString());
+        if (payload.type !== "control") return;
+        if (controlToken && payload.token !== controlToken) {
+          ws.send(JSON.stringify({ type: "error", msg: "unauthorized" }));
+          return;
+        }
+        if (!payload.controlType || typeof payload.payload !== "object") {
+          ws.send(JSON.stringify({ type: "error", msg: "invalid schema" }));
+          return;
+        }
+        const msg = { controlType: payload.controlType, payload: payload.payload };
+        if (channel) {
+          channel.sendToQueue(queue, Buffer.from(JSON.stringify(msg)));
+        }
+        broadcast({ type: "event", msg: "control forwarded", payload: msg });
+      } catch (err) {
+        console.error("bad ws message", err);
+      }
+    });
+  });
+
+  let lastPlaylistMtime = 0;
+  const pollTimer = setInterval(async () => {
+    try {
+      const stat = await fsp.stat(playlistPath);
+      if (stat.mtimeMs > lastPlaylistMtime) {
+        lastPlaylistMtime = stat.mtimeMs;
+        broadcast({ type: "stream", src: hlsStream, updated: stat.mtimeMs });
+      }
+    } catch (err) {
+      if (err.code !== "ENOENT") console.error("[hls] poll error", err);
+    }
+  }, 2000);
+
+  let frameWatcher;
+  try {
+    fs.mkdirSync(framesDir, { recursive: true });
+    frameWatcher = fs.watch(framesDir, { persistent: false }, (_, filename) => {
+      if (filename && filename.startsWith("frame_")) {
+        broadcast({ type: "frame", file: `/frames/${filename}` });
+      }
+    });
+  } catch (err) {
+    console.error("[frames] watch error", err);
+  }
+
+  const close = async () => {
+    clearInterval(pollTimer);
+    if (frameWatcher && frameWatcher.close) frameWatcher.close();
+    wss.clients.forEach((c) => {
+      try {
+        c.close();
+      } catch (_) {}
+    });
+    await new Promise((resolve) => wss.close(resolve));
+    await new Promise((resolve) => server.close(resolve));
+    if (channel) {
+      try {
+        await channel.close();
+      } catch (_) {}
+    }
+    if (amqpConn) {
+      try {
+        await amqpConn.close();
+      } catch (_) {}
+    }
+  };
+
+  return { app, server, wss, close, port: actualPort() };
+}
+
+if (require.main === module) {
+  start();
+}
+
+module.exports = { start };

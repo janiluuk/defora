@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from sd_cli.stream_helper import build_ffmpeg_cmd
+from defora_cli.stream_helper import build_ffmpeg_cmd
 
 
 class TestStreamHelper(unittest.TestCase):

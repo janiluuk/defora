@@ -5,7 +5,7 @@
   "scripts": {
     "build": "echo 'static assets only'",
     "start": "node server.js",
-    "test": "mocha test/ui.spec.js"
+    "test": "mocha \"test/**/*.spec.js\""
   },
   "dependencies": {
     "amqplib": "^0.10.3",
@@ -15,6 +15,8 @@
   "devDependencies": {
     "chai": "^4.4.1",
     "jsdom": "^24.1.0",
-    "mocha": "^10.7.0"
+    "mocha": "^10.7.0",
+    "supertest": "^6.3.4",
+    "vue": "^3.4.27"
   }
 }

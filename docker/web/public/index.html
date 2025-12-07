@@ -61,7 +61,7 @@
     .overlay { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 8px 10px; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); font-size: 12px; }
     .timeline { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; }
     .thumbs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 6px; }
-    .thumb { width: 70px; height: 40px; border-radius: 8px; background: #11182a; border: 1px solid var(--border); }
+    .thumb { width: 70px; height: 40px; border-radius: 8px; background: #11182a; border: 1px solid var(--border); object-fit: cover; }
     .wave { height: 40px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,83,217,0.2), rgba(45,226,255,0.2)); border: 1px solid var(--border); }
     .rack { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
     .rack h3 { margin: 0 0 8px 0; }
@@ -113,7 +113,12 @@
         </div>
         <div class="timeline">
           <div class="thumbs">
-            <div class="thumb" v-for="n in 10" :key="'t'+n"></div>
+            <template v-if="thumbs.length">
+              <img class="thumb" v-for="src in thumbs" :key="src" :src="src" loading="lazy" alt="frame thumbnail" />
+            </template>
+            <template v-else>
+              <div class="thumb" v-for="n in 6" :key="'ph'+n"></div>
+            </template>
           </div>
           <div class="wave"></div>
         </div>
@@ -406,11 +411,11 @@
           ],
           motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
-          audio: { track: "my_track.wav", bpm: 114.8 },
-          macrosRack: [
-            { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
-            { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
-            { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
+        audio: { track: "my_track.wav", bpm: 114.8 },
+        macrosRack: [
+          { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
+          { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
+          { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
           ],
           cn: {
             slots: [
@@ -434,6 +439,17 @@
           },
           midiStatus: "Ready",
           ws: null,
+          wsStatus: "disconnected",
+          streamSrc: "/hls/live/deforum.m3u8",
+          thumbs: [],
+          framesTimer: null,
+          playerEl: null,
+          timeHandler: null,
+          hls: null,
+          liveParamTimers: {},
+          liveParamPending: {},
+          lastParamSent: {},
+          controlDelayMs: 75,
         };
       },
       computed: {
@@ -445,6 +461,16 @@
         this.attachPlayer();
         this.setupWS();
         this.scanMidi();
+        this.refreshFrames();
+        if (typeof fetch === "function") {
+          this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
+        }
+      },
+      beforeUnmount() {
+        if (this.framesTimer) clearInterval(this.framesTimer);
+        if (this.playerEl && this.timeHandler) {
+          this.playerEl.removeEventListener("timeupdate", this.timeHandler);
+        }
       },
       methods: {
         switchTab(id) {
@@ -452,33 +478,64 @@
         },
         attachPlayer() {
           const video = document.getElementById("player");
-          const hlsSource = "/hls/deforum.m3u8";
+          if (!video) return;
+          this.playerEl = video;
+          const hlsSource = this.streamSrc;
+          if (this.hls && this.hls.destroy) {
+            this.hls.destroy();
+            this.hls = null;
+          }
           if (video.canPlayType("application/vnd.apple.mpegurl")) {
             video.src = hlsSource;
+            video.load();
           } else if (Hls.isSupported()) {
-            const hls = new Hls();
-            hls.loadSource(hlsSource);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+            this.hls = new Hls();
+            this.hls.loadSource(hlsSource);
+            this.hls.attachMedia(video);
+            this.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
+            this.hls.on(Hls.Events.ERROR, () => {
+              setTimeout(() => this.attachPlayer(), 1000);
+            });
+          } else {
+            video.src = hlsSource;
           }
-          setInterval(() => {
+          this.timeHandler = () => {
             if (!isNaN(video.currentTime)) {
               const t = video.currentTime;
               const m = Math.floor(t / 60);
               const s = (t % 60).toFixed(2).padStart(5, "0");
               this.timecode = `${String(m).padStart(2, "0")}:${s}`;
             }
-          }, 200);
+          };
+          video.addEventListener("timeupdate", this.timeHandler);
         },
         setupWS() {
-          this.ws = new WebSocket((location.protocol === "https:" ? "wss://" : "ws://") + location.host);
-          this.ws.onopen = () => console.log("WS connected");
-          this.ws.onmessage = (evt) => {
-            try {
-              const msg = JSON.parse(evt.data);
-              if (msg.type === "event") console.log(msg.msg || "event");
-            } catch (_) {}
+          const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
+          const connect = () => {
+            this.ws = new WebSocket(url);
+            this.ws.onopen = () => {
+              this.wsStatus = "connected";
+              console.log("WS connected");
+            };
+            this.ws.onclose = () => {
+              this.wsStatus = "disconnected";
+              setTimeout(connect, 1000);
+            };
+            this.ws.onmessage = (evt) => {
+              try {
+                const msg = JSON.parse(evt.data);
+                if (msg.type === "event") console.log(msg.msg || "event");
+                if (msg.type === "stream" && msg.src) {
+                  this.streamSrc = msg.src + "?t=" + Date.now();
+                  this.attachPlayer();
+                }
+                if (msg.type === "frame") {
+                  this.refreshFrames();
+                }
+              } catch (_) {}
+            };
           };
+          connect();
         },
         sendControl(controlType, payload) {
           if (!this.ws || this.ws.readyState !== 1) return;
@@ -488,7 +545,7 @@
         updateParam(p, evt) {
           const val = parseFloat(evt.target.value);
           p.val = val;
-          this.sendControl("liveParam", { [p.key]: val });
+          this.queueLiveParam(p.key, val);
         },
         setSource(key, source) {
           this.paramSources[key] = source;
@@ -510,6 +567,36 @@
         addMacro() {
           if (this.macrosRack.length >= 6) return;
           this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.5, offset: 0.0, show: false });
+        },
+        queueLiveParam(key, val) {
+          const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+          const last = this.lastParamSent[key] || 0;
+          this.liveParamPending[key] = val;
+          if (now - last > this.controlDelayMs) {
+            this.lastParamSent[key] = now;
+            this.sendControl("liveParam", { [key]: val });
+            return;
+          }
+          clearTimeout(this.liveParamTimers[key]);
+          this.liveParamTimers[key] = setTimeout(() => {
+            const v = this.liveParamPending[key];
+            delete this.liveParamPending[key];
+            this.lastParamSent[key] = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            this.sendControl("liveParam", { [key]: v });
+          }, this.controlDelayMs);
+        },
+        async refreshFrames() {
+          if (typeof fetch !== "function") return;
+          try {
+            const res = await fetch("/api/frames?limit=10", { cache: "no-store" });
+            if (!res.ok) return;
+            const json = await res.json();
+            if (Array.isArray(json.items)) {
+              this.thumbs = json.items;
+            }
+          } catch (e) {
+            console.warn("frames fetch failed", e);
+          }
         },
         async scanMidi() {
           if (!navigator.requestMIDIAccess) {

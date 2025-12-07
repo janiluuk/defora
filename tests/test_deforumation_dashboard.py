@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from sd_cli.deforumation_dashboard import (
+from defora_cli.deforumation_dashboard import (
     DashboardState,
     _parse_value,
     ensure_defaults,
@@ -48,7 +48,7 @@ class TestDeforumationDashboard(unittest.TestCase):
             mediator_port="p",
             data={"strength": 0.5, "cfg": 7.0},
         )
-        with patch("sd_cli.deforumation_dashboard.MediatorClient", FakeClient):
+        with patch("defora_cli.deforumation_dashboard.MediatorClient", FakeClient):
             msg = send_to_mediator(state, ["strength", "cfg", "missing"])
         self.assertIn("Sent to mediator", msg)
         self.assertIn(("strength", 0.5), sent)
@@ -67,14 +67,14 @@ class TestDeforumationDashboard(unittest.TestCase):
                 "audio_live": False,
             },
         )
-        with patch("sd_cli.deforumation_dashboard.subprocess.run") as mock_run:
+        with patch("defora_cli.deforumation_dashboard.subprocess.run") as mock_run:
             mock_run.return_value.returncode = 0
             msg = run_audio_helper(state)
         self.assertIn("finished", msg)
         mock_run.assert_called_once()
         args = mock_run.call_args[0][0]
         self.assertEqual(args[0], sys.executable)
-        self.assertEqual(args[1:4], ["-m", "sd_cli.audio_reactive_modulator", "--audio"])
+        self.assertEqual(args[1:4], ["-m", "defora_cli.audio_reactive_modulator", "--audio"])
 
     def test_run_audio_helper_missing_mapping(self):
         state = DashboardState(

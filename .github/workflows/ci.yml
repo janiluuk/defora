@@ -21,6 +21,8 @@ jobs:
           pip install pytest
       - name: Python tests
         run: python -m pytest
+      - name: ncurses UI tests
+        run: python -m pytest tests/test_defora_tui.py
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

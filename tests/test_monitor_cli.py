@@ -3,7 +3,7 @@ import os
 from pathlib import Path
 import unittest
 
-from sd_cli.monitor_cli import detect_frames_dir
+from defora_cli.monitor_cli import detect_frames_dir
 
 
 class TestMonitorCli(unittest.TestCase):
