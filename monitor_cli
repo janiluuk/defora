@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Wrapper entrypoint for sd_cli.monitor_cli.
+Wrapper entrypoint for defora_cli.monitor_cli.
 """
-from sd_cli import monitor_cli as _monitor
+from defora_cli import monitor_cli as _monitor
 
 
 if __name__ == "__main__":

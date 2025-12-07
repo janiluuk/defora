@@ -8,10 +8,10 @@ You mentioned two local servers and a third GPU:
 
 ### Pointing the CLI/dispatcher at a server
 
-- `sd_cli/forge_cli.py` (or `./forge_cli`) respects the environment variable `FORGE_API_BASE`.
+- `defora_cli/forge_cli.py` (or `./forge_cli`) respects the environment variable `FORGE_API_BASE`.
   - Example: `FORGE_API_BASE=http://192.168.2.101:7860 ./forge_cli "a prompt"`
   - Switch to the other box: `FORGE_API_BASE=http://192.168.2.104:7860 ./forge_cli deforum ...`
-- The request dispatcher (`sd_cli/deforumation_request_dispatcher.py` or `./deforumation_request_dispatcher`) shells out to the CLI, so export `FORGE_API_BASE` before running it to pick a target.
+- The request dispatcher (`defora_cli/deforumation_request_dispatcher.py` or `./deforumation_request_dispatcher`) shells out to the CLI, so export `FORGE_API_BASE` before running it to pick a target.
 - If you want per-request targeting, you can also wrap the dispatcher call:
   - `FORGE_API_BASE=http://192.168.2.104:7860 ./deforumation_request_dispatcher --request runs/foo/rerun_request.json --execute`
 

@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from sd_cli.deforumation_runs_cli import RunRecord, RunBrowser
+from defora_cli.deforumation_runs_cli import RunRecord, RunBrowser
 
 
 class TestRunBrowserHelpers(unittest.TestCase):

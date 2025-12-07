@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Wrapper entrypoint for sd_cli.stream_helper.
+Wrapper entrypoint for defora_cli.stream_helper.
 """
-from sd_cli import stream_helper as _stream
+from defora_cli import stream_helper as _stream
 
 
 if __name__ == "__main__":

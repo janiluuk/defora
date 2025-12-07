@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Wrapper entrypoint for sd_cli.deforumation_request_dispatcher.
+Wrapper entrypoint for defora_cli.deforumation_request_dispatcher.
 """
-from sd_cli import deforumation_request_dispatcher as _dispatcher
+from defora_cli import deforumation_request_dispatcher as _dispatcher
 
 
 if __name__ == "__main__":

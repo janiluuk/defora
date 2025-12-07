@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-Wrapper entrypoint for sd_cli.deforumation_dashboard.
+Wrapper entrypoint for defora_cli.deforumation_dashboard.
 """
-from sd_cli import deforumation_dashboard as _dashboard
+from defora_cli import deforumation_dashboard as _dashboard
 
 
 if __name__ == "__main__":

@@ -3,10 +3,12 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 const { expect } = require("chai");
 const vm = require("vm");
+let createApp;
+let nextTick;
 
 function loadAppDefinition() {
   const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
-  const match = html.match(/const\s+\{\s*createApp\s*\}\s*=\s*Vue;([\s\S]*?)<\/script>/);
+  const match = html.match(/<script>([\s\S]*?)<\/script>/);
   if (!match) throw new Error("App script not found");
   const scriptContent = match[1];
 
@@ -65,11 +67,30 @@ class FakeSocket {
 describe("Deforumation Web UI", () => {
   let dom;
   let document;
+  let appVm;
 
-  before(() => {
+  before(async () => {
     const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
-    dom = new JSDOM(html);
+    dom = new JSDOM(html, { url: "http://localhost" });
+    global.window = dom.window;
+    global.document = dom.window.document;
+    global.navigator = dom.window.navigator;
+    global.location = dom.window.location;
+    global.SVGElement = dom.window.SVGElement;
+    global.HTMLElement = dom.window.HTMLElement;
+    global.Element = dom.window.Element;
+    global.Node = dom.window.Node;
+    ({ createApp, nextTick } = require("vue"));
+
+    const appDef = loadAppDefinition();
+    appDef.mounted = () => {};
+    appVm = createApp(appDef).mount("#app");
     document = dom.window.document;
+  });
+
+  beforeEach(async () => {
+    appVm.switchTab("LIVE");
+    await nextTick();
   });
 
   it("renders tabs for all sections", () => {
@@ -98,17 +119,25 @@ describe("Deforumation Web UI", () => {
     expect(chips.join(" ")).to.match(/Static|Orbit|Tunnel|Handheld|Chaos/);
   });
 
-  it("shows prompts/morph table structure", () => {
+  it("shows prompts/morph table structure", async () => {
+    appVm.switchTab("PROMPTS");
+    await nextTick();
     const morphTable = document.querySelector("table.table");
     expect(morphTable).to.exist;
     const headers = [...morphTable.querySelectorAll("th")].map((h) => h.textContent.trim());
     expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
   });
 
-  it("includes macro rack cards and MIDI mappings", () => {
-    const headings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(headings.join(" ")).to.include("Beat macros");
-    expect(headings.join(" ")).to.include("Controllers (WebMIDI)");
+  it("includes macro rack cards and MIDI mappings", async () => {
+    appVm.switchTab("AUDIO");
+    await nextTick();
+    const audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
+    expect(audioHeadings.join(" ")).to.include("Beat macros");
+
+    appVm.switchTab("SETTINGS");
+    await nextTick();
+    const settingsHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
+    expect(settingsHeadings.join(" ")).to.include("Controllers (WebMIDI)");
     const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
     expect(mappingRows.length).to.be.greaterThan(1);
   });

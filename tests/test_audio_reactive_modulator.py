@@ -6,7 +6,7 @@ try:
 except ImportError:  # pragma: no cover - skip if numpy unavailable
     np = None
 
-from sd_cli.audio_reactive_modulator import BandMapping, compute_modulations
+from defora_cli.audio_reactive_modulator import BandMapping, compute_modulations
 
 
 class TestAudioReactiveModulator(unittest.TestCase):

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from sd_cli.deforumation_request_dispatcher import (
+from defora_cli.deforumation_request_dispatcher import (
     forge_cli_args,
     forge_cli_command,
     merge_payload,
@@ -84,7 +84,7 @@ class TestRequestDispatcher(unittest.TestCase):
             self.assertEqual(payload["prompt_positive"], "p")
             self.assertEqual(payload["frame_count"], 12)
 
-    @mock.patch("sd_cli.deforumation_request_dispatcher.subprocess.run")
+    @mock.patch("defora_cli.deforumation_request_dispatcher.subprocess.run")
     def test_execute_calls_subprocess(self, mock_run):
         mock_run.return_value.returncode = 0
         payload = {
@@ -95,7 +95,7 @@ class TestRequestDispatcher(unittest.TestCase):
             "frame_count": 42,
         }
         args = forge_cli_args("rerun", payload, None)
-        from sd_cli.deforumation_request_dispatcher import subprocess as dispatcher_subprocess
+        from defora_cli.deforumation_request_dispatcher import subprocess as dispatcher_subprocess
 
         dispatcher_subprocess.run(args, text=True)
         mock_run.assert_called_once()

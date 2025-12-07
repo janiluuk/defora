@@ -59,7 +59,7 @@ pip install -r requirements.txt
 - Web MIDI: enable in your browser and map controls in the web UI (MIDI tab) to live parameters.
 
 ## Layout
-- CLI/package code: `sd_cli/`
+- CLI/package code: `defora_cli/`
 - Executable wrappers: `./forge_cli`, `./deforumation_request_dispatcher`, `./deforumation_runs_cli`, `./deforumation_cli_panel`, `./deforumation_dashboard`, `./defora_tui`, `./monitor_cli`, `./stream_helper`, `./audio_reactive_modulator`
 - Web UI & streaming stack: `docker-compose.yml`, `docker/web/` (Nginx+Node+Vue front-end, HLS, controls), `docker/bridge/` (mediator bridge)
 - Docs: `docs/` (workflows, server targeting, schema, streaming)
