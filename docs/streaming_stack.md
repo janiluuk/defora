@@ -13,12 +13,20 @@ This repo ships a minimal streaming stack so you can view generated frames as HL
 # from repo root
 docker-compose up --build
 # drop/rsync frames into the shared volume
-cp path/to/frames/frame_*.png /var/lib/docker/volumes/sd-cli_frames/_data/
+cp path/to/frames/frame_*.png /var/lib/docker/volumes/defora_frames/_data/
 # (optional) set a control token to gate WebSocket clients:
 #   CONTROL_TOKEN=secret docker-compose up --build
 # open the player
 open http://localhost:8080
 ```
+
+## Step-by-step setup
+1. **Start the stack**: `docker-compose up --build` (set `CONTROL_TOKEN=secret` if you want to gate control traffic).
+2. **Point to your mediator (optional)**: if the mediator is not on `host.docker.internal:8766`, start Compose with `MEDIATOR_HOST=<host> MEDIATOR_PORT=<port> docker-compose up`.
+3. **Feed frames**: copy or sync PNGs into the shared volume (`/var/lib/docker/volumes/defora_frames/_data/`), or mount your render output to `frames/` before starting Compose.
+4. **Watch the stream**: open `http://localhost:8080` (or the host/port you mapped) for the player; the HLS manifest is at `/hls/deforum.m3u8`.
+5. **Send controls (optional)**: publish `{type:"control", token, controlType, payload:{...}}` to the WebSocket on the same host/port; the `control-bridge` will relay to the mediator.
+6. **Tune performance**: adjust `FPS` and `RESOLUTION` env vars, then rebuild/restart the stack if you change them.
 
 ### Environment knobs
 - `FPS` (encoder): defaults to 24.
@@ -26,6 +34,7 @@ open http://localhost:8080
 - `RABBIT_URL` (web/node): defaults to `amqp://mq`.
 - `CONTROL_TOKEN` (web/node): shared secret for WS clients (omit for open access).
 - `MEDIATOR_HOST` / `MEDIATOR_PORT` (control-bridge): where to push controls.
+- `FRAMES_DIR` / `HLS_DIR` (web): override in-container paths if you have a custom layout.
 
 ### URLs/ports
 - Player: `http://localhost:8080` (polished UI with live controls, stats, prompts/morphing, ControlNet sliders, and HLS preview)

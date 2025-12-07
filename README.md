@@ -29,7 +29,7 @@ Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: l
 1) Clone and install deps:
 ```bash
 git clone https://github.com/janiluuk/defora.git
-cd sd-cli
+cd defora
 pip install -r requirements.txt
 ```
 2) Start Forge (with `--deforum-api` for Deforum).
@@ -52,6 +52,10 @@ pip install -r requirements.txt
 - **Presets & manifests**: Deforum JSON presets and run manifests can be merged with CLI overrides. The runs TUI writes `*_request.json` that the dispatcher consumes.
 - **Mediator control**: The panel, dashboard, and audio modulator talk to the mediator websocket so you can steer generation without the full UI.
 - **Model-aware defaults**: `forge_cli` picks steps/CFG/sampler based on the active model (Flux/SDXL/SD1.5) and can auto-switch to Flux-schnell.
+
+## Mediator (DeforumationQT)
+- The DeforumationQT mediator is vendored under `deforumation/`. Run it to bridge SD-Forge/Deforum to the Deforumation UI and our CLI tools (panel/dashboard/audio modulator).
+- See `docs/mediator_setup.md` for mediator startup steps and for installing the sd-forge Deforum bridge from `deforumation/Deforum_Version/sd-forge/`.
 
 ## Environment knobs
 - `FORGE_API_BASE` — target Forge server (e.g., `http://192.168.2.101:7860`).
