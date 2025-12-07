@@ -28,7 +28,7 @@ Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: l
 ## Quick start
 1) Clone and install deps:
 ```bash
-git clone https://github.com/janiluuk/sd-cli.git
+git clone https://github.com/janiluuk/defora.git
 cd sd-cli
 pip install -r requirements.txt
 ```
