@@ -36,6 +36,11 @@ services:
       - HLS_DIR=/var/www/hls
 
   sd-forge:
+    build:
+      context: .
+      dockerfile: docker/sd-forge/Dockerfile
+      args:
+        DEFORUM_MEDIATOR_URL: ${DEFORUM_MEDIATOR_URL:-ws://host.docker.internal:8765}
     image: sd-forge:latest
     command: ["sleep", "infinity"]
     volumes:

@@ -1,6 +1,6 @@
-# Contributing to sd-cli
+# Contributing to defora
 
-Thank you for your interest in contributing to sd-cli! This document provides guidelines for contributing to the project.
+Thank you for your interest in contributing to defora! This document provides guidelines for contributing to the project.
 
 ## How to Contribute
 
@@ -21,8 +21,8 @@ If you find a bug or have a suggestion:
 1. **Fork the repository**
    ```bash
    # Fork on GitHub, then clone your fork
-   git clone https://github.com/YOUR-USERNAME/sd-cli.git
-   cd sd-cli
+   git clone https://github.com/YOUR-USERNAME/defora.git
+   cd defora
    ```
 
 2. **Create a branch**
@@ -71,8 +71,8 @@ If you find a bug or have a suggestion:
 
 ```bash
 # Clone the repository
-git clone https://github.com/janiluuk/sd-cli.git
-cd sd-cli
+git clone https://github.com/janiluuk/defora.git
+cd defora
 
 # Install dependencies
 pip install -r requirements.txt
@@ -172,4 +172,4 @@ By contributing, you agree that your contributions will be licensed under the sa
 
 ---
 
-Thank you for contributing to sd-cli! 🎉
+Thank you for contributing to defora! 🎉

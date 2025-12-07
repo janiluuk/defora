@@ -1,6 +1,6 @@
 # Quick Start Guide - Get Running in 5 Minutes
 
-This is the fastest way to get started with sd-cli. For complete documentation, see [README.md](README.md).
+This is the fastest way to get started with defora. For complete documentation, see [README.md](README.md).
 
 ## Step 1: Prerequisites (2 minutes)
 
@@ -16,12 +16,12 @@ cd /path/to/stable-diffusion-webui-forge
 
 Wait for this message: `Running on local URL: http://127.0.0.1:7860`
 
-## Step 2: Install sd-cli (1 minute)
+## Step 2: Install defora (1 minute)
 
 ```bash
 # Download
-git clone https://github.com/janiluuk/sd-cli.git
-cd sd-cli
+git clone https://github.com/janiluuk/defora.git
+cd defora
 
 # Install dependency
 pip install requests

@@ -1,6 +1,6 @@
 # Examples Directory
 
-This directory contains practical example scripts demonstrating various use cases for sd-cli.
+This directory contains practical example scripts demonstrating various use cases for defora.
 
 ## Available Examples
 
