@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import curses
 import os
+from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -238,6 +239,69 @@ class DeforaTUI:
         self.bridge = DeforumBridge(self.mediator_host, self.mediator_port, mediator)
         self.frames_total = 0
         self.frame_cursor = 0
+        self.frames_dir: Optional[Path] = self.detect_frames_dir()
+        self.preview_cache: Dict[str, List[str]] = {}
+        self.preview_error: str = ""
+
+    def detect_frames_dir(self) -> Optional[Path]:
+        env = os.getenv("DEFORUMATION_FRAMES_DIR")
+        if env:
+            p = Path(env).expanduser()
+            if p.exists():
+                return p
+        runs = sorted(Path("runs").glob("*/frames"))
+        return runs[-1] if runs else None
+
+    def resolve_frame_path(self) -> Optional[Path]:
+        frames_dir = self.frames_dir if self.frames_dir and self.frames_dir.exists() else self.detect_frames_dir()
+        self.frames_dir = frames_dir
+        if not frames_dir or not frames_dir.exists():
+            self.preview_error = "Set DEFORUMATION_FRAMES_DIR to see previews"
+            return None
+        frames = sorted(frames_dir.glob("*.png"))
+        if not frames:
+            self.preview_error = f"No frames found in {frames_dir}"
+            return None
+        idx = max(0, min(self.frame_cursor, len(frames) - 1))
+        self.preview_error = ""
+        return frames[idx]
+
+    def render_ascii_preview(self, path: Path, width: int, height: int) -> List[str]:
+        if width <= 0 or height <= 0:
+            return []
+        try:
+            mtime = path.stat().st_mtime
+        except Exception:
+            return []
+        cache_key = f"{path}:{width}x{height}:{mtime}"
+        if cache_key in self.preview_cache:
+            return self.preview_cache[cache_key]
+        try:
+            from PIL import Image
+        except Exception:
+            self.preview_error = "Install pillow for ASCII preview"
+            return []
+        try:
+            img = Image.open(path).convert("L")
+            img.thumbnail((width, height))
+            pixels = img.load()
+            chars = "@%#*+=-:. "
+            lines = []
+            for iy in range(img.height):
+                line_chars = []
+                for ix in range(img.width):
+                    val = pixels[ix, iy] / 255.0
+                    line_chars.append(chars[int(val * (len(chars) - 1))])
+                lines.append("".join(line_chars))
+            self.preview_error = ""
+            self.preview_cache[cache_key] = lines
+            # keep cache small
+            if len(self.preview_cache) > 8:
+                self.preview_cache.pop(next(iter(self.preview_cache)))
+            return lines
+        except Exception:
+            self.preview_error = "Could not render preview"
+            return []
 
     def run(self):
         curses.curs_set(0)
@@ -418,8 +482,24 @@ class DeforaTUI:
         for i in range(1, height - 1):
             self.stdscr.addnstr(y + i, x, "|" + " " * (width - 2) + "|", width)
         self.stdscr.addnstr(y + height - 1, x, "+" + "-" * (width - 2) + "+", width)
-        center_text(self.stdscr, y + height // 2 - 1, "[ ASCII VIDEO FRAME HERE ]")
-        center_text(self.stdscr, y + height // 2, "(clown in box, etc.)")
+        inner_w = max(0, width - 2)
+        inner_h = max(0, height - 2)
+        frame_path = self.resolve_frame_path()
+        lines: List[str] = []
+        if frame_path:
+            lines = self.render_ascii_preview(frame_path, inner_w, inner_h)
+        if lines:
+            top_pad = max(0, (inner_h - len(lines)) // 2)
+            for idx, line in enumerate(lines[:inner_h]):
+                trimmed = line[:inner_w]
+                pad_left = max(0, (inner_w - len(trimmed)) // 2)
+                self.stdscr.addnstr(y + 1 + top_pad + idx, x + 1 + pad_left, trimmed, inner_w - pad_left)
+        else:
+            msg = self.preview_error or "Waiting for frames..."
+            if inner_w > 0 and inner_h > 0:
+                start_y = y + 1 + inner_h // 2
+                start_x = x + 1 + max(0, (inner_w - len(msg)) // 2)
+                self.stdscr.addnstr(start_y, start_x, msg[:inner_w], inner_w)
 
     def draw_slider(self, y: int, label: str, param: Param, active: bool = False):
         bar_w = 20

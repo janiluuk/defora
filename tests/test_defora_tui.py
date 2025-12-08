@@ -158,6 +158,22 @@ def test_draw_preview_block_renders_box():
     assert bottom[2] == "+--------+"
 
 
+def test_draw_preview_block_renders_ascii_when_available(tmp_path):
+    fake = FakeWin()
+    ui = DeforaTUI(fake)
+    frame = tmp_path / "0000.png"
+    frame.write_text("x")
+    ui.frames_dir = tmp_path
+    ui.render_ascii_preview = lambda path, w, h: ["abcd", "efgh"]  # type: ignore[assignment]
+
+    ui.draw_preview_block(0, 0, 10, 6)
+
+    rendered = [call for call in fake.calls if "abcd" in call[2] or "efgh" in call[2]]
+    assert rendered
+    for _, x, _, _ in rendered:
+        assert x > 0  # drawn inside the box, not overwriting the border
+
+
 def test_run_handles_navigation_and_sources(monkeypatch):
     inputs = [
         curses.KEY_RIGHT,  # bump cfg up
