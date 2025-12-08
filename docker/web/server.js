@@ -9,7 +9,7 @@ const { spawn } = require("child_process");
 const { EventEmitter } = require("events");
 
 async function start(opts = {}) {
-  const port = opts.port || process.env.PORT || 3000;
+  const port = opts.port ?? process.env.PORT ?? 3000;
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";

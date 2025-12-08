@@ -35,6 +35,8 @@ function loadAppDefinition() {
     WebSocket: class {},
     location: { protocol: "http:", host: "localhost" },
     document: { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
+    // Proxy to the outer fetch so tests can stub/intercept network calls
+    fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
     setInterval: () => 0,
     console,
   };
