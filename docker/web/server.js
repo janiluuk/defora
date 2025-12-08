@@ -34,7 +34,10 @@ async function start(opts = {}) {
     try {
       const limit = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 12));
       const entries = await fsp.readdir(framesDir, { withFileTypes: true });
-      const files = entries.filter((e) => e.isFile()).map((e) => e.name);
+      const files = entries
+        .filter((e) => e.isFile())
+        .map((e) => e.name)
+        .filter((name) => /\.(png|jpg|jpeg|webp)$/i.test(name));
       const stats = await Promise.all(
         files.map(async (name) => {
           const stat = await fsp.stat(path.join(framesDir, name));
@@ -42,7 +45,11 @@ async function start(opts = {}) {
         })
       );
       stats.sort((a, b) => b.mtime - a.mtime);
-      const items = stats.slice(0, limit).map((f) => `/frames/${f.name}`);
+      const items = stats.slice(0, limit).map((f) => {
+        const match = f.name.match(/(\d{3,})/);
+        const frame = match ? parseInt(match.pop(), 10) : null;
+        return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
+      });
       res.json({ items });
     } catch (err) {
       if (err.code === "ENOENT") {

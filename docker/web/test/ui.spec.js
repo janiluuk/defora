@@ -3,6 +3,7 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 const { expect } = require("chai");
 const vm = require("vm");
+const { describe, it, before, beforeEach } = require("node:test");
 let createApp;
 let nextTick;
 
@@ -13,6 +14,15 @@ function loadAppDefinition() {
   const scriptContent = match[1];
 
   let captured = null;
+  const FakeHls = class {
+    static isSupported() {
+      return true;
+    }
+    loadSource() {}
+    attachMedia() {}
+    on() {}
+  };
+  FakeHls.Events = { MANIFEST_PARSED: "manifest_parsed", ERROR: "error" };
   const context = {
     Vue: {
       createApp: (opts) => {
@@ -20,14 +30,7 @@ function loadAppDefinition() {
         return { mount: () => opts };
       },
     },
-    Hls: class FakeHls {
-      static isSupported() {
-        return true;
-      }
-      loadSource() {}
-      attachMedia() {}
-      on() {}
-    },
+    Hls: FakeHls,
     navigator: {},
     WebSocket: class {},
     location: { protocol: "http:", host: "localhost" },
@@ -186,7 +189,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.macrosRack).to.have.length(6);
   });
 
-  it("handleMidi maps CC messages to liveParam payloads", () => {
+  it("handleMidi maps CC messages to scaled liveParam payloads", () => {
     const instance = instantiate(appDef);
     instance.ws = new FakeSocket();
 
@@ -195,7 +198,71 @@ describe("Deforumation Web UI behavior", () => {
     const last = instance.ws.sent.at(-1);
     expect(last.controlType).to.equal("liveParam");
     expect(last.payload).to.have.property("strength");
-    expect(last.payload.strength).to.be.closeTo(100 / 127, 1e-6);
+    // strength range 0..1.5
+    expect(last.payload.strength).to.be.closeTo((100 / 127) * 1.5, 1e-3);
+  });
+
+  it("refreshFrames builds frame metadata from API responses", async () => {
+    const instance = instantiate(appDef);
+    global.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        items: ["/frames/frame_0007.png", { src: "/frames/frame_0010.png", frame: 10 }],
+      }),
+    });
+
+    await instance.refreshFrames();
+
+    expect(instance.thumbs[0].frame).to.equal(7);
+    expect(instance.thumbs[1].frame).to.equal(10);
+    delete global.fetch;
+  });
+
+  it("ensureLivePlayback triggers play when paused", () => {
+    const instance = instantiate(appDef);
+    let plays = 0;
+    instance.playerEl = {
+      paused: true,
+      readyState: 1,
+      play: () => {
+        plays += 1;
+      },
+    };
+    instance.autoplayVideo = () => {
+      plays += 1;
+    };
+
+    instance.ensureLivePlayback();
+
+    expect(plays).to.equal(1);
+  });
+
+  it("runLfos emits liveParam payload when audio is off", () => {
+    const instance = instantiate(appDef);
+    instance.ws = new FakeSocket();
+    instance.audio.track = "";
+    instance.lfos = [
+      { id: 1, on: true, target: "cfg", shape: "Sine", bpm: 15, depth: 0.2, base: 6, phase: 0 },
+    ];
+    instance.lastLfoTick = 0;
+
+    instance.runLfos(1000);
+
+    const last = instance.ws.sent.at(-1);
+    expect(last.controlType).to.equal("liveParam");
+    expect(last.payload.cfg).to.be.closeTo(9, 0.2); // base 6 + depth*range/2
+  });
+
+  it("runLfos skips when audio track is set", () => {
+    const instance = instantiate(appDef);
+    instance.ws = new FakeSocket();
+    instance.audio.track = "song.wav";
+    instance.lfos = [{ id: 1, on: true, target: "cfg", shape: "Sine", bpm: 60, depth: 0.2, base: 6, phase: 0 }];
+    instance.lastLfoTick = 0;
+
+    instance.runLfos(1000);
+
+    expect(instance.ws.sent.length).to.equal(0);
   });
 
   it("setMorph toggles morph state and emits control", () => {

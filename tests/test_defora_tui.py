@@ -33,6 +33,35 @@ class FakeWin:
         return ord("q")
 
 
+class FakeMediator:
+    def __init__(self, values=None):
+        self.values = (
+            values
+            if values is not None
+            else {
+                "cfg": 7.0,
+                "strength": 0.5,
+                "noise_multiplier": 0.75,
+                "cadence": 3.0,
+                "translation_z": 1.25,
+                "translation_x": -0.5,
+                "translation_y": 0.25,
+                "rotation_y": 10.0,
+                "rotation_z": -5.0,
+                "fov": 80.0,
+                "total_generated_images": 5,
+            }
+        )
+        self.writes = []
+
+    def read(self, key):
+        return self.values.get(key)
+
+    def write(self, key, val):
+        self.writes.append((key, val))
+        self.values[key] = val
+
+
 def test_center_text_respects_bounds_and_alignment():
     short = FakeWin(w=20)
     center_text(short, 2, "hello")
@@ -95,12 +124,13 @@ def test_param_navigation_wraps_and_clamps_status():
     ui.next_param()
     assert ui.selected_param == list(ui.params.keys())[0]
 
+    ui.selected_param = "strength"
     ui.adjust_selected(10)
-    assert ui.params["cfg"].value == ui.params["cfg"].max_value
+    assert ui.params["strength"].value == ui.params["strength"].max_value
     assert "-> 1.50" in ui.status
 
     ui.adjust_selected(-10)
-    assert ui.params["cfg"].value == ui.params["cfg"].min_value
+    assert ui.params["strength"].value == ui.params["strength"].min_value
     assert "-> 0.00" in ui.status
 
 
@@ -137,12 +167,89 @@ def test_run_handles_navigation_and_sources(monkeypatch):
         ord("q"),  # exit
     ]
     fake = FakeWin(inputs=inputs)
-    ui = DeforaTUI(fake)
+    ui = DeforaTUI(fake, mediator=FakeMediator(values={}))
     monkeypatch.setattr(curses, "curs_set", lambda *_: None)
 
     ui.run()
 
     assert fake.nodelay_flag is False
     assert ui.tab == 1
-    assert ui.params["cfg"].value == pytest.approx(0.63)
+    assert ui.params["cfg"].value == pytest.approx(6.0)
     assert ui.params["cfg"].source == "Beat"
+
+
+def test_connect_syncs_params_and_frames():
+    fake = FakeWin()
+    mediator = FakeMediator()
+    ui = DeforaTUI(fake, mediator=mediator, mediator_host="h", mediator_port="p")
+    ui.connect_and_sync()
+
+    assert ui.engine_status == "CONNECTED"
+    assert ui.params["cfg"].value == pytest.approx(7.0)
+    assert ui.params["zoom"].value == pytest.approx(1.25)
+    assert ui.frames_total == 5
+    assert ("should_use_deforumation_cfg", 1) in mediator.writes
+
+
+def test_frame_timeline_and_generation():
+    fake = FakeWin()
+    mediator = FakeMediator()
+    ui = DeforaTUI(fake, mediator=mediator)
+    ui.connect_and_sync()
+    ui.frames_total = 3
+    ui.frame_cursor = 1
+    ui.draw_live()
+
+    frame_line = next(call[2] for call in fake.calls if "Frames" in call[2])
+    assert "[thumb]" not in frame_line
+    assert "0001" in frame_line
+
+    mediator.writes.clear()
+    ui.trigger_generation()
+    assert ("start_frame", 1) in mediator.writes
+    assert ("should_resume", 1) in mediator.writes
+
+
+def test_move_frame_cursor_clamps():
+    ui = DeforaTUI(FakeWin())
+    ui.frames_total = 2
+    ui.frame_cursor = 1
+    ui.move_frame_cursor(5)
+    assert ui.frame_cursor == 1
+    ui.move_frame_cursor(-5)
+    assert ui.frame_cursor == 0
+
+
+def test_move_frame_cursor_requires_connection():
+    ui = DeforaTUI(FakeWin())
+    ui.bridge.connected = False
+    ui.frames_total = 0
+    ui.move_frame_cursor(1)
+    assert "mediator disconnected" in ui.status.lower()
+
+
+def test_frame_timeline_disconnected_message():
+    ui = DeforaTUI(FakeWin())
+    ui.bridge.connected = False
+    text = ui.format_frame_timeline(80).lower()
+    assert "disconnected" in text
+    assert "press r" in text
+
+
+def test_trigger_generation_disconnected_sets_status():
+    ui = DeforaTUI(FakeWin())
+    ui.trigger_generation()
+    assert "mediator disconnected" in ui.status.lower()
+
+
+def test_adjust_selected_writes_to_mediator():
+    fake = FakeWin()
+    mediator = FakeMediator()
+    ui = DeforaTUI(fake, mediator=mediator)
+    ui.connect_and_sync()
+    mediator.writes.clear()
+    ui.selected_param = "zoom"
+    ui.adjust_selected(ui.params["zoom"].step)
+    write_keys = [w[0] for w in mediator.writes]
+    assert "translation_z" in write_keys
+    assert any(abs(val - ui.params["zoom"].value) < 1e-6 for key, val in mediator.writes if key == "translation_z")

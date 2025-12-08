@@ -60,8 +60,10 @@
     video { width: 100%; display: block; background: #000; }
     .overlay { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 8px 10px; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); font-size: 12px; }
     .timeline { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; }
-    .thumbs { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 6px; }
-    .thumb { width: 70px; height: 40px; border-radius: 8px; background: #11182a; border: 1px solid var(--border); object-fit: cover; }
+    .thumbs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 6px; padding-bottom: 4px; }
+    .thumb-card { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #0b0f1c; box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
+    .thumb { width: 92px; height: 54px; display: block; background: #11182a; object-fit: cover; }
+    .thumb-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: var(--text); background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); }
     .wave { height: 40px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,83,217,0.2), rgba(45,226,255,0.2)); border: 1px solid var(--border); }
     .rack { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
     .rack h3 { margin: 0 0 8px 0; }
@@ -77,6 +79,12 @@
     .table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
     .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; }
     .xy-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--glow2); box-shadow: 0 0 10px var(--glow2); }
+    .lfo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .lfo-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: #0e1322; box-shadow: 0 8px 18px rgba(0,0,0,0.28); }
+    .lfo-card h4 { margin: 0 0 6px 0; display: flex; align-items: center; justify-content: space-between; font-size: 14px; }
+    .lfo-card .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+    .lfo-card select, .lfo-card input[type=number] { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--border); background: #0f172a; color: var(--text); }
+    .lfo-card .switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--muted); }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -114,10 +122,16 @@
         <div class="timeline">
           <div class="thumbs">
             <template v-if="thumbs.length">
-              <img class="thumb" v-for="src in thumbs" :key="src" :src="src" loading="lazy" alt="frame thumbnail" />
+              <div class="thumb-card" v-for="t in thumbs" :key="t.src">
+                <img class="thumb" :src="t.src" loading="lazy" :alt="'frame '+frameLabel(t)" />
+                <div class="thumb-label">#{{ frameLabel(t) }}</div>
+              </div>
             </template>
             <template v-else>
-              <div class="thumb" v-for="n in 6" :key="'ph'+n"></div>
+              <div class="thumb-card" v-for="n in 6" :key="'ph'+n">
+                <div class="thumb"></div>
+                <div class="thumb-label">waiting…</div>
+              </div>
             </template>
           </div>
           <div class="wave"></div>
@@ -218,6 +232,46 @@
               <span class="chip">Tap tempo</span>
               <span class="chip">Add tempo change</span>
             </div>
+          </div>
+          <div class="rack">
+            <h3>Manual LFOs (no audio sync)</h3>
+            <div class="slider-row">
+              <div>Global BPM</div>
+              <input class="select" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
+            </div>
+            <div class="lfo-grid">
+              <div class="lfo-card" v-for="l in lfos" :key="l.id">
+                <h4>
+                  LFO {{ l.id }}
+                  <span class="switch" @click="l.on=!l.on">
+                    <span class="dot" :style="{background: l.on ? 'var(--success)' : '#444'}"></span>
+                    {{ l.on ? 'ON' : 'OFF' }}
+                  </span>
+                </h4>
+                <div class="meta">Target</div>
+                <select v-model="l.target" @change="initLfoBase(l)">
+                  <option value="">(none)</option>
+                  <option v-for="t in lfoTargets" :key="t.key" :value="t.key">{{ t.label }}</option>
+                </select>
+                <div class="meta" style="margin-top:6px;">Shape</div>
+                <select v-model="l.shape">
+                  <option v-for="s in lfoShapes" :key="s">{{ s }}</option>
+                </select>
+                <div class="slider-row" style="margin-top:6px;">
+                  <div>BPM</div>
+                  <input type="number" min="20" max="240" step="1" v-model.number="l.bpm">
+                </div>
+                <div class="slider-row">
+                  <div>Base</div>
+                  <input type="number" :min="lfoTarget(l) ? lfoTarget(l).min : 0" :max="lfoTarget(l) ? lfoTarget(l).max : 1" step="0.01" v-model.number="l.base">
+                </div>
+                <div class="slider-row">
+                  <div>Depth</div>
+                  <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth">
+                </div>
+              </div>
+            </div>
+            <div class="meta">LFOs emit liveParam values to the mediator when no audio track is selected.</div>
           </div>
           <div class="rack">
             <h3>Beat macros</h3>
@@ -357,7 +411,15 @@
             <thead><tr><th>Source</th><th>Target</th><th>Mode</th><th>Curve</th></tr></thead>
             <tbody>
               <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
-                <td>{{ m.control }}</td><td>{{ m.param }}</td><td>Absolute</td><td>Linear</td>
+                <td>{{ m.control || ('CC '+m.cc) }}</td>
+                <td>
+                  <select class="select" v-model="m.key" @change="updateMidiMapping(m)">
+                    <option value="">(none)</option>
+                    <option v-for="t in lfoTargets" :key="'map'+t.key" :value="t.key">{{ t.label }}</option>
+                  </select>
+                </td>
+                <td>Absolute</td>
+                <td>Linear</td>
               </tr>
             </tbody>
           </table>
@@ -411,12 +473,35 @@
           ],
           motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
-        audio: { track: "my_track.wav", bpm: 114.8 },
-        macrosRack: [
-          { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
-          { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
-          { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
+          audio: { track: "", bpm: 114.8 },
+          lfoBpm: 120,
+          lfoTargets: [
+            { key: "cfg", label: "Vibe (CFG)", min: 0, max: 30, default: 6 },
+            { key: "strength", label: "Strength", min: 0, max: 1.5, default: 0.7 },
+            { key: "noise_multiplier", label: "Noise/Glitch", min: 0, max: 3, default: 1.0 },
+            { key: "translation_z", label: "Zoom", min: -10, max: 10, default: 0 },
+            { key: "translation_x", label: "Pan X", min: -10, max: 10, default: 0 },
+            { key: "translation_y", label: "Pan Y", min: -10, max: 10, default: 0 },
+            { key: "rotation_y", label: "Rotate Y", min: -180, max: 180, default: 0 },
+            { key: "rotation_z", label: "Tilt", min: -180, max: 180, default: 0 },
+            { key: "fov", label: "FOV", min: 1, max: 180, default: 70 },
           ],
+          lfoShapes: ["Sine", "Triangle", "Saw", "Square"],
+          lfos: Array.from({ length: 6 }).map((_, idx) => ({
+            id: idx + 1,
+            on: idx === 0,
+            target: idx === 0 ? "cfg" : "",
+            shape: "Sine",
+            bpm: 120,
+            depth: 0.1,
+            base: null,
+            phase: 0,
+          })),
+          macrosRack: [
+            { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
+            { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
+            { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
+            ],
           cn: {
             slots: [
               { id: "CN1", label: "CN1", model: "Canny", weight: 0.4 },
@@ -432,9 +517,9 @@
             devices: [],
             selected: null,
             mappings: [
-              { control: "LaunchControl CC21", param: "Vibe (CFG)" },
-              { control: "LaunchControl CC22", param: "Strength" },
-              { control: "LaunchControl CC23", param: "Zoom" },
+              { control: "LaunchControl CC21", cc: 21, key: "cfg" },
+              { control: "LaunchControl CC22", cc: 22, key: "strength" },
+              { control: "LaunchControl CC23", cc: 23, key: "cfgscale" },
             ],
           },
           midiStatus: "Ready",
@@ -450,6 +535,10 @@
           liveParamPending: {},
           lastParamSent: {},
           controlDelayMs: 75,
+          errorHandler: null,
+          playbackTimer: null,
+          lfoTimer: null,
+          lastLfoTick: null,
         };
       },
       computed: {
@@ -465,11 +554,18 @@
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
         }
+        this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
+        this.lfoTimer = setInterval(() => this.runLfos(), 120);
       },
       beforeUnmount() {
         if (this.framesTimer) clearInterval(this.framesTimer);
+        if (this.playbackTimer) clearInterval(this.playbackTimer);
+        if (this.lfoTimer) clearInterval(this.lfoTimer);
         if (this.playerEl && this.timeHandler) {
           this.playerEl.removeEventListener("timeupdate", this.timeHandler);
+        }
+        if (this.playerEl && this.errorHandler) {
+          this.playerEl.removeEventListener("error", this.errorHandler);
         }
       },
       methods: {
@@ -479,8 +575,10 @@
         attachPlayer() {
           const video = document.getElementById("player");
           if (!video) return;
+          if (this.playerEl && this.timeHandler) this.playerEl.removeEventListener("timeupdate", this.timeHandler);
+          if (this.playerEl && this.errorHandler) this.playerEl.removeEventListener("error", this.errorHandler);
           this.playerEl = video;
-          const hlsSource = this.streamSrc;
+          const hlsSource = this.streamSrc.includes("?") ? this.streamSrc + "&t=" + Date.now() : this.streamSrc + "?t=" + Date.now();
           if (this.hls && this.hls.destroy) {
             this.hls.destroy();
             this.hls = null;
@@ -488,14 +586,18 @@
           if (video.canPlayType("application/vnd.apple.mpegurl")) {
             video.src = hlsSource;
             video.load();
-          } else if (Hls.isSupported()) {
-            this.hls = new Hls();
+            this.autoplayVideo(video);
+          } else if (typeof Hls !== "undefined" && Hls.isSupported && Hls.isSupported()) {
+            const hlsEvents = (Hls && Hls.Events) || { MANIFEST_PARSED: "manifest_parsed", ERROR: "error" };
+            this.hls = new Hls({ liveSyncDurationCount: 3 });
             this.hls.loadSource(hlsSource);
             this.hls.attachMedia(video);
-            this.hls.on(Hls.Events.MANIFEST_PARSED, () => video.play());
-            this.hls.on(Hls.Events.ERROR, () => {
-              setTimeout(() => this.attachPlayer(), 1000);
-            });
+            if (this.hls.on) {
+              this.hls.on(hlsEvents.MANIFEST_PARSED, () => this.autoplayVideo(video));
+              this.hls.on(hlsEvents.ERROR, () => {
+                setTimeout(() => this.attachPlayer(), 800);
+              });
+            }
           } else {
             video.src = hlsSource;
           }
@@ -507,7 +609,79 @@
               this.timecode = `${String(m).padStart(2, "0")}:${s}`;
             }
           };
+          this.errorHandler = () => {
+            setTimeout(() => this.attachPlayer(), 800);
+          };
           video.addEventListener("timeupdate", this.timeHandler);
+          video.addEventListener("error", this.errorHandler);
+          this.autoplayVideo(video);
+        },
+        autoplayVideo(video) {
+          const el = video || this.playerEl;
+          if (!el || typeof el.play !== "function") return;
+          const p = el.play();
+          if (p && typeof p.catch === "function") p.catch(() => {});
+        },
+        ensureLivePlayback() {
+          if (!this.playerEl) return;
+          if (this.playerEl.paused || this.playerEl.readyState < 2) {
+            this.autoplayVideo(this.playerEl);
+          }
+        },
+        lfoTarget(lfo) {
+          if (!lfo || !lfo.target) return null;
+          return this.lfoTargets.find((t) => t.key === lfo.target) || null;
+        },
+        initLfoBase(lfo) {
+          const target = this.lfoTarget(lfo);
+          if (!target) return;
+          if (lfo.base === null || lfo.base === undefined) {
+            lfo.base = target.default != null ? target.default : (target.min + target.max) / 2;
+          } else {
+            lfo.base = this.clampVal(lfo.base, target.min, target.max);
+          }
+        },
+        shapeValue(shape, phase) {
+          const p = phase % (Math.PI * 2);
+          if (shape === "Square") return Math.sin(p) >= 0 ? 1 : -1;
+          if (shape === "Saw") return p / Math.PI - 1; // -1..1
+          if (shape === "Triangle") return (2 * Math.asin(Math.sin(p))) / Math.PI;
+          return Math.sin(p);
+        },
+        clampVal(v, min, max) {
+          if (v === null || v === undefined || Number.isNaN(v)) return min;
+          return Math.min(max, Math.max(min, v));
+        },
+        runLfos(now = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now())) {
+          if (this.audio.track) return; // audio sync takes over
+          if (this.lastLfoTick === null) {
+            this.lastLfoTick = now;
+            return;
+          }
+          const dtSec = (now - this.lastLfoTick) / 1000;
+          this.lastLfoTick = now;
+          if (dtSec <= 0) return;
+
+          const payload = {};
+          this.lfos.forEach((lfo) => {
+            if (!lfo.on || !lfo.target) return;
+            const target = this.lfoTarget(lfo);
+            if (!target) return;
+            const bpm = lfo.bpm || this.lfoBpm || 120;
+            const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
+            const base = lfo.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(lfo.base, target.min, target.max);
+            lfo.base = base;
+            const inc = dtSec * (bpm / 60) * Math.PI * 2;
+            const phase = (lfo.phase || 0) + inc;
+            lfo.phase = phase % (Math.PI * 2);
+            const wave = this.shapeValue(lfo.shape, lfo.phase);
+            const amp = depth * (target.max - target.min) / 2;
+            const value = this.clampVal(base + wave * amp, target.min, target.max);
+            payload[target.key] = value;
+          });
+          if (Object.keys(payload).length) {
+            this.sendControl("liveParam", payload);
+          }
         },
         setupWS() {
           const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
@@ -560,6 +734,13 @@
         sendPreset(name) {
           this.sendControl("motionPreset", { name });
         },
+        midiTarget(key) {
+          return this.lfoTargets.find((t) => t.key === key) || null;
+        },
+        updateMidiMapping(map) {
+          // noop hook for now; v-model already updates
+          return map;
+        },
         setMorph(on) {
           this.prompts.morphOn = on;
           this.sendControl("prompts", { morphOn: on });
@@ -592,11 +773,30 @@
             if (!res.ok) return;
             const json = await res.json();
             if (Array.isArray(json.items)) {
-              this.thumbs = json.items;
+              this.thumbs = json.items.map((item) => {
+                if (typeof item === "string") {
+                  return { src: item, name: item.split("/").pop(), frame: this.parseFrameNumber(item) };
+                }
+                const src = item.src || item.url || item.path || "";
+                const name = item.name || src.split("/").pop();
+                const frame = item.frame != null ? item.frame : this.parseFrameNumber(name || src);
+                return { src, name, frame };
+              });
             }
           } catch (e) {
             console.warn("frames fetch failed", e);
           }
+        },
+        parseFrameNumber(name) {
+          if (!name) return null;
+          const match = String(name).match(/(\d{3,})/);
+          return match ? parseInt(match.pop(), 10) : null;
+        },
+        frameLabel(t) {
+          if (!t) return "?";
+          if (t.frame != null && !isNaN(t.frame)) return t.frame;
+          if (t.name) return t.name.replace(/\.[^.]+$/, "");
+          return t.src || "?";
         },
         async scanMidi() {
           if (!navigator.requestMIDIAccess) {
@@ -620,11 +820,16 @@
           const [status, cc, value] = msg.data;
           const isCC = (status & 0xf0) === 0xb0;
           if (!isCC) return;
-          const idx = cc % this.midi.mappings.length;
-          const mapping = this.midi.mappings[idx];
+          const mapping = this.midi.mappings.find((m) => m.cc === cc);
           const norm = value / 127;
-          if (mapping && mapping.param) {
-            this.sendControl("liveParam", { [mapping.param.toLowerCase().replace(/[^a-z]+/g, "")]: norm });
+          if (mapping && mapping.key) {
+            const target = this.midiTarget(mapping.key);
+            if (target) {
+              const scaled = target.min + norm * (target.max - target.min);
+              this.sendControl("liveParam", { [target.key]: scaled });
+            } else {
+              this.sendControl("liveParam", { [mapping.key]: norm });
+            }
           }
         },
       },

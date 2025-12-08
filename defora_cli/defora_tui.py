@@ -13,11 +13,28 @@ This is a UI skeleton; hook up real mediator/param logic as needed.
 from __future__ import annotations
 
 import curses
+import os
 from dataclasses import dataclass
-from typing import Dict, List
+from typing import Dict, List, Optional
+
+from .mediator_client import MediatorClient
 
 TABS = ["LIVE", "PROMPTS", "MOTION", "AUDIO", "CONTROLNET", "SETTINGS"]
 SOURCES = ["Manual", "Beat", "MIDI"]
+DEFAULT_MEDIATOR_HOST = os.getenv("DEFORUMATION_MEDIATOR_HOST", "localhost")
+DEFAULT_MEDIATOR_PORT = os.getenv("DEFORUMATION_MEDIATOR_PORT", "8766")
+PARAM_TO_MEDIATOR = {
+    "cfg": ("cfg", "should_use_deforumation_cfg"),
+    "strength": ("strength", "should_use_deforumation_strength"),
+    "noise": ("noise_multiplier", "should_use_deforumation_noise"),
+    "cadence": ("cadence", "should_use_deforumation_cadence"),
+    "zoom": ("translation_z", "should_use_deforumation_zoom"),
+    "panx": ("translation_x", "should_use_deforumation_panning"),
+    "pany": ("translation_y", "should_use_deforumation_panning"),
+    "rotate": ("rotation_y", "should_use_deforumation_rotation"),
+    "tilt": ("rotation_z", "should_use_deforumation_tilt"),
+    "fov": ("fov", "should_use_deforumation_fov"),
+}
 
 
 class SafeWindow:
@@ -64,6 +81,121 @@ class Param:
         self.source = SOURCES[(idx + 1) % len(SOURCES)]
 
 
+class DeforumBridge:
+    """Thin helper around MediatorClient to keep connection state + deforum flags."""
+
+    def __init__(self, host: str, port: str, client: Optional[MediatorClient] = None):
+        self.host = host
+        self.port = str(port)
+        self.client = client
+        self.connected = False
+        self.last_error = ""
+
+    @property
+    def flags(self) -> List[str]:
+        seen = set()
+        for _, flag in PARAM_TO_MEDIATOR.values():
+            if flag and flag not in seen:
+                seen.add(flag)
+        return list(seen)
+
+    def connect(self) -> bool:
+        try:
+            if self.client is None:
+                self.client = MediatorClient(self.host, self.port)
+        except Exception as exc:
+            self.last_error = str(exc)
+            self.connected = False
+            self.client = None
+            return False
+
+        try:
+            self.client.read("cfg")
+            self.connected = True
+            self.last_error = ""
+            self.enable_flags()
+            return True
+        except Exception as exc:
+            self.last_error = str(exc)
+            self.connected = False
+            return False
+
+    def enable_flags(self) -> None:
+        if not self.client:
+            return
+        for flag in self.flags:
+            try:
+                self.client.write(flag, 1)
+            except Exception as exc:  # pragma: no cover - runtime failure path
+                self.connected = False
+                self.last_error = str(exc)
+                break
+
+    def pull_params(self, params: Dict[str, Param]) -> None:
+        if not self.connected or not self.client:
+            return
+        for name, (remote_key, _) in PARAM_TO_MEDIATOR.items():
+            if name not in params or not remote_key:
+                continue
+            try:
+                val = self.client.read(remote_key)
+                if val is None:
+                    continue
+                params[name].value = float(val)
+                params[name].clamp()
+            except Exception as exc:
+                self.connected = False
+                self.last_error = str(exc)
+                break
+
+    def write_param(self, name: str, value: float) -> bool:
+        if not self.connected or not self.client:
+            return False
+        remote_key = PARAM_TO_MEDIATOR.get(name, (None, None))[0]
+        if not remote_key:
+            return False
+        try:
+            self.client.write(remote_key, value)
+            return True
+        except Exception as exc:
+            self.connected = False
+            self.last_error = str(exc)
+            return False
+
+    def fetch_frame_count(self) -> int:
+        if not self.connected or not self.client:
+            return 0
+        try:
+            val = self.client.read("total_generated_images")
+            return int(val) if val is not None else 0
+        except Exception as exc:
+            self.connected = False
+            self.last_error = str(exc)
+            return 0
+
+    def set_start_frame(self, frame: int) -> bool:
+        if not self.connected or not self.client:
+            return False
+        try:
+            self.client.write("start_frame", int(frame))
+            return True
+        except Exception as exc:
+            self.connected = False
+            self.last_error = str(exc)
+            return False
+
+    def resume_generation(self) -> bool:
+        if not self.connected or not self.client:
+            return False
+        try:
+            self.client.write("should_resume", 1)
+            return True
+        except Exception as exc:
+            self.connected = False
+            self.last_error = str(exc)
+            return False
+
+
 def center_text(win, y: int, text: str, attr: int = 0):
     h, w = win.getmaxyx()
     x = max(0, (w - len(text)) // 2)
@@ -71,31 +203,46 @@ def center_text(win, y: int, text: str, attr: int = 0):
 
 
 class DeforaTUI:
-    def __init__(self, stdscr):
+    def __init__(
+        self,
+        stdscr,
+        mediator: Optional[MediatorClient] = None,
+        mediator_host: Optional[str] = None,
+        mediator_port: Optional[str] = None,
+    ):
         self.stdscr = SafeWindow(stdscr)
         self.tab = 0
         self.params: Dict[str, Param] = {
-            "cfg": Param("Vibe (CFG)", 0.63),
-            "strength": Param("Strength", 0.78, max_value=1.5),
-            "noise": Param("Noise / Glitch", 0.20, max_value=1.0),
-            "zoom": Param("Zoom", 0.80, min_value=0.2, max_value=2.0, step=0.05),
-            "panx": Param("Pan X", 0.10, min_value=-1.0, max_value=1.0, step=0.05),
-            "pany": Param("Pan Y", 0.00, min_value=-1.0, max_value=1.0, step=0.05),
-            "rotate": Param("Rotate H", 0.00, min_value=-180, max_value=180, step=1.0),
+            "cfg": Param("Vibe (CFG)", 6.0, min_value=0.0, max_value=30.0, step=0.5),
+            "strength": Param("Strength", 0.65, max_value=1.5, step=0.05),
+            "noise": Param("Noise / Glitch", 1.05, max_value=3.0, step=0.05),
+            "cadence": Param("Cadence", 2.0, min_value=0.0, max_value=16.0, step=0.5),
+            "zoom": Param("Zoom", 0.0, min_value=-10.0, max_value=10.0, step=0.05),
+            "panx": Param("Pan X", 0.0, min_value=-10.0, max_value=10.0, step=0.05),
+            "pany": Param("Pan Y", 0.0, min_value=-10.0, max_value=10.0, step=0.05),
+            "rotate": Param("Rotate Y", 0.0, min_value=-180, max_value=180, step=1.0),
+            "tilt": Param("Tilt (Z)", 0.0, min_value=-180, max_value=180, step=1.0),
+            "fov": Param("FOV", 70.0, min_value=1.0, max_value=180.0, step=1.0),
         }
         self.selected_param = "cfg"
         self.session = "clown_set_01"
         self.seed = 42490527
         self.fps = 29
         self.lat = 120
-        self.engine_status = "RUN"
+        self.engine_status = "DISCONNECTED"
         self.macros = [("Vibe", True), ("Zoom", True), ("Noise", False)]
         self.midi_device = "LaunchControl XL"
-        self.status = "SPACE: toggle source • ←/→ adjust • Q: quit"
+        self.status = "SPACE: toggle source • ←/→ adjust • </> scrub frames • g: generate • r: reconnect • Q: quit"
+        self.mediator_host = mediator_host or DEFAULT_MEDIATOR_HOST
+        self.mediator_port = str(mediator_port or DEFAULT_MEDIATOR_PORT)
+        self.bridge = DeforumBridge(self.mediator_host, self.mediator_port, mediator)
+        self.frames_total = 0
+        self.frame_cursor = 0
 
     def run(self):
         curses.curs_set(0)
         self.stdscr.nodelay(False)
+        self.connect_and_sync()
         while True:
             self.draw()
             key = self.stdscr.getch()
@@ -117,6 +264,10 @@ class DeforaTUI:
                 self.adjust_selected(-self.params[self.selected_param].step)
             elif key in (curses.KEY_RIGHT, ord("l")):
                 self.adjust_selected(self.params[self.selected_param].step)
+            elif key == ord("<"):
+                self.move_frame_cursor(-1)
+            elif key == ord(">"):
+                self.move_frame_cursor(1)
             elif key in (ord(" "),):
                 if self.tab == 0:
                     self.params[self.selected_param].next_source()
@@ -124,11 +275,16 @@ class DeforaTUI:
                 self.prev_param()
             elif key in (ord("j"), curses.KEY_DOWN):
                 self.next_param()
+            elif key == ord("r"):
+                self.connect_and_sync()
+            elif key == ord("g"):
+                self.trigger_generation()
 
     def adjust_selected(self, delta: float):
         p = self.params[self.selected_param]
         p.adjust(delta)
         self.status = f"{p.name} -> {p.value:.2f} ({p.source})"
+        self.push_param_to_mediator(self.selected_param)
 
     def prev_param(self):
         keys = list(self.params.keys())
@@ -140,6 +296,95 @@ class DeforaTUI:
         idx = keys.index(self.selected_param)
         self.selected_param = keys[(idx + 1) % len(keys)]
 
+    def deforum_status(self) -> str:
+        if self.bridge.connected:
+            return f"CONNECTED @ {self.mediator_host}:{self.mediator_port}"
+        detail = self.bridge.last_error or "mediator unavailable"
+        return f"DISCONNECTED ({detail})"
+
+    def connect_and_sync(self):
+        if self.bridge.connect():
+            self.engine_status = "CONNECTED"
+            self.bridge.pull_params(self.params)
+            pulled_frames = self.bridge.fetch_frame_count()
+            self.frames_total = pulled_frames
+            if self.frames_total:
+                self.frame_cursor = min(self.frame_cursor, max(self.frames_total - 1, 0))
+            else:
+                self.frame_cursor = 0
+            self.status = (
+                f"Connected to deforum mediator {self.mediator_host}:{self.mediator_port} "
+                f"(frames: {self.frames_total}, press g to generate)"
+            )
+        else:
+            self.engine_status = "DISCONNECTED"
+            msg = self.bridge.last_error or "mediator unavailable"
+            self.status = f"Deforum disconnected: {msg} (press r to retry)"
+
+    def push_param_to_mediator(self, name: str):
+        if not self.bridge.connected:
+            return
+        if not self.bridge.write_param(name, self.params[name].value):
+            self.engine_status = "DISCONNECTED"
+            self.status = f"Mediator write failed: {self.bridge.last_error} (press r)"
+        else:
+            self.engine_status = "CONNECTED"
+
+    def refresh_frames(self):
+        if not self.bridge.connected:
+            return
+        count = self.bridge.fetch_frame_count()
+        self.frames_total = count
+        if self.frames_total > 0:
+            self.frame_cursor = min(self.frame_cursor, self.frames_total - 1)
+        else:
+            self.frame_cursor = 0
+
+    def move_frame_cursor(self, delta: int):
+        if self.frames_total == 0:
+            if not self.bridge.connected:
+                self.status = "Cannot move frame cursor: mediator disconnected (press r)"
+                return
+            self.refresh_frames()
+        if self.frames_total <= 0:
+            self.frame_cursor = 0
+            self.status = "No frames reported yet (press r to retry)"
+            return
+        self.frame_cursor = max(0, min(self.frame_cursor + delta, self.frames_total - 1))
+        self.status = f"Frame {self.frame_cursor}/{self.frames_total - 1}"
+
+    def format_frame_timeline(self, width: int) -> str:
+        if not self.bridge.connected:
+            return "Frames: mediator disconnected (press r to reconnect)"
+        if self.frames_total <= 0:
+            return "Frames: no frames reported (press r to retry)"
+        window = max(1, min(self.frames_total, max(1, width // 8)))
+        start = max(0, self.frame_cursor - window // 2)
+        end = min(self.frames_total, start + window)
+        start = max(0, end - window)
+        parts: List[str] = []
+        for idx in range(start, end):
+            label = f"{idx:04d}"
+            parts.append(f"[{label}]" if idx == self.frame_cursor else f" {label} ")
+        return f"Frames {self.frame_cursor + 1}/{self.frames_total}: " + " ".join(parts)
+
+    def trigger_generation(self):
+        if not self.bridge.connected:
+            self.status = "Cannot start: mediator disconnected (press r to reconnect)"
+            self.engine_status = "DISCONNECTED"
+            return
+        self.refresh_frames()
+        start_frame = self.frame_cursor
+        ok_start = self.bridge.set_start_frame(start_frame)
+        ok_resume = self.bridge.resume_generation() if ok_start else False
+        if ok_start and ok_resume:
+            self.engine_status = "CONNECTED"
+            self.status = f"Generation started at frame {start_frame} (Deforum {self.deforum_status()})"
+        else:
+            self.engine_status = "DISCONNECTED"
+            msg = self.bridge.last_error or "unknown mediator error"
+            self.status = f"Failed to start generation: {msg}"
+
     def draw(self):
         self.stdscr.erase()
         h, w = self.stdscr.getmaxyx()
@@ -147,7 +392,7 @@ class DeforaTUI:
         self.stdscr.addnstr(0, 0, header.ljust(w), w - 1, curses.A_REVERSE)
         bar = (
             f"F1 LIVE  F2 PROMPTS  F3 MOTION  F4 AUDIO/BEATS  F5 CONTROLNET  F6 SETTINGS    "
-            f"Engine: {self.engine_status}  FPS:{self.fps}  Lat:{self.lat}ms"
+            f"Deforum: {self.deforum_status()}  Frames:{self.frames_total}"
         )
         self.stdscr.addnstr(1, 0, bar.ljust(w), w - 1, curses.A_REVERSE)
 
@@ -192,8 +437,9 @@ class DeforaTUI:
         self.stdscr.addnstr(16, 1, f"Time: 00:08.5  Seed: {self.seed}   Playhead: █████░░░░░", w - 2)
 
         # Waveform strip
-        self.stdscr.addnstr(18, 1, "THUMBNAILS + WAVEFORM", w - 2, curses.A_BOLD)
-        self.stdscr.addnstr(19, 1, "[thumb]" * 10 + "...", w - 2)
+        self.stdscr.addnstr(18, 1, "FRAMES (< > scrub, g generate)", w - 2, curses.A_BOLD)
+        timeline = self.format_frame_timeline(w - 2)
+        self.stdscr.addnstr(19, 1, timeline, w - 2)
         self.stdscr.addnstr(20, 1, "Tempo: 120 BPM        |      |      |      |      |      |      |", w - 2)
         self.stdscr.addnstr(21, 1, "Audio:   /\\/\\__/\\/\\_/\\/\\____/\\/\\/\\/\\____/\\/\\____/\\/\\/\\/\\____/\\/\\____", w - 2)
 
@@ -205,16 +451,16 @@ class DeforaTUI:
         self.draw_slider(24, "Vibe (CFG)", self.params["cfg"], self.selected_param == "cfg")
         self.draw_slider(25, "Strength", self.params["strength"], self.selected_param == "strength")
         self.draw_slider(26, "Noise / Glitch", self.params["noise"], self.selected_param == "noise")
-        self.draw_slider(27, "CFG scale", Param("CFG scale", 5.00, 0, 15), False)
-        self.draw_slider(28, "Cadence", Param("Cadence", 2.00, 0, 8), False)
+        self.draw_slider(27, "Cadence", self.params["cadence"], self.selected_param == "cadence")
 
         self.stdscr.addnstr(23, col2_x, "CAMERA & MOTION", w - col2_x - 2, curses.A_BOLD)
         self.draw_slider(24, "Zoom", self.params["zoom"], self.selected_param == "zoom")
         self.draw_slider(25, "Pan X", self.params["panx"], self.selected_param == "panx")
         self.draw_slider(26, "Pan Y", self.params["pany"], self.selected_param == "pany")
-        self.draw_slider(27, "Tilt", Param("Tilt", 0.00, -180, 180, 1.0), False)
-        self.draw_slider(28, "Rotate H", self.params["rotate"], self.selected_param == "rotate")
-        self.stdscr.addnstr(29, col2_x, "Motion preset: [Tunnel Push]  (1 Static 2 Orbit 3 Chaos)", w - col2_x - 2)
+        self.draw_slider(27, "Rotate Y", self.params["rotate"], self.selected_param == "rotate")
+        self.draw_slider(28, "Tilt (Z)", self.params["tilt"], self.selected_param == "tilt")
+        self.draw_slider(29, "FOV", self.params["fov"], self.selected_param == "fov")
+        self.stdscr.addnstr(30, col2_x, "Motion preset: [Tunnel Push]  (1 Static 2 Orbit 3 Chaos)", w - col2_x - 2)
 
         self.stdscr.addnstr(23, col3_x, "SOURCES / MACROS / MIDI", w - col3_x - 2, curses.A_BOLD)
         src_lines = [
@@ -235,11 +481,14 @@ class DeforaTUI:
         self.stdscr.addnstr(
             h - 4,
             1,
-            "TRANSPORT: [SPACE] Play/Pause   [←/→] Nudge frame   [<] Prev keyframe   [>] Next keyframe   [R]ec   [L]oop   [H]ide HUD",
+            "Controls: SPACE source • ←/→ adjust param • </> frame select • g generate/resume • r reconnect mediator",
             w - 2,
         )
         self.stdscr.addnstr(
-            h - 3, 1, "Status: Beat macros active • MIDI device connected", w - 2
+            h - 3,
+            1,
+            f"Status: Beat macros active • MIDI: {self.midi_device} • Deforum: {self.deforum_status()}",
+            w - 2,
         )
 
     def draw_prompts(self):
