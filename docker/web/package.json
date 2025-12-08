@@ -5,7 +5,7 @@
   "scripts": {
     "build": "echo 'static assets only'",
     "start": "node server.js",
-    "test": "node --test test/**/*.spec.js"
+    "test": "node --test test/*.spec.js"
   },
   "dependencies": {
     "amqplib": "^0.10.3",
