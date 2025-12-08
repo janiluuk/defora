@@ -56,6 +56,7 @@ pip install -r requirements.txt
 ## Mediator (DeforumationQT)
 - The DeforumationQT mediator is vendored under `deforumation/`. Run it to bridge SD-Forge/Deforum to the Deforumation UI and our CLI tools (panel/dashboard/audio modulator).
 - See `docs/mediator_setup.md` for mediator startup steps and for installing the sd-forge Deforum bridge from `deforumation/Deforum_Version/sd-forge/`.
+- Docker users: `docker-compose up --build mediator sd-forge` will start the mediator (ports 8765/8766) and a Forge container with the Deforumation-patched Deforum extension pre-installed (UI on port 7860).
 
 ## Environment knobs
 - `FORGE_API_BASE` — target Forge server (e.g., `http://192.168.2.101:7860`).

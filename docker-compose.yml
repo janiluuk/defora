@@ -35,14 +35,31 @@ services:
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
 
+  mediator:
+    build:
+      context: .
+      dockerfile: docker/mediator/Dockerfile
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    environment:
+      - MEDIATOR_DEFORUM_ADDRESS=0.0.0.0
+      - MEDIATOR_DEFORUM_PORT=8765
+      - MEDIATOR_DEFORUMATION_ADDRESS=0.0.0.0
+      - MEDIATOR_DEFORUMATION_PORT=8766
+      - DEFORUMATION_ADDRESS=${DEFORUMATION_ADDRESS:-127.0.0.1}
+      - DEFORUMATION_PORT=${DEFORUMATION_PORT:-8767}
+
   sd-forge:
     build:
       context: .
       dockerfile: docker/sd-forge/Dockerfile
       args:
-        DEFORUM_MEDIATOR_URL: ${DEFORUM_MEDIATOR_URL:-ws://host.docker.internal:8765}
+        DEFORUM_MEDIATOR_URL: ${DEFORUM_MEDIATOR_URL:-ws://mediator:8765}
     image: sd-forge:latest
     command: ["sleep", "infinity"]
+    ports:
+      - "7860:7860"
     volumes:
       - frames:/data/frames
       - hls:/var/www/hls
@@ -51,6 +68,7 @@ services:
       - HLS_PATH=/var/www/hls
     depends_on:
       - web
+      - mediator
 
   dev-frame-seeder:
     build:
@@ -80,7 +98,7 @@ services:
     environment:
       - MQ_URL=amqp://mq
       - MQ_QUEUE=controls
-      - MEDIATOR_HOST=${MEDIATOR_HOST:-host.docker.internal}
+      - MEDIATOR_HOST=${MEDIATOR_HOST:-mediator}
       - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
     depends_on:
       - mq
