@@ -20,6 +20,29 @@ TABS = ["LIVE", "PROMPTS", "MOTION", "AUDIO", "CONTROLNET", "SETTINGS"]
 SOURCES = ["Manual", "Beat", "MIDI"]
 
 
+class SafeWindow:
+    """Wraps a curses window and drops out-of-bounds writes instead of erroring."""
+
+    def __init__(self, win):
+        self._win = win
+
+    def addnstr(self, y: int, x: int, text: str, n: int, attr: int = 0):
+        h, w = self._win.getmaxyx()
+        if y < 0 or y >= h or x < 0 or x >= w:
+            return
+        width = min(n, max(0, w - x))
+        if width <= 0:
+            return
+        try:
+            self._win.addnstr(y, x, text, width, attr)
+        except curses.error:
+            # Ignore curses overflow errors so small terminals don't crash.
+            pass
+
+    def __getattr__(self, name):
+        return getattr(self._win, name)
+
+
 @dataclass
 class Param:
     name: str
@@ -49,7 +72,7 @@ def center_text(win, y: int, text: str, attr: int = 0):
 
 class DeforaTUI:
     def __init__(self, stdscr):
-        self.stdscr = stdscr
+        self.stdscr = SafeWindow(stdscr)
         self.tab = 0
         self.params: Dict[str, Param] = {
             "cfg": Param("Vibe (CFG)", 0.63),
