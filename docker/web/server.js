@@ -5,6 +5,8 @@ const fs = require("fs");
 const fsp = fs.promises;
 const WebSocket = require("ws");
 const amqp = require("amqplib");
+const { spawn } = require("child_process");
+const { EventEmitter } = require("events");
 
 async function start(opts = {}) {
   const port = opts.port || process.env.PORT || 3000;
@@ -15,10 +17,12 @@ async function start(opts = {}) {
   const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
   const hlsDir = opts.hlsDir || process.env.HLS_DIR || "/var/www/hls";
   const enableMq = opts.enableMq ?? (process.env.DISABLE_MQ ? false : true);
+   const spawner = opts.spawner || spawn;
 
   const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
 
   const app = express();
+  app.use(express.json({ limit: "1mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
 
   app.get("/api/health", async (_req, res) => {
@@ -59,6 +63,61 @@ async function start(opts = {}) {
         res.status(500).json({ error: "frames unavailable" });
       }
     }
+  });
+
+  app.post("/api/audio-map", async (req, res) => {
+    const body = req.body || {};
+    const audioPath = body.audioPath;
+    if (!audioPath) {
+      return res.status(400).json({ error: "audioPath required" });
+    }
+    const fps = parseInt(body.fps, 10) || 24;
+    const live = !!body.live;
+    const mediatorHost = body.mediatorHost || process.env.DEF_MEDIATOR_HOST || "localhost";
+    const mediatorPort = body.mediatorPort || process.env.DEF_MEDIATOR_PORT || "8766";
+    const mappings = Array.isArray(body.mappings) ? body.mappings : [];
+    let mappingArg;
+    try {
+      mappingArg = JSON.stringify(
+        mappings.map((m) => ({
+          param: m.param,
+          freq_min: Number(m.freq_min),
+          freq_max: Number(m.freq_max),
+          out_min: Number(m.out_min ?? 0),
+          out_max: Number(m.out_max ?? 1),
+        }))
+      );
+    } catch (err) {
+      return res.status(400).json({ error: "invalid mappings" });
+    }
+    const args = ["-m", "defora_cli.audio_reactive_modulator", "--audio", audioPath, "--fps", String(fps)];
+    if (mappingArg) {
+      args.push("--mapping", mappingArg);
+    }
+    if (body.output) {
+      args.push("--output", body.output);
+    }
+    if (live) {
+      args.push("--live", "--mediator-host", mediatorHost, "--mediator-port", String(mediatorPort));
+    }
+    const child = spawner("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
+    if (!child || typeof child.on !== "function") {
+      return res.status(500).json({ error: "could not start audio processor" });
+    }
+    let stdout = "";
+    let stderr = "";
+    if (child.stdout && child.stdout.on) {
+      child.stdout.on("data", (d) => (stdout += d.toString()));
+    }
+    if (child.stderr && child.stderr.on) {
+      child.stderr.on("data", (d) => (stderr += d.toString()));
+    }
+    child.on("error", (err) => {
+      res.status(500).json({ error: String(err) });
+    });
+    child.on("close", (code) => {
+      res.json({ ok: code === 0, code, stdout: stdout.trim(), stderr: stderr.trim() });
+    });
   });
 
   const server = app.listen(port, () => {

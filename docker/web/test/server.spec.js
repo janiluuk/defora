@@ -4,6 +4,8 @@ const os = require("os");
 const supertest = require("supertest");
 const { expect } = require("chai");
 const { describe, it, beforeEach, afterEach } = require("node:test");
+const { EventEmitter } = require("events");
+const { Readable } = require("stream");
 
 const { start } = require("../server");
 
@@ -42,5 +44,33 @@ describe("web server frames API", () => {
     expect(latest.src).to.include("frame_0010");
     expect(latest.frame).to.equal(10);
     expect(older.frame).to.equal(5);
+  });
+
+  it("spawns audio modulator with mappings", async () => {
+    const proc = new EventEmitter();
+    proc.stdout = new Readable({ read() {} });
+    proc.stderr = new Readable({ read() {} });
+    let captured;
+    const spawner = (cmd, args) => {
+      captured = { cmd, args };
+      setImmediate(() => proc.emit("close", 0));
+      return proc;
+    };
+    if (svc && svc.close) {
+      await svc.close();
+    }
+    svc = await start({ port: 0, framesDir: tmp, enableMq: false, spawner });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+
+    const res = await request
+      .post("/api/audio-map")
+      .send({ audioPath: "/tmp/song.wav", fps: 24, mappings: [{ param: "cfg", freq_min: 20, freq_max: 300, out_min: 0, out_max: 10 }], live: true, mediatorHost: "h", mediatorPort: "p" });
+
+    expect(res.status).to.equal(200);
+    expect(captured.cmd).to.equal("python3");
+    expect(captured.args).to.include("--audio");
+    expect(captured.args).to.include("/tmp/song.wav");
+    expect(captured.args).to.include("--live");
+    expect(captured.args.join(" ")).to.include("defora_cli.audio_reactive_modulator");
   });
 });

@@ -85,6 +85,8 @@
     .lfo-card .meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
     .lfo-card select, .lfo-card input[type=number] { width: 100%; padding: 6px; border-radius: 8px; border: 1px solid var(--border); background: #0f172a; color: var(--text); }
     .lfo-card .switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--muted); }
+    .audio-map-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+    .audio-map-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: #0f172a; }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -231,6 +233,35 @@
               <span class="chip">Re-detect</span>
               <span class="chip">Tap tempo</span>
               <span class="chip">Add tempo change</span>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Audio band mappings</h3>
+            <div class="audio-map-grid">
+              <div class="audio-map-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
+                <div class="meta">Target</div>
+                <select v-model="m.param">
+                  <option value="">(none)</option>
+                  <option v-for="t in lfoTargets" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
+                </select>
+                <div class="slider-row" style="margin-top:6px;">
+                  <div>Freq min</div><input type="number" min="0" step="10" v-model.number="m.freq_min">
+                </div>
+                <div class="slider-row">
+                  <div>Freq max</div><input type="number" min="0" step="10" v-model.number="m.freq_max">
+                </div>
+                <div class="slider-row">
+                  <div>Out min</div><input type="number" step="0.01" v-model.number="m.out_min">
+                </div>
+                <div class="slider-row">
+                  <div>Out max</div><input type="number" step="0.01" v-model.number="m.out_max">
+                </div>
+              </div>
+            </div>
+            <div class="chips" style="margin-top:8px;">
+              <span class="chip" @click="addAudioMapping" v-if="audioMappings.length<6">+ Add mapping</span>
+              <span class="chip" @click="runAudioMod">Process audio → mediator</span>
+              <span class="chip" style="color:var(--muted);">Status: {{ audioStatus }}</span>
             </div>
           </div>
           <div class="rack">
@@ -474,6 +505,12 @@
           motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
           audio: { track: "", bpm: 114.8 },
+          audioStatus: "Idle",
+          audioMappings: [
+            { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
+            { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
+            { param: "translation_z", freq_min: 1200, freq_max: 3000, out_min: -5, out_max: 5 },
+          ],
           lfoBpm: 120,
           lfoTargets: [
             { key: "cfg", label: "Vibe (CFG)", min: 0, max: 30, default: 6 },
@@ -749,6 +786,9 @@
           if (this.macrosRack.length >= 6) return;
           this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.5, offset: 0.0, show: false });
         },
+        addAudioMapping() {
+          this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
+        },
         queueLiveParam(key, val) {
           const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
           const last = this.lastParamSent[key] || 0;
@@ -791,6 +831,45 @@
           if (!name) return null;
           const match = String(name).match(/(\d{3,})/);
           return match ? parseInt(match.pop(), 10) : null;
+        },
+        async runAudioMod() {
+          if (!this.audio.track) {
+            this.audioStatus = "Set audio file first";
+            return;
+          }
+          const mappings = this.audioMappings
+            .filter((m) => m.param && !Number.isNaN(m.freq_min) && !Number.isNaN(m.freq_max))
+            .map((m) => ({
+              param: m.param,
+              freq_min: m.freq_min,
+              freq_max: m.freq_max,
+              out_min: m.out_min ?? 0,
+              out_max: m.out_max ?? 1,
+            }));
+          if (!mappings.length) {
+            this.audioStatus = "Add at least one mapping";
+            return;
+          }
+          try {
+            const res = await fetch("/api/audio-map", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                audioPath: this.audio.track,
+                fps: this.stats.fps || 24,
+                mappings,
+                live: true,
+              }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) {
+              this.audioStatus = json.error || "Audio processing failed";
+            } else {
+              this.audioStatus = json.ok ? "Audio sent to mediator" : "Audio processing finished with errors";
+            }
+          } catch (err) {
+            this.audioStatus = String(err);
+          }
         },
         frameLabel(t) {
           if (!t) return "?";

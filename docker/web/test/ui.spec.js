@@ -265,6 +265,23 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.ws.sent.length).to.equal(0);
   });
 
+  it("runAudioMod posts mappings when audio track is set", async () => {
+    const instance = instantiate(appDef);
+    const bodies = [];
+    global.fetch = async (_url, opts) => {
+      bodies.push(JSON.parse(opts.body));
+      return { ok: true, json: async () => ({ ok: true }) };
+    };
+    instance.audio.track = "/tmp/song.wav";
+    instance.audioMappings = [{ param: "cfg", freq_min: 20, freq_max: 300, out_min: 0, out_max: 10 }];
+
+    await instance.runAudioMod();
+
+    expect(bodies[0].audioPath).to.equal("/tmp/song.wav");
+    expect(bodies[0].mappings[0].freq_max).to.equal(300);
+    delete global.fetch;
+  });
+
   it("setMorph toggles morph state and emits control", () => {
     const instance = instantiate(appDef);
     instance.ws = new FakeSocket();
