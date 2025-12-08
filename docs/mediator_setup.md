@@ -1,6 +1,6 @@
 # Deforumation mediator (DeforumationQT port)
 
-This repo ships the upstream Deforumation checkout under `deforumation/`. That folder contains the mediator (`mediator.py`), the Deforumation UI, and the Forge Deforum bridge zips under `deforumation/Deforum_Version/sd-forge/`.
+This repo ships the upstream Deforumation checkout under `deforumation/` as a git submodule (pinned to `Rakile/DeforumationQT`). That folder contains the mediator (`mediator.py`), the Deforumation UI, and the Forge Deforum bridge zips under `deforumation/Deforum_Version/sd-forge/`. After cloning, run `git submodule update --init --recursive` (or `./scripts/clone_deforumation.sh`) to populate it.
 
 ## Run the mediator locally
 - Install deps (Linux example): `cd deforumation && python -m venv .venv && source .venv/bin/activate && pip install -r requirements_linux.txt`. On Windows use `requirements_win.txt` and activate `venv\Scripts\activate`.

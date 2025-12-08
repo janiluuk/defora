@@ -30,6 +30,8 @@ Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: l
 ```bash
 git clone https://github.com/janiluuk/defora.git
 cd defora
+git submodule update --init --recursive
+# or: ./scripts/clone_deforumation.sh
 pip install -r requirements.txt
 ```
 2) Start Forge (with `--deforum-api` for Deforum).
@@ -81,5 +83,5 @@ pip install -r requirements.txt
 ## Testing
 Run the suite (requires pytest installed):
 ```bash
-python -m pytest
+./scripts/run_tests.sh  # or: python -m pytest
 ```

@@ -1,0 +1,3 @@
+[submodule "deforumation"]
+	path = deforumation
+	url = https://github.com/Rakile/DeforumationQT.git

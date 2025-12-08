@@ -10,19 +10,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Ensure deforumation submodule
+        run: ./scripts/clone_deforumation.sh
       - name: Python deps
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest
       - name: Python tests
-        run: python -m pytest
-      - name: ncurses UI tests
-        run: python -m pytest tests/test_defora_tui.py
+        run: ./scripts/run_tests.sh
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
