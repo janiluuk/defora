@@ -127,10 +127,13 @@ if [ -f "docker-compose.yml" ]; then
             check_pass "docker compose command available"
             
             # Validate docker-compose configuration
-            if docker compose config --quiet 2>&1 | grep -q "level=warning"; then
+            if docker compose config 2>&1 | grep -q 'version.*obsolete'; then
                 check_warn "docker-compose.yml has warnings (version attribute is obsolete)"
-            else
+            elif docker compose config --quiet 2>&1; then
                 check_pass "docker-compose.yml is valid"
+            else
+                check_fail "docker-compose.yml has errors"
+                ERRORS=$((ERRORS + 1))
             fi
         else
             check_warn "docker compose command not available"

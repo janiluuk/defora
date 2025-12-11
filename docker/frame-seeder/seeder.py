@@ -48,15 +48,19 @@ def generate_frame(frame_num: int, output_dir: Path, width: int = 1280, height: 
     x = (width - text_width) // 2
     y = (height - text_height) // 2 - 50
     
-    # Neon glow effect
+    # Neon glow effect - convert to RGBA once before loop
+    img_rgba = img.convert('RGBA')
     glow_color = (255, 83, 217)  # Pink glow
     for offset in range(5, 0, -1):
         alpha = int(100 / offset)
         glow_img = Image.new('RGBA', (width, height), (0, 0, 0, 0))
         glow_draw = ImageDraw.Draw(glow_img)
         glow_draw.text((x, y), frame_text, font=font_large, fill=(*glow_color, alpha))
-        img = Image.alpha_composite(img.convert('RGBA'), glow_img).convert('RGB')
+        img_rgba = Image.alpha_composite(img_rgba, glow_img)
     
+    # Convert back to RGB and add main text
+    img = img_rgba.convert('RGB')
+    draw = ImageDraw.Draw(img)  # Re-create draw on RGB image
     draw.text((x, y), frame_text, font=font_large, fill=(45, 226, 255))  # Cyan text
     
     # Timestamp (smaller, bottom)
@@ -90,7 +94,10 @@ def main():
     if clear:
         print(f"[seeder] Clearing existing frames in {output_dir}")
         for frame_file in output_dir.glob("frame_*.png"):
-            frame_file.unlink()
+            try:
+                frame_file.unlink()
+            except Exception as e:
+                print(f"[seeder] Warning: Could not delete {frame_file.name}: {e}", file=sys.stderr)
     
     print(f"[seeder] Starting frame generation at {fps} FPS")
     print(f"[seeder] Output directory: {output_dir}")
