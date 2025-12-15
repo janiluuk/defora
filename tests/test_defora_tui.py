@@ -257,6 +257,22 @@ def test_trigger_generation_disconnected_sets_status():
     ui.trigger_generation()
     assert "mediator disconnected" in ui.status.lower()
 
+def test_band_adjustments_and_lfo_tick():
+    ui = DeforaTUI(FakeWin())
+    band_before = dict(ui.bands[0])
+    ui.selected_band = 0
+    ui.adjust_band(10, 0.1)
+    band_after = ui.bands[0]
+    assert band_after["freq_min"] == pytest.approx(band_before["freq_min"] + 10)
+    assert band_after["intensity"] == pytest.approx(band_before["intensity"] + 0.1)
+
+    mediator = FakeMediator()
+    ui.bridge.connected = True
+    ui.bridge.client = mediator
+    ui.lfos[0]["on"] = True
+    ui.tick_lfos(force=True)
+    assert mediator.writes, "LFO tick did not send any writes"
+
 
 def test_adjust_selected_writes_to_mediator():
     fake = FakeWin()

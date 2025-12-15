@@ -14,11 +14,14 @@ from __future__ import annotations
 
 import curses
 import os
+import time
+import math
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
 from .mediator_client import MediatorClient
+from . import control_mapping
 
 TABS = ["LIVE", "PROMPTS", "MOTION", "AUDIO", "CONTROLNET", "SETTINGS"]
 SOURCES = ["Manual", "Beat", "MIDI"]
@@ -156,7 +159,9 @@ class DeforumBridge:
         if not remote_key:
             return False
         try:
-            self.client.write(remote_key, value)
+            mapped = control_mapping.map_control("liveParam", {remote_key: value})
+            for key, val in mapped.writes:
+                self.client.write(key, val)
             return True
         except Exception as exc:
             self.connected = False
@@ -178,7 +183,9 @@ class DeforumBridge:
         if not self.connected or not self.client:
             return False
         try:
-            self.client.write("start_frame", int(frame))
+            mapped = control_mapping.map_control("transport", {"start_frame": int(frame)})
+            for key, val in mapped.writes:
+                self.client.write(key, val)
             return True
         except Exception as exc:
             self.connected = False
@@ -189,7 +196,9 @@ class DeforumBridge:
         if not self.connected or not self.client:
             return False
         try:
-            self.client.write("should_resume", 1)
+            mapped = control_mapping.map_control("transport", {"action": "resume"})
+            for key, val in mapped.writes:
+                self.client.write(key, val)
             return True
         except Exception as exc:
             self.connected = False
@@ -242,6 +251,18 @@ class DeforaTUI:
         self.frames_dir: Optional[Path] = self.detect_frames_dir()
         self.preview_cache: Dict[str, List[str]] = {}
         self.preview_error: str = ""
+        self.lfos: List[Dict[str, float]] = [
+            {"label": "LFO1", "target": "cfg", "shape": "Sine", "depth": 0.3, "base": 6.0, "rate": 1.0, "phase": 0.0, "on": True},
+            {"label": "LFO2", "target": "zoom", "shape": "Triangle", "depth": 0.2, "base": 0.0, "rate": 0.5, "phase": 0.0, "on": False},
+        ]
+        self.last_lfo_time: Optional[float] = None
+        self.bands = [
+            {"freq_min": 20.0, "freq_max": 80.0, "intensity": 0.5, "param": "translation_x"},
+            {"freq_min": 80.0, "freq_max": 250.0, "intensity": 0.8, "param": "translation_y"},
+            {"freq_min": 250.0, "freq_max": 1200.0, "intensity": 1.0, "param": "translation_z"},
+            {"freq_min": 1200.0, "freq_max": 5000.0, "intensity": 0.6, "param": "rotation_z"},
+        ]
+        self.selected_band = 0
 
     def detect_frames_dir(self) -> Optional[Path]:
         env = os.getenv("DEFORUMATION_FRAMES_DIR")
@@ -309,6 +330,7 @@ class DeforaTUI:
         self.connect_and_sync()
         while True:
             self.draw()
+            self.tick_lfos()
             key = self.stdscr.getch()
             if key in (ord("q"), ord("Q")):
                 break
@@ -343,6 +365,18 @@ class DeforaTUI:
                 self.connect_and_sync()
             elif key == ord("g"):
                 self.trigger_generation()
+            elif key in (ord("L"), ord("l")):
+                self.tick_lfos(force=True)
+            elif self.tab == 3 and key == ord("b"):
+                self.selected_band = (self.selected_band + 1) % len(self.bands)
+            elif self.tab == 3 and key == ord("["):
+                self.adjust_band(-10, 0)
+            elif self.tab == 3 and key == ord("]"):
+                self.adjust_band(10, 0)
+            elif self.tab == 3 and key == ord(";"):
+                self.adjust_band(0, -0.05)
+            elif self.tab == 3 and key == ord("'"):
+                self.adjust_band(0, 0.05)
 
     def adjust_selected(self, delta: float):
         p = self.params[self.selected_param]
@@ -500,6 +534,61 @@ class DeforaTUI:
                 start_y = y + 1 + inner_h // 2
                 start_x = x + 1 + max(0, (inner_w - len(msg)) // 2)
                 self.stdscr.addnstr(start_y, start_x, msg[:inner_w], inner_w)
+
+    def tick_lfos(self, force: bool = False) -> None:
+        """Simple LFO scheduler; sends one tick per UI loop."""
+        if not self.bridge.connected or not self.bridge.client:
+            return
+        now = time.time()
+        if self.last_lfo_time is None:
+            self.last_lfo_time = now
+        dt = now - self.last_lfo_time
+        if not force and dt < 0.1:
+            return
+        self.last_lfo_time = now
+        payload = {}
+        for lfo in self.lfos:
+            if not lfo.get("on"):
+                continue
+            target_key, _ = PARAM_TO_MEDIATOR.get(lfo.get("target"), (lfo.get("target"), None))
+            if not target_key:
+                continue
+            shape = str(lfo.get("shape", "Sine"))
+            depth = float(lfo.get("depth", 0.2))
+            base = float(lfo.get("base", 0.0))
+            rate = float(lfo.get("rate", 1.0))
+            phase = float(lfo.get("phase", 0.0))
+            phase = (phase + dt * rate * 2 * 3.14159265) % (2 * 3.14159265)
+            lfo["phase"] = phase
+            if shape.lower().startswith("tri"):
+                wave = (2 * abs((phase / 3.14159265) % 2 - 1) - 1)
+            elif shape.lower().startswith("saw"):
+                wave = (phase / 3.14159265) - 1
+            elif shape.lower().startswith("square"):
+                wave = 1 if phase < 3.14159265 else -1
+            else:
+                wave = math.sin(phase)
+            value = base + wave * depth
+            payload[target_key] = value
+        if payload:
+            self.bridge.client.write("should_use_deforumation_strength", 1)  # best-effort flag
+            for key, val in payload.items():
+                try:
+                    self.bridge.client.write(key, val)
+                except Exception:
+                    self.engine_status = "DISCONNECTED"
+
+    def adjust_band(self, freq_delta: float, intensity_delta: float) -> None:
+        if not self.bands:
+            return
+        band = self.bands[self.selected_band]
+        band["freq_min"] = max(0.0, min(20000.0, band["freq_min"] + freq_delta))
+        band["freq_max"] = max(band["freq_min"], min(20000.0, band["freq_max"] + freq_delta))
+        band["intensity"] = max(0.0, min(3.0, band["intensity"] + intensity_delta))
+        self.status = (
+            f"Band {self.selected_band+1}: {band['freq_min']:.0f}-{band['freq_max']:.0f} Hz "
+            f"int {band['intensity']:.2f}"
+        )
 
     def draw_slider(self, y: int, label: str, param: Param, active: bool = False):
         bar_w = 20
@@ -663,6 +752,25 @@ class DeforaTUI:
         ]
         for i, line in enumerate(curve):
             self.stdscr.addnstr(17 + i, 1, line, w - 2)
+        y = 17 + len(curve) + 1
+        self.stdscr.addnstr(y, 1, "Live LFO slots (press L to tick/send)", w - 2, curses.A_BOLD)
+        for idx, lfo in enumerate(self.lfos):
+            line = (
+                f"{lfo['label']:<6} [{'ON' if lfo.get('on') else 'off'}] "
+                f"tgt:{lfo.get('target','-'):<8} shape:{lfo.get('shape','Sine'):<7} "
+                f"rate:{lfo.get('rate',1.0):>4.1f} depth:{lfo.get('depth',0.0):>4.2f}"
+            )
+            self.stdscr.addnstr(y + idx + 1, 1, line, w - 2)
+        band_y = y + len(self.lfos) + 2
+        self.stdscr.addnstr(band_y, 1, "Band maps (b cycle, [/] low/high, ;/' intensity)", w - 2, curses.A_BOLD)
+        for idx, band in enumerate(self.bands):
+            selected = idx == self.selected_band
+            line = (
+                f"{'>' if selected else ' '}Band{idx+1}: {band['freq_min']:>4.0f}-{band['freq_max']:>5.0f} Hz "
+                f"int:{band['intensity']:.2f} tgt:{band.get('param','-')}"
+            )
+            attr = curses.A_REVERSE if selected else curses.A_NORMAL
+            self.stdscr.addnstr(band_y + idx + 1, 1, line, w - 2, attr)
         self.stdscr.addnstr(h - 4, 1, "Hint: if target source is MIDI, show warning 'Overridden by MIDI – press O to switch to Beat'", w - 2)
 
     def draw_controlnet(self):

@@ -7,6 +7,9 @@ const WebSocket = require("ws");
 const amqp = require("amqplib");
 const { spawn } = require("child_process");
 const { EventEmitter } = require("events");
+const { mapControl } = require("./controlMapping");
+const { motionPresetPayload } = require("./motionPresets");
+const { controlnetPayload } = require("./controlnetMapping");
 
 async function start(opts = {}) {
   const port = opts.port ?? process.env.PORT ?? 3000;
@@ -17,7 +20,12 @@ async function start(opts = {}) {
   const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
   const hlsDir = opts.hlsDir || process.env.HLS_DIR || "/var/www/hls";
   const enableMq = opts.enableMq ?? (process.env.DISABLE_MQ ? false : true);
-   const spawner = opts.spawner || spawn;
+  const spawner = opts.spawner || spawn;
+  const mediatorHost = opts.mediatorHost || process.env.DEF_MEDIATOR_HOST || "localhost";
+  const mediatorPort = opts.mediatorPort || process.env.DEF_MEDIATOR_PORT || "8766";
+  const listen = opts.listen !== false;
+  const peakCache = new Map();
+  const beatCache = new Map();
 
   const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
 
@@ -32,6 +40,98 @@ async function start(opts = {}) {
     } catch (_e) {
       res.json({ ok: true, stream: hlsStream, updated: null });
     }
+  });
+
+  app.get("/api/mediator/state", async (req, res) => {
+    const keys = typeof req.query.keys === "string" ? req.query.keys : "";
+    const args = ["-m", "defora_cli.mediator_state", "--host", mediatorHost, "--port", String(mediatorPort)];
+    if (keys) {
+      args.push("--keys", keys);
+    }
+    const child = spawner("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
+    if (!child || !child.stdout || !child.stderr) {
+      return res.status(500).json({ error: "mediator probe unavailable" });
+    }
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (d) => (stdout += d.toString()));
+    child.stderr.on("data", (d) => (stderr += d.toString()));
+    child.on("error", (err) => {
+      res.status(503).json({ error: String(err) || "mediator probe failed" });
+    });
+    child.on("close", (code) => {
+      if (code !== 0) {
+        return res.status(503).json({ error: stderr.trim() || "mediator probe failed" });
+      }
+      try {
+        const parsed = JSON.parse(stdout || "{}");
+        res.json(parsed);
+      } catch (err) {
+        res.status(500).json({ error: "invalid mediator response" });
+      }
+    });
+  });
+
+  app.post("/api/audio/peaks", async (req, res) => {
+    try {
+      const audioPath = req.body && req.body.audioPath;
+      const samples = Math.max(8, Math.min(1024, parseInt(req.body.samples, 10) || 256));
+      if (!audioPath) return res.status(400).json({ error: "audioPath required" });
+      const cacheKey = `${audioPath}:${samples}`;
+      if (peakCache.has(cacheKey)) return res.json(peakCache.get(cacheKey));
+      const stat = await fsp.stat(audioPath);
+      const size = stat.size || 1;
+      const data = await fsp.readFile(audioPath);
+      const peaks = [];
+      for (let i = 0; i < samples; i++) {
+        const idx = Math.floor((i / samples) * data.length);
+        const val = data[idx] || 0;
+        peaks.push(Number(((val / 255) * 2 - 1).toFixed(3)));
+      }
+      const duration = Number((size / 176400).toFixed(2)); // rough guess (stereo 16bit 44.1k)
+      const result = { peaks, duration };
+      peakCache.set(cacheKey, result);
+      res.json(result);
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  app.post("/api/audio/beats", async (req, res) => {
+    const audioPath = req.body && req.body.audioPath;
+    const bpm = parseFloat(req.body && req.body.bpm) || 120;
+    const bars = Math.max(1, Math.min(64, parseInt(req.body && req.body.bars, 10) || 16));
+    const cacheKey = `${audioPath || "none"}:${bpm}:${bars}`;
+    if (beatCache.has(cacheKey)) return res.json(beatCache.get(cacheKey));
+    const beatDur = 60 / bpm;
+    const beats = [];
+    for (let i = 0; i < bars * 4; i++) {
+      beats.push(Number((i * beatDur).toFixed(3)));
+    }
+    const result = { beats, bpm };
+    beatCache.set(cacheKey, result);
+    res.json(result);
+  });
+
+  app.post("/api/lfo/preview", async (req, res) => {
+    const shape = (req.body && req.body.shape) || "Sine";
+    const depth = parseFloat(req.body && req.body.depth) || 0.5;
+    const base = parseFloat(req.body && req.body.base) || 0;
+    const rate = parseFloat(req.body && req.body.rate) || 1; // Hz
+    const steps = Math.max(8, Math.min(512, parseInt(req.body && req.body.steps, 10) || 64));
+    const samples = [];
+    const twoPi = Math.PI * 2;
+    for (let i = 0; i < steps; i++) {
+      const t = (i / steps) * twoPi * rate;
+      let wave = 0;
+      const phase = t % twoPi;
+      if (shape === "Triangle") wave = 2 * Math.asin(Math.sin(phase)) / Math.PI;
+      else if (shape === "Saw") wave = ((phase / Math.PI) % 2) - 1;
+      else if (shape === "Square") wave = phase < Math.PI ? 1 : -1;
+      else wave = Math.sin(phase);
+      samples.push(Number((base + wave * depth).toFixed(3)));
+    }
+    res.json({ samples });
   });
 
   app.get("/api/frames", async (req, res) => {
@@ -75,16 +175,37 @@ async function start(opts = {}) {
     const live = !!body.live;
     const mediatorHost = body.mediatorHost || process.env.DEF_MEDIATOR_HOST || "localhost";
     const mediatorPort = body.mediatorPort || process.env.DEF_MEDIATOR_PORT || "8766";
+    const baseBands = [
+      { param: "translation_x", freq_min: 20, freq_max: 180, intensity: 1 },
+      { param: "translation_y", freq_min: 180, freq_max: 1200, intensity: 1 },
+      { param: "translation_z", freq_min: 1200, freq_max: 4000, intensity: 1 },
+    ];
+    const userBands = Array.isArray(body.bands)
+      ? body.bands.map((b) => ({
+          param: b.param,
+          freq_min: Number(b.freq_min),
+          freq_max: Number(b.freq_max),
+          intensity: b.intensity != null ? Number(b.intensity) : 1,
+        }))
+      : [];
     const mappings = Array.isArray(body.mappings) ? body.mappings : [];
+    const bandMappings = (userBands.length ? userBands : baseBands).map((b) => ({
+      param: b.param,
+      freq_min: b.freq_min,
+      freq_max: b.freq_max,
+      out_min: -(Math.abs(b.intensity || 1)),
+      out_max: Math.abs(b.intensity || 1),
+    }));
+    const finalMappings = mappings.length ? mappings : bandMappings;
     let mappingArg;
     try {
       mappingArg = JSON.stringify(
-        mappings.map((m) => ({
+        finalMappings.map((m) => ({
           param: m.param,
           freq_min: Number(m.freq_min),
           freq_max: Number(m.freq_max),
-          out_min: Number(m.out_min ?? 0),
-          out_max: Number(m.out_max ?? 1),
+          out_min: Number(m.out_min ?? (m.intensity ? -Math.abs(m.intensity) : 0)),
+          out_max: Number(m.out_max ?? (m.intensity ? Math.abs(m.intensity) : 1)),
         }))
       );
     } catch (err) {
@@ -120,12 +241,23 @@ async function start(opts = {}) {
     });
   });
 
-  const server = app.listen(port, () => {
-    const actualPort = server.address().port;
-    console.log(`[web] API/WS listening on ${actualPort}`);
-  });
-  const actualPort = () => server.address() && server.address().port;
-  const wss = new WebSocket.Server({ server, path: "/ws" });
+  let server = null;
+  if (listen) {
+    server = app.listen(port, () => {
+      const actualPort = server.address().port;
+      console.log(`[web] API/WS listening on ${actualPort}`);
+    });
+  }
+  const actualPort = () => (server && server.address && server.address().port) || 0;
+  const wss = listen
+    ? new WebSocket.Server({ server, path: "/ws" })
+    : {
+        clients: new Set(),
+        on() {},
+        close(cb) {
+          if (cb) cb();
+        },
+      };
 
   let amqpConn = null;
   let channel = null;
@@ -165,11 +297,27 @@ async function start(opts = {}) {
           ws.send(JSON.stringify({ type: "error", msg: "invalid schema" }));
           return;
         }
-        const msg = { controlType: payload.controlType, payload: payload.payload };
+        const mapped = mapControl(payload.controlType, payload.payload);
+        if (!mapped.valid) {
+          ws.send(JSON.stringify({ type: "error", msg: "invalid controlType or payload" }));
+          return;
+        }
+        const msg = { controlType: mapped.controlType, payload: mapped.payload };
+        if (mapped.controlType === "motionPreset" && mapped.payload && mapped.payload.name) {
+          const payload = motionPresetPayload(mapped.payload.name, mapped.payload.intensity || 1);
+          if (Object.keys(payload).length) {
+            msg.controlType = "liveParam";
+            msg.payload = payload;
+          }
+        } else if (mapped.controlType === "controlnet" && mapped.payload && mapped.payload.slot) {
+          const payload = controlnetPayload(mapped.payload.slot, mapped.payload);
+          msg.controlType = "controlnet";
+          msg.payload = payload;
+        }
         if (channel) {
           channel.sendToQueue(queue, Buffer.from(JSON.stringify(msg)));
         }
-        broadcast({ type: "event", msg: "control forwarded", payload: msg });
+        broadcast({ type: "event", msg: mapped.detail || "control forwarded", payload: msg });
       } catch (err) {
         console.error("bad ws message", err);
       }
@@ -210,7 +358,9 @@ async function start(opts = {}) {
       } catch (_) {}
     });
     await new Promise((resolve) => wss.close(resolve));
-    await new Promise((resolve) => server.close(resolve));
+    if (server) {
+      await new Promise((resolve) => server.close(resolve));
+    }
     if (channel) {
       try {
         await channel.close();

@@ -48,12 +48,34 @@ pip install -r requirements.txt
 - Stream frames via ffmpeg: `./stream_helper start --source runs/<id>/frames --target rtmp://example/live/key --fps 24`
 - Spin up the web streaming stack: `docker-compose up --build` then open `http://localhost:8080` (see `docs/streaming_stack.md`).
 - Web UI tabs (performer-focused): LIVE (macro sliders + motion presets), PROMPTS (morph & slots), MOTION (gamepad-style cam + curves), AUDIO/BEATS (waveform + beat actions), CONTROLNET (slot cards), SETTINGS (quick render presets).
+- Web control path: browser → WebSocket (`/ws`) → RabbitMQ → `defora_cli.control_bridge` → mediator. Controls are validated/sanitized via a shared mapping so core live params auto-enable the `should_use_deforumation_*` flags. `/api/mediator/state` bootstraps slider values from the mediator (used on page load).
+- Audio/LFO tools: `/api/audio/peaks` + `/api/audio/beats` provide lightweight waveform/beat grids. `/api/audio-map` accepts four bands (low/high Hz + intensity + target param) and spawns the audio modulator, streaming live to the mediator. Web UI exposes band cards (preview via Web Audio bandpass) and LFO slots; TUI shows LFOs/bands and lets you tweak them from the keyboard.
+- UI overview: see `docs/ui_overview.md` for a tab-by-tab breakdown of the ncurses TUI and web UI, including controls, shortcuts, and what’s still mock vs. live.
+- Motion presets: web MOTION tab chips now send mapped `liveParam` payloads (Static/Orbit/Tunnel/Handheld/Chaos) scaled by an intensity slider.
+- Prompts: PROMPTS tab sends A/B text, `prompt_mix`, enable flag, and optional prompt schedule slots; crossfade is debounced to mediator.
+- ControlNet: CONTROLNET tab edits slot weight/enable/bypass and sends payloads to the mediator; presets are lightweight and match DeforumationQT slots.
+- Purpose: this project makes Deforum/Forge playable as an instrument—live steering of prompts, camera, and ControlNet from TUI/Web, with streaming/monitoring built in.
 
 ## Key concepts
 - **Audio-visual instrument**: Treat prompts, camera, and ControlNet as live parameters; drive them via CLI/TUI/Web or controllers.
 - **Presets & manifests**: Deforum JSON presets and run manifests can be merged with CLI overrides. The runs TUI writes `*_request.json` that the dispatcher consumes.
 - **Mediator control**: The panel, dashboard, and audio modulator talk to the mediator websocket so you can steer generation without the full UI.
 - **Model-aware defaults**: `forge_cli` picks steps/CFG/sampler based on the active model (Flux/SDXL/SD1.5) and can auto-switch to Flux-schnell.
+
+## Web + TUI status (what’s live vs. mock)
+- **Live**: core sliders (cfg/strength/noise/cadence/zoom/pan/tilt/fov) from browser and TUIs hit the mediator via shared mapping; start/resume uses `start_frame`/`should_resume`; `/api/mediator/state` backfills sliders on load; LFOs/macro lanes emit `liveParam` writes with auto-enabled flags.
+- **Partially wired**: prompts load/save in TUIs; web prompt tab toggles morph on/off but does not yet push prompt schedules; audio analysis endpoints return simple peaks/beat grids (good enough for timelines, not pro-grade beat detection).
+- **Mock/placeholder**: web motion presets/styles don’t apply mediator values yet; ControlNet cards and many dashboard widgets are visual only; advanced audio/beat editing UI (tempo changes, macro curves) remains cosmetic; several `defora_tui.py` panels mirror the Qt layout but are still mostly decorative.
+
+## Audio/beat/LFO quick reference
+- Web UI (AUDIO tab):
+  - Set `Track` path and BPM, click “Load analysis” to fetch waveform peaks + beat grid.
+  - Four band cards: set low/high Hz, intensity, target param; click “Preview” to hear that band (Web Audio band-pass). A range bar shows the band window.
+  - “Process audio → mediator” POSTs `/api/audio-map` with bands (and optional fine-grained mappings) to stream live values.
+  - LFO cards: shape/rate/depth/base and target param; run alongside bands/macro lanes and send `liveParam` with flags.
+- TUI (F4 AUDIO/BEATS):
+  - Band list with keyboard tweaks: `b` cycle band, `[`/`]` adjust low/high, `;`/`'` intensity. LFOs tick automatically and can be forced with `L`.
+  - Status line shows current band edit; mediator writes go through the shared mapping.
 
 ## Mediator (DeforumationQT)
 - The DeforumationQT mediator is vendored under `deforumation/`. Run it to bridge SD-Forge/Deforum to the Deforumation UI and our CLI tools (panel/dashboard/audio modulator).

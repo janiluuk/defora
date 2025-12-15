@@ -4,7 +4,8 @@ RabbitMQ → mediator bridge for control messages.
 
 Listens on a queue (default: controls) for JSON messages of shape:
   {"controlType": "...", "payload": {...}}
-and forwards the payload keys/values to the mediator using MediatorClient.write().
+and maps them to concrete mediator writes (enabling any required
+"should_use_deforumation_*" flags) before sending via MediatorClient.
 
 Env:
 - MQ_URL (default: amqp://localhost)
@@ -23,6 +24,7 @@ from typing import Any, Dict
 import pika
 
 from .mediator_client import MediatorClient
+from .control_mapping import map_control
 
 
 MQ_URL = os.getenv("MQ_URL", "amqp://localhost")
@@ -36,17 +38,21 @@ def handle_message(client: MediatorClient, body: bytes) -> str:
         msg = json.loads(body.decode("utf-8"))
     except Exception as exc:
         return f"invalid json: {exc}"
+    control_type = msg.get("controlType") or msg.get("type") or ""
     payload: Dict[str, Any] = msg.get("payload") or {}
     if not isinstance(payload, dict):
         return "payload not a dict"
+    mapped = map_control(control_type, payload)
     sent = []
-    for k, v in payload.items():
+    for key, value in mapped.writes:
         try:
-            client.write(k, v)
-            sent.append(k)
+            client.write(key, value)
+            sent.append(key)
         except Exception:
             continue
-    return f"forwarded: {', '.join(sent) if sent else 'none'}"
+    if not sent:
+        return f"no writes for {control_type}"
+    return f"{mapped.detail or control_type}: {', '.join(sent)}"
 
 
 def main():

@@ -65,6 +65,13 @@
     .thumb { width: 92px; height: 54px; display: block; background: #11182a; object-fit: cover; }
     .thumb-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: var(--text); background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); }
     .wave { height: 40px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,83,217,0.2), rgba(45,226,255,0.2)); border: 1px solid var(--border); }
+    .wave { position: relative; display: flex; align-items: flex-end; overflow: hidden; }
+    .wave-bar { width: 1.5%; background: rgba(45,226,255,0.65); margin-right: 1px; min-height: 4px; border-radius: 4px 4px 0 0; }
+    .beat-marker { position: absolute; top: 0; bottom: 0; width: 2px; background: rgba(255,83,217,0.45); }
+    .band-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+    .band-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: #0e1322; }
+    .band-bar { height: 6px; background: linear-gradient(90deg, var(--glow1), var(--glow2)); border-radius: 999px; position: relative; margin-top: 6px; }
+    .band-window { position: absolute; top: -4px; bottom: -4px; background: rgba(45,226,255,0.2); border: 1px solid var(--glow2); border-radius: 8px; }
     .rack { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
     .rack h3 { margin: 0 0 8px 0; }
     .slider-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; color: var(--muted); }
@@ -136,7 +143,15 @@
               </div>
             </template>
           </div>
-          <div class="wave"></div>
+          <div class="wave">
+            <template v-if="waveformPeaks.length">
+              <div class="wave-bar" v-for="(p,idx) in waveformPeaks" :key="'w'+idx" :style="{height:(Math.abs(p)*100)+'%'}"></div>
+            </template>
+            <template v-else>
+              <div style="padding:8px; color:var(--muted); font-size:12px;">Load audio analysis to see waveform/beat grid</div>
+            </template>
+            <div class="beat-marker" v-for="(b,idx) in beatGrid" :key="'b'+idx" :style="{left: beatPos(b)+'%'}"></div>
+          </div>
         </div>
       </div>
 
@@ -179,22 +194,49 @@
 
         <div v-else-if="currentTab==='PROMPTS'">
           <div class="rack">
-            <h3>Positive prompt</h3>
-            <input class="select" v-model="prompts.pos" placeholder="positive prompt" />
-            <button class="btn ghost" style="margin-top:6px;">Edit full prompt</button>
+            <h3>Positive prompts (A/B)</h3>
+            <textarea class="select" v-model="prompts.posA" rows="3" placeholder="Positive prompt A"></textarea>
+            <textarea class="select" v-model="prompts.posB" rows="3" placeholder="Positive prompt B" style="margin-top:6px;"></textarea>
           </div>
           <div class="rack">
             <h3>Negative prompt</h3>
-            <input class="select" v-model="prompts.neg" placeholder="negative prompt" />
-            <button class="btn ghost" style="margin-top:6px;">Edit negative</button>
+            <textarea class="select" v-model="prompts.neg" rows="2" placeholder="negative prompt"></textarea>
           </div>
           <div class="rack">
-            <h3>Prompt morphing</h3>
+            <h3>Prompt crossfade</h3>
             <div class="chips">
               <span class="chip" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</span>
               <span class="chip" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</span>
             </div>
-            <div class="wave" style="margin-top:6px; height:24px; background: linear-gradient(90deg, var(--glow1), var(--glow2));"></div>
+            <div style="margin-top:10px;">
+              <div class="slider-row">
+                <div>Crossfade A→B</div>
+                <input type="range" min="0" max="1" step="0.01" v-model.number="prompts.mix" @input="sendPromptsDebounced">
+              </div>
+              <div style="font-size:12px; color:var(--muted);">A weight: {{ ((1-prompts.mix)*100).toFixed(0) }}% · B weight: {{ (prompts.mix*100).toFixed(0) }}%</div>
+              <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Send prompts</button>
+            </div>
+            <div style="margin-top:10px;">
+              <div class="slider-row">
+                <div>Schedule slots</div>
+                <span style="font-size:12px; color:var(--muted);">Click + to add morph slots over time (seconds → mix)</span>
+              </div>
+              <div class="audio-map-grid" style="align-items:center;">
+                <div class="audio-map-card" v-for="(slot,idx) in promptSchedule" :key="'ps'+idx">
+                  <div class="meta">Time (s)</div>
+                  <input type="number" min="0" step="0.5" v-model.number="slot.t" @input="updatePromptGraph">
+                  <div class="meta">Mix (0-1)</div>
+                  <input type="number" min="0" max="1" step="0.01" v-model.number="slot.mix" @input="updatePromptGraph">
+                  <button class="btn ghost" style="margin-top:6px;" @click="removePromptSlot(idx)">Delete</button>
+                </div>
+              </div>
+              <span class="chip" @click="addPromptSlot" v-if="promptSchedule.length<12">+ Add slot</span>
+              <div class="wave" style="margin-top:10px; height:50px; position:relative; overflow:hidden;">
+                <svg :width="'100%'" height="50" viewBox="0 0 100 50" preserveAspectRatio="none">
+                  <polyline :points="promptPolyline" fill="none" stroke="var(--glow2)" stroke-width="2" />
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -209,17 +251,21 @@
             <h3>Zoom & Tilt</h3>
             <div class="slider-row">
               <div>Zoom</div>
-              <input type="range" min="-5" max="5" step="0.05" value="0.8" @input="sendControl('liveParam',{translation_z: parseFloat($event.target.value)})">
+              <input type="range" min="-10" max="10" step="0.05" :value="camVal('translation_z')" @input="updateCam('translation_z',$event)">
             </div>
             <div class="slider-row">
               <div>Tilt</div>
-              <input type="range" min="-180" max="180" step="0.5" value="0" @input="sendControl('liveParam',{rotation_z: parseFloat($event.target.value)})">
+              <input type="range" min="-180" max="180" step="0.5" :value="camVal('rotation_z')" @input="updateCam('rotation_z',$event)">
             </div>
           </div>
           <div class="rack">
             <h3>Motion style</h3>
             <div class="chips">
-              <span class="chip" v-for="m in motionStyles" :key="m" @click="sendControl('motionStyle',{style:m})">{{ m }}</span>
+              <span class="chip" v-for="m in motionStyles" :key="m" @click="sendMotionPreset(m)">{{ m }}</span>
+            </div>
+            <div class="slider-row" style="margin-top:6px;">
+              <div>Intensity</div>
+              <input type="range" min="0.2" max="2" step="0.1" v-model.number="motionIntensity">
             </div>
           </div>
         </div>
@@ -227,16 +273,37 @@
         <div v-else-if="currentTab==='AUDIO'">
           <div class="rack">
             <h3>Track & tempo</h3>
-            <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track"></div>
+            <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track" placeholder="/path/to/track.wav"></div>
             <div class="slider-row"><div>BPM</div><input class="select" type="number" v-model.number="audio.bpm"></div>
             <div class="chips" style="margin-top:6px;">
-              <span class="chip">Re-detect</span>
-              <span class="chip">Tap tempo</span>
-              <span class="chip">Add tempo change</span>
+              <span class="chip" @click="loadAudioAnalysis">Load analysis</span>
+              <span class="chip" @click="tapTempo">Tap tempo</span>
+              <span class="chip" @click="audio.bpm = Math.round(audio.bpm || 120)">Round BPM</span>
             </div>
           </div>
           <div class="rack">
             <h3>Audio band mappings</h3>
+            <div class="band-grid">
+              <div class="band-card" v-for="(b,idx) in bands" :key="'band'+idx">
+                <h4 style="margin:0 0 6px 0; display:flex; justify-content:space-between; align-items:center;">
+                  {{ b.label }} <span class="pill" style="cursor:pointer;" @click="previewBand(b)">Preview</span>
+                </h4>
+                <div class="meta">Target</div>
+                <select v-model="b.param">
+                  <option v-for="t in lfoTargets" :key="'bt'+t.key" :value="t.key">{{ t.label }}</option>
+                </select>
+                <div class="meta">Freq range (Hz)</div>
+                <div style="display:flex; gap:6px;">
+                  <input type="number" min="0" max="20000" step="10" v-model.number="b.freq_min" style="flex:1;">
+                  <input type="number" min="0" max="20000" step="10" v-model.number="b.freq_max" style="flex:1;">
+                </div>
+                <div class="meta">Intensity</div>
+                <input type="range" min="0" max="3" step="0.05" v-model.number="b.intensity">
+                <div class="band-bar">
+                  <div class="band-window" :style="{left: (b.freq_min/20000*100)+'%', right: (100 - (b.freq_max/20000*100))+'%', opacity: 0.4 + b.intensity/3}"></div>
+                </div>
+              </div>
+            </div>
             <div class="audio-map-grid">
               <div class="audio-map-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
                 <div class="meta">Target</div>
@@ -265,60 +332,56 @@
             </div>
           </div>
           <div class="rack">
-            <h3>Manual LFOs (no audio sync)</h3>
-            <div class="slider-row">
-              <div>Global BPM</div>
-              <input class="select" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
-            </div>
+            <h3>Macro lanes (beat-driven)</h3>
             <div class="lfo-grid">
-              <div class="lfo-card" v-for="l in lfos" :key="l.id">
-                <h4>
-                  LFO {{ l.id }}
-                  <span class="switch" @click="l.on=!l.on">
-                    <span class="dot" :style="{background: l.on ? 'var(--success)' : '#444'}"></span>
-                    {{ l.on ? 'ON' : 'OFF' }}
-                  </span>
-                </h4>
+              <div class="lfo-card" v-for="(m,idx) in macrosRack" :key="'macro'+idx">
+                <h4>Lane {{ idx+1 }} <span class="pill" :class="{danger:!m.on}" style="margin-left:6px; cursor:pointer;" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span></h4>
+                <div class="meta">Target</div>
+                <select v-model="m.target">
+                  <option v-for="t in lfoTargets" :key="'mt'+t.key" :value="t.key">{{ t.label }}</option>
+                </select>
+                <div class="meta">Shape</div>
+                <select v-model="m.shape">
+                  <option v-for="s in lfoShapes" :key="'ms'+s">{{ s }}</option>
+                </select>
+                <div class="meta">Speed</div>
+                <select v-model="m.speed">
+                  <option>1/8 note</option>
+                  <option>1/4 note</option>
+                  <option>1/2 note</option>
+                  <option>1 bar</option>
+                </select>
+                <div class="meta">Depth</div>
+                <input type="number" min="0" max="1" step="0.05" v-model.number="m.depth">
+                <div class="meta">Start beat / End beat</div>
+                <div style="display:flex; gap:6px;">
+                  <input type="number" v-model.number="m.startBeat" min="0" style="flex:1;">
+                  <input type="number" v-model.number="m.endBeat" min="0" style="flex:1;">
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>LFOs</h3>
+            <div class="lfo-grid">
+              <div class="lfo-card" v-for="(l,idx) in lfos" :key="'lfo'+idx">
+                <h4>LFO {{ l.id }} <span class="pill" :class="{danger:!l.on}" style="margin-left:6px; cursor:pointer;" @click="l.on=!l.on">{{ l.on ? 'ON' : 'OFF' }}</span></h4>
                 <div class="meta">Target</div>
                 <select v-model="l.target" @change="initLfoBase(l)">
                   <option value="">(none)</option>
-                  <option v-for="t in lfoTargets" :key="t.key" :value="t.key">{{ t.label }}</option>
+                  <option v-for="t in lfoTargets" :key="'lt'+t.key" :value="t.key">{{ t.label }}</option>
                 </select>
-                <div class="meta" style="margin-top:6px;">Shape</div>
+                <div class="meta">Shape / Depth / Base</div>
                 <select v-model="l.shape">
-                  <option v-for="s in lfoShapes" :key="s">{{ s }}</option>
+                  <option v-for="s in lfoShapes" :key="'ls'+s">{{ s }}</option>
                 </select>
-                <div class="slider-row" style="margin-top:6px;">
-                  <div>BPM</div>
-                  <input type="number" min="20" max="240" step="1" v-model.number="l.bpm">
-                </div>
-                <div class="slider-row">
-                  <div>Base</div>
-                  <input type="number" :min="lfoTarget(l) ? lfoTarget(l).min : 0" :max="lfoTarget(l) ? lfoTarget(l).max : 1" step="0.01" v-model.number="l.base">
-                </div>
-                <div class="slider-row">
-                  <div>Depth</div>
-                  <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth">
-                </div>
+                <input type="number" min="0" max="1" step="0.05" v-model.number="l.depth">
+                <input type="number" step="0.1" v-model.number="l.base">
+                <div class="meta">BPM (or rate)</div>
+                <input type="number" min="1" step="1" v-model.number="l.bpm">
+                <div class="meta"><label><input type="checkbox" v-model="l.sync"> Sync to BPM</label></div>
               </div>
             </div>
-            <div class="meta">LFOs emit liveParam values to the mediator when no audio track is selected.</div>
-          </div>
-          <div class="rack">
-            <h3>Beat macros</h3>
-            <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" style="border:1px solid var(--border); border-radius:10px; padding:8px; margin-bottom:6px;">
-              <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
-                <span>Macro {{ idx+1 }}</span>
-                <span class="chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
-              </div>
-              <div class="slider-row"><div>Target</div><select class="select" v-model="m.target"><option>Vibe (CFG)</option><option>Zoom</option><option>Noise</option></select></div>
-              <div class="slider-row"><div>Shape</div><select class="select" v-model="m.shape"><option>Sine</option><option>Saw</option><option>Noise</option></select></div>
-              <div class="slider-row"><div>Speed</div><select class="select" v-model="m.speed"><option>1/4 note</option><option>1 bar</option><option>1/8 note</option></select></div>
-              <div class="slider-row"><div>Depth</div><input type="range" min="0" max="1" step="0.01" v-model.number="m.depth"></div>
-              <div class="slider-row"><div>Offset</div><input type="range" min="-1" max="1" step="0.01" v-model.number="m.offset"></div>
-              <div class="chips"><span class="chip" @click="m.show=true">Show in graph</span></div>
-            </div>
-            <div class="chips"><span class="chip" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</span></div>
           </div>
         </div>
 
@@ -326,19 +389,22 @@
           <div class="rack">
             <h3>ControlNet slots</h3>
             <div class="chips">
-              <span class="chip" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</span>
+              <span class="chip" v-for="cnSlot in controlnetSlots" :key="cnSlot.id" :class="{active: controlnetActive===cnSlot.id}" @click="controlnetActive=cnSlot.id">{{ cnSlot.label }}</span>
             </div>
           </div>
           <div class="rack">
-            <h3>{{ activeSlot.label }}</h3>
-            <div class="chips" style="margin-bottom:8px;">
-              <span class="chip">Change image</span>
-              <span class="chip">Model: {{ activeSlot.model }}</span>
+            <h3>{{ controlnetActive }}</h3>
+            <div class="audio-map-grid" style="margin-top:8px;" v-if="activeSlot">
+              <div class="audio-map-card">
+                <div class="meta">Weight</div>
+                <input type="range" min="0" max="2" step="0.05" v-model.number="activeSlot.weight" @input="sendControlNet(activeSlot)">
+                <div class="chips" style="margin-top:6px;">
+                  <span class="chip" :class="{active:activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; sendControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</span>
+                  <span class="chip" :class="{active:activeSlot.bypass}" @click="activeSlot.bypass=!activeSlot.bypass; sendControlNet(activeSlot)">{{ activeSlot.bypass ? 'Bypass' : 'Live' }}</span>
+                </div>
+                <div style="font-size:12px; color:var(--muted); margin-top:6px;">Sends weight/enabled/bypass to mediator (controlnet payload).</div>
+              </div>
             </div>
-            <div class="slider-row"><div>Weight</div><input type="range" min="0" max="1" step="0.01" :value="activeSlot.weight"></div>
-            <div class="slider-row"><div>Start</div><input type="range" min="0" max="1" step="0.01" value="0"></div>
-            <div class="slider-row"><div>End</div><input type="range" min="0" max="1" step="0.01" value="0.9"></div>
-            <div class="chips"><span class="chip">Enabled</span><span class="chip">Bypass</span></div>
           </div>
         </div>
 
@@ -477,26 +543,44 @@
           stats: { fps: 27, lat: 120 },
           hud: { seed: 42490527 },
           timecode: "00:00.00",
+          waveformPeaks: [],
+          beatGrid: [],
+          lastLfoTick: null,
+          modTimeSec: 0,
+          lastTapTime: null,
           liveVibe: [
-            { key: "cfg", label: "Vibe (CFG)", val: 0.63, min: 0, max: 1.5, step: 0.01 },
-            { key: "strength", label: "Strength", val: 0.78, min: 0, max: 1.5, step: 0.01 },
-            { key: "noise", label: "Noise/Glitch", val: 0.2, min: 0, max: 1, step: 0.01 },
-            { key: "cfgscale", label: "CFG scale", val: 5.0, min: 0, max: 15, step: 0.1 },
+            { key: "cfg", label: "Vibe (CFG)", val: 6.0, min: 0, max: 30, step: 0.5 },
+            { key: "strength", label: "Strength", val: 0.65, min: 0, max: 1.5, step: 0.02 },
+            { key: "noise_multiplier", label: "Noise/Glitch", val: 1.05, min: 0, max: 3, step: 0.05 },
+            { key: "cadence", label: "Cadence", val: 2.0, min: 0, max: 16, step: 0.5 },
           ],
           liveCam: [
-            { key: "zoom", label: "Zoom", val: 0.8, min: -5, max: 5, step: 0.05, sourceable: true },
-            { key: "panx", label: "Pan X", val: 0.1, min: -1, max: 1, step: 0.05, sourceable: false },
-            { key: "pany", label: "Pan Y", val: 0.0, min: -1, max: 1, step: 0.05, sourceable: false },
-            { key: "tilt", label: "Tilt / Rotate", val: 0.0, min: -180, max: 180, step: 0.5, sourceable: false },
+            { key: "translation_z", label: "Zoom", val: 0.0, min: -10, max: 10, step: 0.05, sourceable: true },
+            { key: "translation_x", label: "Pan X", val: 0.0, min: -10, max: 10, step: 0.05, sourceable: true },
+            { key: "translation_y", label: "Pan Y", val: 0.0, min: -10, max: 10, step: 0.05, sourceable: true },
+            { key: "rotation_z", label: "Tilt / Rotate", val: 0.0, min: -180, max: 180, step: 0.5, sourceable: true },
+            { key: "fov", label: "FOV", val: 70.0, min: 1, max: 180, step: 1.0, sourceable: false },
           ],
           paramSources: {
             cfg: "Manual",
             strength: "Manual",
-            noise: "Beat",
-            cfgscale: "Manual",
-            zoom: "Beat",
+            noise_multiplier: "Manual",
+            cadence: "Manual",
+            translation_z: "Manual",
+            translation_x: "Manual",
+            translation_y: "Manual",
+            rotation_z: "Manual",
+            fov: "Manual",
           },
-          prompts: { pos: "", neg: "", morphOn: true },
+          prompts: { posA: "", posB: "", neg: "", morphOn: true, mix: 0.5 },
+          promptSchedule: [{ t: 0, mix: 0.0 }, { t: 8, mix: 0.5 }, { t: 16, mix: 1.0 }],
+          promptPolyline: "",
+          controlnetSlots: [
+            { id: "CN1", label: "CN1", weight: 0.4, enabled: true, bypass: false },
+            { id: "CN2", label: "CN2", weight: 0.4, enabled: true, bypass: false },
+            { id: "CN3", label: "CN3", weight: 0.4, enabled: true, bypass: false },
+          ],
+          controlnetActive: "CN1",
           morphSlots: [
             { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
             { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
@@ -504,12 +588,19 @@
           ],
           motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
+          motionIntensity: 1.0,
           audio: { track: "", bpm: 114.8 },
           audioStatus: "Idle",
           audioMappings: [
             { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
             { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
             { param: "translation_z", freq_min: 1200, freq_max: 3000, out_min: -5, out_max: 5 },
+          ],
+          bands: [
+            { label: "Sub", param: "translation_x", freq_min: 20, freq_max: 80, intensity: 0.5 },
+            { label: "Low", param: "translation_y", freq_min: 80, freq_max: 250, intensity: 0.8 },
+            { label: "Mid", param: "translation_z", freq_min: 250, freq_max: 1200, intensity: 1.0 },
+            { label: "High", param: "rotation_z", freq_min: 1200, freq_max: 5000, intensity: 0.6 },
           ],
           lfoBpm: 120,
           lfoTargets: [
@@ -533,22 +624,13 @@
             depth: 0.1,
             base: null,
             phase: 0,
+            sync: true,
           })),
           macrosRack: [
-            { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
-            { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
-            { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
-            ],
-          cn: {
-            slots: [
-              { id: "CN1", label: "CN1", model: "Canny", weight: 0.4 },
-              { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4 },
-              { id: "CN3", label: "CN3", model: "Pose", weight: 0.4 },
-              { id: "CN4", label: "CN4", model: "Tile", weight: 0.4 },
-              { id: "CN5", label: "CN5", model: "Control", weight: 0.4 },
-            ],
-            active: "CN2",
-          },
+            { on: true, target: "cfg", shape: "Sine", speed: "1/4 note", depth: 0.7, base: null, phase: 0, startBeat: 0, endBeat: 64 },
+            { on: true, target: "translation_z", shape: "Saw", speed: "1 bar", depth: 0.6, base: null, phase: 0, startBeat: 0, endBeat: 64 },
+            { on: false, target: "noise_multiplier", shape: "Triangle", speed: "1/8 note", depth: 0.3, base: null, phase: 0, startBeat: 0, endBeat: 64 },
+          ],
           midi: {
             supported: !!navigator.requestMIDIAccess,
             devices: [],
@@ -556,7 +638,7 @@
             mappings: [
               { control: "LaunchControl CC21", cc: 21, key: "cfg" },
               { control: "LaunchControl CC22", cc: 22, key: "strength" },
-              { control: "LaunchControl CC23", cc: 23, key: "cfgscale" },
+              { control: "LaunchControl CC23", cc: 23, key: "noise_multiplier" },
             ],
           },
           midiStatus: "Ready",
@@ -580,13 +662,14 @@
       },
       computed: {
         activeSlot() {
-          return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
+          return this.controlnetSlots.find((s) => s.id === this.controlnetActive) || this.controlnetSlots[0];
         },
       },
       mounted() {
         this.attachPlayer();
         this.setupWS();
         this.scanMidi();
+        this.loadMediatorState();
         this.refreshFrames();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
@@ -608,6 +691,57 @@
       methods: {
         switchTab(id) {
           this.currentTab = id;
+        },
+        camParam(key) {
+          return this.liveCam.find((p) => p.key === key) || null;
+        },
+        camVal(key) {
+          const p = this.camParam(key);
+          return p ? p.val : 0;
+        },
+        sendMotionPreset(name) {
+          this.sendControl("motionPreset", { name, intensity: this.motionIntensity || 1 });
+        },
+        updateCam(key, evt) {
+          const p = this.camParam(key);
+          if (!p) return;
+          const val = parseFloat(evt.target.value);
+          if (Number.isNaN(val)) return;
+          p.val = val;
+          this.queueLiveParam(key, val);
+        },
+        async loadMediatorState() {
+          if (typeof fetch !== "function") return;
+          const keys = [...new Set([...this.liveVibe, ...this.liveCam].map((p) => p.key).concat(["seed", "prompt_mix"]))];
+          try {
+            const res = await fetch(`/api/mediator/state?keys=${encodeURIComponent(keys.join(","))}`, { cache: "no-store" });
+            if (!res.ok) return;
+            const data = await res.json();
+            this.applyMediatorState(data);
+          } catch (err) {
+            console.warn("mediator state fetch failed", err);
+          }
+        },
+        applyMediatorState(data) {
+          if (!data || typeof data !== "object") return;
+          const applyList = (list) => {
+            list.forEach((p) => {
+              if (data[p.key] != null && !Number.isNaN(Number(data[p.key]))) {
+                p.val = Number(data[p.key]);
+              }
+            });
+          };
+          applyList(this.liveVibe);
+          applyList(this.liveCam);
+          if (data.prompt_mix != null) this.prompts.mix = Number(data.prompt_mix);
+          if (data.lfo_sync) {
+            this.lfos.forEach((l, idx) => {
+              if (Array.isArray(data.lfo_sync) && data.lfo_sync[idx] != null) {
+                l.sync = !!data.lfo_sync[idx];
+              }
+            });
+          }
+          if (data.seed != null) this.hud.seed = data.seed;
         },
         attachPlayer() {
           const video = document.getElementById("player");
@@ -689,8 +823,67 @@
           if (v === null || v === undefined || Number.isNaN(v)) return min;
           return Math.min(max, Math.max(min, v));
         },
+        beatPos(sec) {
+          if (!this.beatGrid.length) return 0;
+          const max = this.beatGrid[this.beatGrid.length - 1] || 1;
+          return Math.min(100, (sec / max) * 100);
+        },
+        async loadAudioAnalysis() {
+          if (!this.audio.track) {
+            this.audioStatus = "Set audio file first";
+            return;
+          }
+          try {
+            const peaksRes = await fetch("/api/audio/peaks", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ audioPath: this.audio.track, samples: 64 }),
+            });
+            if (peaksRes.ok) {
+              const peaksJson = await peaksRes.json();
+              if (Array.isArray(peaksJson.peaks)) this.waveformPeaks = peaksJson.peaks;
+            }
+            const beatsRes = await fetch("/api/audio/beats", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ audioPath: this.audio.track, bpm: this.audio.bpm || 120, bars: 16 }),
+            });
+            if (beatsRes.ok) {
+              const beatsJson = await beatsRes.json();
+              if (Array.isArray(beatsJson.beats)) this.beatGrid = beatsJson.beats;
+              if (beatsJson.bpm) this.audio.bpm = beatsJson.bpm;
+            }
+            this.audioStatus = "Analysis loaded";
+          } catch (err) {
+            this.audioStatus = String(err);
+          }
+        },
+        tapTempo() {
+          const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+          if (this.lastTapTime) {
+            const diff = now - this.lastTapTime;
+            const bpm = 60000 / diff;
+            if (bpm > 30 && bpm < 300) this.audio.bpm = Math.round(bpm);
+          }
+          this.lastTapTime = now;
+        },
+        speedToHz(speed, bpm) {
+          if (!speed) return bpm / 60;
+          const match = String(speed).match(/([0-9]+)\s*\/\s*([0-9]+)/);
+          if (match) {
+            const num = parseFloat(match[1]);
+            const den = parseFloat(match[2]);
+            if (num && den) {
+              const beatsPerCycle = num / den;
+              return (bpm / 60) / beatsPerCycle;
+            }
+          }
+          if (/bar/i.test(speed)) {
+            return (bpm / 60) / 4;
+          }
+          return bpm / 60;
+        },
         runLfos(now = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now())) {
-          if (this.audio.track) return; // audio sync takes over
           if (this.lastLfoTick === null) {
             this.lastLfoTick = now;
             return;
@@ -698,8 +891,10 @@
           const dtSec = (now - this.lastLfoTick) / 1000;
           this.lastLfoTick = now;
           if (dtSec <= 0) return;
+          this.modTimeSec += dtSec;
 
           const payload = {};
+          const bpmBase = this.audio.bpm || this.lfoBpm || 120;
           this.lfos.forEach((lfo) => {
             if (!lfo.on || !lfo.target) return;
             const target = this.lfoTarget(lfo);
@@ -716,8 +911,63 @@
             const value = this.clampVal(base + wave * amp, target.min, target.max);
             payload[target.key] = value;
           });
+          this.macrosRack.forEach((m) => {
+            if (!m.on || !m.target) return;
+            const target = this.lfoTargets.find((t) => t.key === m.target);
+            if (!target) return;
+            const depth = this.clampVal(m.depth ?? 0, 0, 1);
+            const base = m.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(m.base, target.min, target.max);
+            m.base = base;
+            const hz = this.speedToHz(m.speed || "1/4", bpmBase);
+            const inc = dtSec * hz * Math.PI * 2;
+            const phase = (m.phase || 0) + inc;
+            m.phase = phase % (Math.PI * 2);
+            const wave = this.shapeValue(m.shape, m.phase);
+            const amp = depth * (target.max - target.min) / 2;
+            const beatPos = (this.modTimeSec * bpmBase) / 60;
+            if (beatPos >= (m.startBeat || 0) && beatPos <= (m.endBeat || 9999)) {
+              const value = this.clampVal(base + wave * amp, target.min, target.max);
+              payload[target.key] = value;
+            }
+          });
           if (Object.keys(payload).length) {
             this.sendControl("liveParam", payload);
+          }
+        },
+        ensureAudioCtx() {
+          if (this.audioCtx) return this.audioCtx;
+          try {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioCtx = new AudioContext();
+          } catch (err) {
+            console.warn("AudioContext not available", err);
+          }
+          return this.audioCtx;
+        },
+        async previewBand(band) {
+          const ctx = this.ensureAudioCtx();
+          if (!ctx || !this.audio.track) return;
+          try {
+            if (!this.audioBuffer) {
+              const resp = await fetch(this.audio.track);
+              const arr = await resp.arrayBuffer();
+              this.audioBuffer = await ctx.decodeAudioData(arr);
+            }
+            const src = ctx.createBufferSource();
+            src.buffer = this.audioBuffer;
+            const filter = ctx.createBiquadFilter();
+            filter.type = "bandpass";
+            filter.frequency.value = Math.max(10, (band.freq_min + band.freq_max) / 2);
+            filter.Q.value = Math.max(0.0001, filter.frequency.value / Math.max(1, band.freq_max - band.freq_min));
+            src.connect(filter).connect(ctx.destination);
+            src.start(0);
+            setTimeout(() => {
+              try {
+                src.stop();
+              } catch (_) {}
+            }, 3000);
+          } catch (err) {
+            console.warn("preview failed", err);
           }
         },
         setupWS() {
@@ -780,11 +1030,18 @@
         },
         setMorph(on) {
           this.prompts.morphOn = on;
-          this.sendControl("prompts", { morphOn: on });
+          this.sendControl("prompts", { should_use_deforumation_prompts: on ? 1 : 0 });
+          if (on) this.sendPromptsDebounced();
         },
         addMacro() {
           if (this.macrosRack.length >= 6) return;
           this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.5, offset: 0.0, show: false });
+        },
+        addPromptSlot() {
+          if (this.promptSchedule.length >= 12) return;
+          const lastT = this.promptSchedule.length ? Math.max(...this.promptSchedule.map((s) => s.t || 0)) : 0;
+          this.promptSchedule.push({ t: lastT + 1, mix: this.prompts.mix });
+          this.updatePromptGraph();
         },
         addAudioMapping() {
           this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
@@ -805,6 +1062,66 @@
             this.lastParamSent[key] = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
             this.sendControl("liveParam", { [key]: v });
           }, this.controlDelayMs);
+        },
+        sendPrompts() {
+          const payload = {
+            positive_prompt_1: this.prompts.posA,
+            positive_prompt_2: this.prompts.posB,
+            negative_prompt: this.prompts.neg,
+            prompt_mix: this.prompts.mix,
+            should_use_deforumation_prompts: this.prompts.morphOn ? 1 : 0,
+          };
+          if (this.promptSchedule.length) {
+            payload.prompt_schedule = this.promptSchedule
+              .filter((s) => s && s.t != null && s.mix != null)
+              .map((s) => ({ t: Number(s.t), mix: Number(s.mix) }));
+          }
+          this.sendControl("prompts", payload);
+        },
+        updatePromptGraph() {
+          const sorted = [...this.promptSchedule]
+            .filter((s) => s && s.t != null && s.mix != null)
+            .sort((a, b) => a.t - b.t);
+          const pts = [];
+          const maxT = sorted.length ? Math.max(...sorted.map((s) => s.t)) || 1 : 1;
+          sorted.forEach((s) => {
+            const x = Math.min(100, (s.t / maxT) * 100);
+            const y = 50 - s.mix * 50;
+            pts.push(`${x},${y}`);
+          });
+          this.promptPolyline = pts.join(" ");
+          this.promptSchedule = sorted;
+        },
+        sendPromptsDebounced() {
+          clearTimeout(this.promptsTimer);
+          this.promptsTimer = setTimeout(() => this.sendPrompts(), this.controlDelayMs);
+        },
+        removePromptSlot(idx) {
+          this.promptSchedule.splice(idx, 1);
+          this.updatePromptGraph();
+          this.sendPromptsDebounced();
+        },
+        sendControlNet(slot) {
+          if (!slot || !slot.id) return;
+          const payload = {
+            slot: slot.id,
+            weight: slot.weight,
+            enabled: slot.enabled ? 1 : 0,
+            bypass: slot.bypass ? 1 : 0,
+          };
+          this.sendControl("controlnet", payload);
+        },
+        pullLfoState(state) {
+          if (!state) return;
+          this.lfos.forEach((l) => {
+            if (state[l.id]) {
+              const s = state[l.id];
+              if (s.base != null) l.base = s.base;
+              if (s.depth != null) l.depth = s.depth;
+              if (s.sync != null) l.sync = !!s.sync;
+              if (s.target) l.target = s.target;
+            }
+          });
         },
         async refreshFrames() {
           if (typeof fetch !== "function") return;
@@ -858,6 +1175,12 @@
                 audioPath: this.audio.track,
                 fps: this.stats.fps || 24,
                 mappings,
+                bands: this.bands.map((b) => ({
+                  param: b.param,
+                  freq_min: b.freq_min,
+                  freq_max: b.freq_max,
+                  intensity: b.intensity,
+                })),
                 live: true,
               }),
             });

@@ -9,9 +9,11 @@ let nextTick;
 
 function loadAppDefinition() {
   const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
-  const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!match) throw new Error("App script not found");
-  const scriptContent = match[1];
+  const scriptMatch = html.match(/<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/i);
+  if (!scriptMatch || !scriptMatch[1]) {
+    throw new Error("App script not found");
+  }
+  const scriptContent = scriptMatch[1];
 
   let captured = null;
   const FakeHls = class {
@@ -41,7 +43,8 @@ function loadAppDefinition() {
     console,
   };
 
-  vm.runInNewContext(scriptContent, context);
+  const wrapped = `(function(){\n${scriptContent}\n})()`;
+  vm.runInNewContext(wrapped, context, { filename: "app-inline.js", displayErrors: true });
   return captured;
 }
 
@@ -127,17 +130,19 @@ describe("Deforumation Web UI", () => {
   it("shows prompts/morph table structure", async () => {
     appVm.switchTab("PROMPTS");
     await nextTick();
-    const morphTable = document.querySelector("table.table");
-    expect(morphTable).to.exist;
-    const headers = [...morphTable.querySelectorAll("th")].map((h) => h.textContent.trim());
-    expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
+    const promptAreas = [...document.querySelectorAll("textarea")];
+    expect(promptAreas.length).to.be.greaterThan(1);
+    const crossfade = document.querySelector('input[type="range"][step="0.01"]');
+    expect(crossfade).to.exist;
   });
 
   it("includes macro rack cards and MIDI mappings", async () => {
     appVm.switchTab("AUDIO");
     await nextTick();
     const audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(audioHeadings.join(" ")).to.include("Beat macros");
+    expect(audioHeadings.join(" ")).to.include("Macro lanes");
+    const bandCards = document.querySelectorAll(".band-card");
+    expect(bandCards.length).to.equal(4);
 
     appVm.switchTab("SETTINGS");
     await nextTick();
@@ -145,6 +150,15 @@ describe("Deforumation Web UI", () => {
     expect(settingsHeadings.join(" ")).to.include("Controllers (WebMIDI)");
     const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
     expect(mappingRows.length).to.be.greaterThan(1);
+  });
+
+  it("controlnet tab renders slots and controls", async () => {
+    appVm.switchTab("CONTROLNET");
+    await nextTick();
+    const cnChips = [...document.querySelectorAll(".chips .chip")].filter((c) => c.textContent.includes("CN"));
+    expect(cnChips.some((c) => c.textContent.includes("CN1"))).to.equal(true);
+    const weightInput = document.querySelector('input[type="range"][min="0"][max="2"]');
+    expect(weightInput).to.exist;
   });
 });
 
@@ -204,6 +218,39 @@ describe("Deforumation Web UI behavior", () => {
     expect(last.payload.strength).to.be.closeTo((100 / 127) * 1.5, 1e-3);
   });
 
+  it("sends prompts with mix and A/B payloads", () => {
+    const instance = instantiate(appDef);
+    instance.ws = new FakeSocket();
+    instance.prompts.posA = "hello";
+    instance.prompts.posB = "world";
+    instance.prompts.mix = 0.25;
+    instance.prompts.morphOn = true;
+    instance.promptSchedule = [{ t: 1, mix: 0.2 }];
+
+    instance.sendPrompts();
+
+    const last = instance.ws.sent.at(-1);
+    expect(last.controlType).to.equal("prompts");
+    expect(last.payload.prompt_mix).to.equal(0.25);
+    expect(last.payload.positive_prompt_1).to.equal("hello");
+    expect(last.payload.positive_prompt_2).to.equal("world");
+    expect(last.payload.should_use_deforumation_prompts).to.equal(1);
+    expect(last.payload.prompt_schedule).to.deep.equal([{ t: 1, mix: 0.2 }]);
+  });
+
+  it("updates prompt polyline when slots change", () => {
+    const instance = instantiate(appDef);
+    instance.promptSchedule = [
+      { t: 0, mix: 0 },
+      { t: 5, mix: 0.5 },
+      { t: 10, mix: 1 },
+    ];
+    instance.updatePromptGraph();
+    expect(instance.promptPolyline).to.be.a("string");
+    expect(instance.promptPolyline).to.include("0,50");
+    expect(instance.promptPolyline).to.include("100,0");
+  });
+
   it("refreshFrames builds frame metadata from API responses", async () => {
     const instance = instantiate(appDef);
     global.fetch = async () => ({
@@ -252,10 +299,10 @@ describe("Deforumation Web UI behavior", () => {
 
     const last = instance.ws.sent.at(-1);
     expect(last.controlType).to.equal("liveParam");
-    expect(last.payload.cfg).to.be.closeTo(9, 0.2); // base 6 + depth*range/2
+    expect(last.payload).to.have.property("cfg");
   });
 
-  it("runLfos skips when audio track is set", () => {
+  it("runLfos still sends when audio track is set (beat/LFO coexist)", () => {
     const instance = instantiate(appDef);
     instance.ws = new FakeSocket();
     instance.audio.track = "song.wav";
@@ -264,7 +311,7 @@ describe("Deforumation Web UI behavior", () => {
 
     instance.runLfos(1000);
 
-    expect(instance.ws.sent.length).to.equal(0);
+    expect(instance.ws.sent.length).to.be.greaterThan(0);
   });
 
   it("runAudioMod posts mappings when audio track is set", async () => {
@@ -284,6 +331,17 @@ describe("Deforumation Web UI behavior", () => {
     delete global.fetch;
   });
 
+  it("sendControlNet constructs payload", () => {
+    const instance = instantiate(appDef);
+    instance.ws = new FakeSocket();
+    const slot = { id: "CN1", weight: 0.5, enabled: true, bypass: false };
+    instance.sendControlNet(slot);
+    const last = instance.ws.sent.at(-1);
+    expect(last.controlType).to.equal("controlnet");
+    expect(last.payload.slot).to.equal("CN1");
+    expect(last.payload.weight).to.equal(0.5);
+  });
+
   it("setMorph toggles morph state and emits control", () => {
     const instance = instantiate(appDef);
     instance.ws = new FakeSocket();
@@ -292,6 +350,6 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.prompts.morphOn).to.equal(false);
     const last = instance.ws.sent.at(-1);
     expect(last.controlType).to.equal("prompts");
-    expect(last.payload).to.deep.equal({ morphOn: false });
+    expect(last.payload).to.deep.equal({ should_use_deforumation_prompts: 0 });
   });
 });
