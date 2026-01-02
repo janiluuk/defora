@@ -35,3 +35,8 @@ forge_cli_output/
 *.swo
 *~
 .DS_Store
+
+# Node.js
+node_modules/
+npm-debug.log
+yarn-error.log
