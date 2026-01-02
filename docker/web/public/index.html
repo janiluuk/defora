@@ -802,7 +802,8 @@
           if (!activeSlots.length) return;
           let morphedPrompt = this.prompts.pos || "";
           activeSlots.forEach(slot => {
-            const weight = 0.5;
+            // TODO: Add slider or auto-calculation for blend weight
+            // For now using simple concatenation approach
             morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
           });
           this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
@@ -958,8 +959,16 @@
         updateXyPad(evt) {
           const pad = evt.currentTarget;
           const rect = pad.getBoundingClientRect();
-          const x = Math.max(0, Math.min(this.xyPad.padSize, evt.clientX - rect.left));
-          const y = Math.max(0, Math.min(this.xyPad.padSize, evt.clientY - rect.top));
+          let clientX, clientY;
+          if (evt.touches && evt.touches.length > 0) {
+            clientX = evt.touches[0].clientX;
+            clientY = evt.touches[0].clientY;
+          } else {
+            clientX = evt.clientX;
+            clientY = evt.clientY;
+          }
+          const x = Math.max(0, Math.min(this.xyPad.padSize, clientX - rect.left));
+          const y = Math.max(0, Math.min(this.xyPad.padSize, clientY - rect.top));
           this.xyPad.x = x;
           this.xyPad.y = y;
           const normX = (x / this.xyPad.padSize) * 2 - 1;
