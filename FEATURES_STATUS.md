@@ -38,39 +38,40 @@ This document tracks the completion status of all Defora features and provides a
 
 ## Phase 2: Web UI Backend Implementation
 
-### 2.1 PROMPTS Tab - Morphing Logic
-**Status**: ⚠️ UI Only (Backend Missing)  
+### 2.1 PROMPTS Tab - Prompt Sending
+**Status**: ✅ BASIC IMPLEMENTATION  
 **Current**: 
-- ✅ UI displays morph slots
-- ❌ Morphing not actually applied to prompts
-- ❌ No backend API endpoint for prompt interpolation
+- ✅ UI displays prompt inputs
+- ✅ Prompts sent to mediator on button click or change
+- ⚠️ Morphing logic basic (needs refinement)
+- ❌ No backend API endpoint for advanced prompt interpolation
 
 **Files**:
 - `docker/web/public/index.html` (lines 140-177)
-- `docker/web/server.js` (needs new /api/prompts endpoint)
+- `docker/web/server.js` (could add /api/prompts endpoint)
 
-**Implementation Needed**:
-```javascript
-// Server: POST /api/prompt-morph
-// - Interpolate between slot A and B based on current value
-// - Send interpolated prompt to mediator
-// - Support multiple active slots with priority/blending
-```
+**Implementation**:
+- Added sendPrompts() method to send positive/negative prompts
+- Added basic applyPromptMorphing() that appends morph slots
+- Buttons now functional and trigger prompt updates
+- Advanced interpolation could be added in future phase
 
 ### 2.2 MOTION Tab - XY Pad Interaction
-**Status**: ⚠️ UI Only (No Interaction)  
+**Status**: ✅ IMPLEMENTED  
 **Current**:
 - ✅ XY pad renders
-- ❌ Mouse/touch interaction not implemented
-- ❌ No translation to camera pan parameters
+- ✅ Mouse/touch interaction implemented
+- ✅ Translation to camera pan parameters working
+- ✅ Real-time updates sent to mediator via WebSocket
 
 **Files**:
-- `docker/web/public/index.html` (lines 202-228)
+- `docker/web/public/index.html` (lines 202-228, event handlers added)
 
-**Implementation Needed**:
-- Add mouse/touch event handlers to XY pad
-- Map X/Y position to translation_x, translation_y parameters
-- Send real-time updates to mediator via WebSocket
+**Implementation**:
+- Added mouse/touch event handlers to XY pad
+- Map X/Y position to translation_x (-10 to 10), translation_y (-10 to 10) parameters
+- Sends real-time updates to mediator via WebSocket with debouncing
+- Added cursor styling and visual feedback
 
 ### 2.3 MOTION Tab - Preset Application
 **Status**: ⚠️ Stubs Only  

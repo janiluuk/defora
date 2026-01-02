@@ -77,7 +77,7 @@
     .context h4 { margin: 0 0 6px 0; }
     .table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
     .table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; }
+    .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; cursor: crosshair; user-select: none; }
     .xy-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--glow2); box-shadow: 0 0 10px var(--glow2); }
     .lfo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
     .lfo-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: #0e1322; box-shadow: 0 8px 18px rgba(0,0,0,0.28); }
@@ -180,13 +180,13 @@
         <div v-else-if="currentTab==='PROMPTS'">
           <div class="rack">
             <h3>Positive prompt</h3>
-            <input class="select" v-model="prompts.pos" placeholder="positive prompt" />
-            <button class="btn ghost" style="margin-top:6px;">Edit full prompt</button>
+            <input class="select" v-model="prompts.pos" @change="sendPrompts" placeholder="positive prompt" />
+            <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Apply prompt</button>
           </div>
           <div class="rack">
             <h3>Negative prompt</h3>
-            <input class="select" v-model="prompts.neg" placeholder="negative prompt" />
-            <button class="btn ghost" style="margin-top:6px;">Edit negative</button>
+            <input class="select" v-model="prompts.neg" @change="sendPrompts" placeholder="negative prompt" />
+            <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Apply negative</button>
           </div>
           <div class="rack">
             <h3>Prompt morphing</h3>
@@ -201,8 +201,18 @@
         <div v-else-if="currentTab==='MOTION'">
           <div class="rack">
             <h3>Camera pad</h3>
-            <div class="xy-pad">
-              <div class="xy-dot" :style="{left:'60px', top:'60px'}"></div>
+            <div class="xy-pad" 
+              @mousedown="xyPadMouseDown" 
+              @mousemove="xyPadMouseMove" 
+              @mouseup="xyPadMouseUp" 
+              @mouseleave="xyPadMouseUp"
+              @touchstart="xyPadMouseDown"
+              @touchmove="xyPadMouseMove"
+              @touchend="xyPadMouseUp">
+              <div class="xy-dot" :style="{left: xyPad.x + 'px', top: xyPad.y + 'px', transform: 'translate(-6px, -6px)'}"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+              Click/drag to control camera pan (X/Y translation)
             </div>
           </div>
           <div class="rack">
@@ -504,6 +514,7 @@
           ],
           motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
+          xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
           audio: { track: "", bpm: 114.8 },
           audioStatus: "Idle",
           audioMappings: [
@@ -781,6 +792,26 @@
         setMorph(on) {
           this.prompts.morphOn = on;
           this.sendControl("prompts", { morphOn: on });
+          if (on) {
+            this.applyPromptMorphing();
+          }
+        },
+        applyPromptMorphing() {
+          if (!this.prompts.morphOn) return;
+          const activeSlots = this.morphSlots.filter(s => s.on);
+          if (!activeSlots.length) return;
+          let morphedPrompt = this.prompts.pos || "";
+          activeSlots.forEach(slot => {
+            const weight = 0.5;
+            morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
+          });
+          this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
+        },
+        sendPrompts() {
+          this.sendControl("prompt", { positive: this.prompts.pos, negative: this.prompts.neg });
+          if (this.prompts.morphOn) {
+            this.applyPromptMorphing();
+          }
         },
         addMacro() {
           if (this.macrosRack.length >= 6) return;
@@ -910,6 +941,33 @@
               this.sendControl("liveParam", { [mapping.key]: norm });
             }
           }
+        },
+        xyPadMouseDown(evt) {
+          this.xyPad.dragging = true;
+          this.updateXyPad(evt);
+          evt.preventDefault();
+        },
+        xyPadMouseMove(evt) {
+          if (!this.xyPad.dragging) return;
+          this.updateXyPad(evt);
+          evt.preventDefault();
+        },
+        xyPadMouseUp() {
+          this.xyPad.dragging = false;
+        },
+        updateXyPad(evt) {
+          const pad = evt.currentTarget;
+          const rect = pad.getBoundingClientRect();
+          const x = Math.max(0, Math.min(this.xyPad.padSize, evt.clientX - rect.left));
+          const y = Math.max(0, Math.min(this.xyPad.padSize, evt.clientY - rect.top));
+          this.xyPad.x = x;
+          this.xyPad.y = y;
+          const normX = (x / this.xyPad.padSize) * 2 - 1;
+          const normY = 1 - (y / this.xyPad.padSize) * 2;
+          const translation_x = normX * 10;
+          const translation_y = normY * 10;
+          this.queueLiveParam("translation_x", translation_x);
+          this.queueLiveParam("translation_y", translation_y);
         },
       },
     }).mount("#app");
