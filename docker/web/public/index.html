@@ -971,10 +971,12 @@
           const y = Math.max(0, Math.min(this.xyPad.padSize, clientY - rect.top));
           this.xyPad.x = x;
           this.xyPad.y = y;
+          // Normalize pad coordinates to -1..1, then scale to translation range -10..10
           const normX = (x / this.xyPad.padSize) * 2 - 1;
           const normY = 1 - (y / this.xyPad.padSize) * 2;
-          const translation_x = normX * 10;
-          const translation_y = normY * 10;
+          const TRANSLATION_RANGE = 10; // Max translation distance for camera movement
+          const translation_x = normX * TRANSLATION_RANGE;
+          const translation_y = normY * TRANSLATION_RANGE;
           this.queueLiveParam("translation_x", translation_x);
           this.queueLiveParam("translation_y", translation_y);
         },
