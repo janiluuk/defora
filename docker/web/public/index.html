@@ -811,8 +811,9 @@
             // Trigger every beat
             return true;
           } else if (speed === "1/8 note") {
-            // Trigger every half beat
-            return this.beatCount % 1 === 0;
+            // Trigger every beat (in a full implementation, would trigger twice per beat)
+            // For now, trigger every beat since we're on beat boundaries
+            return true;
           } else if (speed === "1 bar") {
             // Trigger every 4 beats (assuming 4/4 time)
             return this.beatCount % 4 === 0;
