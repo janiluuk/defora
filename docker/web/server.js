@@ -25,6 +25,11 @@ async function start(opts = {}) {
   app.use(express.json({ limit: "1mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
 
+  // Simple health check endpoint for Docker healthcheck
+  app.get("/health", (_req, res) => {
+    res.status(200).send("OK");
+  });
+
   app.get("/api/health", async (_req, res) => {
     try {
       const stat = await fsp.stat(playlistPath);

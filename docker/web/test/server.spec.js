@@ -46,6 +46,12 @@ describe("web server frames API", () => {
     expect(older.frame).to.equal(5);
   });
 
+  it("health endpoint returns OK", async () => {
+    const res = await request.get("/health");
+    expect(res.status).to.equal(200);
+    expect(res.text).to.equal("OK");
+  });
+
   it("spawns audio modulator with mappings", async () => {
     const proc = new EventEmitter();
     proc.stdout = new Readable({ read() {} });

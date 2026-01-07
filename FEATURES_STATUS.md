@@ -291,23 +291,31 @@ This document tracks the completion status of all Defora features and provides a
 - Add automatic model detection/download
 
 ### 4.2 Services - Health Checks
-**Status**: ❌ Not Implemented  
+**Status**: ✅ IMPLEMENTED  
 **Current**:
-- ❌ No Docker healthchecks
-- ❌ No service dependency verification
-- ❌ No startup order guarantee
+- ✅ Docker healthchecks added for all services
+- ✅ Service dependency verification with conditions
+- ✅ Startup order guarantees via depends_on conditions
 
 **Files**:
-- `docker-compose.yml`
+- `docker-compose.yml` - Added healthchecks for web, mediator, mq
+- `docker/web/server.js` - Added /health endpoint
 
-**Implementation Needed**:
+**Implementation**:
 ```yaml
 healthcheck:
-  test: ["CMD", "curl", "-f", "http://localhost:PORT/health"]
+  test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health" , "||", "exit", "1"]
   interval: 30s
   timeout: 10s
   retries: 3
+  start_period: 10s
 ```
+
+**Services with Health Checks**:
+- **web**: HTTP health endpoint check (wget)
+- **mediator**: Port availability check (nc -z for ports 8765, 8766)
+- **mq**: RabbitMQ diagnostics command
+- **control-bridge**: Depends on healthy mq and mediator services
 
 ### 4.3 Volumes - Named and Persistent
 **Status**: ✅ Implemented  

@@ -32,6 +32,12 @@ services:
       - FRAMES_DIR=/data/frames
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health" , "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   mediator:
     build:
@@ -47,6 +53,12 @@ services:
       - MEDIATOR_DEFORUMATION_PORT=8766
       - DEFORUMATION_ADDRESS=${DEFORUMATION_ADDRESS:-127.0.0.1}
       - DEFORUMATION_PORT=${DEFORUMATION_PORT:-8767}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8765 && nc -z localhost 8766 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
   sd-forge:
     build:
@@ -88,6 +100,12 @@ services:
       - "5672:5672"
     volumes:
       - mqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   control-bridge:
     build:
@@ -99,7 +117,10 @@ services:
       - MEDIATOR_HOST=${MEDIATOR_HOST:-mediator}
       - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
     depends_on:
-      - mq
+      mq:
+        condition: service_healthy
+      mediator:
+        condition: service_healthy
 
 volumes:
   frames:
