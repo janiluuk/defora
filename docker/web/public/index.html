@@ -238,7 +238,14 @@
           <div class="rack">
             <h3>Track & tempo</h3>
             <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track"></div>
-            <div class="slider-row"><div>BPM</div><input class="select" type="number" v-model.number="audio.bpm"></div>
+            <div class="slider-row">
+              <div>BPM</div>
+              <input class="select" type="number" v-model.number="audio.bpm">
+              <span class="pill" :class="{'danger': beatPhase < 0.1}" style="margin-left: 8px;">
+                <span class="dot"></span>
+                {{ audio.bpm }} BPM
+              </span>
+            </div>
             <div class="chips" style="margin-top:6px;">
               <span class="chip">Re-detect</span>
               <span class="chip">Tap tempo</span>
@@ -587,6 +594,10 @@
           playbackTimer: null,
           lfoTimer: null,
           lastLfoTick: null,
+          beatTimer: null,
+          lastBeatTime: null,
+          beatCount: 0,
+          beatPhase: 0,
         };
       },
       computed: {
@@ -604,11 +615,13 @@
         }
         this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
         this.lfoTimer = setInterval(() => this.runLfos(), 120);
+        this.beatTimer = setInterval(() => this.processBeat(), 50);
       },
       beforeUnmount() {
         if (this.framesTimer) clearInterval(this.framesTimer);
         if (this.playbackTimer) clearInterval(this.playbackTimer);
         if (this.lfoTimer) clearInterval(this.lfoTimer);
+        if (this.beatTimer) clearInterval(this.beatTimer);
         if (this.playerEl && this.timeHandler) {
           this.playerEl.removeEventListener("timeupdate", this.timeHandler);
         }
@@ -730,6 +743,85 @@
           if (Object.keys(payload).length) {
             this.sendControl("liveParam", payload);
           }
+        },
+        processBeat() {
+          const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+          const bpm = this.audio.bpm || 120;
+          const beatIntervalMs = (60 / bpm) * 1000;
+          
+          if (this.lastBeatTime === null) {
+            this.lastBeatTime = now;
+            this.beatCount = 0;
+            this.beatPhase = 0;
+            return;
+          }
+          
+          const timeSinceLastBeat = now - this.lastBeatTime;
+          
+          // Check if a beat should occur
+          if (timeSinceLastBeat >= beatIntervalMs) {
+            this.lastBeatTime = now;
+            this.beatCount++;
+            this.triggerBeatMacros();
+          }
+          
+          // Update continuous beat phase for smooth animations
+          this.beatPhase = (timeSinceLastBeat / beatIntervalMs) % 1;
+        },
+        triggerBeatMacros() {
+          const payload = {};
+          const activeMacros = this.macrosRack.filter(m => m.on);
+          
+          activeMacros.forEach(macro => {
+            const target = this.lfoTargets.find(t => t.label === macro.target || t.key === macro.target);
+            if (!target) return;
+            
+            // Determine if this macro should trigger on this beat
+            const shouldTrigger = this.shouldMacroTrigger(macro);
+            if (!shouldTrigger) return;
+            
+            // Calculate value based on macro shape
+            const base = target.default ?? (target.min + target.max) / 2;
+            const depth = this.clampVal(macro.depth ?? 0.5, 0, 1);
+            const offset = this.clampVal(macro.offset ?? 0, -1, 1);
+            
+            let value;
+            if (macro.shape === "Noise") {
+              // Random value for noise
+              value = base + (Math.random() * 2 - 1) * depth * (target.max - target.min) / 2;
+            } else {
+              // Use shape value at current phase
+              const phase = this.beatPhase * Math.PI * 2;
+              const wave = this.shapeValue(macro.shape || "Sine", phase);
+              value = base + (wave + offset) * depth * (target.max - target.min) / 2;
+            }
+            
+            payload[target.key] = this.clampVal(value, target.min, target.max);
+          });
+          
+          if (Object.keys(payload).length) {
+            this.sendControl("liveParam", payload);
+          }
+        },
+        shouldMacroTrigger(macro) {
+          const speed = macro.speed || "1/4 note";
+          
+          // Parse the speed to determine trigger frequency
+          if (speed === "1/4 note") {
+            // Trigger every beat
+            return true;
+          } else if (speed === "1/8 note") {
+            // Trigger every half beat
+            return this.beatCount % 1 === 0;
+          } else if (speed === "1 bar") {
+            // Trigger every 4 beats (assuming 4/4 time)
+            return this.beatCount % 4 === 0;
+          } else if (speed === "2 bars") {
+            // Trigger every 8 beats
+            return this.beatCount % 8 === 0;
+          }
+          
+          return true;
         },
         setupWS() {
           const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";

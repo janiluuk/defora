@@ -89,15 +89,24 @@ This document tracks the completion status of all Defora features and provides a
 - Add preset save/load API
 
 ### 2.4 AUDIO Tab - Beat Detection
-**Status**: ❌ Not Implemented  
+**Status**: ✅ IMPLEMENTED  
 **Current**:
 - ✅ BPM input field
 - ✅ Audio mapping UI
-- ❌ No actual beat detection
-- ❌ No trigger on beat functionality
+- ✅ Beat detection implemented (based on BPM)
+- ✅ Trigger on beat functionality working
+- ✅ Beat macros execute on beat timing
 
 **Files**:
-- `docker/web/public/index.html` (lines 237-284)
+- `docker/web/public/index.html` (lines 237-284, beat processing added)
+
+**Implementation**:
+- Added beat timer that runs every 50ms to check for beats
+- Beat detection based on BPM value (60/BPM = beat interval)
+- Beat macros trigger according to their speed setting (1/4 note, 1/8 note, 1 bar)
+- Visual feedback with flashing beat indicator
+- Macros can apply Sine, Saw, or Noise shapes to parameters on each beat
+- Beat phase tracking for smooth continuous animations
 - `docker/web/server.js` (needs beat detection)
 
 **Implementation Needed**:
