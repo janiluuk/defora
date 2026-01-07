@@ -239,6 +239,14 @@
             <h3>Track & tempo</h3>
             <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track"></div>
             <div class="slider-row">
+              <div>Audio file</div>
+              <input type="file" accept="audio/*" @change="handleAudioUpload" style="font-size:12px;" ref="audioFileInput">
+            </div>
+            <div v-if="audio.uploadedFile" class="chips" style="margin-top:4px;">
+              <span class="chip">📁 {{ audio.uploadedFile }}</span>
+              <span class="chip" @click="clearAudioFile" style="cursor:pointer;">✕ Clear</span>
+            </div>
+            <div class="slider-row">
               <div>BPM</div>
               <input class="select" type="number" v-model.number="audio.bpm">
               <span class="pill" :class="{'danger': beatPhase < 0.1}" style="margin-left: 8px;">
@@ -344,18 +352,36 @@
             <h3>ControlNet slots</h3>
             <div class="chips">
               <span class="chip" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</span>
+              <span class="chip" @click="loadControlNetModels">🔄 Refresh models</span>
             </div>
           </div>
           <div class="rack">
             <h3>{{ activeSlot.label }}</h3>
-            <div class="chips" style="margin-bottom:8px;">
-              <span class="chip">Change image</span>
-              <span class="chip">Model: {{ activeSlot.model }}</span>
+            <div class="slider-row">
+              <div>Model</div>
+              <select class="select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
+                <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
+              </select>
             </div>
-            <div class="slider-row"><div>Weight</div><input type="range" min="0" max="1" step="0.01" :value="activeSlot.weight"></div>
-            <div class="slider-row"><div>Start</div><input type="range" min="0" max="1" step="0.01" value="0"></div>
-            <div class="slider-row"><div>End</div><input type="range" min="0" max="1" step="0.01" value="0.9"></div>
-            <div class="chips"><span class="chip">Enabled</span><span class="chip">Bypass</span></div>
+            <div class="chips" style="margin-bottom:8px;">
+              <span class="chip" @click="uploadControlNetImage(activeSlot)">📁 Change image</span>
+              <span class="chip" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</span>
+            </div>
+            <div class="slider-row">
+              <div>Weight</div>
+              <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)">
+              <span style="margin-left:8px; color:var(--muted); font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
+            </div>
+            <div class="slider-row">
+              <div>Start</div>
+              <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)">
+              <span style="margin-left:8px; color:var(--muted); font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
+            </div>
+            <div class="slider-row">
+              <div>End</div>
+              <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)">
+              <span style="margin-left:8px; color:var(--muted); font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
+            </div>
           </div>
         </div>
 
@@ -400,6 +426,22 @@
                 </tbody>
               </table>
             </div>
+          </div>
+          <div class="rack">
+            <h3>Preset Management</h3>
+            <div class="chips" style="margin-bottom:8px;">
+              <span class="chip" v-for="p in availablePresets" :key="p" :class="{active: currentPreset===p}" @click="loadPreset(p)">{{ p }}</span>
+              <span class="chip" @click="refreshPresets">🔄 Refresh</span>
+            </div>
+            <div class="slider-row">
+              <div>New preset name</div>
+              <input class="select" v-model="newPresetName" placeholder="my-preset" style="flex:1;">
+            </div>
+            <div class="chips">
+              <span class="chip" @click="saveCurrentPreset">💾 Save current as preset</span>
+              <span class="chip" v-if="currentPreset" @click="deletePreset(currentPreset)" style="color:var(--danger);">🗑 Delete {{ currentPreset }}</span>
+            </div>
+            <div v-if="presetStatus" style="font-size:12px; color:var(--muted); margin-top:6px;">{{ presetStatus }}</div>
           </div>
         </div>
       </div>
@@ -540,7 +582,7 @@
           },
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
           xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
-          audio: { track: "", bpm: 114.8 },
+          audio: { track: "", bpm: 114.8, uploadedFile: null },
           audioStatus: "Idle",
           audioMappings: [
             { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
@@ -577,13 +619,14 @@
             ],
           cn: {
             slots: [
-              { id: "CN1", label: "CN1", model: "Canny", weight: 0.4 },
-              { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4 },
-              { id: "CN3", label: "CN3", model: "Pose", weight: 0.4 },
-              { id: "CN4", label: "CN4", model: "Tile", weight: 0.4 },
-              { id: "CN5", label: "CN5", model: "Control", weight: 0.4 },
+              { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false },
+              { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true },
+              { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false },
+              { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false },
+              { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false },
             ],
             active: "CN2",
+            availableModels: [],
           },
           midi: {
             supported: !!navigator.requestMIDIAccess,
@@ -616,6 +659,10 @@
           lastBeatTime: null,
           beatCount: 0,
           beatPhase: 0,
+          availablePresets: [],
+          currentPreset: null,
+          newPresetName: "",
+          presetStatus: "",
         };
       },
       computed: {
@@ -628,6 +675,8 @@
         this.setupWS();
         this.scanMidi();
         this.refreshFrames();
+        this.refreshPresets();
+        this.loadControlNetModels();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
         }
@@ -1087,6 +1136,126 @@
         updateMidiMapping(map) {
           this.saveMidiMappings();
           return map;
+        },
+        // Preset management methods
+        async refreshPresets() {
+          try {
+            const res = await fetch("/api/presets");
+            const data = await res.json();
+            this.availablePresets = data.presets || [];
+          } catch (err) {
+            console.error("Failed to load presets", err);
+          }
+        },
+        async loadPreset(name) {
+          try {
+            const res = await fetch(`/api/presets/${name}`);
+            const data = await res.json();
+            if (data.preset) {
+              // Apply preset to current state
+              if (data.preset.liveVibe) this.liveVibe = data.preset.liveVibe;
+              if (data.preset.liveCam) this.liveCam = data.preset.liveCam;
+              if (data.preset.audio) Object.assign(this.audio, data.preset.audio);
+              if (data.preset.cn) Object.assign(this.cn, data.preset.cn);
+              if (data.preset.lfos) this.lfos = data.preset.lfos;
+              if (data.preset.macrosRack) this.macrosRack = data.preset.macrosRack;
+              this.currentPreset = name;
+              this.presetStatus = `Loaded preset: ${name}`;
+              setTimeout(() => { this.presetStatus = ""; }, 3000);
+            }
+          } catch (err) {
+            console.error("Failed to load preset", err);
+            this.presetStatus = `Error loading preset: ${err.message}`;
+          }
+        },
+        async saveCurrentPreset() {
+          const name = this.newPresetName || "untitled";
+          const preset = {
+            liveVibe: this.liveVibe,
+            liveCam: this.liveCam,
+            audio: { bpm: this.audio.bpm, track: this.audio.track },
+            cn: { slots: this.cn.slots, active: this.cn.active },
+            lfos: this.lfos,
+            macrosRack: this.macrosRack,
+            paramSources: this.paramSources,
+          };
+          try {
+            const res = await fetch(`/api/presets/${name}`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(preset),
+            });
+            const data = await res.json();
+            if (data.ok) {
+              this.currentPreset = name;
+              this.presetStatus = `Saved preset: ${name}`;
+              this.newPresetName = "";
+              await this.refreshPresets();
+              setTimeout(() => { this.presetStatus = ""; }, 3000);
+            }
+          } catch (err) {
+            console.error("Failed to save preset", err);
+            this.presetStatus = `Error saving preset: ${err.message}`;
+          }
+        },
+        async deletePreset(name) {
+          if (!confirm(`Delete preset "${name}"?`)) return;
+          try {
+            await fetch(`/api/presets/${name}`, { method: "DELETE" });
+            this.currentPreset = null;
+            this.presetStatus = `Deleted preset: ${name}`;
+            await this.refreshPresets();
+            setTimeout(() => { this.presetStatus = ""; }, 3000);
+          } catch (err) {
+            console.error("Failed to delete preset", err);
+            this.presetStatus = `Error deleting preset: ${err.message}`;
+          }
+        },
+        // Audio file upload methods
+        handleAudioUpload(evt) {
+          const file = evt.target.files[0];
+          if (!file) return;
+          this.audio.uploadedFile = file.name;
+          this.audio.track = file.name;
+          // In a real implementation, you would upload the file to the server here
+          // For now, we just store the filename
+          console.log("Audio file selected:", file.name);
+        },
+        clearAudioFile() {
+          this.audio.uploadedFile = null;
+          this.audio.track = "";
+          if (this.$refs.audioFileInput) {
+            this.$refs.audioFileInput.value = "";
+          }
+        },
+        // ControlNet methods
+        async loadControlNetModels() {
+          try {
+            const res = await fetch("/api/controlnet/models");
+            const data = await res.json();
+            this.cn.availableModels = data.models || [];
+          } catch (err) {
+            console.error("Failed to load ControlNet models", err);
+          }
+        },
+        updateControlNet(slot) {
+          // Send ControlNet parameters to mediator
+          const payload = {
+            controlnet_slot: slot.id,
+            controlnet_model: slot.model,
+            controlnet_weight: slot.weight,
+            controlnet_start: slot.start,
+            controlnet_end: slot.end,
+            controlnet_enabled: slot.enabled,
+          };
+          this.sendControl("controlNet", payload);
+          console.log("Updated ControlNet slot:", slot.id, payload);
+        },
+        uploadControlNetImage(slot) {
+          // Placeholder for image upload functionality
+          // In a real implementation, this would open a file picker and upload the image
+          console.log("Upload image for slot:", slot.id);
+          alert("Image upload functionality not yet implemented. Use SD-Forge UI for now.");
         },
         handleMidi(input, msg) {
           const [status, cc, value] = msg.data;
