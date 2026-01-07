@@ -172,7 +172,7 @@
               </div>
             </div>
             <div class="chips">
-              <span class="chip" v-for="p in motionPresets" :key="p" @click="sendPreset(p)">{{ p }}</span>
+              <span class="chip" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</span>
             </div>
           </div>
         </div>
@@ -519,7 +519,13 @@
             { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
             { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
           ],
-          motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
+          motionPresets: {
+            Static: { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
+            Orbit: { translation_z: 2, rotation_y: 15, translation_x: 0, translation_y: 0, rotation_z: 0 },
+            Tunnel: { translation_z: 5, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
+            Handheld: { translation_z: 0.5, translation_x: 0.2, translation_y: 0.1, rotation_z: 2, rotation_y: 0 },
+            Chaos: { translation_z: 1.5, translation_x: 0.5, translation_y: 0.3, rotation_z: 5, rotation_y: 10 }
+          },
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
           xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
           audio: { track: "", bpm: 114.8 },
@@ -877,7 +883,10 @@
           return "Manual";
         },
         sendPreset(name) {
-          this.sendControl("motionPreset", { name });
+          const preset = this.motionPresets[name];
+          if (!preset) return;
+          this.sendControl("liveParam", preset);
+          console.log(`Applied motion preset: ${name}`, preset);
         },
         midiTarget(key) {
           return this.lfoTargets.find((t) => t.key === key) || null;
