@@ -150,6 +150,21 @@ describe("Deforumation Web UI", () => {
 
 describe("Deforumation Web UI behavior", () => {
   const appDef = loadAppDefinition();
+  let testStorage;
+
+  beforeEach(() => {
+    // Set up minimal localStorage mock for tests with shared storage
+    testStorage = {};
+    if (!global.window) {
+      global.window = {};
+    }
+    global.window.localStorage = {
+      getItem: (key) => testStorage[key] || null,
+      setItem: (key, value) => { testStorage[key] = value; },
+      removeItem: (key) => { delete testStorage[key]; },
+      clear: () => { testStorage = {}; Object.keys(testStorage).forEach(k => delete testStorage[k]); }
+    };
+  });
 
   it("setSource updates state and dispatches payload", () => {
     const instance = instantiate(appDef);

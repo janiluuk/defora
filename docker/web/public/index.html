@@ -378,12 +378,24 @@
                 <span class="chip" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</span>
                 <span class="chip" @click="scanMidi()">Rescan</span>
               </div>
-              <div class="chips"><span class="chip">Learn mode</span><span class="chip">Status: {{ midiStatus }}</span></div>
+              <div class="chips">
+                <span class="chip">Learn mode</span>
+                <span class="chip" @click="addMidiMapping">+ Add Mapping</span>
+                <span class="chip">Status: {{ midiStatus }}</span>
+              </div>
               <table class="table">
-                <thead><tr><th>Source</th><th>Target</th><th>Mode</th><th>Curve</th></tr></thead>
+                <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
                 <tbody>
-                  <tr v-for="m in midi.mappings" :key="m.control">
-                    <td>{{ m.control }}</td><td>{{ m.param }}</td><td>Absolute</td><td>Linear</td>
+                  <tr v-for="(m, idx) in midi.mappings" :key="'midi'+idx">
+                    <td><input class="select" v-model="m.control" @change="saveMidiMappings" style="width:100px;"></td>
+                    <td><input class="select" type="number" v-model.number="m.cc" @change="saveMidiMappings" style="width:60px;"></td>
+                    <td>
+                      <select class="select" v-model="m.key" @change="saveMidiMappings" style="width:120px;">
+                        <option value="">None</option>
+                        <option v-for="t in lfoTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
+                      </select>
+                    </td>
+                    <td><span class="chip" @click="deleteMidiMapping(idx)" style="cursor:pointer;">Delete</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -1029,9 +1041,52 @@
             });
             this.midi.devices = devices;
             if (!this.midi.selected && devices.length) this.midi.selected = devices[0].id;
+            this.loadMidiMappings();
           } catch (e) {
             this.midiStatus = "MIDI not available";
           }
+        },
+        loadMidiMappings() {
+          const storage = (typeof window !== 'undefined' && window.localStorage) || 
+                         (typeof global !== 'undefined' && global.window && global.window.localStorage);
+          if (!storage) return;
+          try {
+            const stored = storage.getItem("defora_midi_mappings");
+            if (stored) {
+              const mappings = JSON.parse(stored);
+              if (Array.isArray(mappings) && mappings.length > 0) {
+                this.midi.mappings = mappings;
+                console.log("Loaded MIDI mappings from localStorage", mappings);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to load MIDI mappings", e);
+          }
+        },
+        saveMidiMappings() {
+          const storage = (typeof window !== 'undefined' && window.localStorage) || 
+                         (typeof global !== 'undefined' && global.window && global.window.localStorage);
+          if (!storage) return false;
+          try {
+            storage.setItem("defora_midi_mappings", JSON.stringify(this.midi.mappings));
+            console.log("Saved MIDI mappings to localStorage", this.midi.mappings);
+            return true;
+          } catch (e) {
+            console.error("Failed to save MIDI mappings", e);
+            return false;
+          }
+        },
+        addMidiMapping() {
+          this.midi.mappings.push({ control: "New Mapping", cc: 0, key: "" });
+          this.saveMidiMappings();
+        },
+        deleteMidiMapping(index) {
+          this.midi.mappings.splice(index, 1);
+          this.saveMidiMappings();
+        },
+        updateMidiMapping(map) {
+          this.saveMidiMappings();
+          return map;
         },
         handleMidi(input, msg) {
           const [status, cc, value] = msg.data;
