@@ -150,6 +150,21 @@ describe("Deforumation Web UI", () => {
 
 describe("Deforumation Web UI behavior", () => {
   const appDef = loadAppDefinition();
+  let testStorage;
+
+  beforeEach(() => {
+    // Set up minimal localStorage mock for tests with shared storage
+    testStorage = {};
+    if (!global.window) {
+      global.window = {};
+    }
+    global.window.localStorage = {
+      getItem: (key) => testStorage[key] || null,
+      setItem: (key, value) => { testStorage[key] = value; },
+      removeItem: (key) => { delete testStorage[key]; },
+      clear: () => { testStorage = {}; Object.keys(testStorage).forEach(k => delete testStorage[k]); }
+    };
+  });
 
   it("setSource updates state and dispatches payload", () => {
     const instance = instantiate(appDef);
@@ -293,5 +308,26 @@ describe("Deforumation Web UI behavior", () => {
     const last = instance.ws.sent.at(-1);
     expect(last.controlType).to.equal("prompts");
     expect(last.payload).to.deep.equal({ morphOn: false });
+  });
+
+  it("sendPreset applies motion preset parameters", () => {
+    const instance = instantiate(appDef);
+    instance.ws = new FakeSocket();
+
+    instance.sendPreset("Orbit");
+
+    const last = instance.ws.sent.at(-1);
+    expect(last.controlType).to.equal("liveParam");
+    expect(last.payload).to.have.property("translation_z", 2);
+    expect(last.payload).to.have.property("rotation_y", 15);
+  });
+
+  it("sendPreset handles invalid preset name gracefully", () => {
+    const instance = instantiate(appDef);
+    instance.ws = new FakeSocket();
+
+    instance.sendPreset("NonExistent");
+
+    expect(instance.ws.sent.length).to.equal(0);
   });
 });

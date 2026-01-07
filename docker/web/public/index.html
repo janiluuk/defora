@@ -77,7 +77,7 @@
     .context h4 { margin: 0 0 6px 0; }
     .table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
     .table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
-    .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; }
+    .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; cursor: crosshair; user-select: none; }
     .xy-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--glow2); box-shadow: 0 0 10px var(--glow2); }
     .lfo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
     .lfo-card { border: 1px solid var(--border); border-radius: 12px; padding: 10px; background: #0e1322; box-shadow: 0 8px 18px rgba(0,0,0,0.28); }
@@ -172,7 +172,7 @@
               </div>
             </div>
             <div class="chips">
-              <span class="chip" v-for="p in motionPresets" :key="p" @click="sendPreset(p)">{{ p }}</span>
+              <span class="chip" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</span>
             </div>
           </div>
         </div>
@@ -180,13 +180,13 @@
         <div v-else-if="currentTab==='PROMPTS'">
           <div class="rack">
             <h3>Positive prompt</h3>
-            <input class="select" v-model="prompts.pos" placeholder="positive prompt" />
-            <button class="btn ghost" style="margin-top:6px;">Edit full prompt</button>
+            <input class="select" v-model="prompts.pos" @change="sendPrompts" placeholder="positive prompt" />
+            <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Apply prompt</button>
           </div>
           <div class="rack">
             <h3>Negative prompt</h3>
-            <input class="select" v-model="prompts.neg" placeholder="negative prompt" />
-            <button class="btn ghost" style="margin-top:6px;">Edit negative</button>
+            <input class="select" v-model="prompts.neg" @change="sendPrompts" placeholder="negative prompt" />
+            <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Apply negative</button>
           </div>
           <div class="rack">
             <h3>Prompt morphing</h3>
@@ -201,8 +201,18 @@
         <div v-else-if="currentTab==='MOTION'">
           <div class="rack">
             <h3>Camera pad</h3>
-            <div class="xy-pad">
-              <div class="xy-dot" :style="{left:'60px', top:'60px'}"></div>
+            <div class="xy-pad" 
+              @mousedown="xyPadMouseDown" 
+              @mousemove="xyPadMouseMove" 
+              @mouseup="xyPadMouseUp" 
+              @mouseleave="xyPadMouseUp"
+              @touchstart="xyPadMouseDown"
+              @touchmove="xyPadMouseMove"
+              @touchend="xyPadMouseUp">
+              <div class="xy-dot" :style="{left: xyPad.x + 'px', top: xyPad.y + 'px', transform: 'translate(-6px, -6px)'}"></div>
+            </div>
+            <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
+              Click/drag to control camera pan (X/Y translation)
             </div>
           </div>
           <div class="rack">
@@ -228,7 +238,14 @@
           <div class="rack">
             <h3>Track & tempo</h3>
             <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track"></div>
-            <div class="slider-row"><div>BPM</div><input class="select" type="number" v-model.number="audio.bpm"></div>
+            <div class="slider-row">
+              <div>BPM</div>
+              <input class="select" type="number" v-model.number="audio.bpm">
+              <span class="pill" :class="{'danger': beatPhase < 0.1}" style="margin-left: 8px;">
+                <span class="dot"></span>
+                {{ audio.bpm }} BPM
+              </span>
+            </div>
             <div class="chips" style="margin-top:6px;">
               <span class="chip">Re-detect</span>
               <span class="chip">Tap tempo</span>
@@ -361,12 +378,24 @@
                 <span class="chip" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</span>
                 <span class="chip" @click="scanMidi()">Rescan</span>
               </div>
-              <div class="chips"><span class="chip">Learn mode</span><span class="chip">Status: {{ midiStatus }}</span></div>
+              <div class="chips">
+                <span class="chip">Learn mode</span>
+                <span class="chip" @click="addMidiMapping">+ Add Mapping</span>
+                <span class="chip">Status: {{ midiStatus }}</span>
+              </div>
               <table class="table">
-                <thead><tr><th>Source</th><th>Target</th><th>Mode</th><th>Curve</th></tr></thead>
+                <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
                 <tbody>
-                  <tr v-for="m in midi.mappings" :key="m.control">
-                    <td>{{ m.control }}</td><td>{{ m.param }}</td><td>Absolute</td><td>Linear</td>
+                  <tr v-for="(m, idx) in midi.mappings" :key="'midi'+idx">
+                    <td><input class="select" v-model="m.control" @change="saveMidiMappings" style="width:100px;"></td>
+                    <td><input class="select" type="number" v-model.number="m.cc" @change="saveMidiMappings" style="width:60px;"></td>
+                    <td>
+                      <select class="select" v-model="m.key" @change="saveMidiMappings" style="width:120px;">
+                        <option value="">None</option>
+                        <option v-for="t in lfoTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
+                      </select>
+                    </td>
+                    <td><span class="chip" @click="deleteMidiMapping(idx)" style="cursor:pointer;">Delete</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -502,8 +531,15 @@
             { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
             { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
           ],
-          motionPresets: ["Static", "Orbit", "Tunnel", "Handheld", "Chaos"],
+          motionPresets: {
+            Static: { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
+            Orbit: { translation_z: 2, rotation_y: 15, translation_x: 0, translation_y: 0, rotation_z: 0 },
+            Tunnel: { translation_z: 5, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
+            Handheld: { translation_z: 0.5, translation_x: 0.2, translation_y: 0.1, rotation_z: 2, rotation_y: 0 },
+            Chaos: { translation_z: 1.5, translation_x: 0.5, translation_y: 0.3, rotation_z: 5, rotation_y: 10 }
+          },
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
+          xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
           audio: { track: "", bpm: 114.8 },
           audioStatus: "Idle",
           audioMappings: [
@@ -576,6 +612,10 @@
           playbackTimer: null,
           lfoTimer: null,
           lastLfoTick: null,
+          beatTimer: null,
+          lastBeatTime: null,
+          beatCount: 0,
+          beatPhase: 0,
         };
       },
       computed: {
@@ -593,11 +633,13 @@
         }
         this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
         this.lfoTimer = setInterval(() => this.runLfos(), 120);
+        this.beatTimer = setInterval(() => this.processBeat(), 50);
       },
       beforeUnmount() {
         if (this.framesTimer) clearInterval(this.framesTimer);
         if (this.playbackTimer) clearInterval(this.playbackTimer);
         if (this.lfoTimer) clearInterval(this.lfoTimer);
+        if (this.beatTimer) clearInterval(this.beatTimer);
         if (this.playerEl && this.timeHandler) {
           this.playerEl.removeEventListener("timeupdate", this.timeHandler);
         }
@@ -689,7 +731,10 @@
           if (v === null || v === undefined || Number.isNaN(v)) return min;
           return Math.min(max, Math.max(min, v));
         },
-        runLfos(now = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now())) {
+        getNow() {
+          return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        },
+        runLfos(now = this.getNow()) {
           if (this.audio.track) return; // audio sync takes over
           if (this.lastLfoTick === null) {
             this.lastLfoTick = now;
@@ -719,6 +764,87 @@
           if (Object.keys(payload).length) {
             this.sendControl("liveParam", payload);
           }
+        },
+        processBeat() {
+          const now = this.getNow();
+          const bpm = this.audio.bpm || 120;
+          const beatIntervalMs = (60 / bpm) * 1000;
+          
+          if (this.lastBeatTime === null) {
+            this.lastBeatTime = now;
+            this.beatCount = 0;
+            this.beatPhase = 0;
+            return;
+          }
+          
+          const timeSinceLastBeat = now - this.lastBeatTime;
+          
+          // Check if a beat should occur
+          if (timeSinceLastBeat >= beatIntervalMs) {
+            this.lastBeatTime = now;
+            this.beatCount++;
+            this.triggerBeatMacros();
+          }
+          
+          // Update continuous beat phase for smooth animations
+          this.beatPhase = (timeSinceLastBeat / beatIntervalMs) % 1;
+        },
+        triggerBeatMacros() {
+          const payload = {};
+          const activeMacros = this.macrosRack.filter(m => m.on);
+          
+          activeMacros.forEach(macro => {
+            const target = this.lfoTargets.find(t => t.label === macro.target || t.key === macro.target);
+            if (!target) return;
+            
+            // Determine if this macro should trigger on this beat
+            const shouldTrigger = this.shouldMacroTrigger(macro);
+            if (!shouldTrigger) return;
+            
+            // Calculate value based on macro shape
+            const base = target.default ?? (target.min + target.max) / 2;
+            const depth = this.clampVal(macro.depth ?? 0.5, 0, 1);
+            const offset = this.clampVal(macro.offset ?? 0, -1, 1);
+            
+            let value;
+            if (macro.shape === "Noise") {
+              // Random value for noise
+              value = base + (Math.random() * 2 - 1) * depth * (target.max - target.min) / 2;
+            } else {
+              // Use shape value at current phase
+              const phase = this.beatPhase * Math.PI * 2;
+              const wave = this.shapeValue(macro.shape || "Sine", phase);
+              value = base + (wave + offset) * depth * (target.max - target.min) / 2;
+            }
+            
+            payload[target.key] = this.clampVal(value, target.min, target.max);
+          });
+          
+          if (Object.keys(payload).length) {
+            this.sendControl("liveParam", payload);
+          }
+        },
+        shouldMacroTrigger(macro) {
+          const speed = macro.speed || "1/4 note";
+          
+          // Parse the speed to determine trigger frequency
+          if (speed === "1/4 note") {
+            // Trigger every beat
+            return true;
+          } else if (speed === "1/8 note") {
+            // NOTE: Currently triggers every beat like 1/4 note
+            // TODO: Implement proper 1/8 note timing (requires sub-beat timing)
+            // For proper 1/8 notes, would need to trigger at beat + half-beat intervals
+            return true;
+          } else if (speed === "1 bar") {
+            // Trigger every 4 beats (assuming 4/4 time)
+            return this.beatCount % 4 === 0;
+          } else if (speed === "2 bars") {
+            // Trigger every 8 beats
+            return this.beatCount % 8 === 0;
+          }
+          
+          return true;
         },
         setupWS() {
           const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
@@ -769,7 +895,10 @@
           return "Manual";
         },
         sendPreset(name) {
-          this.sendControl("motionPreset", { name });
+          const preset = this.motionPresets[name];
+          if (!preset) return;
+          this.sendControl("liveParam", preset);
+          console.log(`Applied motion preset: ${name}`, preset);
         },
         midiTarget(key) {
           return this.lfoTargets.find((t) => t.key === key) || null;
@@ -781,6 +910,27 @@
         setMorph(on) {
           this.prompts.morphOn = on;
           this.sendControl("prompts", { morphOn: on });
+          if (on) {
+            this.applyPromptMorphing();
+          }
+        },
+        applyPromptMorphing() {
+          if (!this.prompts.morphOn) return;
+          const activeSlots = this.morphSlots.filter(s => s.on);
+          if (!activeSlots.length) return;
+          let morphedPrompt = this.prompts.pos || "";
+          activeSlots.forEach(slot => {
+            // TODO: Add slider or auto-calculation for blend weight
+            // For now using simple concatenation approach
+            morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
+          });
+          this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
+        },
+        sendPrompts() {
+          this.sendControl("prompt", { positive: this.prompts.pos, negative: this.prompts.neg });
+          if (this.prompts.morphOn) {
+            this.applyPromptMorphing();
+          }
         },
         addMacro() {
           if (this.macrosRack.length >= 6) return;
@@ -790,7 +940,7 @@
           this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
         },
         queueLiveParam(key, val) {
-          const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+          const now = this.getNow();
           const last = this.lastParamSent[key] || 0;
           this.liveParamPending[key] = val;
           if (now - last > this.controlDelayMs) {
@@ -802,7 +952,7 @@
           this.liveParamTimers[key] = setTimeout(() => {
             const v = this.liveParamPending[key];
             delete this.liveParamPending[key];
-            this.lastParamSent[key] = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            this.lastParamSent[key] = this.getNow();
             this.sendControl("liveParam", { [key]: v });
           }, this.controlDelayMs);
         },
@@ -891,9 +1041,52 @@
             });
             this.midi.devices = devices;
             if (!this.midi.selected && devices.length) this.midi.selected = devices[0].id;
+            this.loadMidiMappings();
           } catch (e) {
             this.midiStatus = "MIDI not available";
           }
+        },
+        loadMidiMappings() {
+          const storage = (typeof window !== 'undefined' && window.localStorage) || 
+                         (typeof global !== 'undefined' && global.window && global.window.localStorage);
+          if (!storage) return;
+          try {
+            const stored = storage.getItem("defora_midi_mappings");
+            if (stored) {
+              const mappings = JSON.parse(stored);
+              if (Array.isArray(mappings) && mappings.length > 0) {
+                this.midi.mappings = mappings;
+                console.log("Loaded MIDI mappings from localStorage", mappings);
+              }
+            }
+          } catch (e) {
+            console.error("Failed to load MIDI mappings", e);
+          }
+        },
+        saveMidiMappings() {
+          const storage = (typeof window !== 'undefined' && window.localStorage) || 
+                         (typeof global !== 'undefined' && global.window && global.window.localStorage);
+          if (!storage) return false;
+          try {
+            storage.setItem("defora_midi_mappings", JSON.stringify(this.midi.mappings));
+            console.log("Saved MIDI mappings to localStorage", this.midi.mappings);
+            return true;
+          } catch (e) {
+            console.error("Failed to save MIDI mappings", e);
+            return false;
+          }
+        },
+        addMidiMapping() {
+          this.midi.mappings.push({ control: "New Mapping", cc: 0, key: "" });
+          this.saveMidiMappings();
+        },
+        deleteMidiMapping(index) {
+          this.midi.mappings.splice(index, 1);
+          this.saveMidiMappings();
+        },
+        updateMidiMapping(map) {
+          this.saveMidiMappings();
+          return map;
         },
         handleMidi(input, msg) {
           const [status, cc, value] = msg.data;
@@ -910,6 +1103,43 @@
               this.sendControl("liveParam", { [mapping.key]: norm });
             }
           }
+        },
+        xyPadMouseDown(evt) {
+          this.xyPad.dragging = true;
+          this.updateXyPad(evt);
+          evt.preventDefault();
+        },
+        xyPadMouseMove(evt) {
+          if (!this.xyPad.dragging) return;
+          this.updateXyPad(evt);
+          evt.preventDefault();
+        },
+        xyPadMouseUp() {
+          this.xyPad.dragging = false;
+        },
+        updateXyPad(evt) {
+          const pad = evt.currentTarget;
+          const rect = pad.getBoundingClientRect();
+          let clientX, clientY;
+          if (evt.touches && evt.touches.length > 0) {
+            clientX = evt.touches[0].clientX;
+            clientY = evt.touches[0].clientY;
+          } else {
+            clientX = evt.clientX;
+            clientY = evt.clientY;
+          }
+          const x = Math.max(0, Math.min(this.xyPad.padSize, clientX - rect.left));
+          const y = Math.max(0, Math.min(this.xyPad.padSize, clientY - rect.top));
+          this.xyPad.x = x;
+          this.xyPad.y = y;
+          // Normalize pad coordinates to -1..1, then scale to translation range -10..10
+          const normX = (x / this.xyPad.padSize) * 2 - 1;
+          const normY = 1 - (y / this.xyPad.padSize) * 2;
+          const TRANSLATION_RANGE = 10; // Max translation distance for camera movement
+          const translation_x = normX * TRANSLATION_RANGE;
+          const translation_y = normY * TRANSLATION_RANGE;
+          this.queueLiveParam("translation_x", translation_x);
+          this.queueLiveParam("translation_y", translation_y);
         },
       },
     }).mount("#app");
