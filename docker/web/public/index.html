@@ -713,7 +713,10 @@
           if (v === null || v === undefined || Number.isNaN(v)) return min;
           return Math.min(max, Math.max(min, v));
         },
-        runLfos(now = (typeof performance !== "undefined" && performance.now ? performance.now() : Date.now())) {
+        getNow() {
+          return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+        },
+        runLfos(now = this.getNow()) {
           if (this.audio.track) return; // audio sync takes over
           if (this.lastLfoTick === null) {
             this.lastLfoTick = now;
@@ -745,7 +748,7 @@
           }
         },
         processBeat() {
-          const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+          const now = this.getNow();
           const bpm = this.audio.bpm || 120;
           const beatIntervalMs = (60 / bpm) * 1000;
           
@@ -811,8 +814,9 @@
             // Trigger every beat
             return true;
           } else if (speed === "1/8 note") {
-            // Trigger every beat (in a full implementation, would trigger twice per beat)
-            // For now, trigger every beat since we're on beat boundaries
+            // NOTE: Currently triggers every beat like 1/4 note
+            // TODO: Implement proper 1/8 note timing (requires sub-beat timing)
+            // For proper 1/8 notes, would need to trigger at beat + half-beat intervals
             return true;
           } else if (speed === "1 bar") {
             // Trigger every 4 beats (assuming 4/4 time)
@@ -915,7 +919,7 @@
           this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
         },
         queueLiveParam(key, val) {
-          const now = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+          const now = this.getNow();
           const last = this.lastParamSent[key] || 0;
           this.liveParamPending[key] = val;
           if (now - last > this.controlDelayMs) {
@@ -927,7 +931,7 @@
           this.liveParamTimers[key] = setTimeout(() => {
             const v = this.liveParamPending[key];
             delete this.liveParamPending[key];
-            this.lastParamSent[key] = (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
+            this.lastParamSent[key] = this.getNow();
             this.sendControl("liveParam", { [key]: v });
           }, this.controlDelayMs);
         },
