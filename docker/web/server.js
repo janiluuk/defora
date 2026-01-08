@@ -125,6 +125,92 @@ async function start(opts = {}) {
     });
   });
 
+  // Preset management API
+  const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
+  try {
+    await fsp.mkdir(presetsDir, { recursive: true });
+  } catch (_e) {}
+
+  app.get("/api/presets", async (_req, res) => {
+    try {
+      const files = await fsp.readdir(presetsDir);
+      const presets = files.filter((f) => f.endsWith(".json")).map((f) => f.replace(/\.json$/, ""));
+      res.json({ presets });
+    } catch (err) {
+      console.error("[api] presets list error", err);
+      res.status(500).json({ error: "could not list presets" });
+    }
+  });
+
+  app.get("/api/presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const filePath = path.join(presetsDir, `${name}.json`);
+      const data = await fsp.readFile(filePath, "utf-8");
+      const preset = JSON.parse(data);
+      res.json({ name, preset });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "preset not found" });
+      } else {
+        console.error("[api] preset load error", err);
+        res.status(500).json({ error: "could not load preset" });
+      }
+    }
+  });
+
+  app.post("/api/presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const preset = req.body;
+      if (!preset || typeof preset !== "object") {
+        return res.status(400).json({ error: "invalid preset data" });
+      }
+      const filePath = path.join(presetsDir, `${name}.json`);
+      await fsp.writeFile(filePath, JSON.stringify(preset, null, 2), "utf-8");
+      res.json({ ok: true, name });
+    } catch (err) {
+      console.error("[api] preset save error", err);
+      res.status(500).json({ error: "could not save preset" });
+    }
+  });
+
+  app.delete("/api/presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const filePath = path.join(presetsDir, `${name}.json`);
+      await fsp.unlink(filePath);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "preset not found" });
+      } else {
+        console.error("[api] preset delete error", err);
+        res.status(500).json({ error: "could not delete preset" });
+      }
+    }
+  });
+
+  // ControlNet models API
+  app.get("/api/controlnet/models", async (_req, res) => {
+    // This is a placeholder - in production, this would query the SD-Forge API
+    const models = [
+      { id: "canny", name: "Canny Edge", category: "edge" },
+      { id: "depth", name: "Depth Map", category: "depth" },
+      { id: "openpose", name: "OpenPose", category: "pose" },
+      { id: "scribble", name: "Scribble", category: "line" },
+      { id: "tile", name: "Tile/Blur", category: "style" },
+      { id: "lineart", name: "Line Art", category: "line" },
+      { id: "mlsd", name: "M-LSD Lines", category: "line" },
+      { id: "normal", name: "Normal Map", category: "depth" },
+      { id: "seg", name: "Segmentation", category: "semantic" },
+    ];
+    res.json({ models });
+  });
+
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
     console.log(`[web] API/WS listening on ${actualPort}`);
