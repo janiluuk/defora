@@ -25,6 +25,14 @@ Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: l
 - `docker-compose` stack — ffmpeg encoder + Nginx/Node (HLS + authable controls) + RabbitMQ + mediator control bridge to view frames as live video in a browser.
 - Docs and schema helpers under `docs/` (run manifest schema, workflows, server targeting, panel notes).
 
+## Feature Status
+
+For a comprehensive overview of implemented features, phased development plan, and testing status, see **[FEATURES_STATUS.md](FEATURES_STATUS.md)**. This document tracks:
+- Implementation status of all 5 development phases
+- Test coverage and known issues
+- Contribution guidelines for incomplete features
+- Documentation completeness
+
 ## Quick start
 1) Clone and install deps:
 ```bash
