@@ -103,7 +103,7 @@ This script will guide you through:
 
 If you prefer to set up manually:
 
-1. **Download Models**: The first time you start, you'll need to download AI models. Place them in the `models` volume or use the Forge UI to download them.
+1. **Download Models**: The first time you start, you'll need to download AI models from sources like [CivitAI](https://civitai.com) or [HuggingFace](https://huggingface.co). Place them in the `models` volume or mount a directory containing your models. The Forge UI can then detect and use these models.
 
 2. **Configure Deforum**: The Deforum extension is pre-configured to connect to the mediator at `ws://mediator:8765`. You can override this by setting the `DEFORUM_MEDIATOR_URL` environment variable.
 
