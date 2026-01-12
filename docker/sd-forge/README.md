@@ -25,6 +25,12 @@ The `sd-forge` service in `docker-compose.yml` includes:
 - `--no-half-vae` - Disable half-precision VAE (better quality)
 - `--xformers` - Use xformers for memory-efficient attention
 
+> **Security Note**: The `--enable-insecure-extension-access` flag allows extensions full API access without authentication. This is suitable for local development and trusted networks. For production deployments:
+> - Use a reverse proxy with authentication (e.g., nginx with basic auth)
+> - Restrict network access using Docker networks or firewall rules
+> - Consider removing this flag and manually configuring extension permissions
+> - Never expose port 7860 directly to the internet without authentication
+
 ### GPU Requirements
 
 The service requires NVIDIA GPU with Docker GPU support. Configure using:
@@ -75,7 +81,7 @@ Once started, access the Forge web UI at: **http://localhost:7860**
 
 ### Health Check
 
-The service includes a health check that polls the `/docs` endpoint. It allows 120 seconds for initial startup (model loading) before considering the service healthy.
+The service includes a health check that polls the `/docs` endpoint using Python's built-in urllib. It allows 120 seconds for initial startup (model loading) before considering the service healthy.
 
 ### First-Time Setup
 
