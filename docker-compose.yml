@@ -67,18 +67,46 @@ services:
       args:
         DEFORUM_MEDIATOR_URL: ${DEFORUM_MEDIATOR_URL:-ws://mediator:8765}
     image: sd-forge:latest
-    command: ["sleep", "infinity"]
+    command: 
+      - python
+      - launch.py
+      - --listen
+      - --port
+      - "7860"
+      - --deforum-api
+      - --enable-insecure-extension-access
+      - --skip-version-check
+      - --no-half-vae
+      - --xformers
     ports:
       - "7860:7860"
     volumes:
       - frames:/data/frames
       - hls:/var/www/hls
+      - models:/stable-diffusion-webui/models
+      - outputs:/stable-diffusion-webui/outputs
     environment:
       - OUTPUT_DIR=/data/frames
       - HLS_PATH=/var/www/hls
+      - COMMANDLINE_ARGS=--listen --port 7860 --deforum-api
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:7860/docs || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
     depends_on:
-      - web
-      - mediator
+      web:
+        condition: service_healthy
+      mediator:
+        condition: service_healthy
 
   dev-frame-seeder:
     build:
@@ -126,3 +154,5 @@ volumes:
   frames:
   hls:
   mqdata:
+  models:
+  outputs:
