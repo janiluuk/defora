@@ -85,6 +85,24 @@ The service includes a health check that polls the `/docs` endpoint using Python
 
 ### First-Time Setup
 
+**Automated Setup (Recommended)**
+
+Run the setup script to automate the first-time configuration:
+
+```bash
+./scripts/setup_sd_forge.sh
+```
+
+This script will guide you through:
+- Building the SD-Forge image with Deforum extension
+- Configuring the mediator URL
+- Verifying the installation
+- Optionally starting the services
+
+**Manual Setup**
+
+If you prefer to set up manually:
+
 1. **Download Models**: The first time you start, you'll need to download AI models. Place them in the `models` volume or use the Forge UI to download them.
 
 2. **Configure Deforum**: The Deforum extension is pre-configured to connect to the mediator at `ws://mediator:8765`. You can override this by setting the `DEFORUM_MEDIATOR_URL` environment variable.
