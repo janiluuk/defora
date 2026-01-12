@@ -118,19 +118,21 @@ echo "=================================================="
 echo ""
 
 # Check if the image exists
-if docker images | grep -q "^sd-forge\s"; then
+if docker images sd-forge --format "{{.Repository}}" | grep -q "^sd-forge$"; then
     echo -e "${GREEN}✓${NC} SD-Forge image exists"
 else
     echo -e "${RED}✗${NC} SD-Forge image not found"
     exit 1
 fi
 
-# Check if deforum extension is in the image (combine all checks in one run)
+# Check if deforum extension is in the image
 echo "Verifying Deforum extension installation..."
-if MEDIATOR_CFG=$(docker run --rm sd-forge:latest sh -c 'ls extensions/sd-forge-deforum/scripts/deforum_helpers/deforum_mediator.cfg > /dev/null 2>&1 && cat extensions/sd-forge-deforum/scripts/deforum_helpers/deforum_mediator.cfg' 2>/dev/null); then
+# First check if extension directory exists, then read the config
+if docker run --rm sd-forge:latest test -f extensions/sd-forge-deforum/scripts/deforum_helpers/deforum_mediator.cfg 2>/dev/null; then
     echo -e "${GREEN}✓${NC} Deforum extension is installed"
     
-    # Check mediator config
+    # Read mediator config
+    MEDIATOR_CFG=$(docker run --rm sd-forge:latest cat extensions/sd-forge-deforum/scripts/deforum_helpers/deforum_mediator.cfg 2>/dev/null || echo "")
     if [ -n "$MEDIATOR_CFG" ]; then
         echo -e "${GREEN}✓${NC} Mediator config exists: $MEDIATOR_CFG"
     else
@@ -168,7 +170,7 @@ echo "   - Should be enabled by default"
 echo ""
 echo "5. Start generating:"
 echo "   - Use the Deforum tab in the UI"
-echo "   - Or use the CLI tools: ./forge_cli deforum -f 120 'your prompt'  # 120 frames = 5 seconds at 24fps"
+echo "   - Or use the CLI tools: ./forge_cli deforum -f 120 'your prompt'  # example: 120 frames = 5 seconds at 24fps"
 echo ""
 echo "For more information, see:"
 echo "  - docker/sd-forge/README.md"
