@@ -88,7 +88,6 @@ services:
     environment:
       - OUTPUT_DIR=/data/frames
       - HLS_PATH=/var/www/hls
-      - COMMANDLINE_ARGS=--listen --port 7860 --deforum-api
     deploy:
       resources:
         reservations:

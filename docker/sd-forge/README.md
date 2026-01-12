@@ -56,7 +56,6 @@ deploy:
 - `DEFORUM_MEDIATOR_URL` - WebSocket URL for mediator (default: `ws://mediator:8765`)
 - `OUTPUT_DIR` - Output directory for frames (default: `/data/frames`)
 - `HLS_PATH` - Path for HLS segments (default: `/var/www/hls`)
-- `COMMANDLINE_ARGS` - Additional command-line arguments for launch.py
 
 ## Usage
 
@@ -139,11 +138,26 @@ DEFORUM_MEDIATOR_URL=ws://custom-host:8765 docker compose up sd-forge
 
 ### Add custom command-line arguments
 
-Edit `docker-compose.yml` and add arguments to the `command` section, or set via environment:
+To add custom command-line arguments, you need to override the `command` in docker-compose.yml. Create a `docker-compose.override.yml` file:
 
-```bash
-COMMANDLINE_ARGS="--listen --deforum-api --xformers --my-custom-flag" docker compose up sd-forge
+```yaml
+services:
+  sd-forge:
+    command: 
+      - python
+      - launch.py
+      - --listen
+      - --port
+      - "7860"
+      - --deforum-api
+      - --enable-insecure-extension-access
+      - --skip-version-check
+      - --no-half-vae
+      - --xformers
+      - --my-custom-flag
 ```
+
+Or edit the `command` section directly in `docker-compose.yml` and add your custom arguments to the list.
 
 ## Notes
 
