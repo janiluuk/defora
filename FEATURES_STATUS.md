@@ -315,20 +315,26 @@ This document tracks the completion status of all Defora features and provides a
 ## Phase 4: Docker Stack Improvements
 
 ### 4.1 SD-Forge Service - Automatic Startup
-**Status**: ⚠️ Manual Start Required  
+**Status**: ✅ IMPLEMENTED  
 **Current**:
 - ✅ Docker image builds
-- ❌ `sleep infinity` command (doesn't start SD-Forge)
-- ❌ No automatic model download
+- ✅ Proper launch.py command with --deforum-api flag
+- ✅ GPU runtime support via deploy.resources configuration
+- ✅ Health check for SD-Forge API endpoint
+- ✅ Persistent volumes for models and outputs
+- ⚠️ Automatic model download (not implemented - manual download required)
 
 **Files**:
 - `docker/sd-forge/Dockerfile`
 - `docker-compose.yml`
 
-**Implementation Needed**:
-- Replace sleep with actual webui.sh startup
-- Add health check for SD-Forge API
-- Add automatic model detection/download
+**Implementation**:
+- Replaced `sleep infinity` with proper `python launch.py` command
+- Added command-line flags: --listen, --port 7860, --deforum-api, --enable-insecure-extension-access, --skip-version-check, --no-half-vae, --xformers
+- Added GPU resource reservation using nvidia driver with all GPUs
+- Added health check testing /docs endpoint with 120s start period
+- Added persistent volumes for models and outputs directories
+- Added service health dependencies for web and mediator services
 
 ### 4.2 Services - Health Checks
 **Status**: ✅ IMPLEMENTED  
