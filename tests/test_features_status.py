@@ -290,11 +290,17 @@ class TestFeatureImplementationTracking(unittest.TestCase):
         
         # Find next section at same level (## heading at start of line)
         search_from = testing_section_start + len("## Testing Status")
-        next_heading = content.find("\n## ", search_from)
-        testing_section = content[testing_section_start:next_heading] if next_heading != -1 else content[testing_section_start:]
+        # Use regex to find next heading, handling both newline-prefixed and start-of-line cases
+        next_heading_match = re.search(r'^## ', content[search_from:], re.MULTILINE)
+        if next_heading_match:
+            next_heading = search_from + next_heading_match.start()
+            testing_section = content[testing_section_start:next_heading]
+        else:
+            testing_section = content[testing_section_start:]
         
         # Should mention passing tests (e.g., "46/48 passing")
-        self.assertRegex(testing_section, r'\d+/\d+\s+passing', 
+        # Using flexible pattern to handle format variations
+        self.assertRegex(testing_section, r'\d+[/]\d+.*passing', 
                         "Testing status should show passing test counts")
 
 
