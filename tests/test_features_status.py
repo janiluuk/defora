@@ -160,7 +160,8 @@ class TestPhase4DockerStackImprovements(unittest.TestCase):
         services = ["web", "mediator", "mq", "encoder"]
         for service in services:
             # Check for service definition (service name followed by colon)
-            self.assertRegex(content, rf'\n\s*{service}:', f"docker-compose should have {service} service")
+            # Pattern handles services at start of file or after newline
+            self.assertRegex(content, rf'(^|\n)\s*{service}:', f"docker-compose should have {service} service")
 
     def test_docker_compose_has_healthchecks(self):
         """Verify docker-compose.yml has healthcheck configuration"""
@@ -192,7 +193,9 @@ class TestPhase5AdvancedFeatures(unittest.TestCase):
         content = features_file.read_text()
         
         # Find Phase 5 section
-        phase5_section = content[content.find("Phase 5: Advanced Features"):]
+        phase5_index = content.find("Phase 5: Advanced Features")
+        self.assertNotEqual(phase5_index, -1, "Phase 5 section not found")
+        phase5_section = content[phase5_index:]
         
         # These features should be marked as not implemented
         future_features = [
@@ -282,12 +285,15 @@ class TestFeatureImplementationTracking(unittest.TestCase):
         content = features_file.read_text()
         
         # Find testing status section
-        testing_section_start = content.find("Testing Status")
+        testing_section_start = content.find("## Testing Status")
         self.assertNotEqual(testing_section_start, -1)
         
-        testing_section = content[testing_section_start:testing_section_start + 2000]
+        # Find next section at same level (## heading at start of line)
+        search_from = testing_section_start + len("## Testing Status")
+        next_heading = content.find("\n## ", search_from)
+        testing_section = content[testing_section_start:next_heading] if next_heading != -1 else content[testing_section_start:]
         
-        # Should mention passing tests
+        # Should mention passing tests (e.g., "46/48 passing")
         self.assertRegex(testing_section, r'\d+/\d+\s+passing', 
                         "Testing status should show passing test counts")
 
