@@ -4,7 +4,7 @@ This document provides an overview of all tabs in the Defora web interface.
 
 ## Tab Structure
 
-The web UI consists of 8 main tabs:
+The web UI consists of 6 main tabs:
 
 ### 1. LIVE Tab
 **Purpose**: Real-time parameter control and live generation monitoring
@@ -60,72 +60,78 @@ The web UI consists of 8 main tabs:
 
 ---
 
-### 4. AUDIO/BEATS Tab
-**Purpose**: Audio-reactive parameter modulation and beat detection
+### 4. MODULATION Tab (Unified)
+**Purpose**: Comprehensive audio, LFO, and beat-synced modulation control
+
+**Theme**: FrameSync dark blue (#061726) with orange accents (#ff8a1a)
 
 **Features**:
-- BPM input field (default: 120)
-- Audio file upload with metadata display
-- Beat detection based on BPM
-- Beat macros that execute on beat timing
-- Visual beat indicator with flashing feedback
-- Beat phase tracking for smooth animations
-- Modulation Router (visible when audio track is loaded)
-- Audio mapping controls for frequency-to-parameter conversion
+
+#### 🎵 Audio & Tempo Section
+- Audio file upload with format validation
+- BPM detection and manual input (20-300 BPM)
+- Beat phase indicator with real-time visualization (%)
+- Tap tempo and auto-detect controls
+- Audio status indicator (loaded/not loaded)
+
+#### 🎛️ Global LFO Controls
+- Global LFO BPM setting (20-240)
+- Sync to audio option
+- Applies to all LFO modulators
+
+#### 🌊 LFO Modulators (up to 8)
+- Visual waveform previews with orange accent
+- Target parameter selection from grouped options:
+  - Style: Vibe (CFG), Strength, Noise/Glitch
+  - Camera: Zoom, Pan X/Y, Rotate, Tilt, FOV
+- Wave shape buttons with visual icons:
+  - 〰 Sine
+  - △ Triangle  
+  - ⟋ Saw
+  - ▭ Square
+- Depth control slider (0-1)
+- On/Off toggle per LFO
+- Delete button (🗑)
+- 3-column compact grid layout
+
+#### ⚡ Beat Macros (up to 6)
+- Beat-synced modulation triggers
+- Target parameter selection (Vibe, Zoom, Noise)
+- Shape selection with visual icons (Sine, Saw, Noise)
+- Depth control (0-1)
+- On/Off toggle per macro
+- Delete button (🗑)
+- 3-column compact grid layout
+
+#### 🎚️ Audio Mapping (conditional)
+- Only visible when audio file is loaded
+- Frequency-to-parameter mapping (up to 8 mappings)
+- Frequency range input (Hz min/max)
+- Output range input (parameter min/max)
+- Target parameter selection from grouped list
+- Apply mapping button
+- Status indicator
+- 2-column grid layout
 
 **Visual Elements**:
-- File input for audio upload (.wav, .mp3, .ogg, .flac, .m4a)
-- BPM controls
-- Beat macro cards with target, shape, depth, offset, and speed settings
-- Audio mapping grid with frequency range and output range sliders
+- FrameSync dark blue panel backgrounds (#061726)
+- Orange accent for waveforms and active elements (#ff8a1a)
+- Cyan border highlights (#0c3048)
+- Compact card-based layout
+- Inline SVG waveform previews
+- Visual icons replacing text where possible
+- Status pills and indicators
+- Emoji icons for section headers
+
+**Context Panel**:
+- Shows active LFO modulators with their targets
+- Shows active Beat Macros
+- Audio mapping count when audio is loaded
+- Visual waveform representation
 
 ---
 
-### 5. MODULATION Tab
-**Purpose**: Advanced modulation studio with LFOs and beat macros
-
-**Features**:
-- Modulation Studio with LFO controls
-- Beat Macros section for rhythm-based modulation
-- LFO cards with:
-  - Target parameter selection
-  - Wave shape (Sine, Saw, Noise)
-  - BPM control
-  - Depth and base value
-  - On/Off toggle
-- Add/remove LFO buttons (max 6 LFOs)
-
-**Visual Elements**:
-- Grid layout of LFO cards
-- Waveform previews
-- Beat macro rows with visual indicators
-- Streamlined compact UI
-
----
-
-### 6. FEATURES Tab (FrameSync)
-**Purpose**: FrameSync control surface with dark blue/orange theme
-
-**Features**:
-- Waveform header with SVG visualization
-- Axis labels for frame timing
-- Preset selector with sample presets
-- Wave/LFO controls with wave shapes (Sine, Saw, Triangle, Square, Cosine)
-- Frame/Sync settings
-- Metrics display (BPM, Depth, Phase)
-- Feature coverage panel with timing table
-- Visual feedback with orange accent colors
-
-**Visual Elements**:
-- Dark blue background (#061726)
-- Orange accent highlights (#ff8a1a)
-- SVG waveform graph
-- Stacked panels for organized controls
-- Timing axis with 12-column grid
-
----
-
-### 7. CN (ControlNet) Tab
+### 5. CN (ControlNet) Tab
 **Purpose**: ControlNet model management and configuration
 
 **Features**:
@@ -145,7 +151,7 @@ The web UI consists of 8 main tabs:
 
 ---
 
-### 8. SETTINGS Tab
+### 6. SETTINGS Tab
 **Purpose**: System settings and MIDI configuration
 
 **Features**:
@@ -181,11 +187,45 @@ The web UI consists of 8 main tabs:
 
 ## Visual Theme
 
+**Primary Theme** (LIVE, PROMPTS, MOTION, CN, SETTINGS):
 - Dark background with cyberpunk aesthetic
 - Cyan (#2de2ff) and magenta (#ff53d9) accents
 - Space Grotesk font family
 - Glassmorphic panels with backdrop blur
 - Smooth animations and transitions
+
+**FrameSync Theme** (MODULATION):
+- Dark blue background (#061726, #031b2d)
+- Orange accent (#ff8a1a) for primary elements
+- Cyan-blue text (#cfe5f5, #9bc4e2)
+- Technical/industrial aesthetic
+- Compact, information-dense layout
+- Visual icons for intuitive interaction
+
+---
+
+## Design Improvements in Unified MODULATION Tab
+
+### Space Efficiency
+- Reduced from 3 separate tabs to 1 unified interface
+- 3-column grid layout for LFO and Beat Macro cards
+- Compact card design with inline controls
+- Conditional rendering (audio mapping only when needed)
+
+### Visual Language
+- **Waveform Icons**: 〰 △ ⟋ ▭ ◈ replace text labels
+- **Emoji Icons**: 🎵 🌊 ⚡ 🎚️ 🎯 👆 🗑 for quick recognition
+- **Inline Graphs**: SVG waveform previews in each LFO card
+- **Status Indicators**: Pills, dots, and percentage displays
+- **Color Coding**: Orange (#ff8a1a) for active/primary elements
+
+### Improved UX
+- All modulation controls in one view - no tab switching
+- Visual feedback with waveform previews
+- Grouped parameter selection with categories
+- Toggle switches with visual state
+- Depth sliders with immediate visual feedback
+- Conditional sections reduce clutter
 
 ---
 
@@ -196,3 +236,4 @@ The web UI consists of 8 main tabs:
 - MIDI mappings persist across sessions
 - Audio file uploads are validated server-side
 - Presets can be saved/loaded for quick session setup
+- The MODULATION tab combines functionality from the former AUDIO/BEATS, MODULATION, and FEATURES tabs
