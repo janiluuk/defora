@@ -122,6 +122,18 @@
     .mod-preview { grid-column: 2 / span 5; background: #0c1324; border: 1px solid var(--border); border-radius: 8px; padding: 6px; }
     .mod-preview svg { width: 100%; height: 36px; display: block; }
     .mod-subheader { font-size: 12px; color: var(--muted); margin-top: 6px; }
+    .fs-card { background: #0b1526; border: 1px solid #13233d; border-radius: 12px; padding: 10px; box-shadow: inset 0 0 0 1px rgba(18, 44, 72, 0.45); }
+    .fs-card h4 { margin: 0 0 8px 0; font-size: 13px; color: #cfe5f5; letter-spacing: 0.3px; }
+    .fs-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: #9bc4e2; }
+    .fs-field { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; align-items: center; font-size: 12px; color: #cfe5f5; }
+    .fs-input, .fs-select { width: 100%; padding: 6px; background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; font-size: 12px; }
+    .fs-button { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 999px; padding: 6px 12px; font-size: 11px; cursor: pointer; }
+    .fs-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
+    .fs-chip { background: #071a2b; border: 1px solid #173753; color: #cfe5f5; border-radius: 999px; padding: 4px 10px; font-size: 11px; cursor: pointer; }
+    .fs-row { display: grid; grid-template-columns: 24px 1.2fr 1fr 70px 70px 1fr 36px; gap: 6px; align-items: center; font-size: 12px; color: #cfe5f5; }
+    .fs-row input[type=number] { background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; padding: 4px 6px; }
+    .fs-row select { background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; padding: 4px 6px; }
+    .fs-row button { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 8px; padding: 4px 6px; cursor: pointer; }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -300,64 +312,68 @@
           </div>
           <div class="rack" v-if="audio.uploadedFile">
             <h3>Modulation Router</h3>
-            <div class="compact-panel">
-              <div class="mod-header">
+            <div class="fs-card">
+              <div class="fs-toolbar">
                 <span>Audio → Parameter mapping</span>
-                <div class="chips">
-                  <span class="chip" @click="addAudioMapping" v-if="audioMappings.length<8">+ Add</span>
-                  <span class="chip" @click="runAudioMod">Send audio map</span>
+                <div style="display:flex; gap:6px;">
+                  <button class="fs-button" @click="addAudioMapping" v-if="audioMappings.length<8">+ Add</button>
+                  <button class="fs-button" @click="runAudioMod">Send map</button>
                 </div>
               </div>
-              <div class="compact-grid">
-                <div class="audio-map-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
-                  <div class="meta">Target</div>
-                  <select v-model="m.param">
+              <div class="fs-grid">
+                <div class="fs-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
+                  <h4>Target</h4>
+                  <select class="fs-select" v-model="m.param">
                     <option value="">(none)</option>
                     <optgroup v-for="group in lfoTargetGroups" :key="'amap'+group.label" :label="group.label">
                       <option v-for="t in group.items" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
                     </optgroup>
                   </select>
-                  <div class="slider-row" style="margin-top:6px;">
-                    <div>Freq min</div><input type="number" min="0" step="10" v-model.number="m.freq_min">
+                  <div class="fs-field" style="margin-top:6px;">
+                    <span>F min</span><input class="fs-input" type="number" min="0" step="10" v-model.number="m.freq_min">
                   </div>
-                  <div class="slider-row">
-                    <div>Freq max</div><input type="number" min="0" step="10" v-model.number="m.freq_max">
+                  <div class="fs-field">
+                    <span>F max</span><input class="fs-input" type="number" min="0" step="10" v-model.number="m.freq_max">
                   </div>
-                  <div class="slider-row">
-                    <div>Out min</div><input type="number" step="0.01" v-model.number="m.out_min">
+                  <div class="fs-field">
+                    <span>Out min</span><input class="fs-input" type="number" step="0.01" v-model.number="m.out_min">
                   </div>
-                  <div class="slider-row">
-                    <div>Out max</div><input type="number" step="0.01" v-model.number="m.out_max">
+                  <div class="fs-field">
+                    <span>Out max</span><input class="fs-input" type="number" step="0.01" v-model.number="m.out_max">
                   </div>
-                  <div class="chips" style="margin-top:6px;">
-                    <span class="chip" @click="removeAudioMapping(idx)">Remove</span>
-                  </div>
+                  <button class="fs-button" style="margin-top:6px;" @click="removeAudioMapping(idx)">Remove</button>
                 </div>
               </div>
-              <div class="meta">Upload an audio file above to drive these mappings. Status: {{ audioStatus }}</div>
+              <div class="mod-subheader">Upload an audio file above to drive these mappings. Status: {{ audioStatus }}</div>
             </div>
-            <div class="compact-panel">
-              <div class="mod-header">
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='MOD'">
+          <div class="rack">
+            <h3>Modulation Studio</h3>
+            <div class="fs-card">
+              <div class="fs-toolbar">
                 <span>LFO → Parameter mapping</span>
-                <div class="chips">
-                  <span class="chip" @click="addLfo">➕ Add LFO</span>
+                <div style="display:flex; gap:6px;">
+                  <button class="fs-button" @click="addLfo">➕ Add LFO</button>
                 </div>
               </div>
-              <div class="slider-row">
-                <div>Global BPM</div>
-                <input class="select" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
+              <div class="fs-field" style="margin-top:8px;">
+                <span>Global BPM</span>
+                <input class="fs-input" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
               </div>
-              <div class="mod-row" v-for="(l, idx) in lfos" :key="l.id">
+              <div class="fs-row" v-for="(l, idx) in lfos" :key="l.id">
                 <div class="switch" @click="l.on=!l.on">
                   <span class="dot" :style="{background: l.on ? 'var(--success)' : '#444'}"></span>
                 </div>
-                <select class="select" v-model="l.target" @change="initLfoBase(l)">
+                <select v-model="l.target" @change="initLfoBase(l)">
                   <option value="">Target</option>
                   <optgroup v-for="group in lfoTargetGroups" :key="'lfo'+group.label" :label="group.label">
                     <option v-for="t in group.items" :key="'lfo'+t.key" :value="t.key">{{ t.label }}</option>
                   </optgroup>
                 </select>
-                <select class="select" v-model="l.shape">
+                <select v-model="l.shape">
                   <option v-for="s in lfoShapes" :key="s">{{ s }}</option>
                 </select>
                 <input type="number" min="20" max="240" step="1" v-model.number="l.bpm" title="BPM">
@@ -365,7 +381,7 @@
                 <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth" title="Depth">
                 <button @click="removeLfo(idx)">✕</button>
               </div>
-              <div class="mod-row" v-for="l in lfos" :key="'preview'+l.id">
+              <div class="fs-row" v-for="l in lfos" :key="'preview'+l.id">
                 <div></div>
                 <div class="mod-preview">
                   <svg viewBox="0 0 120 36" preserveAspectRatio="none">
@@ -377,23 +393,54 @@
                   </svg>
                 </div>
               </div>
-              <div class="mod-subheader">Beat macros (beat-synced modulation)</div>
-              <div class="compact-grid">
-                <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" class="audio-map-card">
-                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
-                    <span>Macro {{ idx+1 }}</span>
-                    <span class="chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
-                  </div>
-                  <div class="slider-row"><div>Target</div><select class="select" v-model="m.target"><option>Vibe (CFG)</option><option>Zoom</option><option>Noise</option></select></div>
-                  <div class="slider-row"><div>Shape</div><select class="select" v-model="m.shape"><option>Sine</option><option>Saw</option><option>Noise</option></select></div>
-                  <div class="slider-row"><div>Speed</div><select class="select" v-model="m.speed"><option>1/4 note</option><option>1 bar</option><option>1/8 note</option></select></div>
-                  <div class="slider-row"><div>Depth</div><input type="range" min="0" max="1" step="0.01" v-model.number="m.depth"></div>
-                  <div class="slider-row"><div>Offset</div><input type="range" min="-1" max="1" step="0.01" v-model.number="m.offset"></div>
-                  <div class="chips"><span class="chip" @click="m.show=true">Show in graph</span></div>
+            </div>
+          </div>
+          <div class="rack">
+            <h3>Beat Macros</h3>
+            <div class="fs-card">
+              <div class="fs-toolbar">
+                <span>Beat-synced modulation</span>
+                <div style="display:flex; gap:6px;">
+                  <button class="fs-button" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</button>
                 </div>
               </div>
-              <div class="chips">
-                <span class="chip" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</span>
+              <div class="fs-grid">
+                <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" class="fs-card">
+                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
+                    <span>Macro {{ idx+1 }}</span>
+                    <span class="fs-chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
+                  </div>
+                  <div class="fs-field" style="margin-top:6px;">
+                    <span>Target</span>
+                    <select class="fs-select" v-model="m.target">
+                      <option>Vibe (CFG)</option>
+                      <option>Zoom</option>
+                      <option>Noise</option>
+                    </select>
+                  </div>
+                  <div class="fs-field">
+                    <span>Shape</span>
+                    <select class="fs-select" v-model="m.shape">
+                      <option>Sine</option>
+                      <option>Saw</option>
+                      <option>Noise</option>
+                    </select>
+                  </div>
+                  <div class="fs-field">
+                    <span>Speed</span>
+                    <input class="fs-input" type="number" min="10" max="240" step="1" v-model.number="m.bpm">
+                  </div>
+                  <div class="fs-field">
+                    <span>Depth</span><input class="fs-input" type="number" min="0" max="1" step="0.01" v-model.number="m.depth">
+                  </div>
+                  <div class="fs-field">
+                    <span>Offset</span><input class="fs-input" type="number" min="-1" max="1" step="0.01" v-model.number="m.offset">
+                  </div>
+                  <div style="display:flex; gap:6px; margin-top:6px;">
+                    <button class="fs-button" @click="m.show=true">Show graph</button>
+                    <button class="fs-button" @click="removeMacro(idx)">Delete</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -740,6 +787,7 @@
             { id: "PROMPTS", label: "PROMPTS" },
             { id: "MOTION", label: "MOTION" },
             { id: "AUDIO", label: "AUDIO/BEATS" },
+            { id: "MOD", label: "MODULATION" },
             { id: "FEATURES", label: "FEATURES" },
             { id: "CONTROLNET", label: "CN" },
             { id: "SETTINGS", label: "SETTINGS" },
@@ -813,9 +861,9 @@
             phase: 0,
           })),
           macrosRack: [
-            { on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.7, offset: 0.1, show: true },
-            { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
-            { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
+            { on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.7, offset: 0.1, show: true },
+            { on: true, target: "Zoom", shape: "Saw", bpm: 90, depth: 0.6, offset: 0.2, show: false },
+            { on: false, target: "Noise/Glitch", shape: "Noise", bpm: 140, depth: 0.3, offset: 0.0, show: false },
             ],
           framesync: {
             presets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
@@ -901,6 +949,7 @@
           lastBeatTime: null,
           beatCount: 0,
           beatPhase: 0,
+          lastMacroTrigger: {},
           availablePresets: [],
           currentPreset: null,
           newPresetName: "",
@@ -1083,22 +1132,23 @@
           if (timeSinceLastBeat >= beatIntervalMs) {
             this.lastBeatTime = now;
             this.beatCount++;
-            this.triggerBeatMacros();
+            this.triggerBeatMacros(now);
           }
           
           // Update continuous beat phase for smooth animations
           this.beatPhase = (timeSinceLastBeat / beatIntervalMs) % 1;
         },
-        triggerBeatMacros() {
+        triggerBeatMacros(now = this.getNow()) {
           const payload = {};
           const activeMacros = this.macrosRack.filter(m => m.on);
           
-          activeMacros.forEach(macro => {
+          activeMacros.forEach((macro, idx) => {
+            macro.id = macro.id || `macro-${idx}`;
             const target = this.lfoTargets.find(t => t.label === macro.target || t.key === macro.target);
             if (!target) return;
             
             // Determine if this macro should trigger on this beat
-            const shouldTrigger = this.shouldMacroTrigger(macro);
+            const shouldTrigger = this.shouldMacroTrigger(macro, now);
             if (!shouldTrigger) return;
             
             // Calculate value based on macro shape
@@ -1124,26 +1174,17 @@
             this.sendControl("liveParam", payload);
           }
         },
-        shouldMacroTrigger(macro) {
-          const speed = macro.speed || "1/4 note";
-          
-          // Parse the speed to determine trigger frequency
-          if (speed === "1/4 note") {
-            // Trigger every beat
-            return true;
-          } else if (speed === "1/8 note") {
-            // NOTE: Currently triggers every beat like 1/4 note
-            // TODO: Implement proper 1/8 note timing (requires sub-beat timing)
-            // For proper 1/8 notes, would need to trigger at beat + half-beat intervals
-            return true;
-          } else if (speed === "1 bar") {
-            // Trigger every 4 beats (assuming 4/4 time)
-            return this.beatCount % 4 === 0;
-          } else if (speed === "2 bars") {
-            // Trigger every 8 beats
-            return this.beatCount % 8 === 0;
+        shouldMacroTrigger(macro, now) {
+          const bpm = Number(macro.bpm || 0);
+          if (bpm > 0) {
+            const interval = (60 / bpm) * 1000;
+            const last = this.lastMacroTrigger[macro.id] || 0;
+            if (now - last >= interval) {
+              this.lastMacroTrigger[macro.id] = now;
+              return true;
+            }
+            return false;
           }
-          
           return true;
         },
         setupWS() {
@@ -1234,7 +1275,10 @@
         },
         addMacro() {
           if (this.macrosRack.length >= 6) return;
-          this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", speed: "1/4 note", depth: 0.5, offset: 0.0, show: false });
+          this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.5, offset: 0.0, show: false });
+        },
+        removeMacro(index) {
+          this.macrosRack.splice(index, 1);
         },
         addAudioMapping() {
           this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });

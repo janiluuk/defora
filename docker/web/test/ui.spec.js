@@ -105,6 +105,7 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("AUDIO/BEATS");
+    expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("CN");
     expect(tabs.join(" ")).to.include("SETTINGS");
   });
@@ -145,6 +146,12 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
     expect(audioHeadings.join(" ")).to.include("Modulation Router");
+
+    appVm.switchTab("MOD");
+    await nextTick();
+    const modHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
+    expect(modHeadings.join(" ")).to.include("Modulation Studio");
+    expect(modHeadings.join(" ")).to.include("Beat Macros");
 
     appVm.switchTab("SETTINGS");
     await nextTick();
@@ -212,6 +219,15 @@ describe("Deforumation Web UI behavior", () => {
     instance.addMacro(); // should be ignored after reaching 6
 
     expect(instance.macrosRack).to.have.length(6);
+  });
+
+  it("removeMacro deletes a macro entry", () => {
+    const instance = instantiate(appDef);
+    const before = instance.macrosRack.length;
+
+    instance.removeMacro(0);
+
+    expect(instance.macrosRack.length).to.equal(before - 1);
   });
 
   it("handleMidi maps CC messages to scaled liveParam payloads", () => {
