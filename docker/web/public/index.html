@@ -281,307 +281,204 @@
           </div>
         </div>
 
-        <div v-else-if="currentTab==='AUDIO'">
+        <div v-else-if="currentTab==='MODULATION'">
+          <!-- Unified Modulation Tab with FrameSync styling -->
           <div class="rack">
-            <h3>Track & tempo</h3>
-            <div class="slider-row" v-if="audio.uploadedFile">
-              <div>Track</div>
-              <input class="select" v-model="audio.track" readonly>
-            </div>
-            <div class="slider-row">
-              <div>Audio file</div>
-              <input type="file" accept="audio/*" @change="handleAudioUpload" style="font-size:12px;" ref="audioFileInput">
-            </div>
-            <div v-if="audio.uploadedFile" class="chips" style="margin-top:4px;">
-              <span class="chip">📁 {{ audio.uploadedFile }}</span>
-              <span class="chip" @click="clearAudioFile" style="cursor:pointer;">✕ Clear</span>
-            </div>
-            <div class="slider-row">
-              <div>BPM</div>
-              <input class="select" type="number" v-model.number="audio.bpm">
-              <span class="pill" :class="{'danger': beatPhase < 0.1}" style="margin-left: 8px;">
-                <span class="dot"></span>
-                {{ audio.bpm }} BPM
-              </span>
-            </div>
-            <div class="chips" style="margin-top:6px;">
-              <span class="chip">Re-detect</span>
-              <span class="chip">Tap tempo</span>
-              <span class="chip">Add tempo change</span>
-            </div>
-          </div>
-          <div class="rack" v-if="audio.uploadedFile">
-            <h3>Modulation Router</h3>
-            <div class="fs-card">
-              <div class="fs-toolbar">
-                <span>Audio → Parameter mapping</span>
-                <div style="display:flex; gap:6px;">
-                  <button class="fs-button" @click="addAudioMapping" v-if="audioMappings.length<8">+ Add</button>
-                  <button class="fs-button" @click="runAudioMod">Send map</button>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎵 Audio & <span class="framesync-accent">Modulation</span></div>
+                <div class="pill" :class="{'danger': !audio.uploadedFile}">
+                  <span class="dot"></span>
+                  {{ audio.uploadedFile ? 'Audio loaded' : 'No audio' }}
                 </div>
               </div>
-              <div class="fs-grid">
-                <div class="fs-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
-                  <h4>Target</h4>
-                  <select class="fs-select" v-model="m.param">
-                    <option value="">(none)</option>
-                    <optgroup v-for="group in lfoTargetGroups" :key="'amap'+group.label" :label="group.label">
-                      <option v-for="t in group.items" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
-                    </optgroup>
-                  </select>
-                  <div class="fs-field" style="margin-top:6px;">
-                    <span>F min</span><input class="fs-input" type="number" min="0" step="10" v-model.number="m.freq_min">
+              
+              <!-- Audio Upload & BPM Section -->
+              <div class="framesync-row" style="grid-template-columns: 1.2fr 1fr 1fr 1fr; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-panel">
+                    <div class="framesync-subtitle">📁 Audio Source</div>
+                    <div v-if="audio.uploadedFile" class="framesync-list" style="margin:6px 0;">
+                      <div class="item">{{ audio.uploadedFile }}</div>
+                    </div>
+                    <input type="file" accept="audio/*" @change="handleAudioUpload" class="framesync-input" style="font-size:11px;" ref="audioFileInput">
+                    <div class="framesync-footer" style="margin-top:6px;">
+                      <button class="framesync-button" v-if="audio.uploadedFile" @click="clearAudioFile">✕ Clear</button>
+                    </div>
                   </div>
-                  <div class="fs-field">
-                    <span>F max</span><input class="fs-input" type="number" min="0" step="10" v-model.number="m.freq_max">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-panel">
+                    <div class="framesync-subtitle">🎵 Tempo (BPM)</div>
+                    <input type="number" class="framesync-input" v-model.number="audio.bpm" min="20" max="300" style="font-size:24px; text-align:center; margin:8px 0;">
+                    <div class="framesync-footer">
+                      <button class="framesync-button">🎯 Detect</button>
+                      <button class="framesync-button">👆 Tap</button>
+                    </div>
                   </div>
-                  <div class="fs-field">
-                    <span>Out min</span><input class="fs-input" type="number" step="0.01" v-model.number="m.out_min">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-panel">
+                    <div class="framesync-subtitle">⏱️ Beat Phase</div>
+                    <div style="margin:12px 0; text-align:center;">
+                      <div class="pill" :class="{'danger': beatPhase < 0.1}" style="font-size:18px;">
+                        <span class="dot"></span>
+                        {{ Math.round(beatPhase * 100) }}%
+                      </div>
+                    </div>
+                    <div class="framesync-subtitle" style="font-size:10px; text-align:center; color:#7fb3d6;">Beat detection active</div>
                   </div>
-                  <div class="fs-field">
-                    <span>Out max</span><input class="fs-input" type="number" step="0.01" v-model.number="m.out_max">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-panel">
+                    <div class="framesync-subtitle">🎛️ Global LFO BPM</div>
+                    <input type="number" class="framesync-input" v-model.number="lfoBpm" min="20" max="240" style="font-size:18px; text-align:center; margin:8px 0;">
+                    <div class="framesync-toggle" @click="() => {}">
+                      <span class="framesync-dot"></span> Sync to audio
+                    </div>
                   </div>
-                  <button class="fs-button" style="margin-top:6px;" @click="removeAudioMapping(idx)">Remove</button>
                 </div>
               </div>
-              <div class="mod-subheader">Upload an audio file above to drive these mappings. Status: {{ audioStatus }}</div>
-            </div>
-          </div>
-        </div>
 
-        <div v-else-if="currentTab==='MOD'">
-          <div class="rack">
-            <h3>Modulation Studio</h3>
-            <div class="fs-card">
-              <div class="fs-toolbar">
-                <span>LFO → Parameter mapping</span>
-                <div style="display:flex; gap:6px;">
-                  <button class="fs-button" @click="addLfo">➕ Add LFO</button>
-                </div>
-              </div>
-              <div class="fs-field" style="margin-top:8px;">
-                <span>Global BPM</span>
-                <input class="fs-input" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
-              </div>
-              <div class="fs-row" v-for="(l, idx) in lfos" :key="l.id">
-                <div class="switch" @click="l.on=!l.on">
-                  <span class="dot" :style="{background: l.on ? 'var(--success)' : '#444'}"></span>
-                </div>
-                <select v-model="l.target" @change="initLfoBase(l)">
-                  <option value="">Target</option>
-                  <optgroup v-for="group in lfoTargetGroups" :key="'lfo'+group.label" :label="group.label">
-                    <option v-for="t in group.items" :key="'lfo'+t.key" :value="t.key">{{ t.label }}</option>
-                  </optgroup>
-                </select>
-                <select v-model="l.shape">
-                  <option v-for="s in lfoShapes" :key="s">{{ s }}</option>
-                </select>
-                <input type="number" min="20" max="240" step="1" v-model.number="l.bpm" title="BPM">
-                <input type="number" :min="lfoTarget(l) ? lfoTarget(l).min : 0" :max="lfoTarget(l) ? lfoTarget(l).max : 1" step="0.01" v-model.number="l.base" title="Base">
-                <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth" title="Depth">
-                <button @click="removeLfo(idx)">✕</button>
-              </div>
-              <div class="fs-row" v-for="l in lfos" :key="'preview'+l.id">
-                <div></div>
-                <div class="mod-preview">
-                  <svg viewBox="0 0 120 36" preserveAspectRatio="none">
-                    <path v-if="l.shape==='Sine'" d="M0 18 C 15 0, 30 36, 45 18 S 75 0, 90 18 S 105 36, 120 18" fill="none" stroke="#2de2ff" stroke-width="2"/>
-                    <path v-else-if="l.shape==='Triangle'" d="M0 28 L30 6 L60 28 L90 6 L120 28" fill="none" stroke="#2de2ff" stroke-width="2"/>
-                    <path v-else-if="l.shape==='Saw'" d="M0 28 L120 6" fill="none" stroke="#2de2ff" stroke-width="2"/>
-                    <path v-else-if="l.shape==='Square'" d="M0 28 L0 6 L60 6 L60 28 L120 28" fill="none" stroke="#2de2ff" stroke-width="2"/>
-                    <path v-else d="M0 26 L15 18 L30 30 L45 10 L60 26 L75 16 L90 30 L105 12 L120 26" fill="none" stroke="#2de2ff" stroke-width="2"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="rack">
-            <h3>Beat Macros</h3>
-            <div class="fs-card">
-              <div class="fs-toolbar">
-                <span>Beat-synced modulation</span>
-                <div style="display:flex; gap:6px;">
-                  <button class="fs-button" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</button>
-                </div>
-              </div>
-              <div class="fs-grid">
-                <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" class="fs-card">
+              <!-- LFO Modulators Section -->
+              <div class="framesync-subtitle" style="margin-top:16px;">🌊 LFO Modulators</div>
+              <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:8px;">
+                <div class="framesync-panel" v-for="(l, idx) in lfos.slice(0, 6)" :key="l.id">
                   <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
-                    <span>Macro {{ idx+1 }}</span>
-                    <span class="fs-chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
+                    <span style="font-size:11px; color:#9bc4e2;">LFO {{ idx+1 }}</span>
+                    <label class="switch" style="cursor:pointer;">
+                      <input type="checkbox" v-model="l.on" style="display:none;">
+                      <span class="dot" :style="{background: l.on ? '#ff8a1a' : '#444', width:'14px', height:'14px'}"></span>
+                    </label>
                   </div>
+                  
+                  <!-- LFO Preview Graph -->
+                  <div class="mod-preview" style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; margin:6px 0; padding:4px;">
+                    <svg viewBox="0 0 120 28" preserveAspectRatio="none">
+                      <path v-if="l.shape==='Sine'" d="M0 14 C 15 0, 30 28, 45 14 S 75 0, 90 14 S 105 28, 120 14" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="l.shape==='Triangle'" d="M0 22 L30 4 L60 22 L90 4 L120 22" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="l.shape==='Saw'" d="M0 22 L40 4 M40 4 L40 22 L80 4 M80 4 L80 22 L120 4" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="l.shape==='Square'" d="M0 22 L0 4 L40 4 L40 22 L80 22 L80 4 L120 4" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else d="M0 20 L15 14 L30 22 L45 8 L60 20 L75 12 L90 22 L105 10 L120 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                    </svg>
+                  </div>
+                  
+                  <div class="fs-field" style="margin-bottom:4px;">
+                    <span style="font-size:10px;">Target</span>
+                    <select class="framesync-select" v-model="l.target" @change="initLfoBase(l)" style="font-size:11px; padding:4px;">
+                      <option value="">None</option>
+                      <optgroup v-for="group in lfoTargetGroups" :key="'lfo'+group.label" :label="group.label">
+                        <option v-for="t in group.items" :key="'lfo'+t.key" :value="t.key">{{ t.label }}</option>
+                      </optgroup>
+                    </select>
+                  </div>
+                  
+                  <div class="framesync-buttons" style="gap:4px;">
+                    <button class="framesync-button" v-for="s in lfoShapes" :key="s" :class="{active: l.shape===s}" @click="l.shape=s" style="padding:4px 6px; font-size:10px;">
+                      {{ s === 'Sine' ? '〰' : s === 'Triangle' ? '△' : s === 'Saw' ? '⟋' : '▭' }}
+                    </button>
+                  </div>
+                  
+                  <div class="fs-field" style="margin-top:4px;">
+                    <span style="font-size:10px;">Depth</span>
+                    <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth" class="framesync-input" style="padding:2px;">
+                  </div>
+                  
+                  <div class="framesync-footer" style="margin-top:4px;">
+                    <button class="framesync-button" @click="removeLfo(idx)" style="font-size:10px;">🗑 Del</button>
+                  </div>
+                </div>
+              </div>
+              
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" @click="addLfo" v-if="lfos.length<8">➕ Add LFO</button>
+              </div>
+
+              <!-- Beat Macros Section -->
+              <div class="framesync-subtitle" style="margin-top:16px;">⚡ Beat Macros</div>
+              <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:8px;">
+                <div class="framesync-panel" v-for="(m, idx) in macrosRack.slice(0, 6)" :key="'mac'+idx">
+                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
+                    <span style="font-size:11px; color:#9bc4e2;">Macro {{ idx+1 }}</span>
+                    <label class="switch" style="cursor:pointer;">
+                      <input type="checkbox" v-model="m.on" style="display:none;">
+                      <span class="dot" :style="{background: m.on ? '#ff8a1a' : '#444', width:'14px', height:'14px'}"></span>
+                    </label>
+                  </div>
+                  
                   <div class="fs-field" style="margin-top:6px;">
-                    <span>Target</span>
-                    <select class="fs-select" v-model="m.target">
+                    <span style="font-size:10px;">Target</span>
+                    <select class="framesync-select" v-model="m.target" style="font-size:11px; padding:4px;">
                       <option>Vibe (CFG)</option>
                       <option>Zoom</option>
                       <option>Noise</option>
                     </select>
                   </div>
-                  <div class="fs-field">
-                    <span>Shape</span>
-                    <select class="fs-select" v-model="m.shape">
-                      <option>Sine</option>
-                      <option>Saw</option>
-                      <option>Noise</option>
-                    </select>
+                  
+                  <div class="framesync-buttons" style="gap:4px; margin-top:4px;">
+                    <button class="framesync-button" v-for="s in ['Sine', 'Saw', 'Noise']" :key="s" :class="{active: m.shape===s}" @click="m.shape=s" style="padding:4px 6px; font-size:10px;">
+                      {{ s === 'Sine' ? '〰' : s === 'Saw' ? '⟋' : '◈' }}
+                    </button>
                   </div>
-                  <div class="fs-field">
-                    <span>Speed</span>
-                    <input class="fs-input" type="number" min="10" max="240" step="1" v-model.number="m.bpm">
+                  
+                  <div class="fs-field" style="margin-top:4px;">
+                    <span style="font-size:10px;">Depth</span>
+                    <input type="number" class="framesync-input" v-model.number="m.depth" min="0" max="1" step="0.01" style="padding:4px; font-size:11px;">
                   </div>
-                  <div class="fs-field">
-                    <span>Depth</span><input class="fs-input" type="number" min="0" max="1" step="0.01" v-model.number="m.depth">
-                  </div>
-                  <div class="fs-field">
-                    <span>Offset</span><input class="fs-input" type="number" min="-1" max="1" step="0.01" v-model.number="m.offset">
-                  </div>
-                  <div style="display:flex; gap:6px; margin-top:6px;">
-                    <button class="fs-button" @click="m.show=true">Show graph</button>
-                    <button class="fs-button" @click="removeMacro(idx)">Delete</button>
+                  
+                  <div class="framesync-footer" style="margin-top:4px;">
+                    <button class="framesync-button" @click="removeMacro(idx)" style="font-size:10px;">🗑 Del</button>
                   </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
+              
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" @click="addMacro" v-if="macrosRack.length<6">➕ Add Macro</button>
+              </div>
 
-        <div v-else-if="currentTab==='FEATURES'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">Waveform Preview</div>
-                <div class="pill">LFO Enabled</div>
-              </div>
-              <div class="framesync-graph">
-                <svg viewBox="0 0 820 140" width="100%" height="140" preserveAspectRatio="none">
-                  <path d="M0 70 C 80 10, 160 130, 240 70 S 400 10, 480 70 S 640 130, 720 70 S 800 10, 820 70" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                  <line x1="0" y1="70" x2="820" y2="70" stroke="#0c3048" stroke-width="1"/>
-                </svg>
-                <div class="framesync-axis">
-                  <span v-for="n in 12" :key="'axis-'+n">{{ (n-1) * 10 }}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="framesync-row">
-            <div class="framesync-stack">
-              <div class="framesync-panel">
-                <div class="framesync-subtitle">Animation Presets</div>
-                <select class="framesync-select" v-model="framesync.selectedPreset">
-                  <option v-for="preset in framesync.presets" :key="preset" :value="preset">{{ preset }}</option>
-                </select>
-                <div class="framesync-list" style="margin-top:8px;">
-                  <div class="item" v-for="preset in framesync.factoryPresets" :key="'factory-'+preset">▸ {{ preset }}</div>
-                </div>
-                <div class="framesync-footer">
-                  <button class="framesync-button">Save preset</button>
-                  <button class="framesync-button">Import presets</button>
-                  <button class="framesync-button">Export presets</button>
-                </div>
-              </div>
-              <div class="framesync-panel">
-                <div class="framesync-subtitle">Lock</div>
-                <div class="framesync-toggle"><span class="framesync-dot"></span> Lock Frame Count</div>
-                <div class="framesync-toggle"><span class="framesync-dot"></span> Lock Frame Rate</div>
-                <div class="framesync-toggle"><span class="framesync-dot"></span> Lock Tempo</div>
-              </div>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-panel">
-                <div class="framesync-subtitle">Wave Settings</div>
-                <div class="slider-row">
-                  <div>Audio file</div>
-                  <input type="file" class="framesync-input" />
-                </div>
-                <div class="slider-row">
-                  <div>Primary Wave</div>
-                  <select class="framesync-select" v-model="framesync.primaryWave">
-                    <option v-for="shape in framesync.waveShapes" :key="shape">{{ shape }}</option>
-                  </select>
-                </div>
-                <div class="framesync-wave-shapes">
-                  <div class="framesync-wave" v-for="shape in framesync.waveShapes" :key="'wave-'+shape">
-                    <svg viewBox="0 0 60 40">
-                      <path v-if="shape==='Sine'" d="M0 20 C 10 0, 20 40, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="shape==='Cosine'" d="M0 0 C 10 40, 20 0, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="shape==='Saw'" d="M0 35 L60 5" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="shape==='Triangle'" d="M0 30 L30 5 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="shape==='Square'" d="M0 30 L0 5 L30 5 L30 30 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else d="M0 28 L10 18 L20 30 L30 10 L40 26 L50 16 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                    </svg>
-                    {{ shape }}
+              <!-- Audio Mapping Section (only visible if audio is loaded) -->
+              <div v-if="audio.uploadedFile" style="margin-top:16px;">
+                <div class="framesync-subtitle">🎚️ Audio → Parameter Mapping</div>
+                <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:8px;">
+                  <div class="framesync-panel" v-for="(m, idx) in audioMappings.slice(0, 6)" :key="'amap'+idx">
+                    <div style="display:flex; gap:6px; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                      <span style="font-size:11px; color:#9bc4e2;">Map {{ idx+1 }}</span>
+                      <button class="framesync-button" @click="removeAudioMapping(idx)" style="font-size:10px; padding:2px 6px;">✕</button>
+                    </div>
+                    
+                    <div class="fs-field" style="margin-bottom:4px;">
+                      <span style="font-size:10px;">Target</span>
+                      <select class="framesync-select" v-model="m.param" style="font-size:11px; padding:4px;">
+                        <option value="">None</option>
+                        <optgroup v-for="group in lfoTargetGroups" :key="'amap'+group.label" :label="group.label">
+                          <option v-for="t in group.items" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
+                        </optgroup>
+                      </select>
+                    </div>
+                    
+                    <div class="fs-field">
+                      <span style="font-size:10px;">Freq Range</span>
+                      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
+                        <input class="framesync-input" type="number" v-model.number="m.freq_min" step="10" style="padding:4px; font-size:10px;" placeholder="Min">
+                        <input class="framesync-input" type="number" v-model.number="m.freq_max" step="10" style="padding:4px; font-size:10px;" placeholder="Max">
+                      </div>
+                    </div>
+                    
+                    <div class="fs-field" style="margin-top:4px;">
+                      <span style="font-size:10px;">Output Range</span>
+                      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
+                        <input class="framesync-input" type="number" v-model.number="m.out_min" step="0.1" style="padding:4px; font-size:10px;" placeholder="Min">
+                        <input class="framesync-input" type="number" v-model.number="m.out_max" step="0.1" style="padding:4px; font-size:10px;" placeholder="Max">
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div class="slider-row">
-                  <div>Amplitude</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.amplitude" />
+                
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <button class="framesync-button" @click="addAudioMapping" v-if="audioMappings.length<8">➕ Add Mapping</button>
+                  <button class="framesync-button" @click="runAudioMod">▶ Apply Audio Mapping</button>
                 </div>
-                <div class="slider-row">
-                  <div>Shift</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.shift" />
-                </div>
-                <div class="slider-row">
-                  <div>Bend</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.bend" />
-                </div>
-                <div class="slider-row">
-                  <div>Noise</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.noise" />
-                </div>
-                <div class="framesync-toggle" style="margin-top:6px;"><span class="framesync-dot"></span> Enable LFO Modulator</div>
-              </div>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-panel">
-                <div class="framesync-subtitle">Frame Settings</div>
-                <div class="slider-row">
-                  <div>Frame Rate (FPS)</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.fps" />
-                </div>
-                <div class="slider-row">
-                  <div>Frame Count</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.frameCount" />
-                </div>
-                <div class="framesync-subtitle" style="margin-top:8px;">Sync Settings</div>
-                <div class="slider-row">
-                  <div>Tempo (BPM)</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.bpm" />
-                </div>
-                <div class="slider-row">
-                  <div>Shift Left/Right</div>
-                  <input type="number" class="framesync-input" v-model.number="framesync.shiftFrames" />
-                </div>
-                <div class="framesync-subtitle" style="margin-top:8px;">Sync Rate</div>
-                <div class="framesync-buttons">
-                  <button class="framesync-button" v-for="rate in framesync.syncRates" :key="rate" :class="{active: framesync.syncRate===rate}" @click="framesync.syncRate = rate">{{ rate }}</button>
-                </div>
-                <div class="framesync-subtitle" style="margin-top:8px;">Decimal Places</div>
-                <input type="number" class="framesync-input" v-model.number="framesync.decimals" />
-              </div>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-panel">
-                <div class="framesync-subtitle">Metrics</div>
-                <div class="framesync-metric" v-for="metric in framesync.metrics" :key="metric.label">
-                  <div>{{ metric.label }}</div>
-                  <div>
-                    {{ metric.value }}
-                    <span>{{ metric.sub }}</span>
-                  </div>
-                </div>
-                <div class="framesync-subtitle" style="margin-top:10px;">Timing Table</div>
-                <div class="framesync-list">
-                  <div class="item" v-for="row in framesync.timingTable" :key="row.label">
-                    {{ row.label }} · {{ row.time }} · {{ row.frames }}
-                  </div>
-                </div>
-              </div>
-              <div class="framesync-panel">
-                <div class="framesync-subtitle">Feature Coverage</div>
-                <div class="framesync-list">
-                  <div class="item" v-for="feature in framesync.featureCoverage" :key="feature">• {{ feature }}</div>
-                </div>
+                <div class="framesync-subtitle" style="margin-top:6px; font-size:10px; text-align:center;">Status: {{ audioStatus }}</div>
               </div>
             </div>
           </div>
@@ -732,18 +629,15 @@
           <div style="font-size:12px; color:var(--muted);">Pan X/Y and Zoom curves over beats. Tools: Apply Sine/Saw, Smooth, Snap to Beats.</div>
         </div>
 
-        <div v-else-if="currentTab==='AUDIO'">
-          <h4>Active macro curve</h4>
-          <div class="wave" style="height:120px; background:#11182a; margin-bottom:8px;"></div>
+        <div v-else-if="currentTab==='MODULATION'">
+          <h4>Active modulators</h4>
           <div class="chips">
-            <span class="chip">◠ Sine</span><span class="chip">△ Triangle</span><span class="chip">/ Saw</span><span class="chip">⧠ Square</span><span class="chip">~ Noise</span><span class="chip">♫ From audio peaks</span>
+            <span class="chip" v-for="l in lfos.filter(x => x.on)" :key="'ctx-lfo'+l.id">LFO {{ l.id }}: {{ l.target || 'None' }}</span>
+            <span class="chip" v-for="m in macrosRack.filter(x => x.on)" :key="'ctx-mac'+m.target">Macro: {{ m.target }}</span>
           </div>
-        </div>
-
-        <div v-else-if="currentTab==='FEATURES'">
-          <h4>Feature coverage</h4>
-          <div class="chips">
-            <span class="chip" v-for="feature in framesync.featureCoverage" :key="'ctx-'+feature">{{ feature }}</span>
+          <div v-if="audio.uploadedFile" style="margin-top:8px;">
+            <div class="wave" style="height:80px; background:#11182a; margin-bottom:8px;"></div>
+            <div style="font-size:12px; color:var(--muted);">Audio mappings: {{ audioMappings.filter(m => m.param).length }} active</div>
           </div>
         </div>
 
@@ -787,9 +681,7 @@
             { id: "LIVE", label: "LIVE" },
             { id: "PROMPTS", label: "PROMPTS" },
             { id: "MOTION", label: "MOTION" },
-            { id: "AUDIO", label: "AUDIO/BEATS" },
-            { id: "MOD", label: "MODULATION" },
-            { id: "FEATURES", label: "FEATURES" },
+            { id: "MODULATION", label: "MODULATION" },
             { id: "CONTROLNET", label: "CN" },
             { id: "SETTINGS", label: "SETTINGS" },
           ],

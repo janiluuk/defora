@@ -104,10 +104,11 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
-    expect(tabs.join(" ")).to.include("AUDIO/BEATS");
     expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("CN");
     expect(tabs.join(" ")).to.include("SETTINGS");
+    // Should have 6 tabs total (AUDIO/BEATS and FEATURES merged into MODULATION)
+    expect(tabs.length).to.equal(6);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -135,23 +136,27 @@ describe("Deforumation Web UI", () => {
     expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
   });
 
-  it("toggles modulation router visibility and shows MIDI mappings", async () => {
-    appVm.switchTab("AUDIO");
+  it("toggles modulation tab sections and shows unified interface", async () => {
+    // Switch to unified MODULATION tab
+    appVm.switchTab("MODULATION");
     await nextTick();
-    let audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(audioHeadings.join(" ")).to.not.include("Modulation Router");
-
+    
+    // Check that the unified modulation tab has the expected sections
+    const modSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
+    expect(modSubtitles.join(" ")).to.include("Audio Source");
+    expect(modSubtitles.join(" ")).to.include("LFO Modulators");
+    expect(modSubtitles.join(" ")).to.include("Beat Macros");
+    
+    // Audio mapping section should be hidden when no audio file
+    let audioMappingSection = document.querySelector(".framesync-subtitle:has(+ div)");
+    // When audio is uploaded, audio mapping section becomes visible
     appVm.audio.uploadedFile = "song.wav";
     appVm.audio.track = "/tmp/song.wav";
     await nextTick();
-    audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(audioHeadings.join(" ")).to.include("Modulation Router");
-
-    appVm.switchTab("MOD");
-    await nextTick();
-    const modHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(modHeadings.join(" ")).to.include("Modulation Studio");
-    expect(modHeadings.join(" ")).to.include("Beat Macros");
+    
+    // Now audio mapping should be visible
+    const allSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
+    expect(allSubtitles.join(" ")).to.include("Audio → Parameter Mapping");
 
     appVm.switchTab("SETTINGS");
     await nextTick();
