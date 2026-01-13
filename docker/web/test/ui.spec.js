@@ -224,10 +224,15 @@ describe("Deforumation Web UI behavior", () => {
   it("removeMacro deletes a macro entry", () => {
     const instance = instantiate(appDef);
     const before = instance.macrosRack.length;
+    const firstMacroTarget = instance.macrosRack[0].target;
+    const secondMacroTarget = instance.macrosRack[1].target;
 
     instance.removeMacro(0);
 
     expect(instance.macrosRack.length).to.equal(before - 1);
+    // Verify the first item was removed and second item is now first
+    expect(instance.macrosRack[0].target).to.equal(secondMacroTarget);
+    expect(instance.macrosRack[0].target).to.not.equal(firstMacroTarget);
   });
 
   it("handleMidi maps CC messages to scaled liveParam payloads", () => {
@@ -343,6 +348,24 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.audio.track).to.equal("/tmp/uploaded.wav");
     expect(instance.audio.uploadedFile).to.equal("track.wav");
     delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("handleAudioUpload handles FileReader errors gracefully", async () => {
+    global.FileReader = class {
+      readAsDataURL() {
+        setImmediate(() => this.onerror(new Error("Read failed")));
+      }
+    };
+    appDef = loadAppDefinition();
+    const instance = instantiate(appDef);
+
+    await instance.handleAudioUpload({ target: { files: [{ name: "broken.wav" }] } });
+
+    // The error should be caught and stored in audioStatus
+    expect(instance.audioStatus).to.include("Failed to read audio file");
+    expect(instance.audioStatus).to.include("under 50MB");
+
     delete global.FileReader;
   });
 
