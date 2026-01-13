@@ -166,6 +166,25 @@ async function start(opts = {}) {
         if (typeof mimeType !== "string" || !mimeType.toLowerCase().startsWith("audio/")) {
           return res.status(400).json({ error: "invalid MIME type: audio required" });
         }
+        
+        // Cross-validate MIME type against file extension
+        const mimeExt = {
+          "audio/wav": ".wav",
+          "audio/wave": ".wav",
+          "audio/x-wav": ".wav",
+          "audio/mpeg": ".mp3",
+          "audio/mp3": ".mp3",
+          "audio/ogg": ".ogg",
+          "audio/flac": ".flac",
+          "audio/x-flac": ".flac",
+          "audio/mp4": ".m4a",
+          "audio/x-m4a": ".m4a"
+        };
+        const expectedExt = mimeExt[mimeType.toLowerCase()];
+        if (expectedExt && expectedExt !== ext) {
+          return res.status(400).json({ error: `MIME type ${mimeType} does not match file extension ${ext}` });
+        }
+        
         base64Payload = match[2];
       } else {
         // Fallback: treat as raw base64 data without a data: URL prefix.

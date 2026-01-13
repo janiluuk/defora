@@ -114,16 +114,12 @@ describe("Preset Management API", () => {
 
     const res = await request.post(`/api/presets/${encodeURIComponent(maliciousName)}`).send(presetData);
 
-    // Should either reject or sanitize the name
-    if (res.status === 200) {
-      // If accepted, verify it was sanitized
-      const files = fs.readdirSync(presetsDir);
-      expect(files.some((f) => f.includes(".."))).to.equal(false);
-      expect(files.some((f) => f.includes("/"))).to.equal(false);
-    } else {
-      // Or it should be rejected
-      expect(res.status).to.be.oneOf([400, 403]);
-    }
+    // Server should sanitize the name (strip out ../ and other unsafe chars)
+    expect(res.status).to.equal(200);
+    // Verify the sanitized name contains no path traversal characters
+    const files = fs.readdirSync(presetsDir);
+    expect(files.some((f) => f.includes(".."))).to.equal(false);
+    expect(files.some((f) => f.includes("/"))).to.equal(false);
   });
 
   it("handles loading non-existent preset gracefully", async () => {

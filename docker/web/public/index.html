@@ -763,7 +763,7 @@
             factoryPresets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
             selectedPreset: "Basic Strength Schedule",
             // Use Cosine as the default/primary wave. Cosine is just a 90° phase-shifted Sine,
-            // but starting at the peak works better for the framesync visualisation and metrics.
+            // but starting at the peak works better for the framesync visualization and metrics.
             primaryWave: "Cosine",
             waveShapes: ["Cosine", "Sine", "Saw", "Triangle", "Square", "Noise"],
             amplitude: 1,
@@ -1427,12 +1427,20 @@
         async handleAudioUpload(evt) {
           const file = evt.target.files[0];
           if (!file) return;
+          const maxSizeBytes = 50 * 1024 * 1024; // 50MB
+          if (file.size > maxSizeBytes) {
+            this.audioStatus = "Audio file is too large. Maximum supported size is 50MB.";
+            if (evt && evt.target) {
+              evt.target.value = "";
+            }
+            return;
+          }
           this.audioStatus = "Uploading audio…";
           try {
             const data = await new Promise((resolve, reject) => {
               const reader = new FileReader();
               reader.onload = () => resolve(reader.result);
-              reader.onerror = () => reject(reader.error || new Error("Failed to read audio file. Ensure the file is under 50MB and is a supported audio format (e.g., MP3, WAV, OGG)."));
+              reader.onerror = () => reject(reader.error || new Error("Failed to read audio file. Ensure the file is under 50MB and try again."));
               reader.readAsDataURL(file);
             });
             const res = await fetch("/api/audio-upload", {
