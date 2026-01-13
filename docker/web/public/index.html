@@ -503,7 +503,8 @@
                 <div class="framesync-wave-shapes">
                   <div class="framesync-wave" v-for="shape in framesync.waveShapes" :key="'wave-'+shape">
                     <svg viewBox="0 0 60 40">
-                      <path v-if="shape==='Sine' || shape==='Cosine'" d="M0 20 C 10 0, 20 40, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-if="shape==='Sine'" d="M0 20 C 10 0, 20 40, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="shape==='Cosine'" d="M0 0 C 10 40, 20 0, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
                       <path v-else-if="shape==='Saw'" d="M0 35 L60 5" fill="none" stroke="#ff8a1a" stroke-width="2"/>
                       <path v-else-if="shape==='Triangle'" d="M0 30 L30 5 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
                       <path v-else-if="shape==='Square'" d="M0 30 L0 5 L30 5 L30 30 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
@@ -861,14 +862,16 @@
             phase: 0,
           })),
           macrosRack: [
-            { on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.7, offset: 0.1, show: true },
-            { on: true, target: "Zoom", shape: "Saw", bpm: 90, depth: 0.6, offset: 0.2, show: false },
-            { on: false, target: "Noise/Glitch", shape: "Noise", bpm: 140, depth: 0.3, offset: 0.0, show: false },
+            { id: "macro-0", on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.7, offset: 0.1, show: true },
+            { id: "macro-1", on: true, target: "Zoom", shape: "Saw", bpm: 90, depth: 0.6, offset: 0.2, show: false },
+            { id: "macro-2", on: false, target: "Noise/Glitch", shape: "Noise", bpm: 140, depth: 0.3, offset: 0.0, show: false },
             ],
           framesync: {
             presets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
             factoryPresets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
             selectedPreset: "Basic Strength Schedule",
+            // Use Cosine as the default/primary wave. Cosine is just a 90° phase-shifted Sine,
+            // but starting at the peak works better for the framesync visualisation and metrics.
             primaryWave: "Cosine",
             waveShapes: ["Cosine", "Sine", "Saw", "Triangle", "Square", "Noise"],
             amplitude: 1,
@@ -1142,8 +1145,7 @@
           const payload = {};
           const activeMacros = this.macrosRack.filter(m => m.on);
           
-          activeMacros.forEach((macro, idx) => {
-            macro.id = macro.id || `macro-${idx}`;
+          activeMacros.forEach((macro) => {
             const target = this.lfoTargets.find(t => t.label === macro.target || t.key === macro.target);
             if (!target) return;
             
@@ -1185,6 +1187,7 @@
             }
             return false;
           }
+          // Fallback: if no BPM (or BPM is 0/invalid), trigger on every beat
           return true;
         },
         setupWS() {
@@ -1275,9 +1278,11 @@
         },
         addMacro() {
           if (this.macrosRack.length >= 6) return;
-          this.macrosRack.push({ on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.5, offset: 0.0, show: false });
+          const id = `macro-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+          this.macrosRack.push({ id, on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.5, offset: 0.0, show: false });
         },
         removeMacro(index) {
+          if (this.macrosRack.length <= 1) return;
           this.macrosRack.splice(index, 1);
         },
         addAudioMapping() {
@@ -1535,7 +1540,7 @@
             const data = await new Promise((resolve, reject) => {
               const reader = new FileReader();
               reader.onload = () => resolve(reader.result);
-              reader.onerror = () => reject(reader.error || new Error("Failed to read audio file"));
+              reader.onerror = () => reject(reader.error || new Error("Failed to read audio file. Ensure the file is under 50MB and is a supported audio format (e.g., MP3, WAV, OGG)."));
               reader.readAsDataURL(file);
             });
             const res = await fetch("/api/audio-upload", {

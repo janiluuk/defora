@@ -141,8 +141,38 @@ async function start(opts = {}) {
       if (!name || !data) {
         return res.status(400).json({ error: "name and data required" });
       }
-      const safeName = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, "_");
-      const buf = Buffer.from(String(data).replace(/^data:.*;base64,/, ""), "base64");
+      
+      // Validate file extension
+      const originalName = path.basename(String(name));
+      const ext = path.extname(originalName).toLowerCase();
+      const allowedExts = new Set([".wav", ".mp3", ".ogg", ".flac", ".m4a"]);
+      if (!allowedExts.has(ext)) {
+        return res.status(400).json({ error: "invalid or unsupported audio file extension" });
+      }
+      const baseNameWithoutExt = path.basename(originalName, ext);
+      const sanitizedBase = baseNameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeName = sanitizedBase + ext;
+      
+      // Parse and validate data URL
+      const dataStr = String(data);
+      let base64Payload;
+
+      if (dataStr.startsWith("data:")) {
+        const match = /^data:([^;]+);base64,(.+)$/.exec(dataStr);
+        if (!match) {
+          return res.status(400).json({ error: "invalid data URL format" });
+        }
+        const mimeType = match[1];
+        if (typeof mimeType !== "string" || !mimeType.toLowerCase().startsWith("audio/")) {
+          return res.status(400).json({ error: "invalid MIME type: audio required" });
+        }
+        base64Payload = match[2];
+      } else {
+        // Fallback: treat as raw base64 data without a data: URL prefix.
+        base64Payload = dataStr;
+      }
+
+      const buf = Buffer.from(base64Payload, "base64");
       const target = path.join(uploadsDir, `${Date.now()}-${safeName}`);
       await fsp.writeFile(target, buf);
       res.json({ ok: true, path: target, name: safeName });
