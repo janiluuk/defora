@@ -504,7 +504,7 @@
                   <div class="framesync-wave" v-for="shape in framesync.waveShapes" :key="'wave-'+shape">
                     <svg viewBox="0 0 60 40">
                       <path v-if="shape==='Sine'" d="M0 20 C 10 0, 20 40, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="shape==='Cosine'" d="M0 0 C 10 40, 20 0, 30 20 S 50 40, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="shape==='Cosine'" d="M0 0 C 10 40, 20 0, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
                       <path v-else-if="shape==='Saw'" d="M0 35 L60 5" fill="none" stroke="#ff8a1a" stroke-width="2"/>
                       <path v-else-if="shape==='Triangle'" d="M0 30 L30 5 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
                       <path v-else-if="shape==='Square'" d="M0 30 L0 5 L30 5 L30 30 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
@@ -1278,7 +1278,7 @@
         },
         addMacro() {
           if (this.macrosRack.length >= 6) return;
-          const id = `macro-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const id = `macro-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
           this.macrosRack.push({ id, on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.5, offset: 0.0, show: false });
         },
         removeMacro(index) {
