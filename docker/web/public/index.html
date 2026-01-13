@@ -119,6 +119,9 @@
     .mod-row .chip { padding: 6px 8px; font-size: 11px; }
     .mod-row button { background: #0f172a; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
     .mod-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
+    .mod-preview { grid-column: 2 / span 5; background: #0c1324; border: 1px solid var(--border); border-radius: 8px; padding: 6px; }
+    .mod-preview svg { width: 100%; height: 36px; display: block; }
+    .mod-subheader { font-size: 12px; color: var(--muted); margin-top: 6px; }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -269,7 +272,10 @@
         <div v-else-if="currentTab==='AUDIO'">
           <div class="rack">
             <h3>Track & tempo</h3>
-            <div class="slider-row"><div>Track</div><input class="select" v-model="audio.track"></div>
+            <div class="slider-row" v-if="audio.uploadedFile">
+              <div>Track</div>
+              <input class="select" v-model="audio.track" readonly>
+            </div>
             <div class="slider-row">
               <div>Audio file</div>
               <input type="file" accept="audio/*" @change="handleAudioUpload" style="font-size:12px;" ref="audioFileInput">
@@ -292,7 +298,7 @@
               <span class="chip">Add tempo change</span>
             </div>
           </div>
-          <div class="rack">
+          <div class="rack" v-if="audio.uploadedFile">
             <h3>Modulation Router</h3>
             <div class="compact-panel">
               <div class="mod-header">
@@ -359,24 +365,37 @@
                 <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth" title="Depth">
                 <button @click="removeLfo(idx)">✕</button>
               </div>
-              <div class="meta">LFOs emit liveParam values when no audio file is selected.</div>
-            </div>
-          </div>
-          <div class="rack">
-            <h3>Beat macros</h3>
-            <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" style="border:1px solid var(--border); border-radius:10px; padding:8px; margin-bottom:6px;">
-              <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
-                <span>Macro {{ idx+1 }}</span>
-                <span class="chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
+              <div class="mod-row" v-for="l in lfos" :key="'preview'+l.id">
+                <div></div>
+                <div class="mod-preview">
+                  <svg viewBox="0 0 120 36" preserveAspectRatio="none">
+                    <path v-if="l.shape==='Sine'" d="M0 18 C 15 0, 30 36, 45 18 S 75 0, 90 18 S 105 36, 120 18" fill="none" stroke="#2de2ff" stroke-width="2"/>
+                    <path v-else-if="l.shape==='Triangle'" d="M0 28 L30 6 L60 28 L90 6 L120 28" fill="none" stroke="#2de2ff" stroke-width="2"/>
+                    <path v-else-if="l.shape==='Saw'" d="M0 28 L120 6" fill="none" stroke="#2de2ff" stroke-width="2"/>
+                    <path v-else-if="l.shape==='Square'" d="M0 28 L0 6 L60 6 L60 28 L120 28" fill="none" stroke="#2de2ff" stroke-width="2"/>
+                    <path v-else d="M0 26 L15 18 L30 30 L45 10 L60 26 L75 16 L90 30 L105 12 L120 26" fill="none" stroke="#2de2ff" stroke-width="2"/>
+                  </svg>
+                </div>
               </div>
-              <div class="slider-row"><div>Target</div><select class="select" v-model="m.target"><option>Vibe (CFG)</option><option>Zoom</option><option>Noise</option></select></div>
-              <div class="slider-row"><div>Shape</div><select class="select" v-model="m.shape"><option>Sine</option><option>Saw</option><option>Noise</option></select></div>
-              <div class="slider-row"><div>Speed</div><select class="select" v-model="m.speed"><option>1/4 note</option><option>1 bar</option><option>1/8 note</option></select></div>
-              <div class="slider-row"><div>Depth</div><input type="range" min="0" max="1" step="0.01" v-model.number="m.depth"></div>
-              <div class="slider-row"><div>Offset</div><input type="range" min="-1" max="1" step="0.01" v-model.number="m.offset"></div>
-              <div class="chips"><span class="chip" @click="m.show=true">Show in graph</span></div>
+              <div class="mod-subheader">Beat macros (beat-synced modulation)</div>
+              <div class="compact-grid">
+                <div v-for="(m, idx) in macrosRack" :key="'mac'+idx" class="audio-map-card">
+                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
+                    <span>Macro {{ idx+1 }}</span>
+                    <span class="chip" @click="m.on=!m.on">{{ m.on ? 'ON' : 'OFF' }}</span>
+                  </div>
+                  <div class="slider-row"><div>Target</div><select class="select" v-model="m.target"><option>Vibe (CFG)</option><option>Zoom</option><option>Noise</option></select></div>
+                  <div class="slider-row"><div>Shape</div><select class="select" v-model="m.shape"><option>Sine</option><option>Saw</option><option>Noise</option></select></div>
+                  <div class="slider-row"><div>Speed</div><select class="select" v-model="m.speed"><option>1/4 note</option><option>1 bar</option><option>1/8 note</option></select></div>
+                  <div class="slider-row"><div>Depth</div><input type="range" min="0" max="1" step="0.01" v-model.number="m.depth"></div>
+                  <div class="slider-row"><div>Offset</div><input type="range" min="-1" max="1" step="0.01" v-model.number="m.offset"></div>
+                  <div class="chips"><span class="chip" @click="m.show=true">Show in graph</span></div>
+                </div>
+              </div>
+              <div class="chips">
+                <span class="chip" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</span>
+              </div>
             </div>
-            <div class="chips"><span class="chip" @click="addMacro" v-if="macrosRack.length<6">+ Add macro</span></div>
           </div>
         </div>
 
