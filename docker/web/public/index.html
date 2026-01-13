@@ -87,6 +87,31 @@
     .lfo-card .switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--muted); }
     .audio-map-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
     .audio-map-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: #0f172a; }
+    .framesync-panel { background: #061726; border: 1px solid #0c2c3f; border-radius: 10px; padding: 10px; box-shadow: inset 0 0 0 1px rgba(11, 72, 104, 0.35); }
+    .framesync-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; color: #cde5f7; font-weight: 600; letter-spacing: 0.6px; }
+    .framesync-title { font-size: 18px; }
+    .framesync-accent { color: #ff8a1a; }
+    .framesync-graph { margin-top: 10px; background: #031b2d; border: 1px solid #0c3048; border-radius: 8px; padding: 6px 10px; }
+    .framesync-axis { display: grid; grid-template-columns: repeat(12, 1fr); gap: 0; margin-top: 6px; font-size: 10px; color: #7fb3d6; }
+    .framesync-axis span { text-align: center; }
+    .framesync-row { display: grid; grid-template-columns: 1.1fr 2fr 1.2fr 1.2fr; gap: 12px; margin-top: 12px; }
+    .framesync-stack { display: grid; gap: 10px; }
+    .framesync-subtitle { font-size: 12px; color: #9bc4e2; margin-bottom: 6px; letter-spacing: 0.3px; }
+    .framesync-list { font-size: 12px; color: #cfe5f5; }
+    .framesync-list .item { padding: 4px 0; border-bottom: 1px solid rgba(12, 48, 72, 0.6); }
+    .framesync-list .item:last-child { border-bottom: none; }
+    .framesync-select, .framesync-input { width: 100%; padding: 6px; background: #03192a; border: 1px solid #0c3048; border-radius: 4px; color: #cfe5f5; font-size: 12px; }
+    .framesync-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
+    .framesync-button { background: #061b2d; border: 1px solid #0f3c5c; color: #cfe5f5; font-size: 11px; padding: 6px 4px; text-align: center; border-radius: 4px; cursor: pointer; }
+    .framesync-button.active { border-color: #ff8a1a; color: #ffbf80; }
+    .framesync-metric { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; font-size: 12px; color: #cfe5f5; }
+    .framesync-metric span { display: block; color: #7fb3d6; font-size: 10px; }
+    .framesync-wave-shapes { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: 6px; }
+    .framesync-wave { background: #031b2d; border: 1px solid #0c3048; border-radius: 6px; padding: 6px; text-align: center; font-size: 10px; color: #cfe5f5; }
+    .framesync-wave svg { width: 100%; height: 40px; display: block; margin-bottom: 4px; }
+    .framesync-footer { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .framesync-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cfe5f5; }
+    .framesync-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff8a1a; box-shadow: 0 0 8px rgba(255, 138, 26, 0.6); }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -347,6 +372,146 @@
           </div>
         </div>
 
+        <div v-else-if="currentTab==='FEATURES'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">FRAME<span class="framesync-accent">SYNC</span>.xyz</div>
+                <div class="pill">LFO Enabled</div>
+              </div>
+              <div class="framesync-graph">
+                <svg viewBox="0 0 820 140" width="100%" height="140" preserveAspectRatio="none">
+                  <path d="M0 70 C 80 10, 160 130, 240 70 S 400 10, 480 70 S 640 130, 720 70 S 800 10, 820 70" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                  <line x1="0" y1="70" x2="820" y2="70" stroke="#0c3048" stroke-width="1"/>
+                </svg>
+                <div class="framesync-axis">
+                  <span v-for="n in 12" :key="'axis-'+n">{{ (n-1) * 10 }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="framesync-row">
+            <div class="framesync-stack">
+              <div class="framesync-panel">
+                <div class="framesync-subtitle">Animation Presets</div>
+                <select class="framesync-select" v-model="framesync.selectedPreset">
+                  <option v-for="preset in framesync.presets" :key="preset" :value="preset">{{ preset }}</option>
+                </select>
+                <div class="framesync-list" style="margin-top:8px;">
+                  <div class="item" v-for="preset in framesync.factoryPresets" :key="'factory-'+preset">▸ {{ preset }}</div>
+                </div>
+                <div class="framesync-footer">
+                  <button class="framesync-button">Save preset</button>
+                  <button class="framesync-button">Import presets</button>
+                  <button class="framesync-button">Export presets</button>
+                </div>
+              </div>
+              <div class="framesync-panel">
+                <div class="framesync-subtitle">Lock</div>
+                <div class="framesync-toggle"><span class="framesync-dot"></span> Lock Frame Count</div>
+                <div class="framesync-toggle"><span class="framesync-dot"></span> Lock Frame Rate</div>
+                <div class="framesync-toggle"><span class="framesync-dot"></span> Lock Tempo</div>
+              </div>
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-panel">
+                <div class="framesync-subtitle">Wave Settings</div>
+                <div class="slider-row">
+                  <div>Audio file</div>
+                  <input type="file" class="framesync-input" />
+                </div>
+                <div class="slider-row">
+                  <div>Primary Wave</div>
+                  <select class="framesync-select" v-model="framesync.primaryWave">
+                    <option v-for="shape in framesync.waveShapes" :key="shape">{{ shape }}</option>
+                  </select>
+                </div>
+                <div class="framesync-wave-shapes">
+                  <div class="framesync-wave" v-for="shape in framesync.waveShapes" :key="'wave-'+shape">
+                    <svg viewBox="0 0 60 40">
+                      <path v-if="shape==='Sine' || shape==='Cosine'" d="M0 20 C 10 0, 20 40, 30 20 S 50 0, 60 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="shape==='Saw'" d="M0 35 L60 5" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="shape==='Triangle'" d="M0 30 L30 5 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="shape==='Square'" d="M0 30 L0 5 L30 5 L30 30 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else d="M0 28 L10 18 L20 30 L30 10 L40 26 L50 16 L60 30" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                    </svg>
+                    {{ shape }}
+                  </div>
+                </div>
+                <div class="slider-row">
+                  <div>Amplitude</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.amplitude" />
+                </div>
+                <div class="slider-row">
+                  <div>Shift</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.shift" />
+                </div>
+                <div class="slider-row">
+                  <div>Bend</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.bend" />
+                </div>
+                <div class="slider-row">
+                  <div>Noise</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.noise" />
+                </div>
+                <div class="framesync-toggle" style="margin-top:6px;"><span class="framesync-dot"></span> Enable LFO Modulator</div>
+              </div>
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-panel">
+                <div class="framesync-subtitle">Frame Settings</div>
+                <div class="slider-row">
+                  <div>Frame Rate (FPS)</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.fps" />
+                </div>
+                <div class="slider-row">
+                  <div>Frame Count</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.frameCount" />
+                </div>
+                <div class="framesync-subtitle" style="margin-top:8px;">Sync Settings</div>
+                <div class="slider-row">
+                  <div>Tempo (BPM)</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.bpm" />
+                </div>
+                <div class="slider-row">
+                  <div>Shift Left/Right</div>
+                  <input type="number" class="framesync-input" v-model.number="framesync.shiftFrames" />
+                </div>
+                <div class="framesync-subtitle" style="margin-top:8px;">Sync Rate</div>
+                <div class="framesync-buttons">
+                  <button class="framesync-button" v-for="rate in framesync.syncRates" :key="rate" :class="{active: framesync.syncRate===rate}" @click="framesync.syncRate = rate">{{ rate }}</button>
+                </div>
+                <div class="framesync-subtitle" style="margin-top:8px;">Decimal Places</div>
+                <input type="number" class="framesync-input" v-model.number="framesync.decimals" />
+              </div>
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-panel">
+                <div class="framesync-subtitle">Metrics</div>
+                <div class="framesync-metric" v-for="metric in framesync.metrics" :key="metric.label">
+                  <div>{{ metric.label }}</div>
+                  <div>
+                    {{ metric.value }}
+                    <span>{{ metric.sub }}</span>
+                  </div>
+                </div>
+                <div class="framesync-subtitle" style="margin-top:10px;">Timing Table</div>
+                <div class="framesync-list">
+                  <div class="item" v-for="row in framesync.timingTable" :key="row.label">
+                    {{ row.label }} · {{ row.time }} · {{ row.frames }}
+                  </div>
+                </div>
+              </div>
+              <div class="framesync-panel">
+                <div class="framesync-subtitle">Feature Coverage</div>
+                <div class="framesync-list">
+                  <div class="item" v-for="feature in framesync.featureCoverage" :key="feature">• {{ feature }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-else-if="currentTab==='CONTROLNET'">
           <div class="rack">
             <h3>ControlNet slots</h3>
@@ -500,6 +665,13 @@
           </div>
         </div>
 
+        <div v-else-if="currentTab==='FEATURES'">
+          <h4>Feature coverage</h4>
+          <div class="chips">
+            <span class="chip" v-for="feature in framesync.featureCoverage" :key="'ctx-'+feature">{{ feature }}</span>
+          </div>
+        </div>
+
         <div v-else-if="currentTab==='CONTROLNET'">
           <h4>Drive parameters</h4>
           <div class="chips">
@@ -541,6 +713,7 @@
             { id: "PROMPTS", label: "PROMPTS" },
             { id: "MOTION", label: "MOTION" },
             { id: "AUDIO", label: "AUDIO/BEATS" },
+            { id: "FEATURES", label: "FEATURES" },
             { id: "CONTROLNET", label: "CN" },
             { id: "SETTINGS", label: "SETTINGS" },
           ],
@@ -617,6 +790,48 @@
             { on: true, target: "Zoom", shape: "Saw", speed: "1 bar", depth: 0.6, offset: 0.2, show: false },
             { on: false, target: "Noise/Glitch", shape: "Noise", speed: "1/8 note", depth: 0.3, offset: 0.0, show: false },
             ],
+          framesync: {
+            presets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
+            factoryPresets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
+            selectedPreset: "Basic Strength Schedule",
+            primaryWave: "Cosine",
+            waveShapes: ["Cosine", "Sine", "Saw", "Triangle", "Square", "Noise"],
+            amplitude: 1,
+            shift: 0,
+            bend: 1,
+            noise: 0,
+            fps: 24,
+            frameCount: 120,
+            bpm: 120,
+            shiftFrames: 0,
+            syncRates: ["1", "1/2", "1/4", "1/8", "1/16", "1/32", "2", "4", "8"],
+            syncRate: "1/4",
+            decimals: 2,
+            metrics: [
+              { label: "Max", value: "1.00", sub: "32bars" },
+              { label: "Min", value: "-1.00", sub: "16bars" },
+              { label: "Avg", value: "0.00", sub: "4bars" },
+              { label: "Abs Avg", value: "0.63", sub: "1bar" },
+              { label: "Duration", value: "5.00s", sub: "1/2" },
+            ],
+            timingTable: [
+              { label: "32bar", time: "58.0s", frames: "1392.0" },
+              { label: "16bar", time: "28.0s", frames: "768.0" },
+              { label: "8bar", time: "16.0s", frames: "384.0" },
+              { label: "4bar", time: "8.0s", frames: "192.0" },
+              { label: "2bar", time: "4.0s", frames: "96.0" },
+              { label: "1bar", time: "2.0s", frames: "48.0" },
+              { label: "1/2", time: "1.0s", frames: "24.0" },
+            ],
+            featureCoverage: [
+              "Wave presets",
+              "LFO modulation",
+              "Audio-driven sync",
+              "Tempo & shift",
+              "Metrics + timing table",
+              "Preset import/export"
+            ],
+          },
           cn: {
             slots: [
               { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false },
