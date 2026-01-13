@@ -1,5 +1,12 @@
 #!/bin/bash
 # Backup all Docker volumes for Defora project
+#
+# Environment variables:
+#   BACKUP_DIR - Directory to store backups (default: ./backups)
+#   CLEANUP_OLD_BACKUPS - Remove backups older than 7 days (default: true)
+#
+# Example:
+#   BACKUP_DIR=/mnt/backups CLEANUP_OLD_BACKUPS=false ./scripts/backup-volumes.sh
 
 set -e
 
