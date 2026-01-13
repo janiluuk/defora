@@ -22,7 +22,7 @@ async function start(opts = {}) {
   const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
 
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "50mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
 
   // Simple health check endpoint for Docker healthcheck
@@ -127,9 +127,30 @@ async function start(opts = {}) {
 
   // Preset management API
   const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
+  const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
   try {
     await fsp.mkdir(presetsDir, { recursive: true });
   } catch (_e) {}
+  try {
+    await fsp.mkdir(uploadsDir, { recursive: true });
+  } catch (_e) {}
+
+  app.post("/api/audio-upload", async (req, res) => {
+    try {
+      const { name, data } = req.body || {};
+      if (!name || !data) {
+        return res.status(400).json({ error: "name and data required" });
+      }
+      const safeName = path.basename(name).replace(/[^a-zA-Z0-9._-]/g, "_");
+      const buf = Buffer.from(String(data).replace(/^data:.*;base64,/, ""), "base64");
+      const target = path.join(uploadsDir, `${Date.now()}-${safeName}`);
+      await fsp.writeFile(target, buf);
+      res.json({ ok: true, path: target, name: safeName });
+    } catch (err) {
+      console.error("[api] audio upload error", err);
+      res.status(500).json({ error: "upload failed" });
+    }
+  });
 
   app.get("/api/presets", async (_req, res) => {
     try {

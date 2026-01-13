@@ -1483,18 +1483,38 @@
           }
         },
         // Audio file upload methods
-        handleAudioUpload(evt) {
+        async handleAudioUpload(evt) {
           const file = evt.target.files[0];
           if (!file) return;
-          this.audio.uploadedFile = file.name;
-          this.audio.track = file.name;
-          // In a real implementation, you would upload the file to the server here
-          // For now, we just store the filename
-          console.log("Audio file selected:", file.name);
+          this.audioStatus = "Uploading audio…";
+          try {
+            const data = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(reader.error || new Error("Failed to read audio file"));
+              reader.readAsDataURL(file);
+            });
+            const res = await fetch("/api/audio-upload", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ name: file.name, data }),
+            });
+            const json = await res.json();
+            if (!res.ok || json.error) {
+              throw new Error(json.error || "Upload failed");
+            }
+            this.audio.uploadedFile = file.name;
+            this.audio.track = json.path || file.name;
+            this.audioStatus = "Audio uploaded";
+          } catch (err) {
+            this.audioStatus = String(err);
+            console.error("Audio upload failed:", err);
+          }
         },
         clearAudioFile() {
           this.audio.uploadedFile = null;
           this.audio.track = "";
+          this.audioStatus = "Idle";
           if (this.$refs.audioFileInput) {
             this.$refs.audioFileInput.value = "";
           }

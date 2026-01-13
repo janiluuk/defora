@@ -515,6 +515,23 @@ healthcheck:
 
 ---
 
+## Fix Plan (Non-working Features)
+
+1. **Audio routing pipeline**
+   - Validate uploaded audio lifecycle (upload, storage, cleanup) and add size limits/retention policy.
+   - Add UI feedback for upload progress and server-side validation errors.
+2. **Beat macro timing**
+   - Implement true sub-beat timing for 1/8 and finer divisions (currently treated as quarter notes).
+   - Add visual timeline or metronome feedback to confirm macro timing accuracy.
+3. **ControlNet integration**
+   - Replace placeholder model list with live SD-Forge/mediator API lookup.
+   - Ensure ControlNet enable/disable reflects actual rendering state.
+4. **UI feature coverage**
+   - Convert remaining placeholder tabs into live control paths or mark explicitly as demo.
+   - Persist user mappings (MIDI, LFO, audio maps) to presets and reload cleanly.
+
+---
+
 ## Documentation Status
 
 - ✅ README.md - Comprehensive

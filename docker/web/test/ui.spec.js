@@ -37,6 +37,7 @@ function loadAppDefinition() {
     document: { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
     // Proxy to the outer fetch so tests can stub/intercept network calls
     fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
+    FileReader: global.FileReader,
     setInterval: () => 0,
     console,
   };
@@ -133,11 +134,17 @@ describe("Deforumation Web UI", () => {
     expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
   });
 
-  it("includes macro rack cards and MIDI mappings", async () => {
+  it("toggles modulation router visibility and shows MIDI mappings", async () => {
     appVm.switchTab("AUDIO");
     await nextTick();
-    const audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(audioHeadings.join(" ")).to.include("Beat macros");
+    let audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
+    expect(audioHeadings.join(" ")).to.not.include("Modulation Router");
+
+    appVm.audio.uploadedFile = "song.wav";
+    appVm.audio.track = "/tmp/song.wav";
+    await nextTick();
+    audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
+    expect(audioHeadings.join(" ")).to.include("Modulation Router");
 
     appVm.switchTab("SETTINGS");
     await nextTick();
@@ -149,10 +156,11 @@ describe("Deforumation Web UI", () => {
 });
 
 describe("Deforumation Web UI behavior", () => {
-  const appDef = loadAppDefinition();
+  let appDef;
   let testStorage;
 
   beforeEach(() => {
+    appDef = loadAppDefinition();
     // Set up minimal localStorage mock for tests with shared storage
     testStorage = {};
     if (!global.window) {
@@ -297,6 +305,39 @@ describe("Deforumation Web UI behavior", () => {
     expect(bodies[0].audioPath).to.equal("/tmp/song.wav");
     expect(bodies[0].mappings[0].freq_max).to.equal(300);
     delete global.fetch;
+  });
+
+  it("handleAudioUpload posts file data and updates track", async () => {
+    const calls = [];
+    global.fetch = async (_url, opts) => {
+      calls.push(JSON.parse(opts.body));
+      return { ok: true, json: async () => ({ ok: true, path: "/tmp/uploaded.wav" }) };
+    };
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    appDef = loadAppDefinition();
+    const instance = instantiate(appDef);
+    await instance.handleAudioUpload({ target: { files: [{ name: "track.wav" }] } });
+
+    expect(calls[0].name).to.equal("track.wav");
+    expect(instance.audio.track).to.equal("/tmp/uploaded.wav");
+    expect(instance.audio.uploadedFile).to.equal("track.wav");
+    delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("addLfo creates a new LFO entry", () => {
+    const instance = instantiate(appDef);
+    const before = instance.lfos.length;
+
+    instance.addLfo();
+
+    expect(instance.lfos.length).to.equal(before + 1);
+    expect(instance.lfos.at(-1)).to.include({ shape: "Sine", on: true });
   });
 
   it("setMorph toggles morph state and emits control", () => {
