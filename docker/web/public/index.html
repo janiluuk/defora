@@ -112,6 +112,13 @@
     .framesync-footer { margin-top: 10px; display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
     .framesync-toggle { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #cfe5f5; }
     .framesync-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff8a1a; box-shadow: 0 0 8px rgba(255, 138, 26, 0.6); }
+    .compact-panel { background: #0f1422; border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: grid; gap: 8px; }
+    .compact-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; }
+    .mod-row { display: grid; grid-template-columns: 24px 1.2fr 1fr 70px 70px 1fr 36px; gap: 6px; align-items: center; font-size: 12px; }
+    .mod-row .select, .mod-row input { width: 100%; }
+    .mod-row .chip { padding: 6px 8px; font-size: 11px; }
+    .mod-row button { background: #0f172a; border: 1px solid var(--border); color: var(--text); border-radius: 8px; padding: 4px 6px; cursor: pointer; }
+    .mod-header { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--muted); }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -286,73 +293,74 @@
             </div>
           </div>
           <div class="rack">
-            <h3>Audio band mappings</h3>
-            <div class="audio-map-grid">
-              <div class="audio-map-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
-                <div class="meta">Target</div>
-                <select v-model="m.param">
-                  <option value="">(none)</option>
-                  <option v-for="t in lfoTargets" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
-                </select>
-                <div class="slider-row" style="margin-top:6px;">
-                  <div>Freq min</div><input type="number" min="0" step="10" v-model.number="m.freq_min">
-                </div>
-                <div class="slider-row">
-                  <div>Freq max</div><input type="number" min="0" step="10" v-model.number="m.freq_max">
-                </div>
-                <div class="slider-row">
-                  <div>Out min</div><input type="number" step="0.01" v-model.number="m.out_min">
-                </div>
-                <div class="slider-row">
-                  <div>Out max</div><input type="number" step="0.01" v-model.number="m.out_max">
+            <h3>Modulation Router</h3>
+            <div class="compact-panel">
+              <div class="mod-header">
+                <span>Audio → Parameter mapping</span>
+                <div class="chips">
+                  <span class="chip" @click="addAudioMapping" v-if="audioMappings.length<8">+ Add</span>
+                  <span class="chip" @click="runAudioMod">Send audio map</span>
                 </div>
               </div>
+              <div class="compact-grid">
+                <div class="audio-map-card" v-for="(m, idx) in audioMappings" :key="'map'+idx">
+                  <div class="meta">Target</div>
+                  <select v-model="m.param">
+                    <option value="">(none)</option>
+                    <optgroup v-for="group in lfoTargetGroups" :key="'amap'+group.label" :label="group.label">
+                      <option v-for="t in group.items" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
+                    </optgroup>
+                  </select>
+                  <div class="slider-row" style="margin-top:6px;">
+                    <div>Freq min</div><input type="number" min="0" step="10" v-model.number="m.freq_min">
+                  </div>
+                  <div class="slider-row">
+                    <div>Freq max</div><input type="number" min="0" step="10" v-model.number="m.freq_max">
+                  </div>
+                  <div class="slider-row">
+                    <div>Out min</div><input type="number" step="0.01" v-model.number="m.out_min">
+                  </div>
+                  <div class="slider-row">
+                    <div>Out max</div><input type="number" step="0.01" v-model.number="m.out_max">
+                  </div>
+                  <div class="chips" style="margin-top:6px;">
+                    <span class="chip" @click="removeAudioMapping(idx)">Remove</span>
+                  </div>
+                </div>
+              </div>
+              <div class="meta">Upload an audio file above to drive these mappings. Status: {{ audioStatus }}</div>
             </div>
-            <div class="chips" style="margin-top:8px;">
-              <span class="chip" @click="addAudioMapping" v-if="audioMappings.length<6">+ Add mapping</span>
-              <span class="chip" @click="runAudioMod">Process audio → mediator</span>
-              <span class="chip" style="color:var(--muted);">Status: {{ audioStatus }}</span>
-            </div>
-          </div>
-          <div class="rack">
-            <h3>Manual LFOs (no audio sync)</h3>
-            <div class="slider-row">
-              <div>Global BPM</div>
-              <input class="select" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
-            </div>
-            <div class="lfo-grid">
-              <div class="lfo-card" v-for="l in lfos" :key="l.id">
-                <h4>
-                  LFO {{ l.id }}
-                  <span class="switch" @click="l.on=!l.on">
-                    <span class="dot" :style="{background: l.on ? 'var(--success)' : '#444'}"></span>
-                    {{ l.on ? 'ON' : 'OFF' }}
-                  </span>
-                </h4>
-                <div class="meta">Target</div>
-                <select v-model="l.target" @change="initLfoBase(l)">
-                  <option value="">(none)</option>
-                  <option v-for="t in lfoTargets" :key="t.key" :value="t.key">{{ t.label }}</option>
+            <div class="compact-panel">
+              <div class="mod-header">
+                <span>LFO → Parameter mapping</span>
+                <div class="chips">
+                  <span class="chip" @click="addLfo">+ Add LFO</span>
+                </div>
+              </div>
+              <div class="slider-row">
+                <div>Global BPM</div>
+                <input class="select" type="number" min="20" max="240" step="1" v-model.number="lfoBpm">
+              </div>
+              <div class="mod-row" v-for="(l, idx) in lfos" :key="l.id">
+                <div class="switch" @click="l.on=!l.on">
+                  <span class="dot" :style="{background: l.on ? 'var(--success)' : '#444'}"></span>
+                </div>
+                <select class="select" v-model="l.target" @change="initLfoBase(l)">
+                  <option value="">Target</option>
+                  <optgroup v-for="group in lfoTargetGroups" :key="'lfo'+group.label" :label="group.label">
+                    <option v-for="t in group.items" :key="'lfo'+t.key" :value="t.key">{{ t.label }}</option>
+                  </optgroup>
                 </select>
-                <div class="meta" style="margin-top:6px;">Shape</div>
-                <select v-model="l.shape">
+                <select class="select" v-model="l.shape">
                   <option v-for="s in lfoShapes" :key="s">{{ s }}</option>
                 </select>
-                <div class="slider-row" style="margin-top:6px;">
-                  <div>BPM</div>
-                  <input type="number" min="20" max="240" step="1" v-model.number="l.bpm">
-                </div>
-                <div class="slider-row">
-                  <div>Base</div>
-                  <input type="number" :min="lfoTarget(l) ? lfoTarget(l).min : 0" :max="lfoTarget(l) ? lfoTarget(l).max : 1" step="0.01" v-model.number="l.base">
-                </div>
-                <div class="slider-row">
-                  <div>Depth</div>
-                  <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth">
-                </div>
+                <input type="number" min="20" max="240" step="1" v-model.number="l.bpm" title="BPM">
+                <input type="number" :min="lfoTarget(l) ? lfoTarget(l).min : 0" :max="lfoTarget(l) ? lfoTarget(l).max : 1" step="0.01" v-model.number="l.base" title="Base">
+                <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth" title="Depth">
+                <button @click="removeLfo(idx)">✕</button>
               </div>
+              <div class="meta">LFOs emit liveParam values when no audio file is selected.</div>
             </div>
-            <div class="meta">LFOs emit liveParam values to the mediator when no audio track is selected.</div>
           </div>
           <div class="rack">
             <h3>Beat macros</h3>
@@ -764,15 +772,15 @@
           ],
           lfoBpm: 120,
           lfoTargets: [
-            { key: "cfg", label: "Vibe (CFG)", min: 0, max: 30, default: 6 },
-            { key: "strength", label: "Strength", min: 0, max: 1.5, default: 0.7 },
-            { key: "noise_multiplier", label: "Noise/Glitch", min: 0, max: 3, default: 1.0 },
-            { key: "translation_z", label: "Zoom", min: -10, max: 10, default: 0 },
-            { key: "translation_x", label: "Pan X", min: -10, max: 10, default: 0 },
-            { key: "translation_y", label: "Pan Y", min: -10, max: 10, default: 0 },
-            { key: "rotation_y", label: "Rotate Y", min: -180, max: 180, default: 0 },
-            { key: "rotation_z", label: "Tilt", min: -180, max: 180, default: 0 },
-            { key: "fov", label: "FOV", min: 1, max: 180, default: 70 },
+            { key: "cfg", label: "Vibe (CFG)", min: 0, max: 30, default: 6, group: "Style" },
+            { key: "strength", label: "Strength", min: 0, max: 1.5, default: 0.7, group: "Style" },
+            { key: "noise_multiplier", label: "Noise/Glitch", min: 0, max: 3, default: 1.0, group: "Style" },
+            { key: "translation_z", label: "Zoom", min: -10, max: 10, default: 0, group: "Camera" },
+            { key: "translation_x", label: "Pan X", min: -10, max: 10, default: 0, group: "Camera" },
+            { key: "translation_y", label: "Pan Y", min: -10, max: 10, default: 0, group: "Camera" },
+            { key: "rotation_y", label: "Rotate Y", min: -180, max: 180, default: 0, group: "Camera" },
+            { key: "rotation_z", label: "Tilt", min: -180, max: 180, default: 0, group: "Camera" },
+            { key: "fov", label: "FOV", min: 1, max: 180, default: 70, group: "Camera" },
           ],
           lfoShapes: ["Sine", "Triangle", "Saw", "Square"],
           lfos: Array.from({ length: 6 }).map((_, idx) => ({
@@ -883,6 +891,15 @@
       computed: {
         activeSlot() {
           return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
+        },
+        lfoTargetGroups() {
+          const groups = {};
+          this.lfoTargets.forEach((target) => {
+            const label = target.group || "Other";
+            if (!groups[label]) groups[label] = [];
+            groups[label].push(target);
+          });
+          return Object.entries(groups).map(([label, items]) => ({ label, items }));
         },
       },
       mounted() {
@@ -1202,6 +1219,26 @@
         },
         addAudioMapping() {
           this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
+        },
+        removeAudioMapping(index) {
+          this.audioMappings.splice(index, 1);
+        },
+        addLfo() {
+          const nextId = this.lfos.length ? Math.max(...this.lfos.map((l) => l.id)) + 1 : 1;
+          this.lfos.push({
+            id: nextId,
+            on: true,
+            target: "",
+            shape: "Sine",
+            bpm: this.lfoBpm || 120,
+            depth: 0.2,
+            base: null,
+            phase: 0,
+          });
+        },
+        removeLfo(index) {
+          if (this.lfos.length <= 1) return;
+          this.lfos.splice(index, 1);
         },
         queueLiveParam(key, val) {
           const now = this.getNow();
