@@ -148,7 +148,7 @@ describe("Deforumation Web UI", () => {
     expect(modSubtitles.join(" ")).to.include("Beat Macros");
     
     // Audio mapping section should be hidden when no audio file
-    let audioMappingSection = document.querySelector(".framesync-subtitle:has(+ div)");
+    const audioMappingSection = document.querySelector(".framesync-subtitle:has(+ div)");
     // When audio is uploaded, audio mapping section becomes visible
     appVm.audio.uploadedFile = "song.wav";
     appVm.audio.track = "/tmp/song.wav";

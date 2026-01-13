@@ -292,12 +292,15 @@ def main():
     frame_delay = 1.0 / fps
     
     # Pattern generator function
+    def generate_text_with_custom_text(fn, w, h):
+        return generate_text_frame(fn, w, h, custom_text)
+    
     pattern_generators = {
         'timestamp': generate_timestamp_frame,
         'colorbars': generate_colorbars_frame,
         'checkerboard': generate_checkerboard_frame,
         'gradient': generate_gradient_frame,
-        'text': lambda fn, w, h: generate_text_frame(fn, w, h, custom_text),
+        'text': generate_text_with_custom_text,
     }
     
     generator = pattern_generators.get(pattern, generate_timestamp_frame)
