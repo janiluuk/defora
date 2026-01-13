@@ -7,13 +7,64 @@ services:
           echo 'Waiting for frames in /data/frames ...';
           sleep 2;
         done;
+        
+        QUALITY_PRESET=${ENCODER_QUALITY:-medium};
+        
+        case $QUALITY_PRESET in
+          low)
+            BITRATE=500k
+            MAXRATE=750k
+            BUFSIZE=1M
+            PRESET=veryfast
+            CRF=28
+            ;;
+          medium)
+            BITRATE=1500k
+            MAXRATE=2250k
+            BUFSIZE=3M
+            PRESET=veryfast
+            CRF=23
+            ;;
+          high)
+            BITRATE=3500k
+            MAXRATE=5000k
+            BUFSIZE=7M
+            PRESET=fast
+            CRF=20
+            ;;
+          ultra)
+            BITRATE=6000k
+            MAXRATE=9000k
+            BUFSIZE=12M
+            PRESET=medium
+            CRF=18
+            ;;
+          *)
+            BITRATE=1500k
+            MAXRATE=2250k
+            BUFSIZE=3M
+            PRESET=veryfast
+            CRF=23
+            ;;
+        esac;
+        
+        echo "Encoder starting with quality preset: $QUALITY_PRESET";
+        echo "  Bitrate: $BITRATE | Max: $MAXRATE | Buffer: $BUFSIZE";
+        echo "  Preset: $PRESET | CRF: $CRF";
+        
         ffmpeg -re -framerate ${FPS:-24} -pattern_type glob -i '/data/frames/frame_*.png'
           -vf scale=${RESOLUTION:-1280:720}
-          -c:v libx264 -preset veryfast -tune zerolatency -g $(( ${FPS:-24} * 2 ))
+          -c:v libx264 -preset $PRESET -tune zerolatency
+          -b:v $BITRATE -maxrate $MAXRATE -bufsize $BUFSIZE -crf $CRF
+          -g $(( ${FPS:-24} * 2 ))
           -f flv rtmp://web:1935/live/deforum
       "
     volumes:
       - frames:/data/frames
+    environment:
+      - ENCODER_QUALITY=${ENCODER_QUALITY:-medium}
+      - FPS=${FPS:-24}
+      - RESOLUTION=${RESOLUTION:-1280:720}
     depends_on:
       - web
 
@@ -113,8 +164,12 @@ services:
       dockerfile: docker/frame-seeder/Dockerfile
     environment:
       - OUTPUT_DIR=/data/frames
-      - FPS=12
-      - CLEAR=1
+      - FPS=${SEEDER_FPS:-12}
+      - CLEAR=${SEEDER_CLEAR:-1}
+      - PATTERN=${SEEDER_PATTERN:-timestamp}
+      - CUSTOM_TEXT=${SEEDER_CUSTOM_TEXT:-Defora Test}
+      - WIDTH=${SEEDER_WIDTH:-1280}
+      - HEIGHT=${SEEDER_HEIGHT:-720}
     volumes:
       - frames:/data/frames
     depends_on:

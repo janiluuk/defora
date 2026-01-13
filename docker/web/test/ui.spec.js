@@ -37,6 +37,7 @@ function loadAppDefinition() {
     document: { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
     // Proxy to the outer fetch so tests can stub/intercept network calls
     fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
+    FileReader: global.FileReader,
     setInterval: () => 0,
     console,
   };
@@ -103,9 +104,11 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
-    expect(tabs.join(" ")).to.include("AUDIO/BEATS");
+    expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("CN");
     expect(tabs.join(" ")).to.include("SETTINGS");
+    // Should have 6 tabs total (AUDIO/BEATS and FEATURES merged into MODULATION)
+    expect(tabs.length).to.equal(6);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -133,11 +136,27 @@ describe("Deforumation Web UI", () => {
     expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
   });
 
-  it("includes macro rack cards and MIDI mappings", async () => {
-    appVm.switchTab("AUDIO");
+  it("toggles modulation tab sections and shows unified interface", async () => {
+    // Switch to unified MODULATION tab
+    appVm.switchTab("MODULATION");
     await nextTick();
-    const audioHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(audioHeadings.join(" ")).to.include("Beat macros");
+    
+    // Check that the unified modulation tab has the expected sections
+    const modSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
+    expect(modSubtitles.join(" ")).to.include("Audio Source");
+    expect(modSubtitles.join(" ")).to.include("LFO Modulators");
+    expect(modSubtitles.join(" ")).to.include("Beat Macros");
+    
+    // Audio mapping section should be hidden when no audio file
+    const audioMappingSection = document.querySelector(".framesync-subtitle:has(+ div)");
+    // When audio is uploaded, audio mapping section becomes visible
+    appVm.audio.uploadedFile = "song.wav";
+    appVm.audio.track = "/tmp/song.wav";
+    await nextTick();
+    
+    // Now audio mapping should be visible
+    const allSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
+    expect(allSubtitles.join(" ")).to.include("Audio → Parameter Mapping");
 
     appVm.switchTab("SETTINGS");
     await nextTick();
@@ -149,10 +168,11 @@ describe("Deforumation Web UI", () => {
 });
 
 describe("Deforumation Web UI behavior", () => {
-  const appDef = loadAppDefinition();
+  let appDef;
   let testStorage;
 
   beforeEach(() => {
+    appDef = loadAppDefinition();
     // Set up minimal localStorage mock for tests with shared storage
     testStorage = {};
     if (!global.window) {
@@ -204,6 +224,20 @@ describe("Deforumation Web UI behavior", () => {
     instance.addMacro(); // should be ignored after reaching 6
 
     expect(instance.macrosRack).to.have.length(6);
+  });
+
+  it("removeMacro deletes a macro entry", () => {
+    const instance = instantiate(appDef);
+    const before = instance.macrosRack.length;
+    const firstMacroTarget = instance.macrosRack[0].target;
+    const secondMacroTarget = instance.macrosRack[1].target;
+
+    instance.removeMacro(0);
+
+    expect(instance.macrosRack.length).to.equal(before - 1);
+    // Verify the first item was removed and second item is now first
+    expect(instance.macrosRack[0].target).to.equal(secondMacroTarget);
+    expect(instance.macrosRack[0].target).to.not.equal(firstMacroTarget);
   });
 
   it("handleMidi maps CC messages to scaled liveParam payloads", () => {
@@ -297,6 +331,57 @@ describe("Deforumation Web UI behavior", () => {
     expect(bodies[0].audioPath).to.equal("/tmp/song.wav");
     expect(bodies[0].mappings[0].freq_max).to.equal(300);
     delete global.fetch;
+  });
+
+  it("handleAudioUpload posts file data and updates track", async () => {
+    const calls = [];
+    global.fetch = async (_url, opts) => {
+      calls.push(JSON.parse(opts.body));
+      return { ok: true, json: async () => ({ ok: true, path: "/tmp/uploaded.wav" }) };
+    };
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    appDef = loadAppDefinition();
+    const instance = instantiate(appDef);
+    await instance.handleAudioUpload({ target: { files: [{ name: "track.wav" }] } });
+
+    expect(calls[0].name).to.equal("track.wav");
+    expect(instance.audio.track).to.equal("/tmp/uploaded.wav");
+    expect(instance.audio.uploadedFile).to.equal("track.wav");
+    delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("handleAudioUpload handles FileReader errors gracefully", async () => {
+    global.FileReader = class {
+      readAsDataURL() {
+        setImmediate(() => this.onerror(new Error("Read failed")));
+      }
+    };
+    appDef = loadAppDefinition();
+    const instance = instantiate(appDef);
+
+    await instance.handleAudioUpload({ target: { files: [{ name: "broken.wav" }] } });
+
+    // The error should be caught and stored in audioStatus
+    expect(instance.audioStatus).to.include("Failed to read audio file");
+    expect(instance.audioStatus).to.include("under 50MB");
+
+    delete global.FileReader;
+  });
+
+  it("addLfo creates a new LFO entry", () => {
+    const instance = instantiate(appDef);
+    const before = instance.lfos.length;
+
+    instance.addLfo();
+
+    expect(instance.lfos.length).to.equal(before + 1);
+    expect(instance.lfos.at(-1)).to.include({ shape: "Sine", on: true });
   });
 
   it("setMorph toggles morph state and emits control", () => {

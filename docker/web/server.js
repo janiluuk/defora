@@ -22,7 +22,7 @@ async function start(opts = {}) {
   const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
 
   const app = express();
-  app.use(express.json({ limit: "1mb" }));
+  app.use(express.json({ limit: "50mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
 
   // Simple health check endpoint for Docker healthcheck
@@ -127,9 +127,79 @@ async function start(opts = {}) {
 
   // Preset management API
   const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
+  const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
   try {
     await fsp.mkdir(presetsDir, { recursive: true });
   } catch (_e) {}
+  try {
+    await fsp.mkdir(uploadsDir, { recursive: true });
+  } catch (_e) {}
+
+  app.post("/api/audio-upload", async (req, res) => {
+    try {
+      const { name, data } = req.body || {};
+      if (!name || !data) {
+        return res.status(400).json({ error: "name and data required" });
+      }
+      
+      // Validate file extension
+      const originalName = path.basename(String(name));
+      const ext = path.extname(originalName).toLowerCase();
+      const allowedExts = new Set([".wav", ".mp3", ".ogg", ".flac", ".m4a"]);
+      if (!allowedExts.has(ext)) {
+        return res.status(400).json({ error: "invalid or unsupported audio file extension" });
+      }
+      const baseNameWithoutExt = path.basename(originalName, ext);
+      const sanitizedBase = baseNameWithoutExt.replace(/[^a-zA-Z0-9_-]/g, "_");
+      const safeName = sanitizedBase + ext;
+      
+      // Parse and validate data URL
+      const dataStr = String(data);
+      let base64Payload;
+
+      if (dataStr.startsWith("data:")) {
+        const match = /^data:([^;]+);base64,(.+)$/.exec(dataStr);
+        if (!match) {
+          return res.status(400).json({ error: "invalid data URL format" });
+        }
+        const mimeType = match[1];
+        if (typeof mimeType !== "string" || !mimeType.toLowerCase().startsWith("audio/")) {
+          return res.status(400).json({ error: "invalid MIME type: audio required" });
+        }
+        
+        // Cross-validate MIME type against file extension
+        const mimeExt = {
+          "audio/wav": ".wav",
+          "audio/wave": ".wav",
+          "audio/x-wav": ".wav",
+          "audio/mpeg": ".mp3",
+          "audio/mp3": ".mp3",
+          "audio/ogg": ".ogg",
+          "audio/flac": ".flac",
+          "audio/x-flac": ".flac",
+          "audio/mp4": ".m4a",
+          "audio/x-m4a": ".m4a"
+        };
+        const expectedExt = mimeExt[mimeType.toLowerCase()];
+        if (expectedExt && expectedExt !== ext) {
+          return res.status(400).json({ error: `MIME type ${mimeType} does not match file extension ${ext}` });
+        }
+        
+        base64Payload = match[2];
+      } else {
+        // Fallback: treat as raw base64 data without a data: URL prefix.
+        base64Payload = dataStr;
+      }
+
+      const buf = Buffer.from(base64Payload, "base64");
+      const target = path.join(uploadsDir, `${Date.now()}-${safeName}`);
+      await fsp.writeFile(target, buf);
+      res.json({ ok: true, path: target, name: safeName });
+    } catch (err) {
+      console.error("[api] audio upload error", err);
+      res.status(500).json({ error: "upload failed" });
+    }
+  });
 
   app.get("/api/presets", async (_req, res) => {
     try {
