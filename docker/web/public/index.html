@@ -36,17 +36,17 @@
       flex-direction: column;
     }
     header {
-      padding: 12px 16px;
+      padding: 8px 16px;
       background: rgba(13, 18, 34, 0.8);
       border-bottom: 1px solid var(--border);
       backdrop-filter: blur(6px);
       display: grid;
-      grid-template-columns: 1.4fr 1fr 1fr;
-      gap: 10px;
+      grid-template-columns: auto 1fr;
+      gap: 16px;
       align-items: center;
     }
-    .brand { font-weight: 700; letter-spacing: 0.5px; font-size: 18px; }
-    .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+    .brand { display: none; }
+    .tabs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }
     .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: var(--muted); cursor: pointer; }
     .tab.active { border-color: var(--glow2); color: var(--text); box-shadow: 0 6px 20px rgba(45,226,255,0.12); }
     .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: #11182d; color: var(--muted); font-size: 12px; }
@@ -55,10 +55,10 @@
     .btn { background: linear-gradient(90deg, var(--glow1), var(--glow2)); color: #0a0c12; border: none; border-radius: 999px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
     .btn.ghost { background: #0f172a; color: var(--text); border: 1px solid var(--border); }
     .layout { flex: 1; display: grid; grid-template-columns: 1.8fr 1fr; gap: 10px; padding: 10px; }
-    .preview { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; display: grid; gap: 10px; }
-    .video-wrap { position: relative; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); background: #000; }
-    video { width: 100%; display: block; background: #000; }
-    .overlay { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; padding: 8px 10px; background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); font-size: 12px; }
+    .preview { display: flex; flex-direction: column; gap: 0; }
+    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; width: 100%; }
+    video { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
+    .overlay { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; padding: 10px 12px; background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent); font-size: 13px; font-weight: 600; color: #fff; }
     .timeline { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px; }
     .thumbs { display: flex; gap: 8px; overflow-x: auto; margin-bottom: 6px; padding-bottom: 4px; }
     .thumb-card { position: relative; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); background: #0b0f1c; box-shadow: 0 8px 20px rgba(0,0,0,0.35); }
@@ -138,28 +138,32 @@
     .fs-row select { background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; padding: 4px 6px; }
     .fs-row button { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 8px; padding: 4px 6px; cursor: pointer; }
     /* Custom video controls with FrameSync styling */
-    .preview-bar-container { margin-top: 10px; background: #061726; border: 1px solid #0c2c3f; border-radius: 8px; overflow: hidden; }
-    .preview-bar-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0b1526; border-bottom: 1px solid #0c2c3f; }
-    .preview-bar-title { font-size: 12px; color: #9bc4e2; font-weight: 600; }
-    .preview-bar-toggle { background: transparent; border: 1px solid #173753; color: #cfe5f5; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+    .preview-bar-container { margin-top: 4px; background: #061726; border: 1px solid #0c2c3f; border-radius: 6px; overflow: hidden; }
+    .preview-bar-header { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px; background: #0b1526; border-bottom: 1px solid #0c2c3f; }
+    .preview-bar-title { font-size: 11px; color: #9bc4e2; font-weight: 600; }
+    .preview-bar-toggle { background: transparent; border: 1px solid #173753; color: #cfe5f5; border-radius: 4px; padding: 2px 6px; font-size: 10px; cursor: pointer; }
     .preview-bar-toggle:hover { border-color: #ff8a1a; color: #ff8a1a; }
-    .preview-bar { display: flex; gap: 8px; overflow-x: auto; padding: 10px; max-height: 100px; }
+    .preview-bar { display: flex; gap: 4px; overflow-x: auto; padding: 6px; max-height: 70px; }
     .preview-bar.collapsed { display: none; }
-    .preview-bar::-webkit-scrollbar { height: 6px; }
+    .preview-bar::-webkit-scrollbar { height: 4px; }
     .preview-bar::-webkit-scrollbar-track { background: #061726; }
-    .preview-bar::-webkit-scrollbar-thumb { background: #173753; border-radius: 3px; }
+    .preview-bar::-webkit-scrollbar-thumb { background: #173753; border-radius: 2px; }
     .preview-bar::-webkit-scrollbar-thumb:hover { background: #ff8a1a; }
-    .video-controls { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 12px; padding: 12px; }
-    .control-btn { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; min-width: 120px; justify-content: center; }
-    .control-btn:hover { border-color: #ff8a1a; transform: translateY(-1px); }
-    .control-btn.playing { border-color: #5af2a9; background: rgba(90, 242, 169, 0.15); color: #5af2a9; }
-    .control-btn.recording { border-color: #ff4d6d; background: rgba(255, 77, 109, 0.15); color: #ff4d6d; animation: pulse 1.5s ease-in-out infinite; }
+    .thumb-card { position: relative; border-radius: 4px; overflow: hidden; border: 1px solid #0c2c3f; background: #0b0f1c; flex-shrink: 0; }
+    .thumb { width: 80px; height: 45px; display: block; background: #11182a; object-fit: cover; }
+    .thumb-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 2px 4px; font-size: 9px; color: var(--text); background: linear-gradient(180deg, transparent, rgba(0,0,0,0.8)); }
+    .video-controls-panel { background: linear-gradient(135deg, #0b1f34 0%, #061726 100%); border: 1px solid #173753; border-radius: 8px; padding: 8px 12px; margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); }
+    .video-controls { display: flex; gap: 8px; align-items: center; justify-content: center; }
+    .control-btn { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 6px; padding: 6px 16px; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; min-width: 90px; justify-content: center; font-weight: 600; }
+    .control-btn:hover { border-color: #ff8a1a; transform: translateY(-1px); box-shadow: 0 2px 8px rgba(255, 138, 26, 0.3); }
+    .control-btn.playing { border-color: #5af2a9; background: rgba(90, 242, 169, 0.12); color: #5af2a9; }
+    .control-btn.recording { border-color: #ff4d6d; background: rgba(255, 77, 109, 0.12); color: #ff4d6d; animation: pulse 1.5s ease-in-out infinite; }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-    .stream-link { background: #031b2d; border: 1px solid #0c3048; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #cfe5f5; display: flex; align-items: center; gap: 8px; margin-top: 8px; justify-content: center; }
+    .stream-link { background: #031b2d; border: 1px solid #0c3048; border-radius: 4px; padding: 4px 8px; font-size: 10px; color: #cfe5f5; display: flex; align-items: center; gap: 6px; margin-top: 4px; justify-content: center; }
     .stream-link a { color: #ff8a1a; text-decoration: none; }
     .stream-link a:hover { text-decoration: underline; }
     .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0b1526 0%, #061726 100%); }
-    .thumb-placeholder svg { width: 40px; height: 40px; opacity: 0.3; }
+    .thumb-placeholder svg { width: 30px; height: 30px; opacity: 0.3; }
     video::-webkit-media-controls { display: none !important; }
     video::-webkit-media-controls-enclosure { display: none !important; }
     @media (max-width: 1100px) {
@@ -171,7 +175,6 @@
 <body>
   <div id="app">
     <header>
-      <div class="brand">Defora · Session: {{ session }}</div>
       <div class="tabs">
         <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
           {{ tab.label }}
@@ -192,7 +195,7 @@
         <div class="video-wrap">
           <video id="player" ref="videoPlayer" autoplay muted playsinline></video>
           <div class="overlay">
-            <div>Time {{ timecode }}</div>
+            <div style="font-size: 14px; font-weight: 700;">Defora · Session: {{ session }}</div>
             <div>Seed {{ hud.seed }}</div>
           </div>
         </div>
@@ -226,29 +229,30 @@
           </div>
         </div>
         
-        <!-- Centered controls below preview bar -->
-        <div class="video-controls">
-          <button class="control-btn" @click="togglePlayPause" :class="{playing: isPlaying}">
-            <span v-if="isPlaying">⏸</span>
-            <span v-else>▶</span>
-            {{ isPlaying ? 'Pause' : 'Play' }}
-          </button>
-          <button class="control-btn" @click="stopVideo">
-            ⏹ Stop
-          </button>
-          <button class="control-btn" @click="toggleRecord" :class="{recording: isRecording}">
-            <span v-if="isRecording">⏺</span>
-            <span v-else>●</span>
-            {{ isRecording ? 'Recording' : 'Record' }}
-          </button>
+        <!-- Stylish controls panel below preview bar -->
+        <div class="video-controls-panel">
+          <div class="video-controls">
+            <button class="control-btn" @click="togglePlayPause" :class="{playing: isPlaying}">
+              <span v-if="isPlaying">⏸</span>
+              <span v-else>▶</span>
+              {{ isPlaying ? 'Pause' : 'Play' }}
+            </button>
+            <button class="control-btn" @click="stopVideo">
+              ⏹ Stop
+            </button>
+            <button class="control-btn" @click="toggleRecord" :class="{recording: isRecording}">
+              <span v-if="isRecording">⏺</span>
+              <span v-else>●</span>
+              {{ isRecording ? 'Rec' : 'Record' }}
+            </button>
+          </div>
+          <div class="stream-link" v-if="streamUrl">
+            <span>🔗 Stream:</span>
+            <a :href="streamUrl" target="_blank">{{ streamUrl }}</a>
+          </div>
         </div>
         
-        <div class="stream-link" v-if="streamUrl">
-          <span>🔗 Stream:</span>
-          <a :href="streamUrl" target="_blank">{{ streamUrl }}</a>
-        </div>
-        
-        <div class="timeline">
+        <div class="timeline" style="margin-top: 4px;">
           <div class="wave"></div>
         </div>
       </div>
