@@ -101,6 +101,9 @@
     .framesync-list .item { padding: 4px 0; border-bottom: 1px solid rgba(12, 48, 72, 0.6); }
     .framesync-list .item:last-child { border-bottom: none; }
     .framesync-select, .framesync-input { width: 100%; padding: 6px; background: #03192a; border: 1px solid #0c3048; border-radius: 4px; color: #cfe5f5; font-size: 12px; }
+    .framesync-input[type="range"] { accent-color: #ff8a1a; }
+    .framesync-gradient-bar { background: linear-gradient(90deg, #ff8a1a, #2de2ff); height: 24px; border-radius: 6px; }
+    .xy-dot.framesync { background: #ff8a1a; box-shadow: 0 0 10px #ff8a1a; }
     .framesync-buttons { display: grid; grid-template-columns: repeat(auto-fit, minmax(64px, 1fr)); gap: 6px; }
     .framesync-button { background: #061b2d; border: 1px solid #0f3c5c; color: #cfe5f5; font-size: 11px; padding: 6px 4px; text-align: center; border-radius: 4px; cursor: pointer; }
     .framesync-button.active { border-color: #ff8a1a; color: #ffbf80; }
@@ -198,7 +201,7 @@
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack" v-for="p in liveVibe" :key="p.key">
                   <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input" style="accent-color:#ff8a1a;">
+                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
                   <div class="framesync-footer" style="gap:4px;">
                     <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
                     <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
@@ -216,7 +219,7 @@
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack" v-for="p in liveCam" :key="p.key">
                   <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input" style="accent-color:#ff8a1a;">
+                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
                   <div class="framesync-footer" style="gap:4px;" v-if="p.sourceable">
                     <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
                     <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
@@ -268,7 +271,7 @@
                 <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</button>
                 <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</button>
               </div>
-              <div style="margin-top:10px; background: linear-gradient(90deg, #ff8a1a, #2de2ff); height:24px; border-radius:6px;"></div>
+              <div class="framesync-gradient-bar" style="margin-top:10px;"></div>
             </div>
           </div>
         </div>
@@ -288,7 +291,7 @@
                   @touchstart="xyPadMouseDown"
                   @touchmove="xyPadMouseMove"
                   @touchend="xyPadMouseUp">
-                  <div class="xy-dot" :style="{left: xyPad.x + 'px', top: xyPad.y + 'px', transform: 'translate(-6px, -6px)', background: '#ff8a1a', boxShadow: '0 0 10px #ff8a1a'}"></div>
+                  <div class="xy-dot framesync" :style="{left: xyPad.x + 'px', top: xyPad.y + 'px', transform: 'translate(-6px, -6px)'}"></div>
                 </div>
               </div>
               <div class="framesync-subtitle" style="margin-top:8px; text-align:center;">
@@ -303,11 +306,11 @@
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div class="framesync-subtitle">Zoom</div>
-                <input type="range" min="-5" max="5" step="0.05" value="0.8" @input="sendControl('liveParam',{translation_z: parseFloat($event.target.value)})" class="framesync-input" style="accent-color:#ff8a1a;">
+                <input type="range" min="-5" max="5" step="0.05" value="0.8" @input="sendControl('liveParam',{translation_z: parseFloat($event.target.value)})" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:10px;">
                 <div class="framesync-subtitle">Tilt</div>
-                <input type="range" min="-180" max="180" step="0.5" value="0" @input="sendControl('liveParam',{rotation_z: parseFloat($event.target.value)})" class="framesync-input" style="accent-color:#ff8a1a;">
+                <input type="range" min="-180" max="180" step="0.5" value="0" @input="sendControl('liveParam',{rotation_z: parseFloat($event.target.value)})" class="framesync-input">
               </div>
             </div>
           </div>
@@ -558,21 +561,21 @@
                   <div class="framesync-subtitle">Weight</div>
                   <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
                 </div>
-                <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input" style="accent-color:#ff8a1a;">
+                <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">Start</div>
                   <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
                 </div>
-                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)" class="framesync-input" style="accent-color:#ff8a1a;">
+                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">End</div>
                   <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
                 </div>
-                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)" class="framesync-input" style="accent-color:#ff8a1a;">
+                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
             </div>
           </div>
