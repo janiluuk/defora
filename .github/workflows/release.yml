@@ -155,7 +155,11 @@ jobs:
       - name: Commit version bump and changelog
         if: steps.check_release.outputs.needs_release == 'true'
         run: |
-          git add docker/web/package.json docker/web/package-lock.json CHANGELOG.md
+          git add docker/web/package.json CHANGELOG.md
+          # Add package-lock.json if it exists and was modified
+          if [ -f docker/web/package-lock.json ]; then
+            git add docker/web/package-lock.json
+          fi
           git commit -m "chore: bump version to ${{ steps.bump_version.outputs.new_version }} [skip ci]"
           git push origin main
 
