@@ -482,9 +482,10 @@ healthcheck:
 
 ### Immediate (This PR)
 1. ✅ Fix submodule initialization
-2. 🔄 Add missing dependencies (numpy, scipy, librosa)
-3. 🔄 Enable audio reactive tests
-4. 🔄 Create this status document
+2. ✅ Add missing dependencies (numpy, scipy, librosa)
+3. ✅ Enable audio reactive tests
+4. ✅ Add comprehensive API documentation
+5. ✅ Add comprehensive troubleshooting guide
 
 ### High Priority (Next PR)
 1. Implement XY pad interaction
@@ -540,8 +541,12 @@ healthcheck:
 - ✅ COMPLETE_SETUP.md - Step-by-step
 - ✅ docs/streaming_stack.md - Good
 - ✅ docs/mediator_setup.md - Clear
-- ⚠️ API documentation - Missing
-- ⚠️ Troubleshooting guide - Basic only
+- ✅ docs/API.md - Complete REST API reference
+- ✅ docs/TROUBLESHOOTING.md - Comprehensive troubleshooting guide
+- ✅ docs/WEB_UI_TABS.md - Web UI reference
+- ✅ docs/VOLUME_MANAGEMENT.md - Docker volume management
+- ✅ docs/ENCODER_QUALITY.md - Encoder quality presets
+- ✅ docs/FRAME_SEEDER_PATTERNS.md - Frame seeder patterns
 
 ---
 
@@ -557,5 +562,5 @@ To work on any incomplete feature:
 
 ---
 
-**Last Updated**: 2026-01-02  
+**Last Updated**: 2026-01-14  
 **Next Review**: After each phase completion
