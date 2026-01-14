@@ -171,7 +171,7 @@ async function start(opts = {}) {
 
   // Run cleanup on startup and then every hour
   cleanupOldUploads();
-  setInterval(cleanupOldUploads, 60 * 60 * 1000);
+  const cleanupTimer = setInterval(cleanupOldUploads, 60 * 60 * 1000);
 
   app.post("/api/audio-upload", async (req, res) => {
     try {
@@ -465,6 +465,7 @@ async function start(opts = {}) {
 
   const close = async () => {
     clearInterval(pollTimer);
+    clearInterval(cleanupTimer);
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
       try {
