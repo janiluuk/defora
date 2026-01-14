@@ -191,92 +191,134 @@
       <div>
         <div v-if="currentTab==='LIVE'">
           <div class="rack">
-            <h3>Vibe & Style</h3>
-            <div class="slider-row" v-for="p in liveVibe" :key="p.key">
-              <div>{{ p.label }}</div>
-              <div>
-                <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)">
-                <div class="source">
-                  <span :title="sourceTip(p)">Source: </span>
-                  <span class="chip" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</span>
-                  <span class="chip" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</span>
-                  <span class="chip" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎨 Vibe & <span class="framesync-accent">Style</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
+                <div class="framesync-stack" v-for="p in liveVibe" :key="p.key">
+                  <div class="framesync-subtitle">{{ p.label }}</div>
+                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input" style="accent-color:#ff8a1a;">
+                  <div class="framesync-footer" style="gap:4px;">
+                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
+                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
+                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
           <div class="rack">
-            <h3>Camera</h3>
-            <div class="slider-row" v-for="p in liveCam" :key="p.key">
-              <div>{{ p.label }}</div>
-              <div>
-                <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)">
-                <div class="source" v-if="p.sourceable">
-                  <span class="chip" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</span>
-                  <span class="chip" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</span>
-                  <span class="chip" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">📹 <span class="framesync-accent">Camera</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
+                <div class="framesync-stack" v-for="p in liveCam" :key="p.key">
+                  <div class="framesync-subtitle">{{ p.label }}</div>
+                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input" style="accent-color:#ff8a1a;">
+                  <div class="framesync-footer" style="gap:4px;" v-if="p.sourceable">
+                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
+                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
+                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div class="chips">
-              <span class="chip" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</span>
+              <div class="framesync-subtitle" style="margin-top:16px;">Motion Presets</div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</button>
+              </div>
             </div>
           </div>
         </div>
 
         <div v-else-if="currentTab==='PROMPTS'">
           <div class="rack">
-            <h3>Positive prompt</h3>
-            <input class="select" v-model="prompts.pos" @change="sendPrompts" placeholder="positive prompt" />
-            <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Apply prompt</button>
-          </div>
-          <div class="rack">
-            <h3>Negative prompt</h3>
-            <input class="select" v-model="prompts.neg" @change="sendPrompts" placeholder="negative prompt" />
-            <button class="btn ghost" style="margin-top:6px;" @click="sendPrompts">Apply negative</button>
-          </div>
-          <div class="rack">
-            <h3>Prompt morphing</h3>
-            <div class="chips">
-              <span class="chip" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</span>
-              <span class="chip" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">✍️ Positive <span class="framesync-accent">Prompt</span></div>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <input class="framesync-input" v-model="prompts.pos" @change="sendPrompts" placeholder="positive prompt" style="padding:10px;" />
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <button class="framesync-button" @click="sendPrompts">Apply prompt</button>
+                </div>
+              </div>
             </div>
-            <div class="wave" style="margin-top:6px; height:24px; background: linear-gradient(90deg, var(--glow1), var(--glow2));"></div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🚫 Negative <span class="framesync-accent">Prompt</span></div>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <input class="framesync-input" v-model="prompts.neg" @change="sendPrompts" placeholder="negative prompt" style="padding:10px;" />
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <button class="framesync-button" @click="sendPrompts">Apply negative</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🌀 Prompt <span class="framesync-accent">Morphing</span></div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px;">
+                <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</button>
+                <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</button>
+              </div>
+              <div style="margin-top:10px; background: linear-gradient(90deg, #ff8a1a, #2de2ff); height:24px; border-radius:6px;"></div>
+            </div>
           </div>
         </div>
 
         <div v-else-if="currentTab==='MOTION'">
           <div class="rack">
-            <h3>Camera pad</h3>
-            <div class="xy-pad" 
-              @mousedown="xyPadMouseDown" 
-              @mousemove="xyPadMouseMove" 
-              @mouseup="xyPadMouseUp" 
-              @mouseleave="xyPadMouseUp"
-              @touchstart="xyPadMouseDown"
-              @touchmove="xyPadMouseMove"
-              @touchend="xyPadMouseUp">
-              <div class="xy-dot" :style="{left: xyPad.x + 'px', top: xyPad.y + 'px', transform: 'translate(-6px, -6px)'}"></div>
-            </div>
-            <div style="font-size: 11px; color: var(--muted); margin-top: 6px;">
-              Click/drag to control camera pan (X/Y translation)
-            </div>
-          </div>
-          <div class="rack">
-            <h3>Zoom & Tilt</h3>
-            <div class="slider-row">
-              <div>Zoom</div>
-              <input type="range" min="-5" max="5" step="0.05" value="0.8" @input="sendControl('liveParam',{translation_z: parseFloat($event.target.value)})">
-            </div>
-            <div class="slider-row">
-              <div>Tilt</div>
-              <input type="range" min="-180" max="180" step="0.5" value="0" @input="sendControl('liveParam',{rotation_z: parseFloat($event.target.value)})">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎮 Camera <span class="framesync-accent">Pad</span></div>
+              </div>
+              <div style="margin-top:12px; display:flex; justify-content:center;">
+                <div class="xy-pad" 
+                  @mousedown="xyPadMouseDown" 
+                  @mousemove="xyPadMouseMove" 
+                  @mouseup="xyPadMouseUp" 
+                  @mouseleave="xyPadMouseUp"
+                  @touchstart="xyPadMouseDown"
+                  @touchmove="xyPadMouseMove"
+                  @touchend="xyPadMouseUp">
+                  <div class="xy-dot" :style="{left: xyPad.x + 'px', top: xyPad.y + 'px', transform: 'translate(-6px, -6px)', background: '#ff8a1a', boxShadow: '0 0 10px #ff8a1a'}"></div>
+                </div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px; text-align:center;">
+                Click/drag to control camera pan (X/Y translation)
+              </div>
             </div>
           </div>
           <div class="rack">
-            <h3>Motion style</h3>
-            <div class="chips">
-              <span class="chip" v-for="m in motionStyles" :key="m" @click="sendControl('motionStyle',{style:m})">{{ m }}</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🔍 Zoom & <span class="framesync-accent">Tilt</span></div>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Zoom</div>
+                <input type="range" min="-5" max="5" step="0.05" value="0.8" @input="sendControl('liveParam',{translation_z: parseFloat($event.target.value)})" class="framesync-input" style="accent-color:#ff8a1a;">
+              </div>
+              <div class="framesync-stack" style="margin-top:10px;">
+                <div class="framesync-subtitle">Tilt</div>
+                <input type="range" min="-180" max="180" step="0.5" value="0" @input="sendControl('liveParam',{rotation_z: parseFloat($event.target.value)})" class="framesync-input" style="accent-color:#ff8a1a;">
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎬 Motion <span class="framesync-accent">Style</span></div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px;">
+                <button class="framesync-button" v-for="m in motionStyles" :key="m" @click="sendControl('motionStyle',{style:m})">{{ m }}</button>
+              </div>
             </div>
           </div>
         </div>
@@ -486,99 +528,138 @@
 
         <div v-else-if="currentTab==='CONTROLNET'">
           <div class="rack">
-            <h3>ControlNet slots</h3>
-            <div class="chips">
-              <span class="chip" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</span>
-              <span class="chip" @click="loadControlNetModels">🔄 Refresh models</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎯 ControlNet <span class="framesync-accent">Slots</span></div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px;">
+                <button class="framesync-button" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</button>
+                <button class="framesync-button" @click="loadControlNetModels">🔄 Refresh</button>
+              </div>
             </div>
           </div>
           <div class="rack">
-            <h3>{{ activeSlot.label }}</h3>
-            <div class="slider-row">
-              <div>Model</div>
-              <select class="select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
-                <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
-              </select>
-            </div>
-            <div class="chips" style="margin-bottom:8px;">
-              <span class="chip" @click="uploadControlNetImage(activeSlot)">📁 Change image</span>
-              <span class="chip" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</span>
-            </div>
-            <div class="slider-row">
-              <div>Weight</div>
-              <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)">
-              <span style="margin-left:8px; color:var(--muted); font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
-            </div>
-            <div class="slider-row">
-              <div>Start</div>
-              <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)">
-              <span style="margin-left:8px; color:var(--muted); font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
-            </div>
-            <div class="slider-row">
-              <div>End</div>
-              <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)">
-              <span style="margin-left:8px; color:var(--muted); font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⚙️ <span class="framesync-accent">{{ activeSlot.label }}</span> Settings</div>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Model</div>
+                <select class="framesync-select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
+                  <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
+                </select>
+              </div>
+              <div class="framesync-footer" style="margin-top:10px;">
+                <button class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Change image</button>
+                <button class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div class="framesync-subtitle">Weight</div>
+                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
+                </div>
+                <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input" style="accent-color:#ff8a1a;">
+              </div>
+              <div class="framesync-stack" style="margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div class="framesync-subtitle">Start</div>
+                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)" class="framesync-input" style="accent-color:#ff8a1a;">
+              </div>
+              <div class="framesync-stack" style="margin-top:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div class="framesync-subtitle">End</div>
+                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
+                </div>
+                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)" class="framesync-input" style="accent-color:#ff8a1a;">
+              </div>
             </div>
           </div>
         </div>
 
         <div v-else-if="currentTab==='SETTINGS'">
           <div class="rack">
-            <h3>Engine</h3>
-            <div class="slider-row"><div>Resolution</div><select class="select"><option>1024x576</option><option>1280x720</option></select></div>
-            <div class="slider-row"><div>FPS</div><select class="select"><option>24</option><option selected>30</option><option>60</option></select></div>
-            <div class="slider-row"><div>Steps</div><select class="select"><option>24</option><option>30</option><option>40</option></select></div>
-            <div class="chips">
-              <span class="chip">Seed: 42490527</span>
-              <span class="chip">Sampler: DPM++ 2M Karras</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⚙️ <span class="framesync-accent">Engine</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Resolution</div>
+                  <select class="framesync-select"><option>1024x576</option><option>1280x720</option></select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">FPS</div>
+                  <select class="framesync-select"><option>24</option><option selected>30</option><option>60</option></select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Steps</div>
+                  <select class="framesync-select"><option>24</option><option>30</option><option>40</option></select>
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px;">
+                <button class="framesync-button">Seed: 42490527</button>
+                <button class="framesync-button">Sampler: DPM++ 2M Karras</button>
+              </div>
             </div>
           </div>
           <div class="rack">
-            <h3>Controllers (WebMIDI)</h3>
-            <div v-if="!midi.supported" style="color:var(--muted);">WebMIDI not supported or not enabled.</div>
-            <div v-else>
-              <div class="chips" style="margin-bottom:6px;">
-                <span class="chip" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</span>
-                <span class="chip" @click="scanMidi()">Rescan</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎹 Controllers <span class="framesync-accent">(WebMIDI)</span></div>
               </div>
-              <div class="chips">
-                <span class="chip">Learn mode</span>
-                <span class="chip" @click="addMidiMapping">+ Add Mapping</span>
-                <span class="chip">Status: {{ midiStatus }}</span>
+              <div v-if="!midi.supported" style="color:#9bc4e2; margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
+              <div v-else>
+                <div class="framesync-footer" style="margin-top:12px;">
+                  <button class="framesync-button" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</button>
+                  <button class="framesync-button" @click="scanMidi()">Rescan</button>
+                </div>
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <button class="framesync-button">Learn mode</button>
+                  <button class="framesync-button" @click="addMidiMapping">+ Add Mapping</button>
+                  <button class="framesync-button">Status: {{ midiStatus }}</button>
+                </div>
+                <div style="margin-top:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px; overflow:hidden;">
+                  <table class="table">
+                    <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
+                    <tbody>
+                      <tr v-for="(m, idx) in midi.mappings" :key="'midi'+idx">
+                        <td><input class="framesync-input" v-model="m.control" @change="saveMidiMappings" style="width:100px; padding:4px;"></td>
+                        <td><input class="framesync-input" type="number" v-model.number="m.cc" @change="saveMidiMappings" style="width:60px; padding:4px;"></td>
+                        <td>
+                          <select class="framesync-select" v-model="m.key" @change="saveMidiMappings" style="width:120px; padding:4px;">
+                            <option value="">None</option>
+                            <option v-for="t in lfoTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
+                          </select>
+                        </td>
+                        <td><button class="framesync-button" @click="deleteMidiMapping(idx)" style="padding:4px 8px; cursor:pointer;">Delete</button></td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <table class="table">
-                <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
-                <tbody>
-                  <tr v-for="(m, idx) in midi.mappings" :key="'midi'+idx">
-                    <td><input class="select" v-model="m.control" @change="saveMidiMappings" style="width:100px;"></td>
-                    <td><input class="select" type="number" v-model.number="m.cc" @change="saveMidiMappings" style="width:60px;"></td>
-                    <td>
-                      <select class="select" v-model="m.key" @change="saveMidiMappings" style="width:120px;">
-                        <option value="">None</option>
-                        <option v-for="t in lfoTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
-                      </select>
-                    </td>
-                    <td><span class="chip" @click="deleteMidiMapping(idx)" style="cursor:pointer;">Delete</span></td>
-                  </tr>
-                </tbody>
-              </table>
             </div>
           </div>
           <div class="rack">
-            <h3>Preset Management</h3>
-            <div class="chips" style="margin-bottom:8px;">
-              <span class="chip" v-for="p in availablePresets" :key="p" :class="{active: currentPreset===p}" @click="loadPreset(p)">{{ p }}</span>
-              <span class="chip" @click="refreshPresets">🔄 Refresh</span>
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">💾 Preset <span class="framesync-accent">Management</span></div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px;">
+                <button class="framesync-button" v-for="p in availablePresets" :key="p" :class="{active: currentPreset===p}" @click="loadPreset(p)">{{ p }}</button>
+                <button class="framesync-button" @click="refreshPresets">🔄 Refresh</button>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">New preset name</div>
+                <input class="framesync-input" v-model="newPresetName" placeholder="my-preset">
+              </div>
+              <div class="framesync-footer" style="margin-top:10px;">
+                <button class="framesync-button" @click="saveCurrentPreset">💾 Save current as preset</button>
+                <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:#ff4d6d; color:#ff4d6d;">🗑 Delete {{ currentPreset }}</button>
+              </div>
+              <div v-if="presetStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ presetStatus }}</div>
             </div>
-            <div class="slider-row">
-              <div>New preset name</div>
-              <input class="select" v-model="newPresetName" placeholder="my-preset" style="flex:1;">
-            </div>
-            <div class="chips">
-              <span class="chip" @click="saveCurrentPreset">💾 Save current as preset</span>
-              <span class="chip" v-if="currentPreset" @click="deletePreset(currentPreset)" style="color:var(--danger);">🗑 Delete {{ currentPreset }}</span>
-            </div>
-            <div v-if="presetStatus" style="font-size:12px; color:var(--muted); margin-top:6px;">{{ presetStatus }}</div>
           </div>
         </div>
       </div>
