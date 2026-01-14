@@ -8,6 +8,12 @@ import unittest
 import subprocess
 import time
 import socket
+import os
+from pathlib import Path
+
+
+# Determine project root directory
+PROJECT_ROOT = os.getenv("DEFORA_ROOT", str(Path(__file__).parent.parent))
 
 
 class TestDockerStackIntegration(unittest.TestCase):
@@ -19,7 +25,7 @@ class TestDockerStackIntegration(unittest.TestCase):
             ["docker", "compose", "config"],
             capture_output=True,
             text=True,
-            cwd="/home/runner/work/defora/defora"
+            cwd=PROJECT_ROOT
         )
         
         # If docker is not available, skip this test
@@ -40,7 +46,7 @@ class TestDockerStackIntegration(unittest.TestCase):
             ["docker", "compose", "config"],
             capture_output=True,
             text=True,
-            cwd="/home/runner/work/defora/defora"
+            cwd=PROJECT_ROOT
         )
         
         if result.returncode == 127 or "command not found" in result.stderr:
@@ -65,7 +71,7 @@ class TestDockerStackIntegration(unittest.TestCase):
             ["docker", "compose", "config"],
             capture_output=True,
             text=True,
-            cwd="/home/runner/work/defora/defora"
+            cwd=PROJECT_ROOT
         )
         
         if result.returncode == 127 or "command not found" in result.stderr:

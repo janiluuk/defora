@@ -330,7 +330,11 @@ async function start(opts = {}) {
     
     try {
       // Try to fetch ControlNet models from SD-Forge API
-      const fetch = (await import('node-fetch')).default;
+      // Use native fetch (Node.js 18+) or fallback gracefully
+      if (typeof fetch === 'undefined') {
+        throw new Error('fetch not available, using placeholder models');
+      }
+      
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000); // 2 second timeout
       
