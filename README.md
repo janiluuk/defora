@@ -1,10 +1,102 @@
-# Defora — audio-visual instrument for Stahle Diffusion Forge/Deforumation
+# Defora — audio-visual instrument for Stable Diffusion Forge/Deforumation
 
 <p align="center">
   <img src="assets/defora_logo.svg" alt="defora logo" width="480" />
 </p>
 
 Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: live visuals, prompt morphing, camera motion, beat-synced controls, and a neon-styled web UI for performance.
+
+## ✨ Feature Highlights
+
+### 🎹 Live Performance Interface
+Control your AI video generation in real-time with multiple interface options:
+
+<table>
+<tr>
+<td width="50%">
+<h4>Web UI — Browser-based Performance Dashboard</h4>
+<img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
+<p>Neon-styled web interface with macro sliders, motion presets, and live parameter control</p>
+</td>
+<td width="50%">
+<h4>TUI — Terminal-based Control Center</h4>
+<img src="screenshots/tui-live.png" alt="TUI Live Tab" width="100%" />
+<p>Full-featured ncurses interface for terminal enthusiasts with ASCII preview and parameter control</p>
+</td>
+</tr>
+</table>
+
+### 🎨 Advanced Prompt Management
+Morph between multiple prompts and control narrative flow:
+
+<table>
+<tr>
+<td width="50%">
+<img src="screenshots/prompts-tab.png" alt="Web UI Prompts" width="100%" />
+<p><b>Web UI:</b> Visual prompt morphing with slots and blend control</p>
+</td>
+<td width="50%">
+<img src="screenshots/tui-prompts.png" alt="TUI Prompts" width="100%" />
+<p><b>TUI:</b> Text-based prompt management with morph ranges</p>
+</td>
+</tr>
+</table>
+
+### 🎥 Camera Motion Control
+Gamepad-style camera controls and curve editing:
+
+<table>
+<tr>
+<td width="50%">
+<img src="screenshots/motion-tab.png" alt="Web UI Motion" width="100%" />
+<p><b>Web UI:</b> Visual motion curves with preset system</p>
+</td>
+<td width="50%">
+<img src="screenshots/tui-motion.png" alt="TUI Motion" width="100%" />
+<p><b>TUI:</b> Multi-lane curve editor in your terminal</p>
+</td>
+</tr>
+</table>
+
+### 🎵 Audio-Reactive Modulation
+Sync your visuals to audio with beat-driven macros:
+
+<table>
+<tr>
+<td width="50%">
+<img src="screenshots/audio-tab.png" alt="Web UI Audio" width="100%" />
+<p><b>Web UI:</b> Waveform visualization with macro rack</p>
+</td>
+<td width="50%">
+<img src="screenshots/tui-audio.png" alt="TUI Audio" width="100%" />
+<p><b>TUI:</b> Beat-synced parameter automation</p>
+</td>
+</tr>
+</table>
+
+### 🎛️ ControlNet Integration & Settings
+Fine-tune your generation with ControlNet and render settings:
+
+<table>
+<tr>
+<td width="50%">
+<img src="screenshots/cn-tab.png" alt="Web UI ControlNet" width="100%" />
+<img src="screenshots/settings-tab.png" alt="Web UI Settings" width="100%" />
+<p><b>Web UI:</b> ControlNet slots and engine configuration</p>
+</td>
+<td width="50%">
+<img src="screenshots/tui-controlnet.png" alt="TUI ControlNet" width="100%" />
+<img src="screenshots/tui-settings.png" alt="TUI Settings" width="100%" />
+<p><b>TUI:</b> Complete control from your terminal</p>
+</td>
+</tr>
+</table>
+
+### 🎼 MIDI Controller Support
+Map any MIDI controller to live parameters:
+- **Web UI**: Browser-based Web MIDI support
+- **TUI**: CC mapping with learn mode
+- Full parameter control via hardware knobs and faders
 
 ## Requires
 - Moderately fast GPU (4070ti / 5060ti tested) with at least 12G VRAM
@@ -13,20 +105,35 @@ Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: l
 - Stable Diffusion Forge + Deforum extension from **https://github.com/Tok/sd-forge-deforum** and **https://github.com/lllyasviel/stable-diffusion-webui-forge**
 - There is docker stack including these in the package but it is recommended to run on external node 
 
-## What’s inside
-- `forge_cli` — model-aware txt2img/Deforum CLI with preset support and sensible defaults.
-- `deforumation_request_dispatcher` — merges manifests/presets/overrides and runs `forge_cli` for rerun/continue flows.
-- `deforumation_runs_cli` — curses TUI to browse run manifests, set overrides, and emit rerun/continue request files (can auto-dispatch).
-- `deforumation_cli_panel` — live mediator control panel (strength/CFG/noise/pan/zoom/rot/FOV) with re-bindable hotkeys.
-- `deforumation_dashboard` — curses dashboard echoing the Deforumation GUI tabs (prompts, prompt mixer, motions, control toggles, audio sync, settings) using the upstream config JSON. Presets: load with `--preset <name>` (from `deforumation/presets/<name>.json`) and save with `--save-preset <name>`.
-- `audio_reactive_modulator` — map audio bands to mediator parameters; output a schedule or stream live.
-- `monitor_cli` — tail the latest frames and show live mediator values.
-- `stream_helper` — push rendered frames to RTMP/SRT/WHIP via ffmpeg.
-- `docker-compose` stack — ffmpeg encoder + Nginx/Node (HLS + authable controls) + RabbitMQ + mediator control bridge to view frames as live video in a browser.
-- Docs and schema helpers under `docs/` (run manifest schema, workflows, server targeting, panel notes).
+## 📦 What's Inside
 
-## Quick start
-1) Clone and install deps:
+### Core Tools
+- **`forge_cli`** — Model-aware txt2img/Deforum CLI with preset support and sensible defaults
+- **`defora_tui`** — Full multi-tab ncurses interface (LIVE, PROMPTS, MOTION, AUDIO, CONTROLNET, SETTINGS)
+- **`deforumation_cli_panel`** — Lightweight control panel with rebindable hotkeys (strength/CFG/noise/pan/zoom/rot/FOV)
+- **`deforumation_dashboard`** — Curses dashboard mirroring the Deforumation GUI tabs
+
+### Audio & Modulation
+- **`audio_reactive_modulator`** — Map audio bands to mediator parameters; output schedules or stream live
+- **Beat-synced macros** — Drive parameters with tempo-aligned modulation
+
+### Run Management
+- **`deforumation_runs_cli`** — Browse run manifests, set overrides, rerun/continue generations
+- **`deforumation_request_dispatcher`** — Merge manifests/presets/overrides and execute runs
+- **`monitor_cli`** — Tail latest frames and show live mediator values
+
+### Streaming & Output
+- **`stream_helper`** — Push rendered frames to RTMP/SRT/WHIP via ffmpeg
+- **Web streaming stack** — Docker compose with ffmpeg encoder, Nginx/Node (HLS), RabbitMQ, and mediator bridge
+- **Web UI** — Browser-based performance interface with WebSocket controls and HLS video
+
+### Documentation
+- **`docs/`** — Architecture, workflows, server targeting, schemas, troubleshooting guides
+
+
+## 🚀 Quick Start
+
+### 1. Clone and Install
 ```bash
 git clone https://github.com/janiluuk/defora.git
 cd defora
@@ -34,20 +141,75 @@ git submodule update --init --recursive
 # or: ./scripts/clone_deforumation.sh
 pip install -r requirements.txt
 ```
-2) Start Forge (with `--deforum-api` for Deforum).
 
-3) Pick a tool:
-- Generate stills/animations with defaults: `./forge_cli "a synthwave city at night"` or `./forge_cli deforum -f 240 "surreal biomechanical cathedral"`
-- Browse and rerun/continue saved runs: `./deforumation_runs_cli`
-- Merge presets/overrides and dispatch: `./deforumation_request_dispatcher --request runs/<id>/rerun_request.json --execute`
-- Live control panel (mediator): `./deforumation_cli_panel --host 127.0.0.1 --port 8766`
-- Deforumation-style dashboard (tabs like `github_images/`): `./deforumation_dashboard --config deforumation/helpers/DeforumationSendConfig.json`
-- Defora TUI (full multi-tab ncurses instrument): `./defora_tui`
-- Audio-driven parameters: `./audio_reactive_modulator --audio song.wav --fps 24 --output audio_mod.json` (add `--live --mediator-host ... --mediator-port ...` to stream)
-- Monitor frames + live values: `./monitor_cli --frames runs/<id>/frames`
-- Stream frames via ffmpeg: `./stream_helper start --source runs/<id>/frames --target rtmp://example/live/key --fps 24`
-- Spin up the web streaming stack: `docker-compose up --build` then open `http://localhost:8080` (see `docs/streaming_stack.md`).
-- Web UI tabs (performer-focused): LIVE (macro sliders + motion presets), PROMPTS (morph & slots), MOTION (gamepad-style cam + curves), AUDIO/BEATS (waveform + beat actions), CONTROLNET (slot cards), SETTINGS (quick render presets).
+### 2. Start Stable Diffusion Forge
+Start Forge with Deforum API enabled:
+```bash
+# Example: assuming Forge is installed in ~/stable-diffusion-webui-forge
+cd ~/stable-diffusion-webui-forge
+./webui.sh --deforum-api
+```
+
+### 3. Choose Your Interface
+
+#### 🎹 Quick Generation (Command Line)
+Generate images or animations with smart defaults:
+```bash
+# Single image
+./forge_cli "a synthwave city at night"
+
+# Animation (240 frames)
+./forge_cli deforum -f 240 "surreal biomechanical cathedral"
+```
+
+#### 🎮 Live Performance (Web UI)
+Full browser-based performance interface:
+```bash
+docker-compose up --build
+# Open http://localhost:8080
+```
+**Features**: Live macro sliders, prompt morphing, motion curves, audio sync, MIDI control
+
+#### 💻 Terminal Control (TUI)
+Full-featured ncurses interface for terminal users:
+```bash
+./defora_tui
+```
+**Navigation**: F1-F6 to switch tabs, ←/→ to adjust parameters, Q to quit
+
+#### 🎛️ Lightweight Panel (CLI)
+Minimal control panel with hotkey bindings:
+```bash
+./deforumation_cli_panel --host 127.0.0.1 --port 8766
+```
+
+### 4. Advanced Tools
+
+**Browse & Rerun Saved Generations:**
+```bash
+./deforumation_runs_cli
+```
+
+**Audio-Reactive Modulation:**
+```bash
+# Generate audio schedule
+./audio_reactive_modulator --audio song.wav --fps 24 --output audio_mod.json
+
+# Stream live to mediator
+./audio_reactive_modulator --audio song.wav --fps 24 --live \
+  --mediator-host 127.0.0.1 --mediator-port 8766
+```
+
+**Monitor Live Generation:**
+```bash
+./monitor_cli --frames runs/<id>/frames
+```
+
+**Stream to RTMP/SRT:**
+```bash
+./stream_helper start --source runs/<id>/frames \
+  --target rtmp://example/live/key --fps 24
+```
 
 ## Key concepts
 - **Audio-visual instrument**: Treat prompts, camera, and ControlNet as live parameters; drive them via CLI/TUI/Web or controllers.
