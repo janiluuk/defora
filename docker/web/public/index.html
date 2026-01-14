@@ -237,7 +237,8 @@
             ⏹ Stop
           </button>
           <button class="control-btn" @click="toggleRecord" :class="{recording: isRecording}">
-            ●
+            <span v-if="isRecording">⏺</span>
+            <span v-else>●</span>
             {{ isRecording ? 'Recording' : 'Record' }}
           </button>
         </div>
