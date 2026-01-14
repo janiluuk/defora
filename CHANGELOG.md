@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.3] - 2026-01-14
+
+## What's Changed
+
+- Fix failing tests: update selectors for FrameSync styling (186e8fe)
+- Update all tab screenshots with compact 16:9 layout and session overlay (32d3b8d)
+- Refactor video player: 16:9 aspect ratio, compact preview, stylish control panel, session overlay (1fe9694)
+- Add conditional icon for record button (⏺ when recording, ● when idle) (82597fd)
+- Update all tab screenshots with new video control layout (db4f2fb)
+- Reorganize video controls: preview bar below video, centered play/record buttons with active states (49abb49)
+- Fix: Improve async state handling and stream ID generation (b1a5370)
+- Add custom video controls with FrameSync styling and placeholder thumbnails (e00bf9a)
+- Refactor: Move inline styles to CSS classes for better maintainability (5d0383c)
+- Update all tab screenshots with unified FrameSync styling (c759ad6)
+- Apply FrameSync styling to all tabs for visual consistency (d47fb19)
+- Initial plan (1d3de79)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.2...v0.2.3
+
+
 ## [0.2.2] - 2026-01-14
 
 ## What's Changed
