@@ -105,31 +105,17 @@ Map any MIDI controller to live parameters:
 - Stable Diffusion Forge + Deforum extension from **https://github.com/Tok/sd-forge-deforum** and **https://github.com/lllyasviel/stable-diffusion-webui-forge**
 - There is docker stack including these in the package but it is recommended to run on external node 
 
-## 📦 What's Inside
-
-### Core Tools
-- **`forge_cli`** — Model-aware txt2img/Deforum CLI with preset support and sensible defaults
-- **`defora_tui`** — Full multi-tab ncurses interface (LIVE, PROMPTS, MOTION, AUDIO, CONTROLNET, SETTINGS)
-- **`deforumation_cli_panel`** — Lightweight control panel with rebindable hotkeys (strength/CFG/noise/pan/zoom/rot/FOV)
-- **`deforumation_dashboard`** — Curses dashboard mirroring the Deforumation GUI tabs
-
-### Audio & Modulation
-- **`audio_reactive_modulator`** — Map audio bands to mediator parameters; output schedules or stream live
-- **Beat-synced macros** — Drive parameters with tempo-aligned modulation
-
-### Run Management
-- **`deforumation_runs_cli`** — Browse run manifests, set overrides, rerun/continue generations
-- **`deforumation_request_dispatcher`** — Merge manifests/presets/overrides and execute runs
-- **`monitor_cli`** — Tail latest frames and show live mediator values
-
-### Streaming & Output
-- **`stream_helper`** — Push rendered frames to RTMP/SRT/WHIP via ffmpeg
-- **Web streaming stack** — Docker compose with ffmpeg encoder, Nginx/Node (HLS), RabbitMQ, and mediator bridge
-- **Web UI** — Browser-based performance interface with WebSocket controls and HLS video
-
-### Documentation
-- **`docs/`** — Architecture, workflows, server targeting, schemas, troubleshooting guides
-
+## What’s inside
+- `forge_cli` — model-aware txt2img/Deforum CLI with preset support and sensible defaults.
+- `deforumation_request_dispatcher` — merges manifests/presets/overrides and runs `forge_cli` for rerun/continue flows.
+- `deforumation_runs_cli` — curses TUI to browse run manifests, set overrides, and emit rerun/continue request files (can auto-dispatch).
+- `deforumation_cli_panel` — live mediator control panel (strength/CFG/noise/pan/zoom/rot/FOV) with re-bindable hotkeys.
+- `deforumation_dashboard` — curses dashboard echoing the Deforumation GUI tabs (prompts, prompt mixer, motions, control toggles, audio sync, settings) using the upstream config JSON. Presets: load with `--preset <name>` (from `deforumation/presets/<name>.json`) and save with `--save-preset <name>`.
+- `audio_reactive_modulator` — map audio bands to mediator parameters; output a schedule or stream live.
+- `monitor_cli` — tail the latest frames and show live mediator values.
+- `stream_helper` — push rendered frames to RTMP/SRT/WHIP via ffmpeg.
+- `docker-compose` stack — ffmpeg encoder + Nginx/Node (HLS + authable controls) + RabbitMQ + mediator control bridge to view frames as live video in a browser.
+- Docs and schema helpers under `docs/` (run manifest schema, workflows, server targeting, panel notes).
 
 ## 🚀 Quick Start
 
