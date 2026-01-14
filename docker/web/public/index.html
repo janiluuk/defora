@@ -137,6 +137,20 @@
     .fs-row input[type=number] { background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; padding: 4px 6px; }
     .fs-row select { background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; padding: 4px 6px; }
     .fs-row button { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 8px; padding: 4px 6px; cursor: pointer; }
+    /* Custom video controls with FrameSync styling */
+    .video-controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; padding: 10px; background: #061726; border: 1px solid #0c2c3f; border-radius: 8px; }
+    .control-btn { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+    .control-btn:hover { border-color: #ff8a1a; color: #ffbf80; }
+    .control-btn.active { border-color: #ff8a1a; background: rgba(255, 138, 26, 0.15); color: #ff8a1a; }
+    .control-btn.recording { border-color: #ff4d6d; background: rgba(255, 77, 109, 0.15); color: #ff4d6d; animation: pulse 1.5s ease-in-out infinite; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+    .stream-link { background: #031b2d; border: 1px solid #0c3048; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #cfe5f5; flex: 1; display: flex; align-items: center; gap: 8px; }
+    .stream-link a { color: #ff8a1a; text-decoration: none; }
+    .stream-link a:hover { text-decoration: underline; }
+    .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0b1526 0%, #061726 100%); }
+    .thumb-placeholder svg { width: 40px; height: 40px; opacity: 0.3; }
+    video::-webkit-media-controls { display: none !important; }
+    video::-webkit-media-controls-enclosure { display: none !important; }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }
@@ -165,10 +179,30 @@
       <!-- Left: video + mini timeline -->
       <div class="preview">
         <div class="video-wrap">
-          <video id="player" controls autoplay muted playsinline></video>
+          <video id="player" ref="videoPlayer" autoplay muted playsinline></video>
           <div class="overlay">
             <div>Time {{ timecode }}</div>
             <div>Seed {{ hud.seed }}</div>
+          </div>
+        </div>
+        <!-- Custom video controls with FrameSync styling -->
+        <div class="video-controls">
+          <button class="control-btn" @click="togglePlayPause" :class="{active: isPlaying}">
+            <span v-if="isPlaying">⏸</span>
+            <span v-else>▶</span>
+            {{ isPlaying ? 'Pause' : 'Play' }}
+          </button>
+          <button class="control-btn" @click="stopVideo">
+            ⏹ Stop
+          </button>
+          <button class="control-btn" @click="toggleRecord" :class="{recording: isRecording}">
+            <span v-if="isRecording">⏺</span>
+            <span v-else>●</span>
+            {{ isRecording ? 'Recording...' : 'Record' }}
+          </button>
+          <div class="stream-link" v-if="streamUrl">
+            <span>🔗 Stream:</span>
+            <a :href="streamUrl" target="_blank">{{ streamUrl }}</a>
           </div>
         </div>
         <div class="timeline">
@@ -181,7 +215,12 @@
             </template>
             <template v-else>
               <div class="thumb-card" v-for="n in 6" :key="'ph'+n">
-                <div class="thumb"></div>
+                <div class="thumb thumb-placeholder">
+                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z" stroke="#ff8a1a" stroke-width="2"/>
+                    <path d="M12 8V12L15 15" stroke="#ff8a1a" stroke-width="2" stroke-linecap="round"/>
+                  </svg>
+                </div>
                 <div class="thumb-label">waiting…</div>
               </div>
             </template>
@@ -933,6 +972,9 @@
           currentPreset: null,
           newPresetName: "",
           presetStatus: "",
+          isPlaying: false,
+          isRecording: false,
+          streamUrl: "",
         };
       },
       computed: {
@@ -979,6 +1021,40 @@
         switchTab(id) {
           this.currentTab = id;
         },
+        togglePlayPause() {
+          const video = this.playerEl || document.getElementById("player");
+          if (!video) return;
+          if (video.paused) {
+            video.play().catch(e => console.error("Play failed:", e));
+            this.isPlaying = true;
+          } else {
+            video.pause();
+            this.isPlaying = false;
+          }
+        },
+        stopVideo() {
+          const video = this.playerEl || document.getElementById("player");
+          if (!video) return;
+          video.pause();
+          video.currentTime = 0;
+          this.isPlaying = false;
+        },
+        async toggleRecord() {
+          if (this.isRecording) {
+            // Stop recording
+            this.isRecording = false;
+            this.sendControl('record', { action: 'stop' });
+          } else {
+            // Start recording
+            this.isRecording = true;
+            this.sendControl('record', { action: 'start' });
+            // Generate stream URL (this would be returned from the server in production)
+            const streamId = 'stream_' + Date.now();
+            this.streamUrl = window.location.origin + '/stream/' + streamId;
+            // In production, you would get this from the server response
+            console.log('Recording started. Stream URL:', this.streamUrl);
+          }
+        },
         attachPlayer() {
           const video = document.getElementById("player");
           if (!video) return;
@@ -1021,13 +1097,17 @@
           };
           video.addEventListener("timeupdate", this.timeHandler);
           video.addEventListener("error", this.errorHandler);
+          video.addEventListener("play", () => { this.isPlaying = true; });
+          video.addEventListener("pause", () => { this.isPlaying = false; });
           this.autoplayVideo(video);
         },
         autoplayVideo(video) {
           const el = video || this.playerEl;
           if (!el || typeof el.play !== "function") return;
           const p = el.play();
-          if (p && typeof p.catch === "function") p.catch(() => {});
+          if (p && typeof p.catch === "function") {
+            p.then(() => { this.isPlaying = true; }).catch(() => { this.isPlaying = false; });
+          }
         },
         ensureLivePlayback() {
           if (!this.playerEl) return;
