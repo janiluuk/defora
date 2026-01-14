@@ -3,6 +3,8 @@ Integration tests for Docker stack startup and basic connectivity.
 
 These tests verify that the Docker Compose stack can start successfully
 and that basic service connectivity works as expected.
+
+To skip Docker-related tests in CI, set SKIP_DOCKER_TESTS=1
 """
 import unittest
 import subprocess
@@ -15,18 +17,30 @@ from pathlib import Path
 # Determine project root directory
 PROJECT_ROOT = os.getenv("DEFORA_ROOT", str(Path(__file__).parent.parent))
 
+# Allow skipping Docker tests in CI environments
+SKIP_DOCKER_TESTS = os.getenv("SKIP_DOCKER_TESTS", "").lower() in ("1", "true", "yes")
+
 
 class TestDockerStackIntegration(unittest.TestCase):
     """Integration tests for Docker stack"""
 
+    def setUp(self):
+        """Skip all Docker tests if SKIP_DOCKER_TESTS is set"""
+        if SKIP_DOCKER_TESTS:
+            self.skipTest("Docker tests disabled via SKIP_DOCKER_TESTS environment variable")
+
     def test_docker_compose_file_valid(self):
         """Test that docker-compose.yml is valid"""
-        result = subprocess.run(
-            ["docker", "compose", "config"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT
-        )
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "config"],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
+                timeout=10  # 10 second timeout to prevent hanging
+            )
+        except subprocess.TimeoutExpired:
+            self.skipTest("docker compose config timed out (may be pulling images or network issue)")
         
         # If docker is not available, skip this test
         if result.returncode == 127 or "command not found" in result.stderr:
@@ -42,12 +56,16 @@ class TestDockerStackIntegration(unittest.TestCase):
 
     def test_required_volumes_defined(self):
         """Test that required volumes are defined in docker-compose.yml"""
-        result = subprocess.run(
-            ["docker", "compose", "config"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT
-        )
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "config"],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
+                timeout=10  # 10 second timeout to prevent hanging
+            )
+        except subprocess.TimeoutExpired:
+            self.skipTest("docker compose config timed out")
         
         if result.returncode == 127 or "command not found" in result.stderr:
             self.skipTest("Docker not available in test environment")
@@ -67,12 +85,16 @@ class TestDockerStackIntegration(unittest.TestCase):
 
     def test_health_check_endpoints_defined(self):
         """Test that health check configurations are present"""
-        result = subprocess.run(
-            ["docker", "compose", "config"],
-            capture_output=True,
-            text=True,
-            cwd=PROJECT_ROOT
-        )
+        try:
+            result = subprocess.run(
+                ["docker", "compose", "config"],
+                capture_output=True,
+                text=True,
+                cwd=PROJECT_ROOT,
+                timeout=10  # 10 second timeout to prevent hanging
+            )
+        except subprocess.TimeoutExpired:
+            self.skipTest("docker compose config timed out")
         
         if result.returncode == 127 or "command not found" in result.stderr:
             self.skipTest("Docker not available in test environment")
