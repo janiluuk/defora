@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.4] - 2026-01-14
+
+## What's Changed
+
+- Add websockets to requirements.txt to fix CI test failures (8a2651a)
+- Address code review feedback: improve test parameter consistency (5e0b5ab)
+- Add tests for CLI panel to verify parameter handling logic (a826451)
+- Add ncurses TUI screenshots and enhance README with feature highlights (1c06fe2)
+- Initial plan (1c36d39)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.3...v0.2.4
+
+
 ## [0.2.3] - 2026-01-14
 
 ## What's Changed
