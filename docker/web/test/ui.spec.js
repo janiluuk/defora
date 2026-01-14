@@ -121,10 +121,10 @@ describe("Deforumation Web UI", () => {
   it("includes video, sliders, and presets", () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
-    const sliderRows = [...document.querySelectorAll(".slider-row")];
+    const sliderRows = [...document.querySelectorAll(".framesync-stack, .framesync-row input[type='range']")];
     expect(sliderRows.length).to.be.greaterThan(5);
-    const chips = [...document.querySelectorAll(".chip")].map((c) => c.textContent.trim());
-    expect(chips.join(" ")).to.match(/Static|Orbit|Tunnel|Handheld|Chaos/);
+    const presetButtons = [...document.querySelectorAll(".framesync-button")].filter(b => /Static|Orbit|Tunnel|Handheld|Chaos/.test(b.textContent));
+    expect(presetButtons.length).to.be.greaterThan(0);
   });
 
   it("shows prompts/morph table structure", async () => {
@@ -160,8 +160,8 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("SETTINGS");
     await nextTick();
-    const settingsHeadings = [...document.querySelectorAll(".rack h3")].map((h) => h.textContent.trim());
-    expect(settingsHeadings.join(" ")).to.include("Controllers (WebMIDI)");
+    const settingsHeadings = [...document.querySelectorAll(".framesync-title, .rack h4")].map((h) => h.textContent.trim());
+    expect(settingsHeadings.join(" ")).to.include("Controllers");
     const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
     expect(mappingRows.length).to.be.greaterThan(1);
   });
