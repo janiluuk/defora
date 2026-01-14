@@ -8,11 +8,13 @@ Releases are automatically created when changes are merged to the `main` branch.
 
 ### How It Works
 
-1. **Trigger**: Any push to the `main` branch triggers the release workflow
-2. **Version Bump**: The version is automatically bumped based on commit messages
-3. **Changelog**: A changelog is generated from commit messages
-4. **Git Tag**: A new git tag is created (e.g., `v0.2.0`)
-5. **GitHub Release**: A GitHub release is published with the changelog
+1. **Trigger**: Any push to the `main` branch (typically from merged PRs) triggers the release workflow
+2. **Skip Check**: The workflow automatically skips if the commit contains `[skip ci]` (e.g., version bump commits from the bot)
+3. **Release Check**: The workflow checks if there are new commits since the last release
+4. **Version Bump**: The version is automatically bumped based on commit messages
+5. **Changelog**: A changelog is generated from commit messages since the last tag
+6. **Git Tag**: A new git tag is created (e.g., `v0.2.0`)
+7. **GitHub Release**: A GitHub release is published with the changelog
 
 ### Version Bump Strategy
 
@@ -95,7 +97,12 @@ To manually trigger a release:
 
 ## Skipping Release
 
-To push to `main` without creating a release, include `[skip ci]` in your commit message:
+The workflow automatically skips release creation in the following cases:
+
+1. **Bot commits**: Commits containing `[skip ci]` in the message (used by the workflow itself)
+2. **No new commits**: If there are no new commits since the last tag
+
+To manually skip a release when pushing to `main`, include `[skip ci]` in your commit message:
 
 ```bash
 git commit -m "docs: update README [skip ci]"
