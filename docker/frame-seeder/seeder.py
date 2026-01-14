@@ -14,6 +14,7 @@ import os
 import sys
 import time
 import math
+import signal
 from datetime import datetime
 from pathlib import Path
 
@@ -22,6 +23,18 @@ try:
 except ImportError:
     print("ERROR: Pillow not installed", file=sys.stderr)
     sys.exit(1)
+
+
+# Global flag for graceful shutdown
+shutdown_requested = False
+
+
+def signal_handler(signum, frame):
+    """Handle shutdown signals gracefully."""
+    global shutdown_requested
+    signame = signal.Signals(signum).name
+    print(f"\n[seeder] Received {signame}, shutting down gracefully...", file=sys.stderr)
+    shutdown_requested = True
 
 
 def generate_timestamp_frame(frame_num: int, width: int, height: int):
@@ -263,6 +276,10 @@ def generate_text_frame(frame_num: int, width: int, height: int, custom_text: st
 
 
 def main():
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
     output_dir = Path(os.getenv("OUTPUT_DIR", "/data/frames"))
     fps = int(os.getenv("FPS", "12"))
     clear = os.getenv("CLEAR", "0") in ("1", "true", "True", "yes")
@@ -306,7 +323,7 @@ def main():
     generator = pattern_generators.get(pattern, generate_timestamp_frame)
     
     try:
-        while True:
+        while not shutdown_requested:
             start_time = time.time()
             
             # Generate frame
@@ -326,7 +343,9 @@ def main():
             time.sleep(sleep_time)
             
     except KeyboardInterrupt:
-        print(f"\n[seeder] Stopped. Generated {frame_num - 1} frames total.")
+        print(f"\n[seeder] Interrupted. Generated {frame_num - 1} frames total.")
+    finally:
+        print(f"[seeder] Stopped. Generated {frame_num - 1} frames total.")
         sys.exit(0)
 
 

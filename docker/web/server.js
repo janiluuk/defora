@@ -128,12 +128,50 @@ async function start(opts = {}) {
   // Preset management API
   const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
   const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
+  const uploadRetentionHours = parseInt(process.env.UPLOAD_RETENTION_HOURS || "24", 10);
+  
   try {
     await fsp.mkdir(presetsDir, { recursive: true });
   } catch (_e) {}
   try {
     await fsp.mkdir(uploadsDir, { recursive: true });
   } catch (_e) {}
+
+  // Cleanup function for old audio uploads
+  async function cleanupOldUploads() {
+    try {
+      const now = Date.now();
+      const maxAgeMs = uploadRetentionHours * 60 * 60 * 1000;
+      const files = await fsp.readdir(uploadsDir);
+      let cleanedCount = 0;
+      
+      for (const file of files) {
+        const filePath = path.join(uploadsDir, file);
+        try {
+          const stat = await fsp.stat(filePath);
+          const ageMs = now - stat.mtimeMs;
+          
+          if (ageMs > maxAgeMs) {
+            await fsp.unlink(filePath);
+            cleanedCount++;
+            console.log(`[cleanup] Removed old upload: ${file} (age: ${(ageMs / 1000 / 60 / 60).toFixed(1)}h)`);
+          }
+        } catch (err) {
+          console.error(`[cleanup] Error processing ${file}:`, err.message);
+        }
+      }
+      
+      if (cleanedCount > 0) {
+        console.log(`[cleanup] Cleaned up ${cleanedCount} old upload(s)`);
+      }
+    } catch (err) {
+      console.error("[cleanup] Error during cleanup:", err.message);
+    }
+  }
+
+  // Run cleanup on startup and then every hour
+  cleanupOldUploads();
+  setInterval(cleanupOldUploads, 60 * 60 * 1000);
 
   app.post("/api/audio-upload", async (req, res) => {
     try {
@@ -192,9 +230,16 @@ async function start(opts = {}) {
       }
 
       const buf = Buffer.from(base64Payload, "base64");
+      
+      // Validate file size (max 100MB)
+      const maxSizeBytes = 100 * 1024 * 1024;
+      if (buf.length > maxSizeBytes) {
+        return res.status(400).json({ error: `file too large: ${(buf.length / 1024 / 1024).toFixed(2)}MB (max 100MB)` });
+      }
+      
       const target = path.join(uploadsDir, `${Date.now()}-${safeName}`);
       await fsp.writeFile(target, buf);
-      res.json({ ok: true, path: target, name: safeName });
+      res.json({ ok: true, path: target, name: safeName, size: buf.length });
     } catch (err) {
       console.error("[api] audio upload error", err);
       res.status(500).json({ error: "upload failed" });
@@ -266,8 +311,12 @@ async function start(opts = {}) {
 
   // ControlNet models API
   app.get("/api/controlnet/models", async (_req, res) => {
-    // This is a placeholder - in production, this would query the SD-Forge API
-    const models = [
+    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    const forgeUrl = `http://${forgeHost}:${forgePort}`;
+    
+    // Fallback placeholder models
+    const placeholderModels = [
       { id: "canny", name: "Canny Edge", category: "edge" },
       { id: "depth", name: "Depth Map", category: "depth" },
       { id: "openpose", name: "OpenPose", category: "pose" },
@@ -278,8 +327,56 @@ async function start(opts = {}) {
       { id: "normal", name: "Normal Map", category: "depth" },
       { id: "seg", name: "Segmentation", category: "semantic" },
     ];
-    res.json({ models });
+    
+    try {
+      // Try to fetch ControlNet models from SD-Forge API
+      const fetch = (await import('node-fetch')).default;
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+      
+      const response = await fetch(`${forgeUrl}/controlnet/model_list`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const data = await response.json();
+        // SD-Forge returns { model_list: [...] }
+        const modelList = data.model_list || data.models || [];
+        const models = modelList.map((model, idx) => {
+          const name = typeof model === 'string' ? model : (model.name || model.model_name || `Model ${idx + 1}`);
+          return {
+            id: name.toLowerCase().replace(/[^a-z0-9]+/g, '_'),
+            name: name,
+            category: categorizeControlNetModel(name)
+          };
+        });
+        
+        console.log(`[controlnet] Fetched ${models.length} models from SD-Forge`);
+        return res.json({ models, source: 'sd-forge' });
+      }
+    } catch (err) {
+      // API unavailable or timeout - fall back to placeholder
+      console.log(`[controlnet] SD-Forge API unavailable, using placeholder models: ${err.message}`);
+    }
+    
+    res.json({ models: placeholderModels, source: 'placeholder' });
   });
+
+  // Helper function to categorize ControlNet models
+  function categorizeControlNetModel(name) {
+    const lowerName = name.toLowerCase();
+    if (lowerName.includes('canny') || lowerName.includes('edge')) return 'edge';
+    if (lowerName.includes('depth')) return 'depth';
+    if (lowerName.includes('pose') || lowerName.includes('openpose')) return 'pose';
+    if (lowerName.includes('scribble') || lowerName.includes('pidinet')) return 'line';
+    if (lowerName.includes('tile') || lowerName.includes('blur')) return 'style';
+    if (lowerName.includes('lineart') || lowerName.includes('mlsd')) return 'line';
+    if (lowerName.includes('normal')) return 'depth';
+    if (lowerName.includes('seg') || lowerName.includes('semantic')) return 'semantic';
+    return 'other';
+  }
 
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
