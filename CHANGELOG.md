@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.1] - 2026-01-14
+
+## What's Changed
+
+- Add comprehensive API documentation and troubleshooting guide (7883b95)
+- Initial plan (b597631)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.0...v0.2.1
+
+
 ## [0.2.0] - 2026-01-14
 
 ## What's Changed
