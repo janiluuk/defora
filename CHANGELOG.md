@@ -3,6 +3,21 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.2] - 2026-01-14
+
+## What's Changed
+
+- Fix test hanging: clear cleanup interval timer on server close (3dea123)
+- Fix hanging tests: add timeouts and skip option for Docker tests (77c65d5)
+- Address code review feedback: fix hardcoded paths and fetch import (355b5f4)
+- Delete FEATURES_STATUS.md after implementing all actionable tasks (2e442a7)
+- Add Docker stack integration tests (9601f11)
+- Implement audio upload improvements, ControlNet live API, and frame seeder graceful shutdown (c8ef34a)
+- Initial plan (0b8d554)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.1...v0.2.2
+
+
 ## [0.2.1] - 2026-01-14
 
 ## What's Changed
