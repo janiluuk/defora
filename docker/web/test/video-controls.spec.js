@@ -211,6 +211,14 @@ describe("Video Controls E2E Tests", () => {
       expect(html).to.include('v-if="streamUrl"');
       expect(html).to.include(':href="streamUrl"');
     });
+    
+    it("should have preview bar with hide/show toggle", () => {
+      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      
+      expect(html).to.include('class="preview-bar-container"');
+      expect(html).to.include('class="preview-bar-toggle"');
+      expect(html).to.include('@click="previewBarCollapsed = !previewBarCollapsed"');
+    });
   });
 
   describe("FrameSync Styling", () => {
@@ -227,6 +235,13 @@ describe("Video Controls E2E Tests", () => {
       
       expect(html).to.include('.control-btn.recording');
       expect(html).to.include('@keyframes pulse');
+    });
+    
+    it("should have green state for playing", () => {
+      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      
+      expect(html).to.include('.control-btn.playing');
+      expect(html).to.include('#5af2a9');
     });
   });
 });

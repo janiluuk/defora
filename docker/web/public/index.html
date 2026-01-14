@@ -138,13 +138,24 @@
     .fs-row select { background: #061b2d; border: 1px solid #13324c; border-radius: 6px; color: #e8edf7; padding: 4px 6px; }
     .fs-row button { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 8px; padding: 4px 6px; cursor: pointer; }
     /* Custom video controls with FrameSync styling */
-    .video-controls { display: flex; gap: 8px; align-items: center; margin-top: 10px; padding: 10px; background: #061726; border: 1px solid #0c2c3f; border-radius: 8px; }
-    .control-btn { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 6px; padding: 8px 16px; font-size: 13px; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
-    .control-btn:hover { border-color: #ff8a1a; color: #ffbf80; }
-    .control-btn.active { border-color: #ff8a1a; background: rgba(255, 138, 26, 0.15); color: #ff8a1a; }
+    .preview-bar-container { margin-top: 10px; background: #061726; border: 1px solid #0c2c3f; border-radius: 8px; overflow: hidden; }
+    .preview-bar-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #0b1526; border-bottom: 1px solid #0c2c3f; }
+    .preview-bar-title { font-size: 12px; color: #9bc4e2; font-weight: 600; }
+    .preview-bar-toggle { background: transparent; border: 1px solid #173753; color: #cfe5f5; border-radius: 4px; padding: 4px 8px; font-size: 11px; cursor: pointer; }
+    .preview-bar-toggle:hover { border-color: #ff8a1a; color: #ff8a1a; }
+    .preview-bar { display: flex; gap: 8px; overflow-x: auto; padding: 10px; max-height: 100px; }
+    .preview-bar.collapsed { display: none; }
+    .preview-bar::-webkit-scrollbar { height: 6px; }
+    .preview-bar::-webkit-scrollbar-track { background: #061726; }
+    .preview-bar::-webkit-scrollbar-thumb { background: #173753; border-radius: 3px; }
+    .preview-bar::-webkit-scrollbar-thumb:hover { background: #ff8a1a; }
+    .video-controls { display: flex; gap: 12px; align-items: center; justify-content: center; margin-top: 12px; padding: 12px; }
+    .control-btn { background: #0b1f34; border: 1px solid #173753; color: #cfe5f5; border-radius: 8px; padding: 10px 20px; font-size: 14px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s; min-width: 120px; justify-content: center; }
+    .control-btn:hover { border-color: #ff8a1a; transform: translateY(-1px); }
+    .control-btn.playing { border-color: #5af2a9; background: rgba(90, 242, 169, 0.15); color: #5af2a9; }
     .control-btn.recording { border-color: #ff4d6d; background: rgba(255, 77, 109, 0.15); color: #ff4d6d; animation: pulse 1.5s ease-in-out infinite; }
-    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-    .stream-link { background: #031b2d; border: 1px solid #0c3048; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #cfe5f5; flex: 1; display: flex; align-items: center; gap: 8px; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .stream-link { background: #031b2d; border: 1px solid #0c3048; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: #cfe5f5; display: flex; align-items: center; gap: 8px; margin-top: 8px; justify-content: center; }
     .stream-link a { color: #ff8a1a; text-decoration: none; }
     .stream-link a:hover { text-decoration: underline; }
     .thumb-placeholder { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: linear-gradient(135deg, #0b1526 0%, #061726 100%); }
@@ -185,28 +196,16 @@
             <div>Seed {{ hud.seed }}</div>
           </div>
         </div>
-        <!-- Custom video controls with FrameSync styling -->
-        <div class="video-controls">
-          <button class="control-btn" @click="togglePlayPause" :class="{active: isPlaying}">
-            <span v-if="isPlaying">⏸</span>
-            <span v-else>▶</span>
-            {{ isPlaying ? 'Pause' : 'Play' }}
-          </button>
-          <button class="control-btn" @click="stopVideo">
-            ⏹ Stop
-          </button>
-          <button class="control-btn" @click="toggleRecord" :class="{recording: isRecording}">
-            <span v-if="isRecording">⏺</span>
-            <span v-else>●</span>
-            {{ isRecording ? 'Recording...' : 'Record' }}
-          </button>
-          <div class="stream-link" v-if="streamUrl">
-            <span>🔗 Stream:</span>
-            <a :href="streamUrl" target="_blank">{{ streamUrl }}</a>
+        
+        <!-- Preview bar right below video -->
+        <div class="preview-bar-container">
+          <div class="preview-bar-header">
+            <div class="preview-bar-title">📽️ Preview Frames</div>
+            <button class="preview-bar-toggle" @click="previewBarCollapsed = !previewBarCollapsed">
+              {{ previewBarCollapsed ? '▼ Show' : '▲ Hide' }}
+            </button>
           </div>
-        </div>
-        <div class="timeline">
-          <div class="thumbs">
+          <div class="preview-bar" :class="{collapsed: previewBarCollapsed}">
             <template v-if="thumbs.length">
               <div class="thumb-card" v-for="t in thumbs" :key="t.src">
                 <img class="thumb" :src="t.src" loading="lazy" :alt="'frame '+frameLabel(t)" />
@@ -225,6 +224,30 @@
               </div>
             </template>
           </div>
+        </div>
+        
+        <!-- Centered controls below preview bar -->
+        <div class="video-controls">
+          <button class="control-btn" @click="togglePlayPause" :class="{playing: isPlaying}">
+            <span v-if="isPlaying">⏸</span>
+            <span v-else>▶</span>
+            {{ isPlaying ? 'Pause' : 'Play' }}
+          </button>
+          <button class="control-btn" @click="stopVideo">
+            ⏹ Stop
+          </button>
+          <button class="control-btn" @click="toggleRecord" :class="{recording: isRecording}">
+            ●
+            {{ isRecording ? 'Recording' : 'Record' }}
+          </button>
+        </div>
+        
+        <div class="stream-link" v-if="streamUrl">
+          <span>🔗 Stream:</span>
+          <a :href="streamUrl" target="_blank">{{ streamUrl }}</a>
+        </div>
+        
+        <div class="timeline">
           <div class="wave"></div>
         </div>
       </div>
@@ -975,6 +998,7 @@
           isPlaying: false,
           isRecording: false,
           streamUrl: "",
+          previewBarCollapsed: false,
         };
       },
       computed: {
