@@ -1,9 +1,8 @@
 const { readFileSync } = require("fs");
 const path = require("path");
-const { JSDOM } = require("jsdom");
 const { expect } = require("chai");
 const vm = require("vm");
-const { describe, it, before, beforeEach } = require("node:test");
+const { describe, it, before } = require("node:test");
 
 function loadAppDefinition() {
   const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
@@ -175,7 +174,7 @@ describe("Video Controls E2E Tests", () => {
       await app.toggleRecord();
       
       expect(app.streamUrl).to.be.a("string");
-      expect(app.streamUrl).to.match(/^http:\/\/localhost\/stream\/stream_\d+$/);
+      expect(app.streamUrl).to.match(/^http:\/\/localhost\/stream\/stream_\d+_[a-z0-9]+$/);
     });
   });
 

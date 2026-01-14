@@ -1025,8 +1025,12 @@
           const video = this.playerEl || document.getElementById("player");
           if (!video) return;
           if (video.paused) {
-            video.play().catch(e => console.error("Play failed:", e));
-            this.isPlaying = true;
+            video.play()
+              .then(() => { this.isPlaying = true; })
+              .catch(e => {
+                console.error("Play failed:", e);
+                this.isPlaying = false;
+              });
           } else {
             video.pause();
             this.isPlaying = false;
@@ -1048,8 +1052,8 @@
             // Start recording
             this.isRecording = true;
             this.sendControl('record', { action: 'start' });
-            // Generate stream URL (this would be returned from the server in production)
-            const streamId = 'stream_' + Date.now();
+            // Generate unique stream URL with timestamp and random component
+            const streamId = 'stream_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
             this.streamUrl = window.location.origin + '/stream/' + streamId;
             // In production, you would get this from the server response
             console.log('Recording started. Stream URL:', this.streamUrl);
