@@ -308,10 +308,11 @@
             <div class="framesync-panel" style="background: linear-gradient(135deg, #061726 0%, #0b1526 100%); border: 2px solid #173753;">
               <div class="framesync-header" style="border-bottom: 1px solid #173753; padding-bottom: 12px;">
                 <div class="framesync-title" style="font-size: 20px;">🎚️ Morph <span class="framesync-accent">Control</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(!prompts.morphOn)" style="padding:6px 16px;">
-                    {{ prompts.morphOn ? '☑ Enabled' : '☐ Disabled' }}
-                  </button>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <div class="framesync-footer" style="margin:0; gap:4px;">
+                    <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enabled</button>
+                    <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disabled</button>
+                  </div>
                   <button class="framesync-button" @click="applyLoras" style="padding:6px 16px;">✓ Apply All</button>
                 </div>
               </div>
