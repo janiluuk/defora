@@ -1715,7 +1715,8 @@
               if (data.preset.loras) {
                 this.loras.groupA = data.preset.loras.groupA || [];
                 this.loras.groupB = data.preset.loras.groupB || [];
-                this.refreshLoras(); // Refresh to sync with available loras
+                // Sync selection state without fetching (data already restored)
+                await this.refreshLoras();
               }
               if (data.preset.prompts) {
                 Object.assign(this.prompts, data.preset.prompts);
@@ -1924,9 +1925,10 @@
                 selected: false,
                 group: null,
               }));
-              // Restore selected loras from groups
+              // Restore selected loras from groups using Map for O(1) lookup
+              const loraMap = new Map(this.loras.available.map(l => [l.id, l]));
               this.loras.groupA.forEach((savedLora) => {
-                const found = this.loras.available.find((l) => l.id === savedLora.id);
+                const found = loraMap.get(savedLora.id);
                 if (found) {
                   found.selected = true;
                   found.group = "A";
@@ -1934,7 +1936,7 @@
                 }
               });
               this.loras.groupB.forEach((savedLora) => {
-                const found = this.loras.available.find((l) => l.id === savedLora.id);
+                const found = loraMap.get(savedLora.id);
                 if (found) {
                   found.selected = true;
                   found.group = "B";
@@ -2034,7 +2036,7 @@
           });
           this.loras.groupA = [];
           this.loras.groupB = [];
-          this.sendControl("loras", { groupA: [], groupB: [], crossfaderValue: 0.5 });
+          this.sendControl("loras", { groupA: [], groupB: [], crossfaderValue: this.prompts.crossfaderValue });
         },
       },
     }).mount("#app");

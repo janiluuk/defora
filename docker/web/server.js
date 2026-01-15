@@ -441,7 +441,7 @@ async function start(opts = {}) {
     try {
       // Try to fetch LoRAs from SD-Forge API
       if (typeof fetch === 'undefined') {
-        throw new Error('fetch not available, using placeholder loras');
+        throw new Error('fetch not available');
       }
       
       const controller = new AbortController();
