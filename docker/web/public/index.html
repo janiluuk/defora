@@ -303,68 +303,126 @@
         </div>
 
         <div v-else-if="currentTab==='PROMPTS'">
+          <!-- Unified Morph Control Panel -->
           <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">✍️ Positive <span class="framesync-accent">Prompt</span></div>
+            <div class="framesync-panel" style="background: linear-gradient(135deg, #061726 0%, #0b1526 100%); border: 2px solid #173753;">
+              <div class="framesync-header" style="border-bottom: 1px solid #173753; padding-bottom: 12px;">
+                <div class="framesync-title" style="font-size: 20px;">🎚️ Morph <span class="framesync-accent">Control</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(!prompts.morphOn)" style="padding:6px 16px;">
+                    {{ prompts.morphOn ? '☑ Enabled' : '☐ Disabled' }}
+                  </button>
+                  <button class="framesync-button" @click="applyLoras" style="padding:6px 16px;">✓ Apply All</button>
+                </div>
               </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <input class="framesync-input" v-model="prompts.pos" @change="sendPrompts" placeholder="positive prompt" style="padding:10px;" />
-                <div class="framesync-footer" style="margin-top:8px;">
-                  <button class="framesync-button" @click="sendPrompts">Apply prompt</button>
+              
+              <!-- Main Crossfader Section with A/B Groups -->
+              <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
+                
+                <!-- Group A -->
+                <div style="background: linear-gradient(135deg, rgba(90, 242, 169, 0.08) 0%, rgba(90, 242, 169, 0.02) 100%); border: 2px solid rgba(90, 242, 169, 0.3); border-radius:12px; padding:14px; min-height: 240px; display: flex; flex-direction: column;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                    <div style="font-size:16px; color:#5af2a9; font-weight:700; letter-spacing:1px;">◀ GROUP A</div>
+                    <div style="font-size:24px; font-weight:900; color:#5af2a9; opacity:0.8;">{{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</div>
+                  </div>
+                  
+                  <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+                    <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" 
+                         style="background:#0b1526; border:1px solid #5af2a9; border-radius:8px; padding:8px;">
+                      <div style="font-size:12px; color:#cfe5f5; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        {{ lora.name }}
+                      </div>
+                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                        <span style="color:#7fb3d6;">Base: {{ lora.strength.toFixed(1) }}</span>
+                        <span style="color:#5af2a9; font-weight:700;">→ {{ (lora.strength * (1 - prompts.crossfaderValue)).toFixed(2) }}</span>
+                      </div>
+                    </div>
+                    <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
+                      No LoRAs in Group A<br/>Add from LORA tab
+                    </div>
+                    <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
+                      +{{ loras.groupA.length - 3 }} more
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Center: Crossfader -->
+                <div style="background: linear-gradient(180deg, #0f1422 0%, #061726 100%); border: 2px solid #ff8a1a; border-radius:16px; padding:20px; display:flex; flex-direction:column; justify-content:center; box-shadow: 0 8px 32px rgba(255, 138, 26, 0.15);">
+                  <div style="text-align:center; margin-bottom:16px;">
+                    <div style="font-size:11px; color:#9bc4e2; letter-spacing:2px; margin-bottom:8px;">CROSSFADER</div>
+                    <div style="font-size:42px; font-weight:900; background: linear-gradient(90deg, #5af2a9 0%, #ff8a1a 50%, #2de2ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing:-2px;">
+                      {{ prompts.crossfaderValue.toFixed(2) }}
+                    </div>
+                  </div>
+                  
+                  <!-- Large Crossfader Slider -->
+                  <div style="position:relative; padding:12px 0;">
+                    <div style="position:absolute; top:0; left:0; right:0; height:8px; background: linear-gradient(90deg, #5af2a9 0%, #ff8a1a 50%, #2de2ff 100%); border-radius:4px; opacity:0.3;"></div>
+                    <input type="range" min="0" max="1" step="0.001" v-model.number="prompts.crossfaderValue" @input="updateCrossfader" 
+                           class="framesync-input" 
+                           style="width:100%; height:32px; cursor:grab; accent-color:#ff8a1a; position:relative;">
+                  </div>
+                  
+                  <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:13px; font-weight:700;">
+                    <span style="color:#5af2a9;">A</span>
+                    <span style="color:#ff8a1a;">{{ Math.round(prompts.crossfaderValue * 100) }}% →</span>
+                    <span style="color:#2de2ff;">B</span>
+                  </div>
+                  
+                  <!-- Visual Indicator -->
+                  <div style="margin-top:16px; height:6px; background:#0b1526; border-radius:3px; overflow:hidden; position:relative;">
+                    <div style="position:absolute; left:0; top:0; bottom:0; background:#5af2a9; transition: width 0.1s;" :style="{width: (100 - prompts.crossfaderValue * 100) + '%'}"></div>
+                    <div style="position:absolute; right:0; top:0; bottom:0; background:#2de2ff; transition: width 0.1s;" :style="{width: (prompts.crossfaderValue * 100) + '%'}"></div>
+                  </div>
+                </div>
+                
+                <!-- Group B -->
+                <div style="background: linear-gradient(135deg, rgba(45, 226, 255, 0.08) 0%, rgba(45, 226, 255, 0.02) 100%); border: 2px solid rgba(45, 226, 255, 0.3); border-radius:12px; padding:14px; min-height: 240px; display: flex; flex-direction: column;">
+                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+                    <div style="font-size:16px; color:#2de2ff; font-weight:700; letter-spacing:1px;">GROUP B ▶</div>
+                    <div style="font-size:24px; font-weight:900; color:#2de2ff; opacity:0.8;">{{ Math.round(prompts.crossfaderValue * 100) }}%</div>
+                  </div>
+                  
+                  <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
+                    <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" 
+                         style="background:#0b1526; border:1px solid #2de2ff; border-radius:8px; padding:8px;">
+                      <div style="font-size:12px; color:#cfe5f5; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        {{ lora.name }}
+                      </div>
+                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
+                        <span style="color:#7fb3d6;">Base: {{ lora.strength.toFixed(1) }}</span>
+                        <span style="color:#2de2ff; font-weight:700;">→ {{ (lora.strength * prompts.crossfaderValue).toFixed(2) }}</span>
+                      </div>
+                    </div>
+                    <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
+                      No LoRAs in Group B<br/>Add from LORA tab
+                    </div>
+                    <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
+                      +{{ loras.groupB.length - 3 }} more
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+          
+          <!-- Prompt Inputs Section -->
           <div class="rack">
             <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🚫 Negative <span class="framesync-accent">Prompt</span></div>
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <input class="framesync-input" v-model="prompts.neg" @change="sendPrompts" placeholder="negative prompt" style="padding:10px;" />
-                <div class="framesync-footer" style="margin-top:8px;">
-                  <button class="framesync-button" @click="sendPrompts">Apply negative</button>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+                <div>
+                  <div class="framesync-subtitle" style="margin-bottom:8px; color:#5af2a9;">✍️ Positive Prompt</div>
+                  <textarea class="framesync-input" v-model="prompts.pos" @change="sendPrompts" placeholder="Enter positive prompt..." 
+                            style="padding:10px; width:100%; min-height:80px; resize:vertical; font-family: inherit;"></textarea>
+                </div>
+                <div>
+                  <div class="framesync-subtitle" style="margin-bottom:8px; color:#ff4d6d;">🚫 Negative Prompt</div>
+                  <textarea class="framesync-input" v-model="prompts.neg" @change="sendPrompts" placeholder="Enter negative prompt..." 
+                            style="padding:10px; width:100%; min-height:80px; resize:vertical; font-family: inherit;"></textarea>
                 </div>
               </div>
-            </div>
-          </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🌀 Prompt <span class="framesync-accent">Morphing</span></div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</button>
-                <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</button>
-              </div>
-              <!-- DJ-style crossfader -->
-              <div style="margin-top:16px;">
-                <div class="framesync-subtitle" style="margin-bottom:8px; display:flex; justify-content:space-between;">
-                  <span style="color:#5af2a9;">← A Group</span>
-                  <span style="font-weight:700;">CROSSFADER</span>
-                  <span style="color:#2de2ff;">B Group →</span>
-                </div>
-                <div style="position:relative; padding:20px 0;">
-                  <input type="range" min="0" max="1" step="0.01" v-model.number="prompts.crossfaderValue" @input="updateCrossfader" class="framesync-input" style="width:100%;">
-                  <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#9bc4e2;">
-                    <span>A: {{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</span>
-                    <span style="color:#ff8a1a; font-weight:700;">{{ prompts.crossfaderValue.toFixed(2) }}</span>
-                    <span>B: {{ Math.round(prompts.crossfaderValue * 100) }}%</span>
-                  </div>
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
-                  <div style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:10px;">
-                    <div style="font-size:11px; color:#5af2a9; margin-bottom:6px; font-weight:600;">A GROUP</div>
-                    <div style="font-size:12px; color:#cfe5f5;">{{ loras.groupA.length }} LoRA(s)</div>
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:4px;">Strength: {{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</div>
-                  </div>
-                  <div style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:10px;">
-                    <div style="font-size:11px; color:#2de2ff; margin-bottom:6px; font-weight:600;">B GROUP</div>
-                    <div style="font-size:12px; color:#cfe5f5;">{{ loras.groupB.length }} LoRA(s)</div>
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:4px;">Strength: {{ Math.round(prompts.crossfaderValue * 100) }}%</div>
-                  </div>
-                </div>
+              <div class="framesync-footer" style="margin-top:12px; justify-content:center;">
+                <button class="framesync-button" @click="sendPrompts" style="padding:8px 24px; font-size:14px;">💾 Update Prompts</button>
               </div>
             </div>
           </div>
