@@ -303,6 +303,20 @@
         </div>
 
         <div v-else-if="currentTab==='PROMPTS'">
+          <!-- Base Prompt Section at Top -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">✍️ Base <span class="framesync-accent">Prompt</span></div>
+                <button class="framesync-button" @click="sendPrompts">💾 Update</button>
+              </div>
+              <div style="margin-top:12px;">
+                <textarea class="framesync-input" v-model="prompts.pos" @change="sendPrompts" placeholder="Enter your base prompt here..." 
+                          style="padding:12px; width:100%; min-height:60px; resize:vertical; font-family: inherit; font-size:13px;"></textarea>
+              </div>
+            </div>
+          </div>
+          
           <!-- Unified Morph Control Panel -->
           <div class="rack">
             <div class="framesync-panel" style="background: linear-gradient(135deg, #061726 0%, #0b1526 100%); border: 2px solid #173753;">
@@ -320,22 +334,38 @@
               <!-- Main Crossfader Section with A/B Groups -->
               <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
                 
-                <!-- Group A -->
-                <div style="background: linear-gradient(135deg, rgba(90, 242, 169, 0.08) 0%, rgba(90, 242, 169, 0.02) 100%); border: 2px solid rgba(90, 242, 169, 0.3); border-radius:12px; padding:14px; min-height: 240px; display: flex; flex-direction: column;">
+                <!-- Group A with dynamic opacity -->
+                <div :style="{
+                  background: 'linear-gradient(135deg, rgba(90, 242, 169, ' + (0.05 + (1 - prompts.crossfaderValue) * 0.15) + ') 0%, rgba(90, 242, 169, ' + (0.02 + (1 - prompts.crossfaderValue) * 0.08) + ') 100%)',
+                  border: '2px solid rgba(90, 242, 169, ' + (0.2 + (1 - prompts.crossfaderValue) * 0.6) + ')',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  minHeight: '240px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'all 0.2s ease-out',
+                  boxShadow: '0 4px 20px rgba(90, 242, 169, ' + ((1 - prompts.crossfaderValue) * 0.3) + ')'
+                }">
                   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                    <div style="font-size:16px; color:#5af2a9; font-weight:700; letter-spacing:1px;">◀ GROUP A</div>
-                    <div style="font-size:24px; font-weight:900; color:#5af2a9; opacity:0.8;">{{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</div>
+                    <div :style="{fontSize: '16px', color: '#5af2a9', fontWeight: 700, letterSpacing: '1px', opacity: 0.6 + (1 - prompts.crossfaderValue) * 0.4}">◀ GROUP A</div>
+                    <div :style="{fontSize: '24px', fontWeight: 900, color: '#5af2a9', opacity: 0.6 + (1 - prompts.crossfaderValue) * 0.4}">{{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</div>
                   </div>
                   
                   <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
                     <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" 
-                         style="background:#0b1526; border:1px solid #5af2a9; border-radius:8px; padding:8px;">
+                         :style="{
+                           background: '#0b1526',
+                           border: '1px solid rgba(90, 242, 169, ' + (0.4 + (1 - prompts.crossfaderValue) * 0.6) + ')',
+                           borderRadius: '8px',
+                           padding: '8px',
+                           transition: 'border-color 0.2s'
+                         }">
                       <div style="font-size:12px; color:#cfe5f5; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         {{ lora.name }}
                       </div>
                       <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
                         <span style="color:#7fb3d6;">Base: {{ lora.strength.toFixed(1) }}</span>
-                        <span style="color:#5af2a9; font-weight:700;">→ {{ (lora.strength * (1 - prompts.crossfaderValue)).toFixed(2) }}</span>
+                        <span :style="{color: '#5af2a9', fontWeight: 700, opacity: 0.6 + (1 - prompts.crossfaderValue) * 0.4}">→ {{ (lora.strength * (1 - prompts.crossfaderValue)).toFixed(2) }}</span>
                       </div>
                     </div>
                     <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
@@ -356,12 +386,12 @@
                     </div>
                   </div>
                   
-                  <!-- Large Crossfader Slider -->
+                  <!-- Large Crossfader Slider (1cm / ~38px height) -->
                   <div style="position:relative; padding:12px 0;">
-                    <div style="position:absolute; top:0; left:0; right:0; height:8px; background: linear-gradient(90deg, #5af2a9 0%, #ff8a1a 50%, #2de2ff 100%); border-radius:4px; opacity:0.3;"></div>
+                    <div style="position:absolute; top:0; left:0; right:0; height:12px; background: linear-gradient(90deg, #5af2a9 0%, #ff8a1a 50%, #2de2ff 100%); border-radius:6px; opacity:0.3;"></div>
                     <input type="range" min="0" max="1" step="0.001" v-model.number="prompts.crossfaderValue" @input="updateCrossfader" 
                            class="framesync-input" 
-                           style="width:100%; height:32px; cursor:grab; accent-color:#ff8a1a; position:relative;">
+                           style="width:100%; height:38px; cursor:grab; accent-color:#ff8a1a; position:relative;">
                   </div>
                   
                   <div style="display:flex; justify-content:space-between; margin-top:12px; font-size:13px; font-weight:700;">
@@ -377,22 +407,38 @@
                   </div>
                 </div>
                 
-                <!-- Group B -->
-                <div style="background: linear-gradient(135deg, rgba(45, 226, 255, 0.08) 0%, rgba(45, 226, 255, 0.02) 100%); border: 2px solid rgba(45, 226, 255, 0.3); border-radius:12px; padding:14px; min-height: 240px; display: flex; flex-direction: column;">
+                <!-- Group B with dynamic opacity -->
+                <div :style="{
+                  background: 'linear-gradient(135deg, rgba(45, 226, 255, ' + (0.05 + prompts.crossfaderValue * 0.15) + ') 0%, rgba(45, 226, 255, ' + (0.02 + prompts.crossfaderValue * 0.08) + ') 100%)',
+                  border: '2px solid rgba(45, 226, 255, ' + (0.2 + prompts.crossfaderValue * 0.6) + ')',
+                  borderRadius: '12px',
+                  padding: '14px',
+                  minHeight: '240px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'all 0.2s ease-out',
+                  boxShadow: '0 4px 20px rgba(45, 226, 255, ' + (prompts.crossfaderValue * 0.3) + ')'
+                }">
                   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                    <div style="font-size:16px; color:#2de2ff; font-weight:700; letter-spacing:1px;">GROUP B ▶</div>
-                    <div style="font-size:24px; font-weight:900; color:#2de2ff; opacity:0.8;">{{ Math.round(prompts.crossfaderValue * 100) }}%</div>
+                    <div :style="{fontSize: '16px', color: '#2de2ff', fontWeight: 700, letterSpacing: '1px', opacity: 0.6 + prompts.crossfaderValue * 0.4}">GROUP B ▶</div>
+                    <div :style="{fontSize: '24px', fontWeight: 900, color: '#2de2ff', opacity: 0.6 + prompts.crossfaderValue * 0.4}">{{ Math.round(prompts.crossfaderValue * 100) }}%</div>
                   </div>
                   
                   <div style="flex:1; display:flex; flex-direction:column; gap:8px;">
                     <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" 
-                         style="background:#0b1526; border:1px solid #2de2ff; border-radius:8px; padding:8px;">
+                         :style="{
+                           background: '#0b1526',
+                           border: '1px solid rgba(45, 226, 255, ' + (0.4 + prompts.crossfaderValue * 0.6) + ')',
+                           borderRadius: '8px',
+                           padding: '8px',
+                           transition: 'border-color 0.2s'
+                         }">
                       <div style="font-size:12px; color:#cfe5f5; font-weight:600; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                         {{ lora.name }}
                       </div>
                       <div style="display:flex; justify-content:space-between; align-items:center; font-size:10px;">
                         <span style="color:#7fb3d6;">Base: {{ lora.strength.toFixed(1) }}</span>
-                        <span style="color:#2de2ff; font-weight:700;">→ {{ (lora.strength * prompts.crossfaderValue).toFixed(2) }}</span>
+                        <span :style="{color: '#2de2ff', fontWeight: 700, opacity: 0.6 + prompts.crossfaderValue * 0.4}">→ {{ (lora.strength * prompts.crossfaderValue).toFixed(2) }}</span>
                       </div>
                     </div>
                     <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
@@ -407,23 +453,15 @@
             </div>
           </div>
           
-          <!-- Prompt Inputs Section -->
+          <!-- Additional Negative Prompt Section -->
           <div class="rack">
             <div class="framesync-panel">
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
-                <div>
-                  <div class="framesync-subtitle" style="margin-bottom:8px; color:#5af2a9;">✍️ Positive Prompt</div>
-                  <textarea class="framesync-input" v-model="prompts.pos" @change="sendPrompts" placeholder="Enter positive prompt..." 
-                            style="padding:10px; width:100%; min-height:80px; resize:vertical; font-family: inherit;"></textarea>
-                </div>
-                <div>
-                  <div class="framesync-subtitle" style="margin-bottom:8px; color:#ff4d6d;">🚫 Negative Prompt</div>
-                  <textarea class="framesync-input" v-model="prompts.neg" @change="sendPrompts" placeholder="Enter negative prompt..." 
-                            style="padding:10px; width:100%; min-height:80px; resize:vertical; font-family: inherit;"></textarea>
-                </div>
+              <div class="framesync-header">
+                <div class="framesync-title">🚫 Negative <span class="framesync-accent">Prompt</span></div>
               </div>
-              <div class="framesync-footer" style="margin-top:12px; justify-content:center;">
-                <button class="framesync-button" @click="sendPrompts" style="padding:8px 24px; font-size:14px;">💾 Update Prompts</button>
+              <div style="margin-top:12px;">
+                <textarea class="framesync-input" v-model="prompts.neg" @change="sendPrompts" placeholder="Enter negative prompt..." 
+                          style="padding:10px; width:100%; min-height:60px; resize:vertical; font-family: inherit;"></textarea>
               </div>
             </div>
           </div>
