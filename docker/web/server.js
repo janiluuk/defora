@@ -24,6 +24,10 @@ async function start(opts = {}) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
+  
+  // Serve static files from public directory
+  const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
+  app.use(express.static(publicDir));
 
   // Simple health check endpoint for Docker healthcheck
   app.get("/health", (_req, res) => {

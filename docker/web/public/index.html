@@ -1712,6 +1712,14 @@
               if (data.preset.cn) Object.assign(this.cn, data.preset.cn);
               if (data.preset.lfos) this.lfos = data.preset.lfos;
               if (data.preset.macrosRack) this.macrosRack = data.preset.macrosRack;
+              if (data.preset.loras) {
+                this.loras.groupA = data.preset.loras.groupA || [];
+                this.loras.groupB = data.preset.loras.groupB || [];
+                this.refreshLoras(); // Refresh to sync with available loras
+              }
+              if (data.preset.prompts) {
+                Object.assign(this.prompts, data.preset.prompts);
+              }
               this.currentPreset = name;
               this.presetStatus = `Loaded preset: ${name}`;
               setTimeout(() => { this.presetStatus = ""; }, 3000);
@@ -1728,6 +1736,16 @@
             liveCam: this.liveCam,
             audio: { bpm: this.audio.bpm, track: this.audio.track },
             cn: { slots: this.cn.slots, active: this.cn.active },
+            loras: {
+              groupA: this.loras.groupA,
+              groupB: this.loras.groupB,
+            },
+            prompts: {
+              pos: this.prompts.pos,
+              neg: this.prompts.neg,
+              morphOn: this.prompts.morphOn,
+              crossfaderValue: this.prompts.crossfaderValue,
+            },
             lfos: this.lfos,
             macrosRack: this.macrosRack,
             paramSources: this.paramSources,
