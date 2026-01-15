@@ -338,7 +338,144 @@
                 <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enable</button>
                 <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disable</button>
               </div>
-              <div class="framesync-gradient-bar" style="margin-top:10px;"></div>
+              <!-- DJ-style crossfader -->
+              <div style="margin-top:16px;">
+                <div class="framesync-subtitle" style="margin-bottom:8px; display:flex; justify-content:space-between;">
+                  <span style="color:#5af2a9;">← A Group</span>
+                  <span style="font-weight:700;">CROSSFADER</span>
+                  <span style="color:#2de2ff;">B Group →</span>
+                </div>
+                <div style="position:relative; padding:20px 0;">
+                  <input type="range" min="0" max="1" step="0.01" v-model.number="prompts.crossfaderValue" @input="updateCrossfader" class="framesync-input" style="width:100%;">
+                  <div style="display:flex; justify-content:space-between; margin-top:8px; font-size:12px; color:#9bc4e2;">
+                    <span>A: {{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</span>
+                    <span style="color:#ff8a1a; font-weight:700;">{{ prompts.crossfaderValue.toFixed(2) }}</span>
+                    <span>B: {{ Math.round(prompts.crossfaderValue * 100) }}%</span>
+                  </div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+                  <div style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:10px;">
+                    <div style="font-size:11px; color:#5af2a9; margin-bottom:6px; font-weight:600;">A GROUP</div>
+                    <div style="font-size:12px; color:#cfe5f5;">{{ loras.groupA.length }} LoRA(s)</div>
+                    <div style="font-size:10px; color:#7fb3d6; margin-top:4px;">Strength: {{ Math.round((1 - prompts.crossfaderValue) * 100) }}%</div>
+                  </div>
+                  <div style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:10px;">
+                    <div style="font-size:11px; color:#2de2ff; margin-bottom:6px; font-weight:600;">B GROUP</div>
+                    <div style="font-size:12px; color:#cfe5f5;">{{ loras.groupB.length }} LoRA(s)</div>
+                    <div style="font-size:10px; color:#7fb3d6; margin-top:4px;">Strength: {{ Math.round(prompts.crossfaderValue * 100) }}%</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='LORA'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">📚 LoRA <span class="framesync-accent">Browser</span></div>
+                <button class="framesync-button" @click="refreshLoras">🔄 Refresh</button>
+              </div>
+              <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; max-height:400px; overflow-y:auto;">
+                <div v-for="lora in loras.available" :key="lora.id" 
+                     style="background:#0b1526; border:1px solid #13233d; border-radius:10px; overflow:hidden; cursor:pointer;"
+                     @click="toggleLoraSelection(lora)">
+                  <div style="position:relative; width:100%; height:180px; background:#031b2d;">
+                    <img v-if="lora.thumbnail" :src="lora.thumbnail" style="width:100%; height:100%; object-fit:cover;" :alt="lora.name" />
+                    <div v-else style="display:flex; align-items:center; justify-content:center; height:100%; color:#7fb3d6;">
+                      <svg viewBox="0 0 24 24" style="width:48px; height:48px; opacity:0.3;" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
+                        <circle cx="8" cy="8" r="2" fill="currentColor"/>
+                        <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
+                      </svg>
+                    </div>
+                    <div v-if="lora.selected" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid #ff8a1a; border-radius:4px; padding:4px 8px; font-size:10px; color:#ff8a1a; font-weight:700;">
+                      ✓ {{ lora.group }}
+                    </div>
+                  </div>
+                  <div style="padding:10px;">
+                    <div style="font-size:13px; color:#cfe5f5; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                      {{ lora.name }}
+                    </div>
+                    <div style="font-size:10px; color:#7fb3d6; margin-bottom:8px;">
+                      {{ lora.path }}
+                    </div>
+                    <div class="framesync-stack">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                        <span style="font-size:10px; color:#9bc4e2;">Strength</span>
+                        <span style="font-size:11px; color:#cfe5f5; font-weight:600;">{{ lora.strength.toFixed(2) }}</span>
+                      </div>
+                      <input type="range" min="0" max="2" step="0.05" v-model.number="lora.strength" @click.stop @input="updateLoraStrength(lora)" class="framesync-input">
+                    </div>
+                    <div class="framesync-footer" style="gap:4px; margin-top:8px;">
+                      <button class="framesync-button" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora, 'A')" style="padding:4px 8px; font-size:10px;">
+                        A Group
+                      </button>
+                      <button class="framesync-button" :class="{active: lora.group==='B'}" @click.stop="assignLoraToGroup(lora, 'B')" style="padding:4px 8px; font-size:10px;">
+                        B Group
+                      </button>
+                      <button class="framesync-button" @click.stop="removeLoraSelection(lora)" style="padding:4px 8px; font-size:10px;">
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+                No LoRAs found. Click Refresh to load available LoRAs.
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎚️ Active <span class="framesync-accent">LoRAs</span></div>
+              </div>
+              <div style="margin-top:12px;">
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                  <div>
+                    <div style="font-size:12px; color:#5af2a9; margin-bottom:8px; font-weight:600;">A GROUP ({{ loras.groupA.length }})</div>
+                    <div style="display:grid; gap:6px;">
+                      <div v-for="lora in loras.groupA" :key="lora.id" 
+                           style="background:#0b1526; border:1px solid #13233d; border-radius:6px; padding:8px; font-size:11px; color:#cfe5f5;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                          <span style="font-weight:600;">{{ lora.name }}</span>
+                          <span style="color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
+                        </div>
+                        <div style="font-size:9px; color:#7fb3d6; margin-top:2px;">
+                          Effective: {{ (lora.strength * (1 - prompts.crossfaderValue)).toFixed(2) }}
+                        </div>
+                      </div>
+                      <div v-if="loras.groupA.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
+                        No LoRAs in group A
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <div style="font-size:12px; color:#2de2ff; margin-bottom:8px; font-weight:600;">B GROUP ({{ loras.groupB.length }})</div>
+                    <div style="display:grid; gap:6px;">
+                      <div v-for="lora in loras.groupB" :key="lora.id" 
+                           style="background:#0b1526; border:1px solid #13233d; border-radius:6px; padding:8px; font-size:11px; color:#cfe5f5;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                          <span style="font-weight:600;">{{ lora.name }}</span>
+                          <span style="color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
+                        </div>
+                        <div style="font-size:9px; color:#7fb3d6; margin-top:2px;">
+                          Effective: {{ (lora.strength * prompts.crossfaderValue).toFixed(2) }}
+                        </div>
+                      </div>
+                      <div v-if="loras.groupB.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
+                        No LoRAs in group B
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div class="framesync-footer" style="margin-top:12px;">
+                  <button class="framesync-button" @click="applyLoras">✓ Apply LoRAs</button>
+                  <button class="framesync-button" @click="clearAllLoras">✕ Clear All</button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -831,6 +968,7 @@
           tabs: [
             { id: "LIVE", label: "LIVE" },
             { id: "PROMPTS", label: "PROMPTS" },
+            { id: "LORA", label: "LORA" },
             { id: "MOTION", label: "MOTION" },
             { id: "MODULATION", label: "MODULATION" },
             { id: "CONTROLNET", label: "CN" },
@@ -859,12 +997,17 @@
             cfgscale: "Manual",
             zoom: "Beat",
           },
-          prompts: { pos: "", neg: "", morphOn: true },
+          prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5 },
           morphSlots: [
             { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
             { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
             { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
           ],
+          loras: {
+            available: [],
+            groupA: [],
+            groupB: [],
+          },
           motionPresets: {
             Static: { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
             Orbit: { translation_z: 2, rotation_y: 15, translation_x: 0, translation_y: 0, rotation_z: 0 },
@@ -1027,6 +1170,7 @@
         this.refreshFrames();
         this.refreshPresets();
         this.loadControlNetModels();
+        this.refreshLoras();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
         }
@@ -1746,6 +1890,133 @@
           const translation_y = normY * TRANSLATION_RANGE;
           this.queueLiveParam("translation_x", translation_x);
           this.queueLiveParam("translation_y", translation_y);
+        },
+        // LoRA management methods
+        async refreshLoras() {
+          try {
+            const res = await fetch("/api/loras");
+            const data = await res.json();
+            if (data.loras) {
+              this.loras.available = data.loras.map((lora) => ({
+                id: lora.id || lora.name,
+                name: lora.name,
+                path: lora.path || "",
+                thumbnail: lora.thumbnail || null,
+                strength: lora.strength || 1.0,
+                selected: false,
+                group: null,
+              }));
+              // Restore selected loras from groups
+              this.loras.groupA.forEach((savedLora) => {
+                const found = this.loras.available.find((l) => l.id === savedLora.id);
+                if (found) {
+                  found.selected = true;
+                  found.group = "A";
+                  found.strength = savedLora.strength;
+                }
+              });
+              this.loras.groupB.forEach((savedLora) => {
+                const found = this.loras.available.find((l) => l.id === savedLora.id);
+                if (found) {
+                  found.selected = true;
+                  found.group = "B";
+                  found.strength = savedLora.strength;
+                }
+              });
+            }
+          } catch (err) {
+            console.error("Failed to load LoRAs", err);
+          }
+        },
+        toggleLoraSelection(lora) {
+          if (lora.selected) {
+            this.removeLoraSelection(lora);
+          } else {
+            lora.selected = true;
+            lora.group = "A";
+            this.assignLoraToGroup(lora, "A");
+          }
+        },
+        assignLoraToGroup(lora, group) {
+          if (group !== "A" && group !== "B") return;
+          
+          // Remove from both groups first
+          this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
+          this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
+          
+          // Add to target group
+          lora.group = group;
+          lora.selected = true;
+          const loraData = {
+            id: lora.id,
+            name: lora.name,
+            path: lora.path,
+            strength: lora.strength,
+            thumbnail: lora.thumbnail,
+          };
+          
+          if (group === "A") {
+            this.loras.groupA.push(loraData);
+          } else {
+            this.loras.groupB.push(loraData);
+          }
+        },
+        removeLoraSelection(lora) {
+          lora.selected = false;
+          lora.group = null;
+          this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
+          this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
+        },
+        updateLoraStrength(lora) {
+          // Update strength in groups as well
+          const groupALora = this.loras.groupA.find((l) => l.id === lora.id);
+          if (groupALora) {
+            groupALora.strength = lora.strength;
+          }
+          const groupBLora = this.loras.groupB.find((l) => l.id === lora.id);
+          if (groupBLora) {
+            groupBLora.strength = lora.strength;
+          }
+        },
+        updateCrossfader() {
+          // Send crossfader value and update LoRA strengths
+          this.sendControl("crossfader", {
+            value: this.prompts.crossfaderValue,
+            groupA: this.loras.groupA.map((l) => ({
+              ...l,
+              effectiveStrength: l.strength * (1 - this.prompts.crossfaderValue),
+            })),
+            groupB: this.loras.groupB.map((l) => ({
+              ...l,
+              effectiveStrength: l.strength * this.prompts.crossfaderValue,
+            })),
+          });
+        },
+        applyLoras() {
+          const payload = {
+            groupA: this.loras.groupA.map((l) => ({
+              name: l.name,
+              path: l.path,
+              strength: l.strength * (1 - this.prompts.crossfaderValue),
+            })),
+            groupB: this.loras.groupB.map((l) => ({
+              name: l.name,
+              path: l.path,
+              strength: l.strength * this.prompts.crossfaderValue,
+            })),
+            crossfaderValue: this.prompts.crossfaderValue,
+          };
+          this.sendControl("loras", payload);
+          console.log("Applied LoRAs with crossfader", payload);
+        },
+        clearAllLoras() {
+          this.loras.available.forEach((lora) => {
+            lora.selected = false;
+            lora.group = null;
+          });
+          this.loras.groupA = [];
+          this.loras.groupB = [];
+          this.sendControl("loras", { groupA: [], groupB: [], crossfaderValue: 0.5 });
         },
       },
     }).mount("#app");
