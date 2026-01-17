@@ -103,12 +103,13 @@ describe("Deforumation Web UI", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
+    expect(tabs.join(" ")).to.include("LORA");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("CN");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    // Should have 6 tabs total (AUDIO/BEATS and FEATURES merged into MODULATION)
-    expect(tabs.length).to.equal(6);
+    // Should have 7 tabs total (added LORA tab for LoRA browser)
+    expect(tabs.length).to.equal(7);
   });
 
   it("has a video player and overlay HUD", () => {

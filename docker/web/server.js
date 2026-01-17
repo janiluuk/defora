@@ -24,6 +24,10 @@ async function start(opts = {}) {
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
+  
+  // Serve static files from public directory
+  const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
+  app.use(express.static(publicDir));
 
   // Simple health check endpoint for Docker healthcheck
   app.get("/health", (_req, res) => {
@@ -381,6 +385,100 @@ async function start(opts = {}) {
     if (lowerName.includes('seg') || lowerName.includes('semantic')) return 'semantic';
     return 'other';
   }
+
+  // LoRA API endpoints
+  app.get("/api/loras", async (_req, res) => {
+    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    const forgeUrl = `http://${forgeHost}:${forgePort}`;
+    
+    // Fallback placeholder LoRAs for development/demo
+    const placeholderLoras = [
+      {
+        id: "lora_sdxl_lightning_1",
+        name: "SDXL Lightning",
+        path: "sdxl_lightning.safetensors",
+        thumbnail: null,
+        strength: 1.0,
+      },
+      {
+        id: "lora_detail_tweaker_1",
+        name: "Detail Tweaker",
+        path: "detail_tweaker_v1.safetensors",
+        thumbnail: null,
+        strength: 0.8,
+      },
+      {
+        id: "lora_style_anime_1",
+        name: "Anime Style",
+        path: "anime_style_xl.safetensors",
+        thumbnail: null,
+        strength: 1.0,
+      },
+      {
+        id: "lora_photorealism_1",
+        name: "Photorealism Enhancer",
+        path: "photorealism_v2.safetensors",
+        thumbnail: null,
+        strength: 0.7,
+      },
+      {
+        id: "lora_cyberpunk_1",
+        name: "Cyberpunk Style",
+        path: "cyberpunk_neon.safetensors",
+        thumbnail: null,
+        strength: 1.0,
+      },
+      {
+        id: "lora_watercolor_1",
+        name: "Watercolor Art",
+        path: "watercolor_painting.safetensors",
+        thumbnail: null,
+        strength: 0.9,
+      },
+    ];
+    
+    try {
+      // Try to fetch LoRAs from SD-Forge API
+      if (typeof fetch === 'undefined') {
+        throw new Error('fetch not available');
+      }
+      
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000); // 2 second timeout
+      
+      const response = await fetch(`${forgeUrl}/sdapi/v1/loras`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const loras = await response.json();
+        // SD-Forge returns an array of lora objects
+        const loraList = Array.isArray(loras) ? loras : [];
+        const formattedLoras = loraList.map((lora, idx) => {
+          const name = lora.name || lora.alias || `LoRA ${idx + 1}`;
+          const path = lora.path || lora.filename || name;
+          return {
+            id: `lora_${idx}_${name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+            name: name,
+            path: path,
+            thumbnail: lora.preview || lora.thumbnail || null,
+            strength: 1.0,
+          };
+        });
+        
+        console.log(`[loras] Fetched ${formattedLoras.length} LoRAs from SD-Forge`);
+        return res.json({ loras: formattedLoras, source: 'sd-forge' });
+      }
+    } catch (err) {
+      // API unavailable or timeout - fall back to placeholder
+      console.log(`[loras] SD-Forge API unavailable, using placeholder LoRAs: ${err.message}`);
+    }
+    
+    res.json({ loras: placeholderLoras, source: 'placeholder' });
+  });
 
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
