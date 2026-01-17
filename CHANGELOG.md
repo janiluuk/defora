@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.5] - 2026-01-17
+
+## What's Changed
+
+- Add LoRA browser with enhanced DJ-style crossfader and dynamic visual feedback for live performance (#25) (c2b9671)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.4...v0.2.5
+
+
 ## [0.2.4] - 2026-01-14
 
 ## What's Changed
