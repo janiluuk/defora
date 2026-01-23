@@ -36,20 +36,20 @@ check_warn() {
 ERRORS=0
 WARNINGS=0
 
-# 1. Check deforumation submodule
-echo "1. Checking Deforum mediator components..."
-if [ -f "deforumation/mediator.py" ]; then
-    check_pass "deforumation/mediator.py exists"
+# 1. Check mediator implementation
+echo "1. Checking Defora mediator components..."
+if [ -f "defora_cli/mediator_server.py" ]; then
+    check_pass "defora_cli/mediator_server.py exists"
 else
-    check_fail "deforumation/mediator.py missing - run: git submodule update --init --recursive"
+    check_fail "defora_cli/mediator_server.py missing"
     ERRORS=$((ERRORS + 1))
 fi
 
-if [ -d "deforumation/Deforum_Version/sd-forge" ]; then
-    check_pass "Deforum bridge for sd-forge exists"
+if [ -f "defora_data/DeforumationSendConfig.json" ]; then
+    check_pass "defora_data/DeforumationSendConfig.json exists"
 else
-    check_fail "Deforum bridge missing in deforumation/Deforum_Version/sd-forge/"
-    ERRORS=$((ERRORS + 1))
+    check_warn "defora_data/DeforumationSendConfig.json missing (will be created on first run)"
+    WARNINGS=$((WARNINGS + 1))
 fi
 
 # 2. Check Docker components

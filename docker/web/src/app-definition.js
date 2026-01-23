@@ -307,10 +307,62 @@ function mergeDeforumSettings(base, patch) {
 /**
  * Fetch helper with structured console errors (audit post-remediation polish).
  */
+const CONTROL_TOKEN_STORAGE_KEY = 'defora_control_token';
+let fetchInterceptorInstalled = false;
+
+function getStoredControlToken() {
+  if (typeof localStorage === 'undefined') return '';
+  try {
+    return localStorage.getItem(CONTROL_TOKEN_STORAGE_KEY) || '';
+  } catch (_) {
+    return '';
+  }
+}
+
+function shouldAttachApiToken(input) {
+  if (typeof window === 'undefined' || typeof URL === 'undefined') return false;
+  const rawUrl = typeof input === 'string' || input instanceof URL
+    ? input
+    : input && typeof input.url === 'string'
+      ? input.url
+      : null;
+  if (!rawUrl) return false;
+  try {
+    const url = new URL(rawUrl, window.location.origin);
+    return url.origin === window.location.origin && url.pathname.startsWith('/api');
+  } catch (_) {
+    return false;
+  }
+}
+
+function withControlTokenHeaders(input, options = {}) {
+  const token = getStoredControlToken();
+  if (!token || !shouldAttachApiToken(input) || typeof Headers === 'undefined') {
+    return options;
+  }
+  const headers = new Headers(options.headers || undefined);
+  if (!headers.has('Authorization') && !headers.has('X-API-Token') && !headers.has('X-Control-Token')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+  return {
+    ...options,
+    headers,
+  };
+}
+
+function installApiTokenFetchInterceptor() {
+  if (fetchInterceptorInstalled || typeof window === 'undefined' || typeof window.fetch !== 'function') {
+    return;
+  }
+  const nativeFetch = window.fetch.bind(window);
+  window.fetch = (input, options = {}) => nativeFetch(input, withControlTokenHeaders(input, options));
+  fetchInterceptorInstalled = true;
+}
+
 async function apiFetch(url, options = {}, context = 'API') {
   const label = context || url;
   try {
-    const res = await fetch(url, options);
+    const res = await fetch(url, withControlTokenHeaders(url, options));
     let data = null;
     const ct = res.headers.get('content-type') || '';
     if (ct.includes('application/json')) {
@@ -1800,7 +1852,10 @@ module.exports = {
  },
  sendControl(controlType, payload) {
    if (!this.ws || this.ws.readyState !== 1) return;
-   const msg = { type: "control", controlType, payload };
+  const token = getStoredControlToken();
+  const msg = token
+    ? { type: "control", controlType, payload, token }
+    : { type: "control", controlType, payload };
    this.ws.send(JSON.stringify(msg));
  },
  updateParam(p, evt) {

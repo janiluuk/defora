@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-COPY deforumation/mediator.py /app/mediator.py
+COPY defora_cli/mediator_server.py /app/mediator.py
 COPY docker/mediator/entrypoint.sh /entrypoint.sh
 
 RUN pip install --no-cache-dir websockets==12.0 && \

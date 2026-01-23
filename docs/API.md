@@ -546,6 +546,9 @@ Configure the web server using these environment variables:
 - `UPLOADS_DIR` - Directory for uploaded audio files (default: ./uploads)
 - `DEF_MEDIATOR_HOST` - Default mediator hostname (default: localhost)
 - `DEF_MEDIATOR_PORT` - Default mediator port (default: 8766)
+- `API_TOKEN` - Optional HTTP API bearer token (default: unset)
+- `RATE_LIMIT_MAX` - Max requests per window when rate limiting is enabled (default: 0, disabled)
+- `RATE_LIMIT_WINDOW_MS` - Rate limit window duration in ms (default: 60000)
 
 ---
 
@@ -588,14 +591,18 @@ Compare 2–8 runs side-by-side (matrix of fields including `prompt_positive` / 
 ## Rate Limiting & Security
 
 **Current Implementation**:
-- No rate limiting (suitable for local/trusted networks)
+- Optional in-memory rate limiting (disabled by default)
+- Optional HTTP API authentication via `API_TOKEN`
 - Filename sanitization on uploads
 - File extension and MIME type validation
-- No authentication (use `CONTROL_TOKEN` for basic WebSocket auth)
+- WebSocket control authentication via `CONTROL_TOKEN`
+
+**Client Notes**:
+- Web UI reads `defora_control_token` from localStorage and sends it as `Authorization: Bearer <token>` for API calls and as `token` for WebSocket control messages.
 
 **Production Recommendations**:
-- Add rate limiting middleware
-- Implement proper authentication/authorization
+- Set `RATE_LIMIT_MAX` and `RATE_LIMIT_WINDOW_MS` to throttle API traffic
+- Set `API_TOKEN` and secure traffic with HTTPS/WSS
 - Use HTTPS/WSS for remote access
 - Add CORS configuration
 - Set up firewall rules

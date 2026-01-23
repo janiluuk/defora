@@ -42,7 +42,7 @@ open http://localhost:8080
 - RTMP ingest (for encoder): `rtmp://localhost:1935/live/deforum`
 - RabbitMQ mgmt: `http://localhost:15672` (user/pass: guest/guest)
 - Control WebSocket: `ws://localhost:8080` (send `{type:"control", token, controlType, payload:{...}}`)
-- Dashboard presets: load `--preset <name>` or save `--save-preset <name>` (stored under `deforumation/presets/`).
+- Dashboard presets: load `--preset <name>` or save `--save-preset <name>` (stored under `defora_data/presets/`).
 
 ## Controls flow
 - Browser ↔ WebSocket (on the same host/port as the player).

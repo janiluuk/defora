@@ -1833,7 +1833,8 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
-import { apiFetch, modelSourceLabel } from './api-utils.js'
+<<<<<<< HEAD
+import { apiFetch, getStoredControlToken, modelSourceLabel } from './api-utils.js'
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
 import Crossfader from './components/Crossfader.vue'
@@ -3362,7 +3363,10 @@ export default {
  },
  sendControl(controlType, payload) {
    if (!this.ws || this.ws.readyState !== 1) return;
-   const msg = { type: "control", controlType, payload };
+  const token = getStoredControlToken();
+  const msg = token
+    ? { type: "control", controlType, payload, token }
+    : { type: "control", controlType, payload };
    this.ws.send(JSON.stringify(msg));
  },
  updateParam(p, evt) {

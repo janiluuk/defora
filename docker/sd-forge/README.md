@@ -1,11 +1,11 @@
 # SD-Forge Docker Service
 
-This directory contains the Dockerfile for running Stable Diffusion WebUI Forge with the Deforumation-patched Deforum extension.
+This directory contains the Dockerfile for running Stable Diffusion WebUI Forge with the Deforum extension configured for the Defora mediator.
 
 ## Features
 
 - Based on the official `ghcr.io/lllyasviel/stable-diffusion-webui-forge:latest` image
-- Pre-installed Deforum extension with Deforumation websocket support
+- Pre-installed Deforum extension configured for the mediator
 - GPU acceleration support via NVIDIA runtime
 - Persistent volumes for models and outputs
 - Automatic health checking
@@ -188,7 +188,7 @@ Or edit the `command` section directly in `docker-compose.yml` and add your cust
 - The service waits for the `web` and `mediator` services to be healthy before starting
 - Initial startup may take several minutes while models are loaded
 - GPU memory requirements vary based on the models used (12GB+ recommended)
-- The Deforum extension is a patched version from the Deforumation project with websocket support
+- The Deforum extension is configured to point at the mediator
 
 ## References
 

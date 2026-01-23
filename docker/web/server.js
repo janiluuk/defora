@@ -14,6 +14,7 @@ async function start(opts = {}) {
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
+  const apiToken = opts.apiToken ?? process.env.API_TOKEN ?? "";
   const framesDir =
     opts.framesDir ||
     process.env.FRAMES_DIR ||
@@ -148,6 +149,87 @@ async function start(opts = {}) {
 
   const app = express();
   app.use(express.json({ limit: "50mb" }));
+
+  const rateLimitMax = parseInt(
+    opts.rateLimitMax ?? process.env.RATE_LIMIT_MAX ?? "0",
+    10
+  );
+  const rateLimitWindowMs = parseInt(
+    opts.rateLimitWindowMs ?? process.env.RATE_LIMIT_WINDOW_MS ?? "60000",
+    10
+  );
+  const rateLimitStore = new Map();
+
+  function getClientKey(req) {
+    const forwarded = req.headers["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.trim()) {
+      return forwarded.split(",")[0].trim();
+    }
+    return req.ip || req.connection?.remoteAddress || "unknown";
+  }
+
+  function rateLimit(req, res, next) {
+    if (!Number.isFinite(rateLimitMax) || rateLimitMax <= 0) return next();
+    const windowMs = Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0
+      ? rateLimitWindowMs
+      : 60000;
+    const now = Date.now();
+    const key = getClientKey(req);
+    let entry = rateLimitStore.get(key);
+    if (!entry || now - entry.start >= windowMs) {
+      entry = { start: now, count: 0 };
+    }
+    res.set("X-RateLimit-Limit", String(rateLimitMax));
+    res.set("X-RateLimit-Reset", String(entry.start + windowMs));
+    if (entry.count >= rateLimitMax) {
+      res.set("X-RateLimit-Remaining", "0");
+      return res.status(429).json({ error: "rate limit exceeded" });
+    }
+    entry.count += 1;
+    rateLimitStore.set(key, entry);
+    res.set("X-RateLimit-Remaining", String(Math.max(0, rateLimitMax - entry.count)));
+    return next();
+  }
+
+  function extractApiToken(req) {
+    const authHeader = req.headers.authorization || "";
+    if (typeof authHeader === "string" && authHeader.toLowerCase().startsWith("bearer ")) {
+      return authHeader.slice(7).trim();
+    }
+    const headerToken = req.headers["x-api-token"] || req.headers["x-control-token"];
+    if (typeof headerToken === "string" && headerToken.trim()) {
+      return headerToken.trim();
+    }
+    const queryToken = req.query && typeof req.query.token === "string" ? req.query.token : "";
+    return queryToken.trim();
+  }
+
+  function requireApiToken(req, res, next) {
+    if (!apiToken) return next();
+    const token = extractApiToken(req);
+    if (token !== apiToken) {
+      return res.status(401).json({ error: "unauthorized" });
+    }
+    return next();
+  }
+
+  const pruneRateLimitTimer = setInterval(() => {
+    if (!Number.isFinite(rateLimitMax) || rateLimitMax <= 0) return;
+    const windowMs = Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0
+      ? rateLimitWindowMs
+      : 60000;
+    const cutoff = Date.now() - windowMs * 2;
+    for (const [key, entry] of rateLimitStore.entries()) {
+      if (!entry || entry.start < cutoff) {
+        rateLimitStore.delete(key);
+      }
+    }
+  }, Math.max(60000, rateLimitWindowMs));
+  if (typeof pruneRateLimitTimer.unref === "function") {
+    pruneRateLimitTimer.unref();
+  }
+
+  app.use("/api", rateLimit, requireApiToken);
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
   
   // Serve static files from public directory
@@ -3389,6 +3471,7 @@ async function start(opts = {}) {
     clearInterval(pollTimer);
     if (forgePollTimer) clearInterval(forgePollTimer);
     clearInterval(cleanupTimer);
+    clearInterval(pruneRateLimitTimer);
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
       try {

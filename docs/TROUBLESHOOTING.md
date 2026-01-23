@@ -18,22 +18,13 @@ This guide helps diagnose and fix common issues with the Defora audio-visual ins
 
 ## Installation Issues
 
-### Submodule Not Initialized
+### Mediator Server Missing
 
-**Symptom**: `deforumation/mediator.py` not found, tests fail
+**Symptom**: `defora_cli/mediator_server.py` not found, tests fail
 
-**Cause**: Git submodule not initialized
+**Cause**: Incomplete repository checkout
 
-**Fix**:
-```bash
-cd /path/to/defora
-git submodule update --init --recursive
-```
-
-Or use the helper script:
-```bash
-./scripts/clone_deforumation.sh
-```
+**Fix**: Re-clone the repository or restore the missing file.
 
 ---
 

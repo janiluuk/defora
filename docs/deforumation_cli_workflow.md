@@ -24,7 +24,7 @@
 ### Monitor live output
 - `./monitor_cli --frames runs/<id>/frames`
 - Or rely on auto-detect: set `DEFORUMATION_FRAMES_DIR`, or it will pick the latest `runs/*/frames`. Set `DEFORUMATION_ASCII_PREVIEW=1` for ASCII thumbnails (requires Pillow).
-- Want more of the Deforumation GUI feel in terminal? Use `./deforumation_dashboard --config deforumation/helpers/DeforumationSendConfig.json` to edit/send the same config fields (tabs: prompts, prompt mixer, motions, control toggles, audio sync, settings).
+- Want more of the Deforumation GUI feel in terminal? Use `./deforumation_dashboard --config defora_data/DeforumationSendConfig.json` to edit/send the same config fields (tabs: prompts, prompt mixer, motions, control toggles, audio sync, settings).
 
 ### Audio-reactive modulation
 - Build or stream parameter schedules from audio bands: `./audio_reactive_modulator --audio song.wav --fps 24 --mapping mappings.json --output audio_mod.json`

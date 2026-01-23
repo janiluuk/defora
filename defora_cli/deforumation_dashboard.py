@@ -5,11 +5,11 @@ Curses dashboard inspired by the Deforumation GUI.
 Goals:
 - Bring the key Deforumation tabs (prompts, prompt mixer, motions, control toggles, audio sync, settings)
   into a terminal UI so you can operate without the Qt app.
-- Load/save values from the upstream DeforumationSendConfig.json.
+- Load/save values from Defora's local DeforumationSendConfig.json.
 - Push selected fields to the mediator (host/port configurable) for live control.
 - Kick off audio-reactive modulation via the packaged helper.
 
-The layout intentionally mirrors the tab names shown in deforumation/github_images.
+The layout intentionally mirrors the tab names shown in the Deforumation UI.
 """
 from __future__ import annotations
 
@@ -24,10 +24,10 @@ from typing import Any, Dict, List, Tuple
 
 from .mediator_client import MediatorClient
 
-DEFAULT_CONFIG_PATH = Path("deforumation/helpers/DeforumationSendConfig.json")
+DEFAULT_CONFIG_PATH = Path("defora_data/DeforumationSendConfig.json")
 DEFAULT_AUDIO_OUTPUT = Path("audio_modulation.json")
 DEFAULT_MAPPING = Path()  # no default mapping; user should set explicitly
-PRESETS_DIR = Path("deforumation/presets")
+PRESETS_DIR = Path("defora_data/presets")
 
 TAB_PROMPTS = "PROMPTS"
 TAB_MIX = "PROMPT MIXER"
@@ -336,10 +336,10 @@ def parse_args(argv: List[str]) -> argparse.Namespace:
     parser.add_argument(
         "--config",
         default=str(DEFAULT_CONFIG_PATH),
-        help="Path to DeforumationSendConfig.json (defaults to upstream location).",
+        help="Path to DeforumationSendConfig.json (defaults to defora_data/).",
     )
-    parser.add_argument("--preset", help="Load a named preset from deforumation/presets/<name>.json if present.")
-    parser.add_argument("--save-preset", help="Save the merged state to deforumation/presets/<name>.json on exit.")
+    parser.add_argument("--preset", help="Load a named preset from defora_data/presets/<name>.json if present.")
+    parser.add_argument("--save-preset", help="Save the merged state to defora_data/presets/<name>.json on exit.")
     parser.add_argument("--host", default="localhost", help="Mediator host")
     parser.add_argument("--port", default="8766", help="Mediator port")
     return parser.parse_args(argv)
