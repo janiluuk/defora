@@ -1,0 +1,496 @@
+# Defora Roadmap
+
+This document outlines the current status, unfinished features, and planned future development for Defora — an audio-visual instrument for Stable Diffusion.
+
+**Last Updated**: 2026-01-24 | **Version**: 0.2.6
+
+---
+
+## Table of Contents
+
+1. [Project Status Overview](#project-status-overview)
+2. [Current Features (Completed)](#current-features-completed)
+3. [Incomplete/In-Progress Features](#incompletein-progress-features)
+4. [Planned Features](#planned-features)
+5. [Future Enhancements](#future-enhancements)
+6. [Long-Term Vision](#long-term-vision)
+
+---
+
+## Project Status Overview
+
+Defora is in **active development** with a strong foundation of core features implemented. The project currently supports:
+
+- ✅ **Core functionality**: Live performance control, prompt morphing, camera motion
+- ✅ **Multiple interfaces**: Web UI, TUI, CLI panel
+- ✅ **Audio integration**: Audio-reactive modulation, beat sync
+- ✅ **Streaming**: HLS, RTMP, SRT support
+- ✅ **Docker deployment**: Complete containerized stack
+- ⚠️ **Advanced workflow features**: Partially implemented, needs integration work
+- 🚧 **Testing**: Comprehensive test suite with some integration tests stubbed
+
+---
+
+## Current Features (Completed)
+
+### 🎹 Performance Interfaces
+
+#### Web UI (Browser-based)
+- ✅ Multi-tab interface (LIVE, PROMPTS, MOTION, MODULATION, CONTROLNET, SETTINGS)
+- ✅ Real-time parameter sliders with WebSocket control
+- ✅ HLS video streaming with low latency
+- ✅ Beat-synchronized macro system
+- ✅ Web MIDI support with CC mapping
+- ✅ LoRA browser with crossfader and A/B grouping
+- ✅ Motion presets with parameter values
+- ✅ Audio waveform visualization
+- ✅ LFO modulators (Sine, Triangle, Sawtooth, Square, Random)
+- ✅ Frame thumbnails and playback stats
+- ✅ Session overlay and custom video controls
+
+#### TUI (Terminal-based)
+- ✅ Full ncurses interface with 6 tabs
+- ✅ ASCII preview support (when PIL available)
+- ✅ Keyboard navigation and parameter control
+- ✅ Live parameter adjustment
+- ✅ Motion curve editor
+- ✅ ControlNet configuration
+- ✅ MIDI CC mapping with learn mode
+
+#### CLI Tools
+- ✅ `forge_cli` - Model-aware txt2img/Deforum generation
+- ✅ `defora_tui` - Full-featured ncurses interface
+- ✅ `deforumation_cli_panel` - Lightweight control panel with hotkeys
+- ✅ `deforumation_dashboard` - Dashboard mirroring Deforumation GUI
+- ✅ `deforumation_runs_cli` - Browse and manage run manifests
+- ✅ `deforumation_request_dispatcher` - Execute run requests
+- ✅ `monitor_cli` - Frame viewer with live mediator values
+- ✅ `stream_helper` - RTMP/SRT/WHIP streaming support
+- ✅ `audio_reactive_modulator` - Audio-to-parameter mapping
+
+### 🎨 Core Generation Features
+
+- ✅ **Model Support**: Flux, SDXL, SD 1.5 with auto-detection
+- ✅ **Fast Generation**: Lightning/Turbo/Schnell model support (1-4 steps)
+- ✅ **Preset System**: Save/load generation presets
+- ✅ **ControlNet Integration**: Multiple ControlNet slots
+- ✅ **LoRA Support**: Dynamic LoRA loading and blending
+- ✅ **Motion Control**: 3D camera motion with translation, rotation, zoom, FOV
+- ✅ **Prompt Morphing**: Multi-slot prompt blending with weight control
+
+### 🎵 Audio & Modulation
+
+- ✅ **Audio-Reactive Modulation**: Map audio frequency bands to parameters
+- ✅ **Beat Detection**: Automatic BPM detection and manual tap tempo
+- ✅ **Beat Macros**: Trigger parameter changes on beat intervals (1/4, 1/8, 1/16)
+- ✅ **LFO Modulators**: 5 waveform types with frequency/amplitude control
+- ✅ **Audio Upload**: Browser-based audio file upload to web UI
+- ✅ **Live Audio Streaming**: Real-time audio-to-parameter streaming
+
+### 🎥 Streaming & Output
+
+- ✅ **HLS Streaming**: Browser-compatible adaptive streaming
+- ✅ **RTMP Support**: Stream to platforms (Twitch, YouTube, etc.)
+- ✅ **SRT Protocol**: Low-latency streaming
+- ✅ **WHIP Support**: WebRTC-based streaming
+- ✅ **Encoder Quality Presets**: Low, Medium, High, Ultra quality settings
+- ✅ **Frame Seeder**: Test pattern generator (timestamp, colorbars, checkerboard, gradient, text)
+
+### 🏗️ Architecture & Infrastructure
+
+- ✅ **Mediator Bridge**: WebSocket bridge between SD-Forge and control interfaces
+- ✅ **RabbitMQ Integration**: Message queue for control events
+- ✅ **Docker Stack**: Complete containerized deployment
+- ✅ **Health Checks**: Service health monitoring
+- ✅ **Volume Management**: Backup/restore/cleanup scripts
+- ✅ **Multi-server Support**: Target different SD-Forge instances
+
+### 📚 Documentation
+
+- ✅ **README**: Comprehensive project overview
+- ✅ **ARCHITECTURE**: Complete system architecture documentation
+- ✅ **API**: REST API and WebSocket protocol documentation
+- ✅ **TROUBLESHOOTING**: Common issues and solutions
+- ✅ **COMPLETE_SETUP**: Full setup guide
+- ✅ **VOLUME_MANAGEMENT**: Docker volume procedures
+- ✅ **ENCODER_QUALITY**: Quality preset documentation
+- ✅ **FRAME_SEEDER_PATTERNS**: Test pattern documentation
+- ✅ **RELEASE_PROCESS**: Automated changelog and releases
+- ✅ **Examples**: Batch generation, model comparison, seed exploration
+
+### 🧪 Testing
+
+- ✅ **Python Test Suite**: Unit tests for CLI tools
+- ✅ **Web UI Tests**: Smoke tests for all tabs, sliders, MIDI
+- ✅ **CI/CD Pipeline**: GitHub Actions for automated testing
+- ✅ **Audio Modulator Tests**: Frequency band mapping, LFO generation
+- ✅ **API Tests**: Preset management, ControlNet, audio upload
+
+---
+
+## Incomplete/In-Progress Features
+
+### 🚧 Runs Management Integration
+
+**Status**: Core functionality exists but not fully wired
+
+**What Works**:
+- ✅ Browse run manifests in TUI (`deforumation_runs_cli`)
+- ✅ Save re-run/continue requests to JSON files
+- ✅ Manual dispatch via `deforumation_request_dispatcher`
+- ✅ Interactive tag/override editing
+
+**What's Missing**:
+- ⚠️ Direct integration between runs TUI and dispatcher (currently requires manual steps)
+- ⚠️ One-click re-run/continue from TUI (requires `DEFORUMATION_AUTO_DISPATCH=1`)
+- ⚠️ Persistent tag/notes storage in run manifests
+- ⚠️ Prompt/seed tweaks before dispatch
+- ⚠️ Better visual feedback during dispatch
+
+**Next Steps**:
+1. Add auto-dispatch toggle in TUI
+2. Implement persistent metadata storage
+3. Add pre-dispatch parameter editing dialog
+4. Improve dispatch status feedback
+
+### 🚧 API Fallback Systems
+
+**Status**: Graceful degradation implemented, needs real integration
+
+**What Works**:
+- ✅ Placeholder ControlNet models when SD-Forge unavailable
+- ✅ Placeholder LoRA models for development/demo
+- ✅ 2-second timeout with fallback to placeholders
+- ✅ Clear logging of API unavailability
+
+**What's Missing**:
+- ⚠️ Live model discovery when SD-Forge becomes available
+- ⚠️ Automatic refresh of model lists
+- ⚠️ Better error messages in UI when using placeholders
+- ⚠️ Model availability status indicator
+
+**Next Steps**:
+1. Add "Refresh Models" button in UI
+2. Implement periodic model list polling
+3. Add visual indicator for placeholder vs real models
+4. Improve error messages in browser console
+
+### 🚧 Test Coverage
+
+**Status**: Good unit test coverage, integration tests need work
+
+**What Works**:
+- ✅ Unit tests for all CLI tools
+- ✅ Web UI smoke tests (tabs, controls, MIDI)
+- ✅ API endpoint tests
+- ✅ Audio modulator tests with numpy/scipy/librosa
+
+**What's Missing**:
+- ⚠️ Full integration tests with real Docker stack (currently skipped)
+- ⚠️ End-to-end workflow tests
+- ⚠️ Performance/load testing
+- ⚠️ Mediator integration tests
+
+**Next Steps**:
+1. Implement full Docker stack integration tests
+2. Add end-to-end generation workflow tests
+3. Create performance benchmarks
+4. Add stress testing for WebSocket connections
+
+---
+
+## Planned Features
+
+### 🎯 Short-Term (Next 1-3 Months)
+
+#### Enhanced Workflow Management
+- **Priority**: High
+- **Description**: Complete the runs management integration
+- **Features**:
+  - One-click re-run/continue from TUI
+  - Persistent tags and notes
+  - Pre-dispatch parameter tweaking
+  - Batch operations (re-run multiple, delete old runs)
+  - Run comparison view
+
+#### Improved Model Management
+- **Priority**: High
+- **Description**: Better model discovery and switching
+- **Features**:
+  - Live model list refresh
+  - Model metadata display (steps, sampler recommendations)
+  - Automatic model switching based on prompts
+  - Model download integration
+  - LoRA quick-switch presets
+
+#### Advanced Audio Features
+- **Priority**: Medium
+- **Description**: Expand audio-reactive capabilities
+- **Features**:
+  - Multi-band audio mapping (bass, mids, highs)
+  - Audio envelope followers
+  - Spectral analysis visualization
+  - MIDI clock sync for external sequencers
+  - Audio recording from system audio
+
+#### Performance Optimizations
+- **Priority**: Medium
+- **Description**: Improve generation and streaming performance
+- **Features**:
+  - Frame interpolation for smoother output
+  - Batch frame generation optimization
+  - WebSocket message batching
+  - HLS segment caching
+  - GPU memory optimization
+
+### 🎯 Medium-Term (3-6 Months)
+
+#### Animation Sequencer
+- **Priority**: High
+- **Description**: Timeline-based animation control
+- **Features**:
+  - Visual timeline editor
+  - Keyframe system for all parameters
+  - Animation curves (ease-in/out, bezier)
+  - Scene markers and transitions
+  - Export/import timeline presets
+
+#### Advanced Prompt System
+- **Priority**: Medium
+- **Description**: More powerful prompt management
+- **Features**:
+  - Prompt library/browser
+  - Wildcard support (random selection from lists)
+  - Prompt templates with variables
+  - Negative prompt presets
+  - Prompt strength scheduling over time
+
+#### Enhanced ControlNet
+- **Priority**: Medium
+- **Description**: More ControlNet features
+- **Features**:
+  - Multiple ControlNet preprocessing
+  - Live camera/video input for ControlNet
+  - Webcam integration
+  - Screen capture as ControlNet source
+  - ControlNet weight scheduling
+
+#### Collaborative Features
+- **Priority**: Low
+- **Description**: Multi-user support
+- **Features**:
+  - Multiple simultaneous web UI clients
+  - Parameter locking (prevent conflicts)
+  - User presence indicators
+  - Shared presets and settings
+  - Session recording and replay
+
+### 🎯 Long-Term (6-12 Months)
+
+#### img2img and Inpainting
+- **Priority**: High
+- **Description**: Support for image-to-image workflows
+- **Features**:
+  - Upload reference images
+  - Inpainting mask editor
+  - img2img strength control
+  - Batch img2img processing
+  - Image variations generator
+
+#### Plugin System
+- **Priority**: Medium
+- **Description**: Extensible architecture for community plugins
+- **Features**:
+  - Plugin API for custom modulators
+  - Custom parameter mappings
+  - Third-party integration hooks
+  - Plugin marketplace/repository
+  - Plugin sandboxing for security
+
+#### Advanced Streaming
+- **Priority**: Medium
+- **Description**: Professional streaming features
+- **Features**:
+  - Multi-bitrate adaptive streaming
+  - WebRTC support for ultra-low latency
+  - Stream overlays and transitions
+  - Multi-camera switching
+  - Recording while streaming
+
+#### Mobile Support
+- **Priority**: Low
+- **Description**: Mobile-friendly interfaces
+- **Features**:
+  - Responsive web UI for tablets
+  - Touch-optimized controls
+  - Mobile app (iOS/Android)
+  - Gyroscope/accelerometer control
+  - Location-based parameter modulation
+
+---
+
+## Future Enhancements
+
+### 🔮 Experimental Features (12+ Months)
+
+#### AI-Assisted Workflows
+- **Description**: Use AI to help with creative decisions
+- **Features**:
+  - Prompt suggestions based on current output
+  - Automatic parameter tuning for desired aesthetic
+  - Style transfer recommendations
+  - Anomaly detection (bad frames)
+  - Smart preset generation
+
+#### VR/AR Integration
+- **Description**: Immersive performance interfaces
+- **Features**:
+  - VR control room
+  - 3D parameter manipulation
+  - Spatial audio integration
+  - Hand tracking controls
+  - AR overlay on real-world objects
+
+#### Distributed Generation
+- **Description**: Multi-GPU and multi-machine support
+- **Features**:
+  - Load balancing across GPUs
+  - Cloud GPU integration (RunPod, Vast.ai)
+  - Frame interpolation across machines
+  - Render farm support
+  - Cost optimization
+
+#### Advanced Synchronization
+- **Description**: Sync with external systems
+- **Features**:
+  - DMX lighting control integration
+  - OSC (Open Sound Control) support
+  - Ableton Link sync
+  - Timecode (LTC/MTC) sync
+  - Show control systems integration
+
+---
+
+## Long-Term Vision
+
+### Project Goals
+
+**Mission**: Make AI video generation accessible and performable in real-time, turning Stable Diffusion into a true audio-visual instrument for artists, VJs, and performers.
+
+### Target Use Cases
+
+1. **Live Performance**
+   - VJ sets at clubs and festivals
+   - Live streaming performances
+   - Interactive art installations
+   - Music visualization
+
+2. **Content Creation**
+   - Music video production
+   - Social media content
+   - Experimental film
+   - Generative art projects
+
+3. **Creative Exploration**
+   - Rapid prototyping of visual ideas
+   - Style experimentation
+   - Model testing and comparison
+   - Parameter exploration
+
+4. **Education**
+   - Teaching AI art concepts
+   - Demonstrating prompt engineering
+   - Workshops and tutorials
+   - Research and development
+
+### Success Metrics
+
+- **Performance**: Sub-second parameter-to-frame latency
+- **Accessibility**: One-command setup for new users
+- **Reliability**: 99%+ uptime for 8-hour performances
+- **Community**: Active plugin ecosystem
+- **Compatibility**: Support for all major SD models and extensions
+
+---
+
+## Contributing to the Roadmap
+
+We welcome feedback and contributions! Here's how you can help:
+
+### Vote on Features
+- Star issues labeled `enhancement` that you want
+- Comment on roadmap discussions with use cases
+- Join Discord/forum discussions (when available)
+
+### Suggest Features
+- Open an issue with the `feature-request` label
+- Describe your use case and desired workflow
+- Provide examples or mockups if possible
+- Tag with priority suggestion (low/medium/high)
+
+### Implement Features
+- Check issues labeled `good first issue` or `help wanted`
+- Comment on issues you'd like to work on
+- See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
+- Submit PRs with tests and documentation
+
+### Report Bugs
+- Check if bug is already in the roadmap as "known issue"
+- Open issue with steps to reproduce
+- Include environment details (OS, GPU, versions)
+- Tag with severity (critical/major/minor)
+
+---
+
+## Versioning and Releases
+
+Defora follows [Semantic Versioning](https://semver.org/):
+
+- **Major** (1.0, 2.0): Breaking changes, major features
+- **Minor** (0.x.0): New features, backwards compatible
+- **Patch** (0.0.x): Bug fixes, small improvements
+
+### Release Schedule
+
+- **Patch releases**: As needed for critical bugs
+- **Minor releases**: Monthly (when features are ready)
+- **Major releases**: When feature-complete milestones are reached
+
+### Version History
+
+- **0.1.0** (Initial): Basic CLI, web UI skeleton, docker stack
+- **0.2.0** (Current): Full web UI, TUI, audio modulation, streaming
+- **0.3.0** (Q2 2026): Runs management integration, model management
+- **0.4.0** (Q3 2026): Animation sequencer, advanced prompts
+- **0.5.0** (Q4 2026): img2img, plugin system
+- **1.0.0** (Q1 2027): Production-ready release
+
+---
+
+## Deprecation Policy
+
+When features are deprecated:
+
+1. **Announcement**: Feature marked deprecated in release notes
+2. **Grace Period**: Minimum 2 minor versions before removal
+3. **Migration Guide**: Documentation for transitioning to replacement
+4. **Warnings**: CLI/UI warnings when using deprecated features
+
+---
+
+## Getting Help
+
+- **Documentation**: Check [docs/](docs/) for detailed guides
+- **Issues**: Search existing issues before creating new ones
+- **Discussions**: Join GitHub Discussions for Q&A
+- **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md)
+
+---
+
+## License
+
+This roadmap and the Defora project are open source. See [LICENSE](LICENSE) for details.
+
+---
+
+**Last Updated**: 2026-01-24 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)
