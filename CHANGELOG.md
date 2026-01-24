@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.6] - 2026-01-24
+
+## What's Changed
+
+- Update screenshots for web and TUI interfaces (#26) (6c97192)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.5...v0.2.6
+
+
 ## [0.2.5] - 2026-01-17
 
 ## What's Changed
