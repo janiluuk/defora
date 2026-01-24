@@ -65,11 +65,11 @@ Control and blend multiple LoRA models with crossfader:
 <tr>
 <td width="50%">
 <img src="screenshots/lora-tab.png" alt="Web UI LoRA" width="100%" />
-<p><b>Web UI:</b> LoRA browser with strength controls and A/B grouping</p>
+<p><b>Web UI:</b> Dedicated LoRA browser tab with strength controls and A/B grouping</p>
 </td>
 <td width="50%">
 <img src="screenshots/tui-prompts.png" alt="TUI Prompts" width="100%" />
-<p><b>TUI:</b> LoRA management integrated with prompts tab</p>
+<p><b>TUI:</b> LoRA controls integrated within the prompts tab (F2)</p>
 </td>
 </tr>
 </table>
