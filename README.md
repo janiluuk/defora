@@ -58,14 +58,30 @@ Gamepad-style camera controls and curve editing:
 </tr>
 </table>
 
-### 🎵 Audio-Reactive Modulation
-Sync your visuals to audio with beat-driven macros:
+### 🎨 LoRA Management
+Control and blend multiple LoRA models with crossfader:
 
 <table>
 <tr>
 <td width="50%">
-<img src="screenshots/audio-tab.png" alt="Web UI Audio" width="100%" />
-<p><b>Web UI:</b> Waveform visualization with macro rack</p>
+<img src="screenshots/lora-tab.png" alt="Web UI LoRA" width="100%" />
+<p><b>Web UI:</b> Dedicated LoRA browser tab with strength controls and A/B grouping</p>
+</td>
+<td width="50%">
+<img src="screenshots/tui-prompts.png" alt="TUI Prompts" width="100%" />
+<p><b>TUI:</b> LoRA controls integrated within the prompts tab (F2)</p>
+</td>
+</tr>
+</table>
+
+### 🎵 Audio-Reactive Modulation
+Sync your visuals to audio with beat-driven macros and LFOs:
+
+<table>
+<tr>
+<td width="50%">
+<img src="screenshots/modulation-tab.png" alt="Web UI Modulation" width="100%" />
+<p><b>Web UI:</b> Audio waveform, LFO modulators, beat macros, and parameter mapping</p>
 </td>
 <td width="50%">
 <img src="screenshots/tui-audio.png" alt="TUI Audio" width="100%" />
