@@ -69,7 +69,7 @@ Control and blend multiple LoRA models with crossfader:
 </td>
 <td width="50%">
 <img src="screenshots/tui-prompts.png" alt="TUI Prompts" width="100%" />
-<p><b>TUI:</b> Integrated with prompt management</p>
+<p><b>TUI:</b> LoRA management integrated with prompts tab</p>
 </td>
 </tr>
 </table>

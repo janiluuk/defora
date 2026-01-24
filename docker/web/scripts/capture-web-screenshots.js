@@ -9,8 +9,9 @@ const { spawn } = require("child_process");
 
 async function startServer() {
   return new Promise((resolve) => {
+    const publicDir = path.join(__dirname, "..", "public");
     const server = spawn("python", ["-m", "http.server", "9999"], {
-      cwd: "/home/runner/work/defora/defora/docker/web/public",
+      cwd: publicDir,
       stdio: "pipe",
     });
 
@@ -70,7 +71,7 @@ async function captureScreenshots() {
   }
 
   // Create screenshots directory
-  const screenshotsDir = "/home/runner/work/defora/defora/screenshots";
+  const screenshotsDir = path.join(__dirname, "..", "..", "..", "screenshots");
 
   // Get all tab texts
   const tabTexts = await page.$$eval(".tab", (tabs) => tabs.map((t) => t.textContent.trim()));
@@ -128,7 +129,14 @@ async function captureScreenshots() {
   }
 
   await browser.close();
+  
+  // Kill server and wait for cleanup
   server.kill('SIGTERM');
+  await new Promise(resolve => {
+    server.on('close', resolve);
+    setTimeout(resolve, 1000); // Timeout after 1 second
+  });
+  
   console.log("\n✓ Done! Screenshots saved to:", screenshotsDir);
 }
 
