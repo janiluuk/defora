@@ -132,7 +132,7 @@ Defora is in **active development** with a strong foundation of core features im
 
 ### ✅ Runs Management Integration (COMPLETED in v0.2.7)
 
-**Status**: Core functionality complete with full integration
+**Status**: Core functionality complete with full integration and advanced features
 
 **What Works**:
 - ✅ Browse run manifests in TUI (`deforumation_runs_cli`)
@@ -144,11 +144,20 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ **NEW**: 'n' keybinding for editing notes
 - ✅ **NEW**: Visual success/failure indicators (✓/✗)
 - ✅ **NEW**: Better error messages in TUI
+- ✅ **NEW**: Pre-dispatch parameter preview and editing
+- ✅ **NEW**: Batch operations mode ([b] to toggle)
+  - Multi-select runs with SPACE
+  - Batch rerun ([B]) with shared overrides
+  - Batch delete ([D]) with confirmation
+- ✅ **NEW**: Run comparison view ([v] to compare)
+  - Side-by-side comparison of up to 4 runs
+  - Compare models, seeds, steps, strength, CFG, tags
+  - Easy parameter difference identification
 
-**Remaining Enhancements** (moved to short-term roadmap):
-- Pre-dispatch parameter editing dialog
-- Batch operations (re-run multiple, delete old runs)
-- Run comparison view
+**Remaining Enhancements** (moved to future roadmap):
+- Advanced filtering and search
+- Export comparison reports
+- Visual diff for prompts
 
 ### ✅ API Fallback Systems (COMPLETED in v0.2.7)
 
@@ -218,16 +227,6 @@ Defora is in **active development** with a strong foundation of core features im
 ## Planned Features
 
 ### 🎯 Short-Term (Next 1-3 Months)
-
-#### Enhanced Workflow Management
-- **Priority**: High
-- **Description**: Complete the runs management integration
-- **Features**:
-  - One-click re-run/continue from TUI
-  - Persistent tags and notes
-  - Pre-dispatch parameter tweaking
-  - Batch operations (re-run multiple, delete old runs)
-  - Run comparison view
 
 #### Improved Model Management
 - **Priority**: High
