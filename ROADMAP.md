@@ -170,9 +170,9 @@ Defora is in **active development** with a strong foundation of core features im
 - Visual indicator in UI for model source
 - Better error messages in browser console
 
-### 🚧 Test Coverage
+### ✅ Test Coverage (COMPLETED in v0.2.7)
 
-**Status**: Good unit test coverage, integration tests improved
+**Status**: Comprehensive test coverage with integration and performance tests
 
 **What Works**:
 - ✅ Unit tests for all CLI tools
@@ -182,16 +182,36 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ **NEW**: End-to-end Docker stack integration tests
 - ✅ **NEW**: Service startup/teardown tests
 - ✅ **NEW**: Health check and API endpoint tests
+- ✅ **NEW**: End-to-end workflow tests with generation simulation
+  - Complete generation workflows (request → generation → manifest)
+  - Rerun and continue workflows
+  - Failed generation handling
+  - Metadata persistence workflows
+  - Workflow chaining tests
+- ✅ **NEW**: Performance and load testing
+  - Manifest loading performance (single and bulk)
+  - Concurrent access testing
+  - Schema validation performance
+  - Memory usage testing
+  - CLI tool startup time
+  - Rapid parameter update handling
+- ✅ **NEW**: Mediator WebSocket integration tests
+  - Protocol compliance testing
+  - Message format validation
+  - Read/write operation testing
+  - Response unpacking
+  - Parameter type handling
+  - Connection URI format validation
 
-**What's Missing**:
-- ⚠️ More extensive e2e workflow tests with actual generation
-- ⚠️ Performance/load testing
-- ⚠️ Mediator WebSocket integration tests
+**Remaining Enhancements** (low priority):
+- Integration tests with real SD-Forge generation
+- Extended load testing with WebSocket stress tests
+- Cross-platform compatibility testing
 
 **Next Steps**:
-1. Add end-to-end generation workflow tests
-2. Create performance benchmarks
-3. Add stress testing for WebSocket connections
+1. Add tests with actual SD-Forge GPU generation (requires GPU)
+2. Implement automated performance regression testing
+3. Add cross-browser testing for Web UI
 
 ---
 
