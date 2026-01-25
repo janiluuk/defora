@@ -12,7 +12,7 @@ import time
 import subprocess
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 
 SKIP_E2E_TESTS = os.getenv("SKIP_E2E_TESTS", "").lower() in ("1", "true", "yes")
 
@@ -51,7 +51,7 @@ class TestE2EGenerationWorkflow(unittest.TestCase):
         """Create a run manifest"""
         manifest = {
             "status": kwargs.get("status", "completed"),
-            "started_at": kwargs.get("started_at", datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")),
+            "started_at": kwargs.get("started_at", datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
             "model": kwargs.get("model", "SDXL"),
             "frame_count": kwargs.get("frame_count", 10),
             "last_frame": kwargs.get("last_frame"),
