@@ -265,7 +265,7 @@ curl -X POST http://localhost:3000/api/distributed/batch-generate \
 ## Troubleshooting
 
 ### Node shows as unhealthy
-1. Check node is accessible: `curl http://192.168.1.10:8188/system_stats`
+1. Check node is accessible: `curl http://192.168.1.10:7860/docs`
 2. Verify firewall allows connections
 3. Check node logs for errors
 
@@ -283,7 +283,7 @@ curl -X POST http://localhost:3000/api/distributed/batch-generate \
 
 For production deployments:
 - Use VPN or private network
-- Enable authentication on ComfyUI nodes
+- Enable authentication on SD-Forge nodes
 - Configure firewall rules
 - Use HTTPS for external access
 
@@ -293,9 +293,9 @@ The same configuration works with cloud GPU providers:
 
 ```bash
 DISTRIBUTED_NODES: >
-  http://local-gpu.lan:8188,
-  https://runpod-instance-1.pod.io:8188,
-  https://vastai-instance-1.vast.ai:8188
+  http://local-gpu.lan:7860,
+  https://runpod-instance-1.pod.io:7860,
+  https://vastai-instance-1.vast.ai:7860
 ```
 
 Remember to secure cloud endpoints with authentication tokens.
