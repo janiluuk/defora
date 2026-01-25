@@ -268,15 +268,41 @@ Defora is in **active development** with a strong foundation of core features im
   - MIDI clock sync for external sequencers
   - Audio recording from system audio
 
-#### Performance Optimizations
-- **Priority**: Medium
-- **Description**: Improve generation and streaming performance
-- **Features**:
-  - Frame interpolation for smoother output
-  - Batch frame generation optimization
-  - WebSocket message batching
-  - HLS segment caching
-  - GPU memory optimization
+#### ✅ Performance Optimizations (COMPLETED in v0.2.10)
+
+**Status**: Core optimizations implemented with configurable settings
+
+**What Works**:
+- ✅ **NEW**: WebSocket message batching (`/api/performance/settings`)
+  - Configurable batch interval (default: 50ms)
+  - Max batch size control (default: 10 messages)
+  - Automatic flush on size/timeout
+  - Enable/disable batching per deployment
+- ✅ **NEW**: HLS segment caching (`/api/performance/hls/*`)
+  - In-memory segment cache with TTL (default: 30s)
+  - Configurable max cache size (default: 50 segments)
+  - Cache stats endpoint for monitoring
+  - Manual cache clear endpoint
+  - Automatic expiration cleanup
+- ✅ **NEW**: Batch frame generation optimization (`/api/performance/batch-generate`)
+  - Queue multiple generation requests
+  - Configurable max batch size (default: 4)
+  - Batch status tracking
+  - Position-in-queue information
+- ✅ **NEW**: Performance metrics endpoint (`/api/performance/metrics`)
+  - Real-time monitoring of all optimizations
+  - Pending message counts
+  - Cache statistics
+  - Queue depth tracking
+- ✅ **NEW**: Dynamic configuration (`POST /api/performance/settings`)
+  - Runtime adjustment of all settings
+  - No server restart required
+  - Validation of configuration values
+
+**Remaining Enhancements** (moved to long-term):
+- Frame interpolation for smoother output
+- GPU memory optimization
+- Advanced queue scheduling algorithms
 
 ### 🎯 Medium-Term (3-6 Months)
 

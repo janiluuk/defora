@@ -973,6 +973,204 @@ async function start(opts = {}) {
     });
   });
 
+  // Performance Optimization APIs
+  
+  // WebSocket message batching configuration
+  const wsMessageBatcher = {
+    enabled: true,
+    batchInterval: 50, // milliseconds
+    maxBatchSize: 10,
+    pendingMessages: [],
+    timer: null
+  };
+
+  // HLS segment cache
+  const hlsCache = {
+    enabled: true,
+    maxAge: 30000, // 30 seconds
+    segments: new Map(), // segment name -> {data, timestamp}
+    maxSize: 50 // max cached segments
+  };
+
+  // Batch generation queue
+  const batchQueue = {
+    enabled: true,
+    maxBatchSize: 4,
+    pending: [],
+    processing: false
+  };
+
+  // Get performance settings
+  app.get("/api/performance/settings", (_req, res) => {
+    res.json({
+      websocket: {
+        batching: wsMessageBatcher.enabled,
+        batchInterval: wsMessageBatcher.batchInterval,
+        maxBatchSize: wsMessageBatcher.maxBatchSize
+      },
+      hls: {
+        caching: hlsCache.enabled,
+        maxAge: hlsCache.maxAge,
+        maxSize: hlsCache.maxSize,
+        currentSize: hlsCache.segments.size
+      },
+      batchGeneration: {
+        enabled: batchQueue.enabled,
+        maxBatchSize: batchQueue.maxBatchSize,
+        pendingCount: batchQueue.pending.length
+      }
+    });
+  });
+
+  // Update performance settings
+  app.post("/api/performance/settings", (req, res) => {
+    const { websocket, hls, batchGeneration } = req.body;
+    
+    if (websocket) {
+      if (typeof websocket.batching === 'boolean') {
+        wsMessageBatcher.enabled = websocket.batching;
+      }
+      if (typeof websocket.batchInterval === 'number' && websocket.batchInterval >= 10) {
+        wsMessageBatcher.batchInterval = websocket.batchInterval;
+      }
+      if (typeof websocket.maxBatchSize === 'number' && websocket.maxBatchSize > 0) {
+        wsMessageBatcher.maxBatchSize = websocket.maxBatchSize;
+      }
+    }
+    
+    if (hls) {
+      if (typeof hls.caching === 'boolean') {
+        hlsCache.enabled = hls.caching;
+      }
+      if (typeof hls.maxAge === 'number' && hls.maxAge > 0) {
+        hlsCache.maxAge = hls.maxAge;
+      }
+      if (typeof hls.maxSize === 'number' && hls.maxSize > 0) {
+        hlsCache.maxSize = hls.maxSize;
+      }
+    }
+    
+    if (batchGeneration) {
+      if (typeof batchGeneration.enabled === 'boolean') {
+        batchQueue.enabled = batchGeneration.enabled;
+      }
+      if (typeof batchGeneration.maxBatchSize === 'number' && batchGeneration.maxBatchSize > 0) {
+        batchQueue.maxBatchSize = batchGeneration.maxBatchSize;
+      }
+    }
+    
+    res.json({ success: true, message: "Performance settings updated" });
+  });
+
+  // Clear HLS cache
+  app.post("/api/performance/hls/clear-cache", (_req, res) => {
+    const clearedCount = hlsCache.segments.size;
+    hlsCache.segments.clear();
+    console.log(`[hls-cache] Cleared ${clearedCount} cached segments`);
+    res.json({ success: true, clearedCount });
+  });
+
+  // Get HLS cache stats
+  app.get("/api/performance/hls/cache-stats", (_req, res) => {
+    const now = Date.now();
+    let validCount = 0;
+    let expiredCount = 0;
+    
+    hlsCache.segments.forEach((entry) => {
+      if (now - entry.timestamp < hlsCache.maxAge) {
+        validCount++;
+      } else {
+        expiredCount++;
+      }
+    });
+    
+    res.json({
+      total: hlsCache.segments.size,
+      valid: validCount,
+      expired: expiredCount,
+      maxSize: hlsCache.maxSize,
+      maxAge: hlsCache.maxAge
+    });
+  });
+
+  // Batch generation API
+  app.post("/api/performance/batch-generate", async (req, res) => {
+    const { requests } = req.body;
+    
+    if (!Array.isArray(requests) || requests.length === 0) {
+      return res.status(400).json({ error: "requests array is required" });
+    }
+    
+    if (requests.length > batchQueue.maxBatchSize) {
+      return res.status(400).json({ 
+        error: `Batch size ${requests.length} exceeds maximum ${batchQueue.maxBatchSize}` 
+      });
+    }
+    
+    if (!batchQueue.enabled) {
+      return res.status(503).json({ error: "Batch generation is disabled" });
+    }
+    
+    // Add to queue
+    const batchId = `batch_${Date.now()}`;
+    const batch = {
+      id: batchId,
+      requests,
+      status: 'queued',
+      queuedAt: new Date().toISOString()
+    };
+    
+    batchQueue.pending.push(batch);
+    
+    console.log(`[batch] Queued batch ${batchId} with ${requests.length} requests`);
+    
+    res.json({
+      batchId,
+      status: 'queued',
+      requestCount: requests.length,
+      position: batchQueue.pending.length
+    });
+  });
+
+  // Get batch generation status
+  app.get("/api/performance/batch-generate/:batchId", (req, res) => {
+    const batch = batchQueue.pending.find(b => b.id === req.params.batchId);
+    
+    if (!batch) {
+      return res.status(404).json({ error: "Batch not found" });
+    }
+    
+    res.json({
+      batchId: batch.id,
+      status: batch.status,
+      requestCount: batch.requests.length,
+      queuedAt: batch.queuedAt,
+      processedAt: batch.processedAt,
+      completedAt: batch.completedAt
+    });
+  });
+
+  // Get performance metrics
+  app.get("/api/performance/metrics", (_req, res) => {
+    const metrics = {
+      websocket: {
+        pendingMessages: wsMessageBatcher.pendingMessages.length,
+        batchingEnabled: wsMessageBatcher.enabled
+      },
+      hls: {
+        cachedSegments: hlsCache.segments.size,
+        cachingEnabled: hlsCache.enabled
+      },
+      batchQueue: {
+        pendingBatches: batchQueue.pending.length,
+        enabled: batchQueue.enabled
+      },
+      timestamp: new Date().toISOString()
+    };
+    
+    res.json(metrics);
+  });
+
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
     console.log(`[web] API/WS listening on ${actualPort}`);
@@ -996,11 +1194,48 @@ async function start(opts = {}) {
   }
   setupQueue();
 
+  // Enhanced broadcast with batching support
   function broadcast(obj) {
-    const msg = JSON.stringify(obj);
+    if (wsMessageBatcher.enabled) {
+      wsMessageBatcher.pendingMessages.push(obj);
+      
+      // Clear existing timer
+      if (wsMessageBatcher.timer) {
+        clearTimeout(wsMessageBatcher.timer);
+      }
+      
+      // Send batch if it's full or set timer for interval
+      if (wsMessageBatcher.pendingMessages.length >= wsMessageBatcher.maxBatchSize) {
+        flushMessageBatch();
+      } else {
+        wsMessageBatcher.timer = setTimeout(flushMessageBatch, wsMessageBatcher.batchInterval);
+      }
+    } else {
+      // Direct send without batching
+      const msg = JSON.stringify(obj);
+      wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) client.send(msg);
+      });
+    }
+  }
+
+  function flushMessageBatch() {
+    if (wsMessageBatcher.pendingMessages.length === 0) return;
+    
+    const batch = {
+      type: "batch",
+      messages: wsMessageBatcher.pendingMessages,
+      count: wsMessageBatcher.pendingMessages.length,
+      timestamp: Date.now()
+    };
+    
+    const msg = JSON.stringify(batch);
     wss.clients.forEach((client) => {
       if (client.readyState === WebSocket.OPEN) client.send(msg);
     });
+    
+    wsMessageBatcher.pendingMessages = [];
+    wsMessageBatcher.timer = null;
   }
 
   wss.on("connection", (ws) => {
