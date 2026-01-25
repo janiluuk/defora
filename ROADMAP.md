@@ -290,17 +290,39 @@ Defora is in **active development** with a strong foundation of core features im
   - Scene markers and transitions
   - Export/import timeline presets
 
-#### Advanced Prompt System
-- **Priority**: Medium
-- **Description**: More powerful prompt management
-- **Features**:
-  - Prompt library/browser
-  - Wildcard support (random selection from lists)
-  - Prompt templates with variables
-  - Negative prompt presets
-  - Prompt strength scheduling over time
+#### ✅ Advanced Prompt System (COMPLETED in v0.2.9)
 
-#### Enhanced ControlNet
+**Status**: Core functionality complete with API integration
+
+**What Works**:
+- ✅ **NEW**: Prompt template library (`/api/prompts/templates`)
+  - Pre-built templates with categories (photography, anime, landscape)
+  - Template search by category, tag, or query
+  - Create custom templates via POST endpoint
+  - Template variables for flexible prompts
+- ✅ **NEW**: Wildcard support (`/api/prompts/wildcards`)
+  - Random selection from predefined lists
+  - Categories: subject, lighting, character_type, art_style, time_of_day, terrain_type, weather
+  - Get all wildcards or specific category
+- ✅ **NEW**: Prompt processing (`/api/prompts/process`)
+  - Variable replacement in templates
+  - Automatic wildcard substitution
+  - Returns original and processed prompts
+- ✅ **NEW**: Negative prompt presets (`/api/prompts/negative-presets`)
+  - Pre-configured quality, anatomy, and style presets
+  - Combine multiple presets endpoint
+  - Quality levels: basic, strict, anatomy fix, avoid realism
+- ✅ **NEW**: Template variable system
+  - Extract and replace variables in prompts
+  - Support for multiple variables per template
+  - Validation and error handling
+
+**Remaining Enhancements** (moved to long-term):
+- Prompt strength scheduling over time
+- Advanced prompt weighting syntax
+- Integration with SD-Forge attention syntax
+
+#### Advanced Audio Features
 - **Priority**: Medium
 - **Description**: More ControlNet features
 - **Features**:

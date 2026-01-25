@@ -760,6 +760,219 @@ async function start(opts = {}) {
     res.json({ loras: placeholderLoras, source: 'placeholder' });
   });
 
+  // Advanced Prompt System API endpoints
+  
+  // In-memory storage for prompt templates and libraries
+  const promptLibrary = {
+    templates: [
+      {
+        id: "cinematic_1",
+        name: "Cinematic Shot",
+        prompt: "cinematic shot of {subject}, {lighting}, professional color grading, film grain, shallow depth of field",
+        negativePrompt: "amateur, snapshot, blurry, low quality",
+        category: "photography",
+        variables: ["subject", "lighting"],
+        tags: ["cinematic", "professional", "photography"]
+      },
+      {
+        id: "anime_1",
+        name: "Anime Character",
+        prompt: "{character_type} anime character, {art_style}, vibrant colors, detailed eyes",
+        negativePrompt: "realistic, 3d, photograph, western cartoon",
+        category: "anime",
+        variables: ["character_type", "art_style"],
+        tags: ["anime", "character", "illustration"]
+      },
+      {
+        id: "landscape_1",
+        name: "Epic Landscape",
+        prompt: "{time_of_day} landscape, {terrain_type}, dramatic lighting, {weather}, cinematic composition",
+        negativePrompt: "indoors, people, buildings, urban",
+        category: "landscape",
+        variables: ["time_of_day", "terrain_type", "weather"],
+        tags: ["landscape", "nature", "scenic"]
+      }
+    ],
+    wildcards: {
+      "subject": ["person", "cat", "dog", "robot", "fantasy creature", "alien"],
+      "lighting": ["golden hour", "studio lighting", "neon lights", "candlelight", "moonlight"],
+      "character_type": ["warrior", "mage", "schoolgirl", "ninja", "princess"],
+      "art_style": ["cel-shaded", "watercolor", "sketch", "digital art", "retro anime"],
+      "time_of_day": ["sunrise", "sunset", "golden hour", "blue hour", "midday"],
+      "terrain_type": ["mountains", "desert", "forest", "ocean", "snowy peaks"],
+      "weather": ["clear sky", "dramatic clouds", "fog", "storm", "aurora"]
+    },
+    negativePresets: [
+      {
+        id: "quality_basic",
+        name: "Basic Quality",
+        prompt: "low quality, blurry, low resolution, pixelated"
+      },
+      {
+        id: "quality_strict",
+        name: "Strict Quality",
+        prompt: "low quality, blurry, low resolution, pixelated, jpeg artifacts, watermark, signature, text, amateur"
+      },
+      {
+        id: "anatomy_fix",
+        name: "Anatomy Fixer",
+        prompt: "bad anatomy, extra limbs, missing limbs, deformed hands, extra fingers, missing fingers"
+      },
+      {
+        id: "realistic_avoid",
+        name: "Avoid Realism",
+        prompt: "photorealistic, photo, realistic, 3d render"
+      }
+    ]
+  };
+
+  // Get all prompt templates
+  app.get("/api/prompts/templates", (_req, res) => {
+    res.json({ 
+      templates: promptLibrary.templates,
+      count: promptLibrary.templates.length
+    });
+  });
+
+  // Get single template by ID
+  app.get("/api/prompts/templates/:id", (req, res) => {
+    const template = promptLibrary.templates.find(t => t.id === req.params.id);
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+    res.json({ template });
+  });
+
+  // Search templates by category or tags
+  app.get("/api/prompts/templates/search", (req, res) => {
+    const { category, tag, query } = req.query;
+    let filtered = promptLibrary.templates;
+    
+    if (category) {
+      filtered = filtered.filter(t => t.category === category);
+    }
+    if (tag) {
+      filtered = filtered.filter(t => t.tags && t.tags.includes(tag));
+    }
+    if (query) {
+      const q = query.toLowerCase();
+      filtered = filtered.filter(t => 
+        t.name.toLowerCase().includes(q) || 
+        t.prompt.toLowerCase().includes(q)
+      );
+    }
+    
+    res.json({ templates: filtered, count: filtered.length });
+  });
+
+  // Add new template
+  app.post("/api/prompts/templates", (req, res) => {
+    const { name, prompt, negativePrompt, category, variables, tags } = req.body;
+    
+    if (!name || !prompt) {
+      return res.status(400).json({ error: "name and prompt are required" });
+    }
+    
+    const newTemplate = {
+      id: `custom_${Date.now()}`,
+      name,
+      prompt,
+      negativePrompt: negativePrompt || "",
+      category: category || "custom",
+      variables: variables || [],
+      tags: tags || []
+    };
+    
+    promptLibrary.templates.push(newTemplate);
+    res.json({ template: newTemplate, message: "Template created successfully" });
+  });
+
+  // Get all wildcards
+  app.get("/api/prompts/wildcards", (_req, res) => {
+    res.json({ 
+      wildcards: promptLibrary.wildcards,
+      categories: Object.keys(promptLibrary.wildcards)
+    });
+  });
+
+  // Get specific wildcard options
+  app.get("/api/prompts/wildcards/:category", (req, res) => {
+    const options = promptLibrary.wildcards[req.params.category];
+    if (!options) {
+      return res.status(404).json({ error: "Wildcard category not found" });
+    }
+    res.json({ category: req.params.category, options });
+  });
+
+  // Process template with variables and wildcards
+  app.post("/api/prompts/process", (req, res) => {
+    const { templateId, variables, useWildcards } = req.body;
+    
+    const template = promptLibrary.templates.find(t => t.id === templateId);
+    if (!template) {
+      return res.status(404).json({ error: "Template not found" });
+    }
+    
+    let processed = template.prompt;
+    
+    // Replace variables
+    if (variables) {
+      Object.keys(variables).forEach(key => {
+        const regex = new RegExp(`\\{${key}\\}`, 'g');
+        processed = processed.replace(regex, variables[key]);
+      });
+    }
+    
+    // Replace wildcards with random selections
+    if (useWildcards) {
+      Object.keys(promptLibrary.wildcards).forEach(category => {
+        const regex = new RegExp(`\\{${category}\\}`, 'g');
+        if (processed.match(regex)) {
+          const options = promptLibrary.wildcards[category];
+          const randomOption = options[Math.floor(Math.random() * options.length)];
+          processed = processed.replace(regex, randomOption);
+        }
+      });
+    }
+    
+    res.json({
+      original: template.prompt,
+      processed,
+      negativePrompt: template.negativePrompt,
+      usedTemplate: template.name
+    });
+  });
+
+  // Get all negative prompt presets
+  app.get("/api/prompts/negative-presets", (_req, res) => {
+    res.json({ 
+      presets: promptLibrary.negativePresets,
+      count: promptLibrary.negativePresets.length
+    });
+  });
+
+  // Combine multiple negative presets
+  app.post("/api/prompts/negative-presets/combine", (req, res) => {
+    const { presetIds } = req.body;
+    
+    if (!Array.isArray(presetIds) || presetIds.length === 0) {
+      return res.status(400).json({ error: "presetIds array is required" });
+    }
+    
+    const presets = promptLibrary.negativePresets.filter(p => presetIds.includes(p.id));
+    if (presets.length === 0) {
+      return res.status(404).json({ error: "No matching presets found" });
+    }
+    
+    const combined = presets.map(p => p.prompt).join(", ");
+    
+    res.json({
+      combined,
+      usedPresets: presets.map(p => p.name),
+      count: presets.length
+    });
+  });
+
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
     console.log(`[web] API/WS listening on ${actualPort}`);
