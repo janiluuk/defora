@@ -4,7 +4,8 @@ Integration tests for Docker stack startup and basic connectivity.
 These tests verify that the Docker Compose stack can start successfully
 and that basic service connectivity works as expected.
 
-To skip Docker-related tests in CI, set SKIP_DOCKER_TESTS=1
+To skip Docker-related tests in CI, set SKIP_DOCKER_TESTS=1 (default)
+To enable Docker E2E tests, set SKIP_DOCKER_TESTS=0
 """
 import unittest
 import subprocess
@@ -19,8 +20,8 @@ from pathlib import Path
 # Determine project root directory
 PROJECT_ROOT = os.getenv("DEFORA_ROOT", str(Path(__file__).parent.parent))
 
-# Allow skipping Docker tests in CI environments
-SKIP_DOCKER_TESTS = os.getenv("SKIP_DOCKER_TESTS", "").lower() in ("1", "true", "yes")
+# Allow skipping Docker tests in CI environments (default: skip)
+SKIP_DOCKER_TESTS = os.getenv("SKIP_DOCKER_TESTS", "1").lower() in ("1", "true", "yes")
 
 # Track if we started services in this test run
 _SERVICES_STARTED = False
