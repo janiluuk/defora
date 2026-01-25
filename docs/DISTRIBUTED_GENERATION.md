@@ -1,6 +1,8 @@
-# Distributed Generation with ComfyUI
+# Distributed Generation with SD-Forge + Deforumation
 
-This example demonstrates load balancing across 3 ComfyUI instances on a local network.
+This example demonstrates load balancing across 3 SD-Forge instances running Deforumation-patched Deforum on a local network for **live video generation**.
+
+> **Note**: ComfyUI is workflow-based and designed for batch processing, not real-time streaming. For live video generation with Defora, use SD-Forge with the Deforumation-patched Deforum extension.
 
 ## Architecture
 
@@ -17,36 +19,43 @@ This example demonstrates load balancing across 3 ComfyUI instances on a local n
          │
     ┌────┴────────────────┐
     │                     │
-┌───▼────┐  ┌──────┐  ┌──▼─────┐
-│ComfyUI │  │ComfyUI  │ComfyUI │
-│Node 1  │  │Node 2│  │Node 3  │
-│GPU 0   │  │GPU 1│  │GPU 2   │
-└────────┘  └──────┘  └────────┘
-192.168.1.10  .11      .12
+┌───▼────────┐  ┌──────────┐  ┌──▼─────────┐
+│ SD-Forge   │  │ SD-Forge │  │ SD-Forge   │
+│ +Deforum   │  │ +Deforum │  │ +Deforum   │
+│ Node 1     │  │ Node 2   │  │ Node 3     │
+│ RTX 4090   │  │ RTX 4090 │  │ RTX 3090   │
+└────────────┘  └──────────┘  └────────────┘
+192.168.1.10     .11           .12
 ```
 
 ## Configuration
 
-### 1. ComfyUI Instance Setup
+### 1. SD-Forge Instance Setup
 
-Start 3 ComfyUI instances on different machines or ports:
+Start 3 SD-Forge instances with Deforumation on different machines or ports:
 
-**Node 1** (192.168.1.10:8188):
+**Node 1** (192.168.1.10:7860):
 ```bash
-cd ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
+cd stable-diffusion-webui-forge
+python launch.py --listen 0.0.0.0 --port 7860 \
+  --deforum-api --enable-insecure-extension-access \
+  --xformers --no-half-vae
 ```
 
-**Node 2** (192.168.1.11:8188):
+**Node 2** (192.168.1.11:7860):
 ```bash
-cd ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
+cd stable-diffusion-webui-forge
+python launch.py --listen 0.0.0.0 --port 7860 \
+  --deforum-api --enable-insecure-extension-access \
+  --xformers --no-half-vae
 ```
 
-**Node 3** (192.168.1.12:8188):
+**Node 3** (192.168.1.12:7860):
 ```bash
-cd ComfyUI
-python main.py --listen 0.0.0.0 --port 8188
+cd stable-diffusion-webui-forge
+python launch.py --listen 0.0.0.0 --port 7860 \
+  --deforum-api --enable-insecure-extension-access \
+  --xformers --no-half-vae
 ```
 
 ### 2. Defora Configuration
@@ -57,11 +66,11 @@ Configure the distributed generation pool in `docker-compose.yml` or environment
 environment:
   # Distributed generation configuration
   DISTRIBUTED_ENABLED: "true"
-  DISTRIBUTED_STRATEGY: "round_robin"  # or "least_busy", "random"
+  DISTRIBUTED_STRATEGY: "round_robin"  # or "least_busy", "priority", "random"
   DISTRIBUTED_NODES: >
-    http://192.168.1.10:8188,
-    http://192.168.1.11:8188,
-    http://192.168.1.12:8188
+    http://192.168.1.10:7860,
+    http://192.168.1.11:7860,
+    http://192.168.1.12:7860
   DISTRIBUTED_HEALTH_CHECK_INTERVAL: "30"  # seconds
   DISTRIBUTED_TIMEOUT: "300"  # seconds
   DISTRIBUTED_RETRY_ATTEMPTS: "2"
@@ -77,22 +86,25 @@ curl -X POST http://localhost:3000/api/distributed/configure \
     "strategy": "round_robin",
     "nodes": [
       {
-        "url": "http://192.168.1.10:8188",
+        "url": "http://192.168.1.10:7860",
         "name": "GPU-RTX4090-1",
         "gpuModel": "RTX 4090",
-        "priority": 1
+        "priority": 1,
+        "capabilities": ["deforum", "live-video"]
       },
       {
-        "url": "http://192.168.1.11:8188",
+        "url": "http://192.168.1.11:7860",
         "name": "GPU-RTX4090-2",
         "gpuModel": "RTX 4090",
-        "priority": 1
+        "priority": 1,
+        "capabilities": ["deforum", "live-video"]
       },
       {
-        "url": "http://192.168.1.12:8188",
+        "url": "http://192.168.1.12:7860",
         "name": "GPU-RTX3090",
         "gpuModel": "RTX 3090",
-        "priority": 2
+        "priority": 2,
+        "capabilities": ["deforum", "live-video"]
       }
     ],
     "healthCheckInterval": 30,
@@ -139,7 +151,7 @@ Response:
   "healthyNodes": 3,
   "nodes": [
     {
-      "url": "http://192.168.1.10:8188",
+      "url": "http://192.168.1.10:7860",
       "name": "GPU-RTX4090-1",
       "status": "healthy",
       "activeJobs": 1,
@@ -159,7 +171,13 @@ POST /api/distributed/generate
 Request:
 ```json
 {
-  "workflow": { ... },
+  "deforum_settings": {
+    "max_frames": 240,
+    "animation_mode": "2D",
+    "strength_schedule": "0:(0.65)",
+    "seed": 42
+  },
+  "prompt": "cinematic shot, dramatic lighting",
   "preferredNode": "GPU-RTX4090-1",  // optional
   "priority": "high"  // optional: high, normal, low
 }

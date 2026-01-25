@@ -1,0 +1,292 @@
+# Docker Compose configuration for Defora with pre-loaded Turbo models
+# This setup includes SD-Forge with SD-Turbo and SDXL-Turbo models for fast live generation
+#
+# Usage:
+#   docker compose -f docker-compose.turbo.yml up --build
+#
+# Features:
+#   - Pre-downloads SD-Turbo and SDXL-Turbo models
+#   - Optimized for real-time/live video generation
+#   - Includes all Defora services with turbo-optimized settings
+
+services:
+  # Model downloader service - runs once to fetch turbo models
+  model-downloader:
+    image: curlimages/curl:latest
+    volumes:
+      - models:/models
+    entrypoint: /bin/sh
+    command: >
+      -c "
+      echo 'Downloading Turbo models...';
+      
+      mkdir -p /models/Stable-diffusion;
+      
+      # Download SD-Turbo (512x512, 1-4 steps)
+      if [ ! -f /models/Stable-diffusion/sd_turbo.safetensors ]; then
+        echo 'Downloading SD-Turbo...';
+        curl -L -o /models/Stable-diffusion/sd_turbo.safetensors \
+          'https://huggingface.co/stabilityai/sd-turbo/resolve/main/sd_turbo.safetensors';
+      else
+        echo 'SD-Turbo already downloaded';
+      fi;
+      
+      # Download SDXL-Turbo (1024x1024, 1-4 steps)
+      if [ ! -f /models/Stable-diffusion/sdxl_turbo.safetensors ]; then
+        echo 'Downloading SDXL-Turbo...';
+        curl -L -o /models/Stable-diffusion/sdxl_turbo.safetensors \
+          'https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0.safetensors';
+      else
+        echo 'SDXL-Turbo already downloaded';
+      fi;
+      
+      # Download VAE for better quality
+      if [ ! -f /models/VAE/vae-ft-mse-840000-ema-pruned.safetensors ]; then
+        echo 'Downloading VAE...';
+        mkdir -p /models/VAE;
+        curl -L -o /models/VAE/vae-ft-mse-840000-ema-pruned.safetensors \
+          'https://huggingface.co/stabilityai/sd-vae-ft-mse-original/resolve/main/vae-ft-mse-840000-ema-pruned.safetensors';
+      else
+        echo 'VAE already downloaded';
+      fi;
+      
+      echo 'Model download complete!';
+      echo '';
+      echo 'Models downloaded:';
+      ls -lh /models/Stable-diffusion/;
+      echo '';
+      echo 'Ready to start SD-Forge service.';
+      "
+
+  encoder:
+    image: jrottenberg/ffmpeg:4.4-alpine
+    command: >
+      sh -c "
+        until ls /data/frames/frame_00001.png >/dev/null 2>&1; do
+          echo 'Waiting for frames in /data/frames ...';
+          sleep 2;
+        done;
+        
+        # Turbo-optimized encoder settings for low latency
+        QUALITY_PRESET=${ENCODER_QUALITY:-turbo};
+        
+        case $QUALITY_PRESET in
+          turbo)
+            BITRATE=2000k
+            MAXRATE=3000k
+            BUFSIZE=4M
+            PRESET=ultrafast
+            CRF=25
+            TUNE=zerolatency
+            ;;
+          low)
+            BITRATE=500k
+            MAXRATE=750k
+            BUFSIZE=1M
+            PRESET=veryfast
+            CRF=28
+            TUNE=zerolatency
+            ;;
+          medium)
+            BITRATE=1500k
+            MAXRATE=2250k
+            BUFSIZE=3M
+            PRESET=veryfast
+            CRF=23
+            TUNE=zerolatency
+            ;;
+          high)
+            BITRATE=3500k
+            MAXRATE=5000k
+            BUFSIZE=7M
+            PRESET=fast
+            CRF=20
+            TUNE=film
+            ;;
+          *)
+            BITRATE=2000k
+            MAXRATE=3000k
+            BUFSIZE=4M
+            PRESET=ultrafast
+            CRF=25
+            TUNE=zerolatency
+            ;;
+        esac;
+        
+        echo \"Encoder starting with quality preset: $QUALITY_PRESET (Turbo-optimized)\";
+        echo \"  Bitrate: $BITRATE | Max: $MAXRATE | Buffer: $BUFSIZE\";
+        echo \"  Preset: $PRESET | CRF: $CRF | Tune: $TUNE\";
+        
+        ffmpeg -re -framerate ${FPS:-24} -pattern_type glob -i '/data/frames/frame_*.png'
+          -vf scale=${RESOLUTION:-1280:720}
+          -c:v libx264 -preset $PRESET -tune $TUNE
+          -b:v $BITRATE -maxrate $MAXRATE -bufsize $BUFSIZE -crf $CRF
+          -g $(( ${FPS:-24} * 2 ))
+          -f flv rtmp://web:1935/live/deforum
+      "
+    volumes:
+      - frames:/data/frames
+    environment:
+      - ENCODER_QUALITY=${ENCODER_QUALITY:-turbo}
+      - FPS=${FPS:-24}
+      - RESOLUTION=${RESOLUTION:-1280:720}
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    ports:
+      - "8080:80"
+      - "1935:1935"
+      - "3000:3000"
+    volumes:
+      - frames:/data/frames:ro
+      - hls:/var/www/hls
+    environment:
+      - RABBIT_URL=amqp://mq
+      - FRAMES_DIR=/data/frames
+      - HLS_STREAM=/hls/live/deforum.m3u8
+      - HLS_DIR=/var/www/hls
+      # Turbo model optimization hints
+      - DEFAULT_STEPS=2
+      - DEFAULT_CFG=1.0
+      - ENABLE_PERFORMANCE_MODE=true
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health" , "||", "exit", "1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mediator:
+    build:
+      context: .
+      dockerfile: docker/mediator/Dockerfile
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    environment:
+      - MEDIATOR_DEFORUM_ADDRESS=0.0.0.0
+      - MEDIATOR_DEFORUM_PORT=8765
+      - MEDIATOR_DEFORUMATION_ADDRESS=0.0.0.0
+      - MEDIATOR_DEFORUMATION_PORT=8766
+      - DEFORUMATION_ADDRESS=${DEFORUMATION_ADDRESS:-127.0.0.1}
+      - DEFORUMATION_PORT=${DEFORUMATION_PORT:-8767}
+    healthcheck:
+      test: ["CMD-SHELL", "nc -z localhost 8765 && nc -z localhost 8766 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  sd-forge-turbo:
+    build:
+      context: .
+      dockerfile: docker/sd-forge/Dockerfile
+      args:
+        DEFORUM_MEDIATOR_URL: ${DEFORUM_MEDIATOR_URL:-ws://mediator:8765}
+    image: sd-forge-turbo:latest
+    command: 
+      - python
+      - launch.py
+      - --listen
+      - --port
+      - "7860"
+      - --deforum-api
+      - --enable-insecure-extension-access
+      - --skip-version-check
+      - --no-half-vae
+      - --xformers
+      # Turbo-specific optimizations
+      - --opt-sdp-attention
+      - --disable-safe-unpickle
+      - --api
+    ports:
+      - "7860:7860"
+    volumes:
+      - frames:/data/frames
+      - hls:/var/www/hls
+      - models:/stable-diffusion-webui/models
+      - outputs:/stable-diffusion-webui/outputs
+    environment:
+      - OUTPUT_DIR=/data/frames
+      - HLS_PATH=/var/www/hls
+      # Turbo model defaults
+      - COMMANDLINE_ARGS=--medvram --opt-split-attention
+      # Performance hints
+      - PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:512
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:7860/docs\")' || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 180s  # Extended for model loading
+    depends_on:
+      model-downloader:
+        condition: service_completed_successfully
+      web:
+        condition: service_healthy
+      mediator:
+        condition: service_healthy
+
+  dev-frame-seeder:
+    build:
+      context: .
+      dockerfile: docker/frame-seeder/Dockerfile
+    environment:
+      - OUTPUT_DIR=/data/frames
+      - FPS=${SEEDER_FPS:-12}
+      - CLEAR=${SEEDER_CLEAR:-1}
+      - PATTERN=${SEEDER_PATTERN:-timestamp}
+      - CUSTOM_TEXT=${SEEDER_CUSTOM_TEXT:-Defora Turbo Test}
+      - WIDTH=${SEEDER_WIDTH:-1280}
+      - HEIGHT=${SEEDER_HEIGHT:-720}
+    volumes:
+      - frames:/data/frames
+    depends_on:
+      - web
+
+  mq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    volumes:
+      - mqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  control-bridge:
+    build:
+      context: .
+      dockerfile: docker/bridge/Dockerfile
+    environment:
+      - MQ_URL=amqp://mq
+      - MQ_QUEUE=controls
+      - MEDIATOR_HOST=${MEDIATOR_HOST:-mediator}
+      - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
+    depends_on:
+      mq:
+        condition: service_healthy
+      mediator:
+        condition: service_healthy
+
+volumes:
+  frames:
+  hls:
+  mqdata:
+  models:
+  outputs:

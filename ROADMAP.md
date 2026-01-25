@@ -436,20 +436,24 @@ Defora is in **active development** with a strong foundation of core features im
 
 #### ✅ Distributed Generation (COMPLETED in v0.2.11)
 
-**Status**: Multi-node load balancing implemented with full API
+**Status**: Multi-node load balancing implemented with full API for **SD-Forge + Deforumation**
+
+> **Important**: Uses SD-Forge with Deforumation-patched Deforum for **live video generation**, not ComfyUI (which is batch-oriented, not real-time).
 
 **What Works**:
-- ✅ **NEW**: Load balancing across multiple GPUs/machines
+- ✅ **NEW**: Load balancing across multiple SD-Forge nodes
   - 4 strategies: round_robin, least_busy, priority, random
   - Automatic node selection based on health and workload
   - Preferred node support for specific requirements
+  - Example: 3 SD-Forge instances (2x RTX 4090, 1x RTX 3090)
 - ✅ **NEW**: Health checking system (`/api/distributed/health-check`)
   - Periodic automatic health checks (configurable interval)
   - Node status tracking (healthy/unhealthy/disabled/unknown)
   - Response time monitoring
   - Manual health check endpoint
+  - SD-Forge `/docs` endpoint validation
 - ✅ **NEW**: Job management (`/api/distributed/generate`, `/api/distributed/jobs/:id`)
-  - Job submission with node assignment
+  - Deforum job submission with node assignment
   - Status tracking (queued → processing → completed)
   - Wait time estimation
   - Priority levels (high/normal/low)
@@ -465,13 +469,18 @@ Defora is in **active development** with a strong foundation of core features im
   - Dynamic pool configuration
   - Environment variable support
   - Runtime strategy changes
-- ✅ **NEW**: Example: 3 ComfyUI instances on local network
+- ✅ **NEW**: Example: 3 SD-Forge instances on local network
   - Comprehensive documentation (docs/DISTRIBUTED_GENERATION.md)
-  - Setup instructions for multi-node deployment
+  - Setup instructions for multi-node SD-Forge deployment
   - Network architecture diagrams
   - Troubleshooting guide
+- ✅ **NEW**: Turbo model Docker stack (docker-compose.turbo.yml)
+  - Pre-loaded SD-Turbo and SDXL-Turbo models
+  - Optimized for real-time/live generation (1-4 steps)
+  - Complete turbo documentation (docs/TURBO_STACK.md)
+  - Performance benchmarks and tuning guide
 
-**Example Setup** (3 nodes):
+**Example Setup** (3 SD-Forge nodes):
 ```bash
 # Configure pool
 curl -X POST http://localhost:3000/api/distributed/configure \
@@ -479,9 +488,9 @@ curl -X POST http://localhost:3000/api/distributed/configure \
     "enabled": true,
     "strategy": "round_robin",
     "nodes": [
-      {"url": "http://192.168.1.10:8188", "name": "GPU-RTX4090-1"},
-      {"url": "http://192.168.1.11:8188", "name": "GPU-RTX4090-2"},
-      {"url": "http://192.168.1.12:8188", "name": "GPU-RTX3090"}
+      {"url": "http://192.168.1.10:7860", "name": "GPU-RTX4090-1"},
+      {"url": "http://192.168.1.11:7860", "name": "GPU-RTX4090-2"},
+      {"url": "http://192.168.1.12:7860", "name": "GPU-RTX3090"}
     ]
   }'
 ```
