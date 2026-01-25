@@ -14,7 +14,9 @@ Expected shape (JSON):
   "steps": <int> (optional),
   "strength": <float> (optional),
   "cfg": <float> (optional),
-  "tag": "<string>" (optional)
+  "tag": "<string>" (optional),
+  "notes": "<string>" (optional),
+  "metadata": {<dict>} (optional)
 }
 """
 from __future__ import annotations
@@ -45,4 +47,6 @@ def validate_run_manifest(blob: Dict[str, Any]) -> Dict[str, Any]:
     _require_type(blob, "strength", (int, float), allow_missing=True)
     _require_type(blob, "cfg", (int, float), allow_missing=True)
     _require_type(blob, "tag", str, allow_missing=True)
+    _require_type(blob, "notes", str, allow_missing=True)
+    _require_type(blob, "metadata", dict, allow_missing=True)
     return blob

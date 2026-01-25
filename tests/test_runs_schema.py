@@ -20,6 +20,27 @@ class TestRunManifestSchema(unittest.TestCase):
             "tag": "demo",
         }
         self.assertEqual(validate_run_manifest(blob), blob)
+    
+    def test_valid_manifest_with_notes_and_metadata(self):
+        """Test that manifest with notes and metadata passes validation."""
+        blob = {
+            "status": "completed",
+            "started_at": "2024-01-01T00:00:00Z",
+            "model": "SDXL",
+            "frame_count": 120,
+            "tag": "demo",
+            "notes": "This is a test run with custom notes",
+            "metadata": {
+                "custom_key": "custom_value",
+                "another_key": 123,
+            }
+        }
+        result = validate_run_manifest(blob)
+        self.assertEqual(result, blob)
+        self.assertIn("notes", result)
+        self.assertIn("metadata", result)
+        self.assertEqual(result["notes"], "This is a test run with custom notes")
+        self.assertEqual(result["metadata"]["custom_key"], "custom_value")
 
     def test_missing_required_fields(self):
         with self.assertRaises(ValueError):

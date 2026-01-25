@@ -250,6 +250,14 @@ Minimal control panel with hotkey bindings:
 - `MEDIATOR_HOST` (compose bridge) — set this if `host.docker.internal` is not available on your host (common on Linux) so the control bridge can reach the mediator.
 - Web MIDI: enable in your browser and map controls in the web UI (MIDI tab) to live parameters.
 
+## Project Status & Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for:
+- Current feature status and completeness
+- Unfinished/in-progress features
+- Planned features and timeline
+- Long-term vision and goals
+
 ## Layout
 - CLI/package code: `defora_cli/`
 - Executable wrappers: `./forge_cli`, `./deforumation_request_dispatcher`, `./deforumation_runs_cli`, `./deforumation_cli_panel`, `./deforumation_dashboard`, `./defora_tui`, `./monitor_cli`, `./stream_helper`, `./audio_reactive_modulator`
