@@ -228,15 +228,35 @@ Defora is in **active development** with a strong foundation of core features im
 
 ### 🎯 Short-Term (Next 1-3 Months)
 
-#### Improved Model Management
-- **Priority**: High
-- **Description**: Better model discovery and switching
-- **Features**:
-  - Live model list refresh
-  - Model metadata display (steps, sampler recommendations)
-  - Automatic model switching based on prompts
-  - Model download integration
-  - LoRA quick-switch presets
+#### ✅ Improved Model Management (COMPLETED in v0.2.8)
+
+**Status**: Core functionality complete with API integration
+
+**What Works**:
+- ✅ **NEW**: SD model listing (`/api/sd-models`)
+  - Fetches models from SD-Forge API
+  - Intelligent caching with 5-minute expiration
+  - Fallback to placeholder models when API unavailable
+  - Model metadata extraction (type, recommended settings)
+- ✅ **NEW**: Current model detection (`/api/sd-models/current`)
+  - Get currently loaded model
+  - Cache support for offline operation
+- ✅ **NEW**: Model switching (`/api/sd-models/switch`)
+  - POST endpoint to switch models
+  - 30-second timeout for model loading
+  - Error handling and status feedback
+- ✅ **NEW**: Model metadata display
+  - Auto-detect model type (SDXL, SD 1.5, Flux, SD 2.1, SD 3)
+  - Recommended steps, sampler, and resolution per model type
+  - Metadata enrichment for better UX
+- ✅ **NEW**: Enhanced refresh endpoint
+  - Clears all model caches (SD models, ControlNet, LoRA)
+  - Forces re-fetch from API
+
+**Remaining Enhancements** (moved to medium-term):
+- Automatic model switching based on prompt analysis
+- Model download integration
+- Advanced LoRA preset management UI
 
 #### Advanced Audio Features
 - **Priority**: Medium

@@ -27,6 +27,8 @@ async function start(opts = {}) {
     lastChecked: null,
     controlNetModels: null,
     loraModels: null,
+    sdModels: null,
+    currentModel: null,
   };
 
   const app = express();
@@ -428,10 +430,241 @@ async function start(opts = {}) {
   app.post("/api/models/refresh", (_req, res) => {
     apiStatus.controlNetModels = null;
     apiStatus.loraModels = null;
+    apiStatus.sdModels = null;
+    apiStatus.currentModel = null;
     apiStatus.lastChecked = null;
     console.log("[api] Model cache cleared, will refetch on next request");
     res.json({ success: true, message: "Model cache cleared" });
   });
+
+  // SD Models (Checkpoints) API endpoints
+  app.get("/api/sd-models", async (_req, res) => {
+    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    const forgeUrl = `http://${forgeHost}:${forgePort}`;
+    
+    // Fallback placeholder models
+    const placeholderModels = [
+      {
+        title: "SDXL Base",
+        model_name: "sdxl_base_1.0.safetensors",
+        hash: "placeholder_hash_1",
+        sha256: null,
+        filename: "sdxl_base_1.0.safetensors",
+        config: null,
+        metadata: {
+          type: "SDXL",
+          recommended_steps: 30,
+          recommended_sampler: "DPM++ 2M Karras",
+          base_resolution: 1024,
+        }
+      },
+      {
+        title: "SD 1.5",
+        model_name: "v1-5-pruned.safetensors",
+        hash: "placeholder_hash_2",
+        sha256: null,
+        filename: "v1-5-pruned.safetensors",
+        config: null,
+        metadata: {
+          type: "SD 1.5",
+          recommended_steps: 24,
+          recommended_sampler: "Euler a",
+          base_resolution: 512,
+        }
+      },
+    ];
+    
+    try {
+      // Try to fetch models from SD-Forge API
+      if (typeof fetch === 'undefined') {
+        throw new Error('fetch not available, using placeholder models');
+      }
+      
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      
+      const response = await fetch(`${forgeUrl}/sdapi/v1/sd-models`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const models = await response.json();
+        
+        // Enrich with metadata if available
+        const enrichedModels = models.map(model => ({
+          ...model,
+          metadata: extractModelMetadata(model)
+        }));
+        
+        // Update API status
+        apiStatus.sdForgeAvailable = true;
+        apiStatus.lastChecked = new Date().toISOString();
+        apiStatus.sdModels = enrichedModels;
+        
+        console.log(`[sd-models] Fetched ${enrichedModels.length} models from SD-Forge`);
+        return res.json({ models: enrichedModels, source: 'sd-forge', cached: false });
+      }
+    } catch (err) {
+      // API unavailable - use cache or placeholder
+      apiStatus.sdForgeAvailable = false;
+      apiStatus.lastChecked = new Date().toISOString();
+      console.log(`[sd-models] SD-Forge API unavailable, using ${apiStatus.sdModels ? 'cached' : 'placeholder'} models: ${err.message}`);
+      
+      // Return cached models if available (with 5 minute cache validity)
+      if (apiStatus.sdModels && apiStatus.lastChecked) {
+        const cacheAge = new Date() - new Date(apiStatus.lastChecked);
+        const fiveMinutes = 5 * 60 * 1000;
+        if (cacheAge < fiveMinutes) {
+          return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge: Math.floor(cacheAge / 1000) });
+        }
+      }
+    }
+    
+    res.json({ models: placeholderModels, source: 'placeholder', cached: false });
+  });
+
+  // Get current SD model
+  app.get("/api/sd-models/current", async (_req, res) => {
+    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    const forgeUrl = `http://${forgeHost}:${forgePort}`;
+    
+    try {
+      if (typeof fetch === 'undefined') {
+        throw new Error('fetch not available');
+      }
+      
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      
+      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        const options = await response.json();
+        const currentModel = {
+          model_name: options.sd_model_checkpoint || "Unknown",
+          title: options.sd_model_checkpoint || "Unknown",
+        };
+        
+        apiStatus.currentModel = currentModel;
+        console.log(`[sd-models] Current model: ${currentModel.model_name}`);
+        return res.json({ model: currentModel, source: 'sd-forge' });
+      }
+    } catch (err) {
+      console.log(`[sd-models] Failed to get current model: ${err.message}`);
+      
+      // Return cached current model if available
+      if (apiStatus.currentModel) {
+        return res.json({ model: apiStatus.currentModel, source: 'cache' });
+      }
+    }
+    
+    res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
+  });
+
+  // Switch SD model
+  app.post("/api/sd-models/switch", async (req, res) => {
+    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    const forgeUrl = `http://${forgeHost}:${forgePort}`;
+    
+    const { model_name } = req.body;
+    
+    if (!model_name) {
+      return res.status(400).json({ error: "model_name is required" });
+    }
+    
+    try {
+      if (typeof fetch === 'undefined') {
+        throw new Error('fetch not available');
+      }
+      
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000); // 30 seconds for model loading
+      
+      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          sd_model_checkpoint: model_name
+        })
+      });
+      clearTimeout(timeout);
+      
+      if (response.ok) {
+        apiStatus.currentModel = { model_name, title: model_name };
+        console.log(`[sd-models] Switched to model: ${model_name}`);
+        return res.json({ 
+          success: true, 
+          message: `Switched to ${model_name}`,
+          model: { model_name, title: model_name }
+        });
+      } else {
+        const error = await response.text();
+        throw new Error(`API returned ${response.status}: ${error}`);
+      }
+    } catch (err) {
+      console.log(`[sd-models] Failed to switch model: ${err.message}`);
+      return res.status(500).json({ 
+        error: "Failed to switch model", 
+        message: err.message 
+      });
+    }
+  });
+
+  // Helper function to extract model metadata
+  function extractModelMetadata(model) {
+    const name = (model.title || model.model_name || "").toLowerCase();
+    const metadata = {
+      type: "Unknown",
+      recommended_steps: 24,
+      recommended_sampler: "DPM++ 2M Karras",
+      base_resolution: 512,
+    };
+    
+    // Detect model type from name
+    if (name.includes('sdxl') || name.includes('xl')) {
+      metadata.type = "SDXL";
+      metadata.recommended_steps = 30;
+      metadata.base_resolution = 1024;
+    } else if (name.includes('sd3') || name.includes('stable diffusion 3')) {
+      metadata.type = "SD 3";
+      metadata.recommended_steps = 28;
+      metadata.base_resolution = 1024;
+    } else if (name.includes('flux')) {
+      metadata.type = "Flux";
+      metadata.recommended_steps = 20;
+      metadata.base_resolution = 1024;
+      metadata.recommended_sampler = "Euler";
+    } else if (name.includes('1.5') || name.includes('v1-5')) {
+      metadata.type = "SD 1.5";
+      metadata.recommended_steps = 24;
+      metadata.base_resolution = 512;
+      metadata.recommended_sampler = "Euler a";
+    } else if (name.includes('2.1') || name.includes('v2-1')) {
+      metadata.type = "SD 2.1";
+      metadata.recommended_steps = 26;
+      metadata.base_resolution = 768;
+    }
+    
+    // Copy any existing metadata from model
+    if (model.metadata) {
+      Object.assign(metadata, model.metadata);
+    }
+    
+    return metadata;
+  }
 
   // LoRA API endpoints
   app.get("/api/loras", async (_req, res) => {
