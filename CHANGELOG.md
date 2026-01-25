@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.7] - 2026-01-25
+
+## What's Changed
+
+- Add project roadmap and implement all incomplete features with comprehensive test coverage, advanced workflow management, model management, prompt system, performance optimizations, distributed generation, and turbo model stack (#27) (1f9476e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.6...v0.2.7
+
+
 ## [0.2.6] - 2026-01-24
 
 ## What's Changed
