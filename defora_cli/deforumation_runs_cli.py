@@ -344,6 +344,7 @@ class RunBrowser:
         """Invoke the dispatcher in a background thread to avoid UI blocking."""
         def worker():
             try:
+                self.status = f"Dispatching {request_path.name}..."
                 result = subprocess.run(
                     [
                         sys.executable,
@@ -360,11 +361,13 @@ class RunBrowser:
                     check=False,
                 )
                 if result.returncode == 0:
-                    self.status = f"Dispatched {request_path.name}"
+                    self.status = f"✓ Dispatched {request_path.name} successfully"
                 else:
-                    self.status = f"Dispatch failed ({result.returncode}): {result.stderr.strip()}"
+                    # Capture and display error details
+                    error_msg = result.stderr.strip() if result.stderr else f"exit code {result.returncode}"
+                    self.status = f"✗ Dispatch failed: {error_msg[:100]}"
             except Exception as exc:
-                self.status = f"Dispatch error: {exc}"
+                self.status = f"✗ Dispatch error: {str(exc)[:100]}"
 
         t = threading.Thread(target=worker, daemon=True)
         t.start()

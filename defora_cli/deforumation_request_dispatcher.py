@@ -155,8 +155,21 @@ def main():
     cmd = forge_cli_command(mode, payload, last_frame, forge_cli_path=args.forge_cli)
     if args.execute:
         args_list = forge_cli_args(mode, payload, last_frame, forge_cli_path=args.forge_cli)
-        print("Executing:", " ".join(args_list))
+        print(f"\n{'='*60}")
+        print(f"Dispatching {mode} request...")
+        print(f"{'='*60}")
+        print(f"Command: {' '.join(args_list)}")
+        print(f"{'='*60}\n")
+        
         result = subprocess.run(args_list, text=True)
+        
+        print(f"\n{'='*60}")
+        if result.returncode == 0:
+            print(f"✓ Dispatch successful")
+        else:
+            print(f"✗ Dispatch failed with exit code {result.returncode}")
+        print(f"{'='*60}\n")
+        
         raise SystemExit(result.returncode)
     else:
         print("Payload:", json.dumps(payload, indent=2))

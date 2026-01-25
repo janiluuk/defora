@@ -21,6 +21,14 @@ async function start(opts = {}) {
 
   const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
 
+  // Track API availability status
+  const apiStatus = {
+    sdForgeAvailable: false,
+    lastChecked: null,
+    controlNetModels: null,
+    loraModels: null,
+  };
+
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
@@ -41,6 +49,20 @@ async function start(opts = {}) {
     } catch (_e) {
       res.json({ ok: true, stream: hlsStream, updated: null });
     }
+  });
+  
+  // API status endpoint for model availability
+  app.get("/api/status", (_req, res) => {
+    res.json({
+      sdForge: {
+        available: apiStatus.sdForgeAvailable,
+        lastChecked: apiStatus.lastChecked,
+      },
+      models: {
+        controlNet: apiStatus.controlNetModels !== null ? 'cached' : 'not-loaded',
+        lora: apiStatus.loraModels !== null ? 'cached' : 'not-loaded',
+      }
+    });
   });
 
   app.get("/api/frames", async (req, res) => {
@@ -361,15 +383,27 @@ async function start(opts = {}) {
           };
         });
         
+        // Update API status
+        apiStatus.sdForgeAvailable = true;
+        apiStatus.lastChecked = new Date().toISOString();
+        apiStatus.controlNetModels = models;
+        
         console.log(`[controlnet] Fetched ${models.length} models from SD-Forge`);
-        return res.json({ models, source: 'sd-forge' });
+        return res.json({ models, source: 'sd-forge', cached: false });
       }
     } catch (err) {
-      // API unavailable or timeout - fall back to placeholder
-      console.log(`[controlnet] SD-Forge API unavailable, using placeholder models: ${err.message}`);
+      // API unavailable or timeout - fall back to placeholder or cache
+      apiStatus.sdForgeAvailable = false;
+      apiStatus.lastChecked = new Date().toISOString();
+      console.log(`[controlnet] SD-Forge API unavailable, using ${apiStatus.controlNetModels ? 'cached' : 'placeholder'} models: ${err.message}`);
+      
+      // Return cached models if available
+      if (apiStatus.controlNetModels) {
+        return res.json({ models: apiStatus.controlNetModels, source: 'cache', cached: true });
+      }
     }
     
-    res.json({ models: placeholderModels, source: 'placeholder' });
+    res.json({ models: placeholderModels, source: 'placeholder', cached: false });
   });
 
   // Helper function to categorize ControlNet models
@@ -385,6 +419,15 @@ async function start(opts = {}) {
     if (lowerName.includes('seg') || lowerName.includes('semantic')) return 'semantic';
     return 'other';
   }
+  
+  // Refresh models endpoint - clears cache and forces re-fetch
+  app.post("/api/models/refresh", (_req, res) => {
+    apiStatus.controlNetModels = null;
+    apiStatus.loraModels = null;
+    apiStatus.lastChecked = null;
+    console.log("[api] Model cache cleared, will refetch on next request");
+    res.json({ success: true, message: "Model cache cleared" });
+  });
 
   // LoRA API endpoints
   app.get("/api/loras", async (_req, res) => {
