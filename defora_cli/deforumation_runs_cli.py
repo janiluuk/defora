@@ -257,7 +257,8 @@ class RunBrowser:
         self.stdscr.addstr(self.h - 2, 0, f"Notes for {rec.run_id}: ")
         self.stdscr.clrtoeol()
         try:
-            new_notes = self.stdscr.getstr(self.h - 2, 30, 100).decode("utf-8")
+            # Allow up to 200 characters for notes
+            new_notes = self.stdscr.getstr(self.h - 2, 30, 200).decode("utf-8")
             rec.notes = new_notes
             # Persist notes to manifest
             self.save_manifest_metadata(rec)
@@ -363,11 +364,15 @@ class RunBrowser:
                 if result.returncode == 0:
                     self.status = f"✓ Dispatched {request_path.name} successfully"
                 else:
-                    # Capture and display error details
+                    # Capture and display error details (truncated for display, full logged)
                     error_msg = result.stderr.strip() if result.stderr else f"exit code {result.returncode}"
-                    self.status = f"✗ Dispatch failed: {error_msg[:100]}"
+                    # Log full error for debugging
+                    if len(error_msg) > 150:
+                        import logging
+                        logging.error(f"Dispatch failed: {error_msg}")
+                    self.status = f"✗ Dispatch failed: {error_msg[:150]}"
             except Exception as exc:
-                self.status = f"✗ Dispatch error: {str(exc)[:100]}"
+                self.status = f"✗ Dispatch error: {str(exc)[:150]}"
 
         t = threading.Thread(target=worker, daemon=True)
         t.start()

@@ -397,9 +397,13 @@ async function start(opts = {}) {
       apiStatus.lastChecked = new Date().toISOString();
       console.log(`[controlnet] SD-Forge API unavailable, using ${apiStatus.controlNetModels ? 'cached' : 'placeholder'} models: ${err.message}`);
       
-      // Return cached models if available
-      if (apiStatus.controlNetModels) {
-        return res.json({ models: apiStatus.controlNetModels, source: 'cache', cached: true });
+      // Return cached models if available (with 5 minute cache validity)
+      if (apiStatus.controlNetModels && apiStatus.lastChecked) {
+        const cacheAge = new Date() - new Date(apiStatus.lastChecked);
+        const fiveMinutes = 5 * 60 * 1000;
+        if (cacheAge < fiveMinutes) {
+          return res.json({ models: apiStatus.controlNetModels, source: 'cache', cached: true, cacheAge: Math.floor(cacheAge / 1000) });
+        }
       }
     }
     

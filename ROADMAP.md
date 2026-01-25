@@ -2,7 +2,7 @@
 
 This document outlines the current status, unfinished features, and planned future development for Defora — an audio-visual instrument for Stable Diffusion.
 
-**Last Updated**: 2026-01-24 | **Version**: 0.2.6
+**Last Updated**: 2026-01-25 | **Version**: 0.2.7 (in progress)
 
 ---
 
@@ -130,72 +130,68 @@ Defora is in **active development** with a strong foundation of core features im
 
 ## Incomplete/In-Progress Features
 
-### 🚧 Runs Management Integration
+### ✅ Runs Management Integration (COMPLETED in v0.2.7)
 
-**Status**: Core functionality exists but not fully wired
+**Status**: Core functionality complete with full integration
 
 **What Works**:
 - ✅ Browse run manifests in TUI (`deforumation_runs_cli`)
 - ✅ Save re-run/continue requests to JSON files
-- ✅ Manual dispatch via `deforumation_request_dispatcher`
+- ✅ Manual and automatic dispatch via `deforumation_request_dispatcher`
 - ✅ Interactive tag/override editing
+- ✅ **NEW**: Persistent notes and metadata storage
+- ✅ **NEW**: Enhanced dispatch feedback with status indicators
+- ✅ **NEW**: 'n' keybinding for editing notes
+- ✅ **NEW**: Visual success/failure indicators (✓/✗)
+- ✅ **NEW**: Better error messages in TUI
 
-**What's Missing**:
-- ⚠️ Direct integration between runs TUI and dispatcher (currently requires manual steps)
-- ⚠️ One-click re-run/continue from TUI (requires `DEFORUMATION_AUTO_DISPATCH=1`)
-- ⚠️ Persistent tag/notes storage in run manifests
-- ⚠️ Prompt/seed tweaks before dispatch
-- ⚠️ Better visual feedback during dispatch
+**Remaining Enhancements** (moved to short-term roadmap):
+- Pre-dispatch parameter editing dialog
+- Batch operations (re-run multiple, delete old runs)
+- Run comparison view
 
-**Next Steps**:
-1. Add auto-dispatch toggle in TUI
-2. Implement persistent metadata storage
-3. Add pre-dispatch parameter editing dialog
-4. Improve dispatch status feedback
+### ✅ API Fallback Systems (COMPLETED in v0.2.7)
 
-### 🚧 API Fallback Systems
-
-**Status**: Graceful degradation implemented, needs real integration
+**Status**: Graceful degradation with intelligent caching
 
 **What Works**:
 - ✅ Placeholder ControlNet models when SD-Forge unavailable
 - ✅ Placeholder LoRA models for development/demo
 - ✅ 2-second timeout with fallback to placeholders
 - ✅ Clear logging of API unavailability
+- ✅ **NEW**: API status tracking (sdForgeAvailable, lastChecked)
+- ✅ **NEW**: Model caching - falls back to cache before placeholders
+- ✅ **NEW**: `/api/status` endpoint for availability monitoring
+- ✅ **NEW**: `/api/models/refresh` endpoint to clear cache and force refetch
+- ✅ **NEW**: Source indicator in responses (sd-forge/cache/placeholder)
 
-**What's Missing**:
-- ⚠️ Live model discovery when SD-Forge becomes available
-- ⚠️ Automatic refresh of model lists
-- ⚠️ Better error messages in UI when using placeholders
-- ⚠️ Model availability status indicator
-
-**Next Steps**:
-1. Add "Refresh Models" button in UI
-2. Implement periodic model list polling
-3. Add visual indicator for placeholder vs real models
-4. Improve error messages in browser console
+**Remaining Enhancements** (low priority):
+- Automatic periodic polling for model availability
+- Visual indicator in UI for model source
+- Better error messages in browser console
 
 ### 🚧 Test Coverage
 
-**Status**: Good unit test coverage, integration tests need work
+**Status**: Good unit test coverage, integration tests improved
 
 **What Works**:
 - ✅ Unit tests for all CLI tools
 - ✅ Web UI smoke tests (tabs, controls, MIDI)
 - ✅ API endpoint tests
 - ✅ Audio modulator tests with numpy/scipy/librosa
+- ✅ **NEW**: End-to-end Docker stack integration tests
+- ✅ **NEW**: Service startup/teardown tests
+- ✅ **NEW**: Health check and API endpoint tests
 
 **What's Missing**:
-- ⚠️ Full integration tests with real Docker stack (currently skipped)
-- ⚠️ End-to-end workflow tests
+- ⚠️ More extensive e2e workflow tests with actual generation
 - ⚠️ Performance/load testing
-- ⚠️ Mediator integration tests
+- ⚠️ Mediator WebSocket integration tests
 
 **Next Steps**:
-1. Implement full Docker stack integration tests
-2. Add end-to-end generation workflow tests
-3. Create performance benchmarks
-4. Add stress testing for WebSocket connections
+1. Add end-to-end generation workflow tests
+2. Create performance benchmarks
+3. Add stress testing for WebSocket connections
 
 ---
 

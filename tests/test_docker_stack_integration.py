@@ -209,7 +209,7 @@ class TestDockerStackE2E(unittest.TestCase):
                     if health_result.returncode == 0:
                         try:
                             # Parse JSON output (one JSON object per line)
-                            services = [json.loads(line) for line in health_result.stdout.strip().split('\n') if line]
+                            services = [json.loads(line) for line in health_result.stdout.strip().split('\n') if line.strip()]
                             all_healthy = all(
                                 s.get('Health', '') == 'healthy' or s.get('Health', '') == ''
                                 for s in services
@@ -218,8 +218,8 @@ class TestDockerStackE2E(unittest.TestCase):
                             if all_healthy:
                                 print("✓ All services are healthy")
                                 break
-                        except json.JSONDecodeError:
-                            pass
+                        except (json.JSONDecodeError, ValueError) as e:
+                            print(f"⚠ Could not parse service health status: {e}")
                     time.sleep(10)
                 else:
                     print("⚠ Services may not be fully healthy, proceeding anyway")
@@ -369,7 +369,11 @@ class TestDockerStackE2E(unittest.TestCase):
         self.assertEqual(result.returncode, 0, "Failed to list running services")
         
         # Parse JSON output
-        services = [json.loads(line) for line in result.stdout.strip().split('\n') if line]
+        try:
+            services = [json.loads(line) for line in result.stdout.strip().split('\n') if line.strip()]
+        except (json.JSONDecodeError, ValueError) as e:
+            self.fail(f"Failed to parse docker compose output: {e}")
+        
         service_names = {s.get('Service') for s in services}
         
         # Check that core services are present
