@@ -434,14 +434,63 @@ Defora is in **active development** with a strong foundation of core features im
   - Hand tracking controls
   - AR overlay on real-world objects
 
-#### Distributed Generation
-- **Description**: Multi-GPU and multi-machine support
-- **Features**:
-  - Load balancing across GPUs
-  - Cloud GPU integration (RunPod, Vast.ai)
-  - Frame interpolation across machines
-  - Render farm support
-  - Cost optimization
+#### ✅ Distributed Generation (COMPLETED in v0.2.11)
+
+**Status**: Multi-node load balancing implemented with full API
+
+**What Works**:
+- ✅ **NEW**: Load balancing across multiple GPUs/machines
+  - 4 strategies: round_robin, least_busy, priority, random
+  - Automatic node selection based on health and workload
+  - Preferred node support for specific requirements
+- ✅ **NEW**: Health checking system (`/api/distributed/health-check`)
+  - Periodic automatic health checks (configurable interval)
+  - Node status tracking (healthy/unhealthy/disabled/unknown)
+  - Response time monitoring
+  - Manual health check endpoint
+- ✅ **NEW**: Job management (`/api/distributed/generate`, `/api/distributed/jobs/:id`)
+  - Job submission with node assignment
+  - Status tracking (queued → processing → completed)
+  - Wait time estimation
+  - Priority levels (high/normal/low)
+- ✅ **NEW**: Node management (`/api/distributed/nodes/*`)
+  - Disable/enable nodes dynamically
+  - Remove nodes from pool
+  - Per-node metrics tracking
+- ✅ **NEW**: Distributed metrics (`/api/distributed/metrics`)
+  - Per-node: active jobs, total jobs, success rate, response time
+  - Pool-wide: total jobs, healthy nodes, strategy
+  - Real-time monitoring
+- ✅ **NEW**: Configuration API (`/api/distributed/configure`, `/api/distributed/status`)
+  - Dynamic pool configuration
+  - Environment variable support
+  - Runtime strategy changes
+- ✅ **NEW**: Example: 3 ComfyUI instances on local network
+  - Comprehensive documentation (docs/DISTRIBUTED_GENERATION.md)
+  - Setup instructions for multi-node deployment
+  - Network architecture diagrams
+  - Troubleshooting guide
+
+**Example Setup** (3 nodes):
+```bash
+# Configure pool
+curl -X POST http://localhost:3000/api/distributed/configure \
+  -d '{
+    "enabled": true,
+    "strategy": "round_robin",
+    "nodes": [
+      {"url": "http://192.168.1.10:8188", "name": "GPU-RTX4090-1"},
+      {"url": "http://192.168.1.11:8188", "name": "GPU-RTX4090-2"},
+      {"url": "http://192.168.1.12:8188", "name": "GPU-RTX3090"}
+    ]
+  }'
+```
+
+**Remaining Enhancements** (moved to long-term):
+- Cloud GPU integration (RunPod, Vast.ai)
+- Frame interpolation across machines
+- Cost optimization algorithms
+- Render farm support
 
 #### Advanced Synchronization
 - **Description**: Sync with external systems

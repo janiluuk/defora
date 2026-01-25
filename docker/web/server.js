@@ -1171,6 +1171,353 @@ async function start(opts = {}) {
     res.json(metrics);
   });
 
+  // Distributed Generation System
+  
+  const distributedPool = {
+    enabled: process.env.DISTRIBUTED_ENABLED === 'true' || false,
+    strategy: process.env.DISTRIBUTED_STRATEGY || 'round_robin',  // round_robin, least_busy, random, priority
+    nodes: [],
+    currentIndex: 0,
+    healthCheckInterval: parseInt(process.env.DISTRIBUTED_HEALTH_CHECK_INTERVAL) || 30,
+    timeout: parseInt(process.env.DISTRIBUTED_TIMEOUT) || 300,
+    retryAttempts: parseInt(process.env.DISTRIBUTED_RETRY_ATTEMPTS) || 2,
+    jobs: new Map(),  // jobId -> job info
+    metrics: new Map()  // nodeUrl -> metrics
+  };
+
+  // Parse initial nodes from environment
+  if (process.env.DISTRIBUTED_NODES) {
+    const nodeUrls = process.env.DISTRIBUTED_NODES.split(',').map(u => u.trim()).filter(u => u);
+    nodeUrls.forEach((url, idx) => {
+      distributedPool.nodes.push({
+        url,
+        name: `Node-${idx + 1}`,
+        status: 'unknown',
+        activeJobs: 0,
+        totalJobs: 0,
+        priority: 1,
+        lastHealthCheck: null,
+        responseTime: null
+      });
+    });
+  }
+
+  // Configure distributed generation
+  app.post("/api/distributed/configure", (req, res) => {
+    const { enabled, strategy, nodes, healthCheckInterval, timeout, retryAttempts } = req.body;
+    
+    if (typeof enabled === 'boolean') {
+      distributedPool.enabled = enabled;
+    }
+    if (strategy && ['round_robin', 'least_busy', 'random', 'priority'].includes(strategy)) {
+      distributedPool.strategy = strategy;
+    }
+    if (Array.isArray(nodes)) {
+      distributedPool.nodes = nodes.map(node => ({
+        url: node.url,
+        name: node.name || node.url,
+        status: 'unknown',
+        activeJobs: 0,
+        totalJobs: 0,
+        priority: node.priority || 1,
+        gpuModel: node.gpuModel || null,
+        lastHealthCheck: null,
+        responseTime: null
+      }));
+    }
+    if (typeof healthCheckInterval === 'number' && healthCheckInterval > 0) {
+      distributedPool.healthCheckInterval = healthCheckInterval;
+    }
+    if (typeof timeout === 'number' && timeout > 0) {
+      distributedPool.timeout = timeout;
+    }
+    if (typeof retryAttempts === 'number' && retryAttempts >= 0) {
+      distributedPool.retryAttempts = retryAttempts;
+    }
+    
+    console.log(`[distributed] Configuration updated: ${distributedPool.nodes.length} nodes, strategy: ${distributedPool.strategy}`);
+    res.json({ success: true, message: "Distributed configuration updated", config: getDistributedConfig() });
+  });
+
+  // Get distributed pool status
+  app.get("/api/distributed/status", (_req, res) => {
+    const healthyNodes = distributedPool.nodes.filter(n => n.status === 'healthy').length;
+    
+    res.json({
+      enabled: distributedPool.enabled,
+      strategy: distributedPool.strategy,
+      totalNodes: distributedPool.nodes.length,
+      healthyNodes,
+      nodes: distributedPool.nodes.map(n => ({
+        url: n.url,
+        name: n.name,
+        status: n.status,
+        activeJobs: n.activeJobs,
+        totalJobs: n.totalJobs,
+        priority: n.priority,
+        gpuModel: n.gpuModel,
+        lastHealthCheck: n.lastHealthCheck,
+        responseTime: n.responseTime
+      }))
+    });
+  });
+
+  // Submit distributed generation job
+  app.post("/api/distributed/generate", async (req, res) => {
+    if (!distributedPool.enabled) {
+      return res.status(503).json({ error: "Distributed generation is disabled" });
+    }
+    
+    const { workflow, preferredNode, priority } = req.body;
+    
+    if (!workflow) {
+      return res.status(400).json({ error: "workflow is required" });
+    }
+    
+    // Select node based on strategy
+    const node = selectNode(preferredNode);
+    if (!node) {
+      return res.status(503).json({ error: "No healthy nodes available" });
+    }
+    
+    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const job = {
+      id: jobId,
+      nodeUrl: node.url,
+      nodeName: node.name,
+      workflow,
+      priority: priority || 'normal',
+      status: 'queued',
+      createdAt: new Date().toISOString(),
+      startedAt: null,
+      completedAt: null
+    };
+    
+    distributedPool.jobs.set(jobId, job);
+    node.activeJobs++;
+    node.totalJobs++;
+    
+    console.log(`[distributed] Job ${jobId} assigned to ${node.name} (${node.url})`);
+    
+    res.json({
+      jobId,
+      assignedNode: node.name,
+      nodeUrl: node.url,
+      status: 'queued',
+      estimatedWaitTime: estimateWaitTime(node)
+    });
+  });
+
+  // Get job status
+  app.get("/api/distributed/jobs/:jobId", (req, res) => {
+    const job = distributedPool.jobs.get(req.params.jobId);
+    
+    if (!job) {
+      return res.status(404).json({ error: "Job not found" });
+    }
+    
+    res.json(job);
+  });
+
+  // Health check all nodes
+  app.post("/api/distributed/health-check", async (_req, res) => {
+    const results = await performHealthCheck();
+    res.json({
+      success: true,
+      checked: results.length,
+      healthy: results.filter(r => r.healthy).length,
+      results
+    });
+  });
+
+  // Get distributed metrics
+  app.get("/api/distributed/metrics", (_req, res) => {
+    const nodeMetrics = distributedPool.nodes.map(node => {
+      const metrics = distributedPool.metrics.get(node.url) || {
+        successCount: 0,
+        failureCount: 0,
+        avgResponseTime: 0
+      };
+      
+      return {
+        url: node.url,
+        name: node.name,
+        activeJobs: node.activeJobs,
+        totalJobs: node.totalJobs,
+        successRate: metrics.successCount + metrics.failureCount > 0 
+          ? (metrics.successCount / (metrics.successCount + metrics.failureCount) * 100).toFixed(2)
+          : 0,
+        avgResponseTime: metrics.avgResponseTime,
+        status: node.status
+      };
+    });
+    
+    res.json({
+      enabled: distributedPool.enabled,
+      strategy: distributedPool.strategy,
+      totalJobs: distributedPool.jobs.size,
+      nodeMetrics
+    });
+  });
+
+  // Disable node
+  app.post("/api/distributed/nodes/:nodeId/disable", (req, res) => {
+    const nodeId = decodeURIComponent(req.params.nodeId);
+    const node = distributedPool.nodes.find(n => n.url === nodeId);
+    
+    if (!node) {
+      return res.status(404).json({ error: "Node not found" });
+    }
+    
+    node.status = 'disabled';
+    console.log(`[distributed] Node ${node.name} disabled`);
+    res.json({ success: true, message: `Node ${node.name} disabled` });
+  });
+
+  // Enable node
+  app.post("/api/distributed/nodes/:nodeId/enable", (req, res) => {
+    const nodeId = decodeURIComponent(req.params.nodeId);
+    const node = distributedPool.nodes.find(n => n.url === nodeId);
+    
+    if (!node) {
+      return res.status(404).json({ error: "Node not found" });
+    }
+    
+    node.status = 'unknown';  // Will be checked on next health check
+    console.log(`[distributed] Node ${node.name} enabled`);
+    res.json({ success: true, message: `Node ${node.name} enabled` });
+  });
+
+  // Remove node
+  app.delete("/api/distributed/nodes/:nodeId", (req, res) => {
+    const nodeId = decodeURIComponent(req.params.nodeId);
+    const index = distributedPool.nodes.findIndex(n => n.url === nodeId);
+    
+    if (index === -1) {
+      return res.status(404).json({ error: "Node not found" });
+    }
+    
+    const removed = distributedPool.nodes.splice(index, 1)[0];
+    console.log(`[distributed] Node ${removed.name} removed from pool`);
+    res.json({ success: true, message: `Node ${removed.name} removed` });
+  });
+
+  // Helper functions for distributed generation
+  function selectNode(preferredNode) {
+    const healthyNodes = distributedPool.nodes.filter(n => n.status === 'healthy');
+    
+    if (healthyNodes.length === 0) {
+      return null;
+    }
+    
+    // Check preferred node first
+    if (preferredNode) {
+      const preferred = healthyNodes.find(n => n.name === preferredNode || n.url === preferredNode);
+      if (preferred) return preferred;
+    }
+    
+    // Apply strategy
+    switch (distributedPool.strategy) {
+      case 'least_busy':
+        return healthyNodes.reduce((min, node) => 
+          node.activeJobs < min.activeJobs ? node : min
+        );
+      
+      case 'random':
+        return healthyNodes[Math.floor(Math.random() * healthyNodes.length)];
+      
+      case 'priority':
+        const sorted = healthyNodes.sort((a, b) => a.priority - b.priority);
+        return sorted[0];
+      
+      case 'round_robin':
+      default:
+        // Round robin through healthy nodes
+        let attempts = 0;
+        while (attempts < distributedPool.nodes.length) {
+          const node = distributedPool.nodes[distributedPool.currentIndex];
+          distributedPool.currentIndex = (distributedPool.currentIndex + 1) % distributedPool.nodes.length;
+          
+          if (node.status === 'healthy') {
+            return node;
+          }
+          attempts++;
+        }
+        return healthyNodes[0];  // Fallback to first healthy
+    }
+  }
+
+  function estimateWaitTime(node) {
+    // Simple estimation: 30 seconds per active job
+    return node.activeJobs * 30;
+  }
+
+  async function performHealthCheck() {
+    const results = [];
+    
+    for (const node of distributedPool.nodes) {
+      if (node.status === 'disabled') {
+        results.push({ url: node.url, healthy: false, reason: 'disabled' });
+        continue;
+      }
+      
+      try {
+        const startTime = Date.now();
+        
+        // Try to fetch system stats (ComfyUI endpoint)
+        if (typeof fetch !== 'undefined') {
+          const controller = new AbortController();
+          const timeout = setTimeout(() => controller.abort(), 5000);
+          
+          const response = await fetch(`${node.url}/system_stats`, {
+            signal: controller.signal
+          });
+          clearTimeout(timeout);
+          
+          const responseTime = Date.now() - startTime;
+          
+          if (response.ok) {
+            node.status = 'healthy';
+            node.lastHealthCheck = new Date().toISOString();
+            node.responseTime = responseTime;
+            results.push({ url: node.url, healthy: true, responseTime });
+          } else {
+            node.status = 'unhealthy';
+            results.push({ url: node.url, healthy: false, reason: `HTTP ${response.status}` });
+          }
+        } else {
+          node.status = 'unknown';
+          results.push({ url: node.url, healthy: false, reason: 'fetch not available' });
+        }
+      } catch (err) {
+        node.status = 'unhealthy';
+        node.lastHealthCheck = new Date().toISOString();
+        results.push({ url: node.url, healthy: false, reason: err.message });
+      }
+    }
+    
+    return results;
+  }
+
+  function getDistributedConfig() {
+    return {
+      enabled: distributedPool.enabled,
+      strategy: distributedPool.strategy,
+      nodeCount: distributedPool.nodes.length,
+      healthCheckInterval: distributedPool.healthCheckInterval,
+      timeout: distributedPool.timeout,
+      retryAttempts: distributedPool.retryAttempts
+    };
+  }
+
+  // Periodic health check
+  if (distributedPool.enabled && distributedPool.nodes.length > 0) {
+    setInterval(async () => {
+      console.log('[distributed] Performing periodic health check...');
+      await performHealthCheck();
+    }, distributedPool.healthCheckInterval * 1000);
+  }
+
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
     console.log(`[web] API/WS listening on ${actualPort}`);
