@@ -52,6 +52,8 @@ class RunRecord:
     steps: Optional[int] = None
     strength: Optional[float] = None
     cfg: Optional[float] = None
+    notes: str = ""
+    metadata: Optional[Dict] = None
 
 
 def load_manifests() -> List[RunRecord]:
@@ -79,6 +81,8 @@ def load_manifests() -> List[RunRecord]:
                 steps=blob.get("steps"),
                 strength=blob.get("strength"),
                 cfg=blob.get("cfg"),
+                notes=blob.get("notes", ""),
+                metadata=blob.get("metadata", {}),
             )
             records.append(rec)
         except Exception:
@@ -158,6 +162,8 @@ class RunBrowser:
                 self.overrides = self.prompt_overrides_structured()
             elif key == ord("t"):
                 self.add_tag()
+            elif key == ord("n"):
+                self.edit_notes()
             elif key == ord("R"):
                 self.make_request(mode="rerun")
             elif key == ord("c"):
@@ -166,7 +172,7 @@ class RunBrowser:
     def draw(self) -> None:
         self.stdscr.erase()
         h, w = self.stdscr.getmaxyx()
-        self.stdscr.addnstr(0, 0, "Deforumation Runs", w - 1, curses.A_BOLD)
+        self.stdscr.addnstr(0, 0, "Deforumation Runs | [↑↓/jk] nav | [r] reload | [e] edit overrides | [t] tag | [n] notes | [R] rerun | [c] continue | [q] quit", w - 1, curses.A_BOLD)
         list_width = max(int(w * 0.4), 30)
         for idx, rec in enumerate(self.records):
             prefix = "> " if idx == self.selected else "  "
@@ -193,6 +199,7 @@ class RunBrowser:
         add("Strength", f"{rec.strength:.3f}" if rec.strength is not None else "-")
         add("CFG", f"{rec.cfg:.2f}" if rec.cfg is not None else "-")
         add("Tag", rec.tag or "-")
+        add("Notes", rec.notes or "-")
         add("Manifest", str(rec.manifest_path))
         add("Last frame", str(rec.last_frame_path) if rec.last_frame_path else "-")
         add("Prompt+", (rec.prompt_positive or "")[: w - detail_x - 5])
@@ -238,17 +245,44 @@ class RunBrowser:
         line = self.stdscr.getstr().decode("utf-8")
         curses.noecho()
         rec.tag = line.strip()
-        # Optionally persist: write back to manifest
+        # Persist tag to manifest
+        self.save_manifest_metadata(rec)
+        self.status = f"Tagged {rec.run_id} as '{rec.tag}'"
+    
+    def edit_notes(self) -> None:
+        """Edit notes for the selected run and persist to manifest"""
+        rec = self.records[self.selected]
+        curses.echo()
+        curses.curs_set(1)
+        self.stdscr.addstr(self.h - 2, 0, f"Notes for {rec.run_id}: ")
+        self.stdscr.clrtoeol()
         try:
-            if rec.manifest_path.exists():
-                with rec.manifest_path.open("r", encoding="utf-8") as h:
-                    blob = json.load(h)
-                blob["tag"] = rec.tag
-                with rec.manifest_path.open("w", encoding="utf-8") as h:
-                    json.dump(blob, h, indent=2)
+            new_notes = self.stdscr.getstr(self.h - 2, 30, 100).decode("utf-8")
+            rec.notes = new_notes
+            # Persist notes to manifest
+            self.save_manifest_metadata(rec)
+            self.status = f"Updated notes for {rec.run_id}"
         except Exception:
             pass
-        self.status = f"Tagged {rec.run_id} as '{rec.tag}'"
+        finally:
+            curses.noecho()
+            curses.curs_set(0)
+    
+    def save_manifest_metadata(self, rec: RunRecord) -> None:
+        """Save tag, notes, and metadata back to the manifest file"""
+        try:
+            with rec.manifest_path.open("r", encoding="utf-8") as h:
+                manifest = json.load(h)
+            
+            manifest["tag"] = rec.tag
+            manifest["notes"] = rec.notes
+            if rec.metadata:
+                manifest["metadata"] = rec.metadata
+            
+            with rec.manifest_path.open("w", encoding="utf-8") as h:
+                json.dump(manifest, h, indent=2)
+        except Exception as exc:
+            self.status = f"Failed to save metadata: {exc}"
 
     def make_request(self, mode: str) -> None:
         rec = self.records[self.selected]
