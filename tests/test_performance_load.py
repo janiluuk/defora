@@ -3,6 +3,9 @@ Performance and load testing for Defora components.
 
 These tests verify system behavior under load and measure performance
 characteristics of key operations.
+
+Note: Performance tests are skipped by default (SKIP_PERF_TESTS=1).
+To enable these tests, set SKIP_PERF_TESTS=0 in your environment.
 """
 import unittest
 import time
@@ -14,6 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import subprocess
 
 # Skip performance tests by default in CI (they can be slow)
+# Set SKIP_PERF_TESTS=0 to enable performance testing
 SKIP_PERF_TESTS = os.getenv("SKIP_PERF_TESTS", "1").lower() in ("1", "true", "yes")
 
 
