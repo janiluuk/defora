@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.8] - 2026-02-01
+
+## What's Changed
+
+- Implement prompt strength scheduling, advanced weighting syntax, and SD-Forge attention syntax for defora project (c0dcbf3)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.7...v0.2.8
+
+
 ## [0.2.7] - 2026-01-25
 
 ## What's Changed
