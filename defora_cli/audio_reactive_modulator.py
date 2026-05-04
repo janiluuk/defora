@@ -18,6 +18,7 @@ Example (live send to mediator):
 from __future__ import annotations
 
 import argparse
+import importlib
 import json
 import math
 import time
@@ -58,6 +59,17 @@ def load_audio_mono(path: Path) -> tuple[np.ndarray, int]:
         peak = np.iinfo(data.dtype).max
         data = data / peak
     return data, sr
+
+
+# Named Hz ranges for quick CLI layouts (Phase 3)
+BAND_HZ = {
+    "sub": (20.0, 60.0),
+    "bass": (60.0, 250.0),
+    "lowmid": (250.0, 500.0),
+    "mid": (500.0, 2000.0),
+    "high": (2000.0, 8000.0),
+    "air": (8000.0, 16000.0),
+}
 
 
 def compute_modulations(
@@ -124,8 +136,80 @@ def live_send(schedule: Dict[str, List[float]], fps: int, host: str, port: str) 
         time.sleep(frame_time)
 
 
-def parse_mappings(mapping_arg: Optional[str]) -> List[BandMapping]:
+def smooth_series(values: List[float], amount: float) -> List[float]:
+    """One-pole smoothing on mapped parameter curves (0 = off)."""
+    if amount <= 0 or len(values) < 2:
+        return values
+    coef = min(1.0, max(0.0, amount))
+    out: List[float] = [values[0]]
+    for i in range(1, len(values)):
+        out.append(coef * values[i] + (1 - coef) * out[-1])
+    return out
+
+
+def envelope_follow_series(
+    values: List[float], fps: float, attack_sec: float, release_sec: float
+) -> List[float]:
+    """Asymmetric envelope follower (requires attack_sec > 0 to enable)."""
+    if not values or attack_sec <= 0:
+        return values
+    fps = max(1e-6, fps)
+    a_up = 1.0 - math.exp(-1.0 / max(1e-6, attack_sec * fps))
+    a_dn = 1.0 - math.exp(-1.0 / max(1e-6, max(release_sec, 1e-6) * fps))
+    out: List[float] = []
+    prev = values[0]
+    for v in values:
+        coef = a_up if v > prev else a_dn
+        prev = coef * v + (1 - coef) * prev
+        out.append(prev)
+    return out
+
+
+def apply_output_processing(
+    schedule: Dict[str, List[float]],
+    fps: float,
+    smooth: float,
+    attack_sec: float,
+    release_sec: float,
+) -> Dict[str, List[float]]:
+    out: Dict[str, List[float]] = {}
+    for key, series in schedule.items():
+        vals = list(series)
+        if attack_sec > 0:
+            vals = envelope_follow_series(vals, fps, attack_sec, release_sec)
+        if smooth > 0:
+            vals = smooth_series(vals, smooth)
+        out[key] = vals
+    return out
+
+
+def run_post_plugin(spec: Optional[str], schedule: Dict[str, List[float]]) -> Dict[str, List[float]]:
+    """
+    Optional extension hook: ``module.path:callable`` receiving the schedule dict
+    and returning a new schedule (same shape). Used for Phase 4 plugin groundwork.
+    """
+    if not spec or not str(spec).strip():
+        return schedule
+    mod_part, _, fn_part = str(spec).strip().partition(":")
+    if not mod_part or not fn_part:
+        raise ValueError("--post-plugin must be module:function")
+    mod = importlib.import_module(mod_part)
+    fn = getattr(mod, fn_part)
+    out = fn(schedule)
+    if not isinstance(out, dict):
+        raise TypeError("post-plugin must return a dict[str, list[float]]")
+    return out
+
+
+def parse_mappings(mapping_arg: Optional[str], band_layout: str = "default") -> List[BandMapping]:
     if mapping_arg is None:
+        if band_layout == "bass_mid_high":
+            b, m, h = BAND_HZ["bass"], BAND_HZ["mid"], BAND_HZ["high"]
+            return [
+                BandMapping("translation_x", b[0], b[1], -1.0, 1.0),
+                BandMapping("translation_y", m[0], m[1], -1.0, 1.0),
+                BandMapping("translation_z", h[0], h[1], -1.0, 1.0),
+            ]
         return [
             BandMapping("translation_x", 20, 200, -1.0, 1.0),
             BandMapping("translation_y", 200, 800, -1.0, 1.0),
@@ -158,13 +242,54 @@ def main():
     parser.add_argument("--live", action="store_true", help="Send values live to mediator")
     parser.add_argument("--mediator-host", default="localhost", help="Mediator host")
     parser.add_argument("--mediator-port", default="8766", help="Mediator port")
+    parser.add_argument(
+        "--band-layout",
+        choices=("default", "bass_mid_high"),
+        default="default",
+        help="When --mapping is omitted, pick default FFT band routing (default = legacy triple split)",
+    )
+    parser.add_argument(
+        "--smooth",
+        type=float,
+        default=0.0,
+        help="Output smoothing 0..1 (one-pole low-pass on mapped curves; 0 = off)",
+    )
+    parser.add_argument(
+        "--envelope-attack-sec",
+        type=float,
+        default=0.0,
+        help="Envelope follower attack time in seconds (0 = disable asymmetric smoothing)",
+    )
+    parser.add_argument(
+        "--envelope-release-sec",
+        type=float,
+        default=0.08,
+        help="Envelope follower release time in seconds (used when attack is enabled)",
+    )
+    parser.add_argument(
+        "--post-plugin",
+        default=None,
+        help="Python hook ``module:function`` to transform the schedule dict after smoothing (plugin MVP).",
+    )
     args = parser.parse_args()
 
     if args.fps <= 0:
         raise SystemExit("fps must be greater than zero")
-    mappings = parse_mappings(args.mapping)
+    mappings = parse_mappings(args.mapping, args.band_layout)
     audio, sr = load_audio_mono(Path(args.audio))
     schedule = compute_modulations(audio, sr, args.fps, mappings)
+    schedule = apply_output_processing(
+        schedule,
+        float(args.fps),
+        max(0.0, args.smooth),
+        max(0.0, args.envelope_attack_sec),
+        max(1e-6, args.envelope_release_sec),
+    )
+    if args.post_plugin:
+        try:
+            schedule = run_post_plugin(args.post_plugin, schedule)
+        except Exception as exc:  # noqa: BLE001
+            raise SystemExit(f"--post-plugin failed: {exc}") from exc
 
     if args.output:
         save_schedule(schedule, Path(args.output))

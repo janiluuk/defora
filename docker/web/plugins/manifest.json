@@ -1,0 +1,8 @@
+[
+  {
+    "id": "builtin-noop",
+    "name": "Built-in placeholder",
+    "kind": "builtin",
+    "description": "Registry entry for future host-side plugins; audio CLI uses Python --post-plugin instead."
+  }
+]

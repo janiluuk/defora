@@ -473,6 +473,65 @@
               </div>
             </div>
           </div>
+
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🖼 img2img <span class="framesync-accent">(Forge)</span></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">
+                Reference image → <code>/api/img2img</code> (SD-Forge). Optional <strong>mask</strong> enables inpainting (white = repaint, black = keep). Output under <code>/uploads/</code>.
+              </div>
+              <div style="margin-top:10px; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; align-items:end;">
+                <div>
+                  <div class="framesync-subtitle">Init image</div>
+                  <input type="file" accept="image/*" class="framesync-input" style="font-size:11px;" @change="handleImg2imgFile">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Mask (inpaint)</div>
+                  <input type="file" accept="image/*" class="framesync-input" style="font-size:11px;" @change="handleImg2imgMask">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Denoise</div>
+                  <input type="number" class="framesync-input" v-model.number="img2img.denoisingStrength" min="0" max="1" step="0.05">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">W × H</div>
+                  <div style="display:flex; gap:6px;">
+                    <input type="number" class="framesync-input" v-model.number="img2img.width" min="64" max="2048" step="64" style="font-size:11px;">
+                    <input type="number" class="framesync-input" v-model.number="img2img.height" min="64" max="2048" step="64" style="font-size:11px;">
+                  </div>
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Mask blur</div>
+                  <input type="number" class="framesync-input" v-model.number="img2img.maskBlur" min="0" max="64" step="1" style="font-size:11px;">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Inpaint fill</div>
+                  <select class="framesync-input" v-model.number="img2img.inpaintingFill" style="font-size:11px;">
+                    <option :value="0">Fill</option>
+                    <option :value="1">Original</option>
+                    <option :value="2">Latent noise</option>
+                    <option :value="3">Latent nothing</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Full-res inpaint</div>
+                  <label style="font-size:11px; color:#9ecfff;"><input type="checkbox" v-model="img2img.inpaintFullRes"> On</label>
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:10px;">
+                <button type="button" class="framesync-button" @click="submitImg2img">▶ Submit to Forge</button>
+                <button type="button" class="framesync-button" style="opacity:0.85;" @click="clearImg2imgMask">Clear mask</button>
+                <a v-if="img2img.lastPath" :href="img2img.lastPath" target="_blank" rel="noopener" style="font-size:11px; color:#ff8a1a;">Open last result</a>
+              </div>
+              <div class="framesync-list" style="margin-top:8px; font-size:11px;">{{ img2img.status }}</div>
+              <div v-if="pluginsRegistry.length" class="framesync-subtitle" style="margin-top:12px;">Plugin registry</div>
+              <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
+                <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="currentTab==='LORA'">
@@ -884,6 +943,11 @@
                         <input class="framesync-input" type="number" v-model.number="m.freq_max" step="10" style="padding:4px; font-size:10px;" placeholder="Max">
                       </div>
                     </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+                      <button type="button" class="framesync-button" style="font-size:9px;padding:2px 6px;"
+                        v-for="b in audioBandChips" :key="'ab'+idx+b.key"
+                        @click="applyAudioBandPreset(idx, b.key)">{{ b.label }}</button>
+                    </div>
                     
                     <div class="fs-field" style="margin-top:4px;">
                       <span style="font-size:10px;">Output Range</span>
@@ -1172,6 +1236,19 @@
             zoom: "Beat",
           },
           prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5 },
+          img2img: {
+            dataUrl: null,
+            maskDataUrl: null,
+            maskBlur: 4,
+            inpaintingFill: 1,
+            inpaintFullRes: true,
+            denoisingStrength: 0.55,
+            width: 1024,
+            height: 1024,
+            status: "",
+            lastPath: null,
+          },
+          pluginsRegistry: [],
           morphSlots: [
             { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
             { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
@@ -1198,6 +1275,14 @@
             { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
             { param: "translation_z", freq_min: 1200, freq_max: 3000, out_min: -5, out_max: 5 },
           ],
+          audioBandPresets: {
+            sub: { label: "Sub", freq_min: 20, freq_max: 60 },
+            bass: { label: "Bass", freq_min: 60, freq_max: 250 },
+            lowmid: { label: "Lo-mid", freq_min: 250, freq_max: 500 },
+            mid: { label: "Mid", freq_min: 500, freq_max: 2000 },
+            high: { label: "High", freq_min: 2000, freq_max: 8000 },
+            air: { label: "Air", freq_min: 8000, freq_max: 16000 },
+          },
           lfoBpm: 120,
           lfoTargets: [
             { key: "cfg", label: "Vibe (CFG)", min: 0, max: 30, default: 6, group: "Style" },
@@ -1352,6 +1437,14 @@
         sequencerParamOptions() {
           return this.lfoTargets.map((t) => ({ key: t.key, label: t.label }));
         },
+        audioBandChips() {
+          return Object.entries(this.audioBandPresets).map(([key, v]) => ({
+            key,
+            label: v.label,
+            freq_min: v.freq_min,
+            freq_max: v.freq_max,
+          }));
+        },
       },
       mounted() {
         this.attachPlayer();
@@ -1363,6 +1456,7 @@
         this.refreshLoras();
         this.refreshApiHealth();
         this.refreshSequencerList();
+        this.refreshPlugins();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
           this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
@@ -1731,6 +1825,88 @@
         },
         removeAudioMapping(index) {
           this.audioMappings.splice(index, 1);
+        },
+        applyAudioBandPreset(mapIndex, bandKey) {
+          const spec = this.audioBandPresets[bandKey];
+          const row = this.audioMappings[mapIndex];
+          if (!spec || !row) return;
+          row.freq_min = spec.freq_min;
+          row.freq_max = spec.freq_max;
+        },
+        handleImg2imgFile(evt) {
+          const f = evt.target.files && evt.target.files[0];
+          if (!f) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            this.img2img.dataUrl = reader.result;
+            this.img2img.status = "Init image loaded";
+          };
+          reader.onerror = () => {
+            this.img2img.status = "Could not read file";
+          };
+          reader.readAsDataURL(f);
+        },
+        handleImg2imgMask(evt) {
+          const f = evt.target.files && evt.target.files[0];
+          if (!f) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            this.img2img.maskDataUrl = reader.result;
+            this.img2img.status = "Mask loaded (inpaint)";
+          };
+          reader.onerror = () => {
+            this.img2img.status = "Could not read mask file";
+          };
+          reader.readAsDataURL(f);
+        },
+        clearImg2imgMask() {
+          this.img2img.maskDataUrl = null;
+          this.img2img.status = "Mask cleared";
+        },
+        async refreshPlugins() {
+          if (typeof fetch !== "function") return;
+          try {
+            const res = await fetch("/api/plugins");
+            if (!res.ok) return;
+            const j = await res.json();
+            this.pluginsRegistry = Array.isArray(j.plugins) ? j.plugins : [];
+          } catch (_) {
+            this.pluginsRegistry = [];
+          }
+        },
+        async submitImg2img() {
+          if (!this.img2img.dataUrl) {
+            this.img2img.status = "Choose an init image first";
+            return;
+          }
+          this.img2img.status = "Submitting…";
+          try {
+            const body = {
+              init_image: this.img2img.dataUrl,
+              prompt: this.prompts.pos,
+              negative_prompt: this.prompts.neg,
+              denoising_strength: this.img2img.denoisingStrength,
+              width: this.img2img.width,
+              height: this.img2img.height,
+            };
+            if (this.img2img.maskDataUrl) {
+              body.mask_image = this.img2img.maskDataUrl;
+              body.mask_blur = this.img2img.maskBlur;
+              body.inpainting_fill = this.img2img.inpaintingFill;
+              body.inpaint_full_res = this.img2img.inpaintFullRes;
+            }
+            const res = await fetch("/api/img2img", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || j.detail || res.statusText);
+            this.img2img.lastPath = j.path || null;
+            this.img2img.status = j.path ? `OK → ${j.path}` : "OK";
+          } catch (e) {
+            this.img2img.status = String(e.message || e);
+          }
         },
         addLfo() {
           const nextId = this.lfos.length ? Math.max(...this.lfos.map((l) => l.id)) + 1 : 1;

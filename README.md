@@ -125,7 +125,7 @@ Map any MIDI controller to live parameters:
 
 ### Core Tools
 - **`forge_cli`** — Model-aware txt2img/Deforum CLI with preset support and sensible defaults
-- **`defora_tui`** — Full multi-tab ncurses interface (LIVE, PROMPTS, MOTION, AUDIO, CONTROLNET, SETTINGS)
+- **`defora_tui`** — Full multi-tab ncurses interface (LIVE, PROMPTS, LORA, MOTION, AUDIO, CONTROLNET, SETTINGS)
 - **`deforumation_cli_panel`** — Lightweight control panel with rebindable hotkeys (strength/CFG/noise/pan/zoom/rot/FOV)
 - **`deforumation_dashboard`** — Curses dashboard mirroring the Deforumation GUI tabs
 
@@ -176,6 +176,13 @@ Generate images or animations with smart defaults:
 
 # Animation (240 frames)
 ./forge_cli deforum -f 240 "surreal biomechanical cathedral"
+
+# img2img (requires running Forge)
+./forge_cli img2img --init-image ./ref.png "enhance details, cinematic" --denoising-strength 0.55
+
+# Inpainting (mask image, same size as init recommended)
+./forge_cli img2img --init-image ./scene.png --mask-image ./mask.png \
+  "object removal, clean background" --denoising-strength 0.72
 ```
 
 #### 🎮 Live Performance (Web UI)
@@ -191,7 +198,7 @@ Full-featured ncurses interface for terminal users:
 ```bash
 ./defora_tui
 ```
-**Navigation**: F1-F6 to switch tabs, ←/→ to adjust parameters, Q to quit
+**Navigation**: F1–F7 to switch tabs (incl. **LORA** on F3), ←/→ to adjust parameters, Q to quit
 
 #### 🎛️ Lightweight Panel (CLI)
 Minimal control panel with hotkey bindings:
@@ -214,6 +221,10 @@ Minimal control panel with hotkey bindings:
 # Stream live to mediator
 ./audio_reactive_modulator --audio song.wav --fps 24 --live \
   --mediator-host 127.0.0.1 --mediator-port 8766
+
+# Optional post-pass on the generated schedule (module:function)
+./audio_reactive_modulator --audio song.wav --fps 24 --output out.json \
+  --post-plugin defora_cli.plugins.audio_post:process
 ```
 
 **Monitor Live Generation:**
@@ -250,6 +261,8 @@ Minimal control panel with hotkey bindings:
 - `MEDIATOR_HOST` (compose bridge) — set this if `host.docker.internal` is not available on your host (common on Linux) so the control bridge can reach the mediator.
 - `SD_FORGE_POLL_MS` — if set to a positive value (milliseconds) on the **web** stack, the API periodically probes SD-Forge so `/api/status` and the Web UI Forge indicator stay current without opening model list endpoints.
 - `SEQUENCER_DIR` — directory for saved animation sequencer timelines (Web UI MOTION tab); default is `docker/web/sequencers` next to the Node server.
+- `DEFORA_TUI_LORA_STATE` — optional path for `defora_tui` LoRA tab save/load (JSON); default `~/.config/defora/tui_lora.json`.
+- `PLUGINS_DIR` — optional directory for `docker/web/plugins/manifest.json` (Web `GET /api/plugins`).
 - Web MIDI: enable in your browser and map controls in the **Settings** tab (Controllers / WebMIDI) to live parameters.
 
 ## Project Status & Roadmap

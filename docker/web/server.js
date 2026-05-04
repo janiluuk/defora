@@ -186,6 +186,7 @@ async function start(opts = {}) {
   const sequencersDir =
     opts.sequencersDir || process.env.SEQUENCER_DIR || path.join(__dirname, "sequencers");
   const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
+  const pluginsDir = opts.pluginsDir || process.env.PLUGINS_DIR || path.join(__dirname, "plugins");
   const uploadRetentionHours = parseInt(process.env.UPLOAD_RETENTION_HOURS || "24", 10);
   
   try {
@@ -197,6 +198,11 @@ async function start(opts = {}) {
   try {
     await fsp.mkdir(uploadsDir, { recursive: true });
   } catch (_e) {}
+  try {
+    await fsp.mkdir(pluginsDir, { recursive: true });
+  } catch (_e) {}
+
+  app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
 
   function validateTimeline(body) {
     if (!body || typeof body !== "object") return "invalid body";
@@ -453,6 +459,115 @@ async function start(opts = {}) {
         console.error("[api] sequencer delete error", err);
         res.status(500).json({ error: "could not delete timeline" });
       }
+    }
+  });
+
+  app.get("/api/plugins", async (_req, res) => {
+    try {
+      const manifestPath = path.join(pluginsDir, "manifest.json");
+      const raw = await fsp.readFile(manifestPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const plugins = Array.isArray(parsed) ? parsed : parsed.plugins || [];
+      res.json({ plugins });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return res.json({ plugins: [] });
+      }
+      console.error("[api] plugins list error", err);
+      res.status(500).json({ error: "could not read plugin manifest" });
+    }
+  });
+
+  app.post("/api/img2img", async (req, res) => {
+    const body = req.body || {};
+    const init = body.init_image || body.initImage;
+    if (!init || typeof init !== "string") {
+      return res.status(400).json({ error: "init_image required (data URL or raw base64)" });
+    }
+    let b64 = init.trim();
+    const dataUrl = /^data:image\/[^;]+;base64,(.+)$/i.exec(b64);
+    if (dataUrl) b64 = dataUrl[1];
+
+    let maskB64 = null;
+    const maskRaw = body.mask_image || body.maskImage;
+    if (maskRaw && typeof maskRaw === "string" && maskRaw.trim()) {
+      maskB64 = maskRaw.trim();
+      const maskDataUrl = /^data:image\/[^;]+;base64,(.+)$/i.exec(maskB64);
+      if (maskDataUrl) maskB64 = maskDataUrl[1];
+    }
+
+    const forgeUrl = forgeBaseUrl();
+    const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 28));
+    const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 1024));
+    const denoise = Math.min(1, Math.max(0, parseFloat(body.denoising_strength ?? body.denoisingStrength) || 0.55));
+    const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
+    const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
+
+    const payload = {
+      init_images: [b64],
+      prompt: String(body.prompt || ""),
+      negative_prompt: String(body.negative_prompt || body.negativePrompt || ""),
+      steps,
+      cfg_scale: cfg,
+      width: w,
+      height: h,
+      denoising_strength: denoise,
+      sampler_name: sampler,
+      batch_size: 1,
+      n_iter: 1,
+      seed: Number.isFinite(seed) ? seed : -1,
+      resize_mode: 0,
+    };
+
+    if (maskB64) {
+      const maskBlur = Math.min(64, Math.max(0, parseInt(body.mask_blur ?? body.maskBlur, 10) || 4));
+      const inpaintingFill = Math.min(3, Math.max(0, parseInt(body.inpainting_fill ?? body.inpaintingFill, 10) || 1));
+      const ifr = body.inpaint_full_res ?? body.inpaintFullRes;
+      const inpaintFullRes = !(ifr === false || ifr === "false" || ifr === 0 || ifr === "0");
+      const pad = Math.min(256, Math.max(0, parseInt(body.inpaint_full_res_padding ?? body.inpaintFullResPadding, 10) || 32));
+      payload.mask = maskB64;
+      payload.mask_blur = maskBlur;
+      payload.inpainting_fill = inpaintingFill;
+      payload.inpaint_full_res = inpaintFullRes;
+      payload.inpaint_full_res_padding = pad;
+    }
+
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available in this Node build" });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 600000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/img2img`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: "Forge img2img failed", status: response.status, detail: text.slice(0, 500) });
+      }
+      const data = await response.json();
+      const images = data.images || [];
+      if (!images.length) {
+        return res.status(502).json({ error: "Forge returned no images", raw: data });
+      }
+      const outName = `i2i_${Date.now()}.png`;
+      const outPath = path.join(uploadsDir, outName);
+      let imgB64 = images[0];
+      if (typeof imgB64 === "string" && imgB64.includes(",")) {
+        imgB64 = imgB64.split(",", 2)[1];
+      }
+      const buf = Buffer.from(imgB64, "base64");
+      await fsp.writeFile(outPath, buf);
+      res.json({ ok: true, path: `/uploads/${outName}`, info: data.info || null });
+    } catch (err) {
+      console.error("[api] img2img error", err);
+      res.status(502).json({ error: String(err.message || err) });
     }
   });
 

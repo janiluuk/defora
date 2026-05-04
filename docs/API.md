@@ -9,6 +9,8 @@ This document describes the REST API endpoints available in the Defora web serve
 - [Audio](#audio)
 - [Presets](#presets)
 - [Animation sequencer](#animation-sequencer)
+- [Plugins registry](#plugins-registry)
+- [img2img](#img2img)
 - [ControlNet](#controlnet)
 
 ---
@@ -352,6 +354,69 @@ Save or overwrite a timeline.
 ### DELETE /api/sequencer/:name
 
 Remove a saved timeline file.
+
+---
+
+## Plugins registry
+
+Optional manifest for future Web-side plugin discovery. Directory: `PLUGINS_DIR` (default `docker/web/plugins`), file `manifest.json`.
+
+### GET /api/plugins
+
+**Response**: `200 OK`
+```json
+{
+  "plugins": [
+    { "id": "builtin-noop", "name": "No-op", "description": "Placeholder entry" }
+  ]
+}
+```
+
+If `manifest.json` is missing, the server returns `{ "plugins": [] }`.
+
+**Error Responses**:
+- `500 Internal Server Error`: Manifest exists but is unreadable or invalid JSON
+
+---
+
+## img2img
+
+Proxy to Forge `POST /sdapi/v1/img2img`. The first returned image is written under the web server uploads directory and exposed at `/uploads/…`.
+
+### POST /api/img2img
+
+**Request Body** (JSON):
+
+| Field | Type | Required | Notes |
+|-------|------|----------|--------|
+| `init_image` or `initImage` | string | yes | Raw base64 or `data:image/png;base64,…` |
+| `prompt` | string | no | |
+| `negative_prompt` / `negativePrompt` | string | no | |
+| `steps` | number | no | 1–100, default 28 |
+| `cfg_scale` / `cfgScale` | number | no | 1–30, default 7 |
+| `width`, `height` | number | no | 64–2048, default 1024 |
+| `denoising_strength` / `denoisingStrength` | number | no | 0–1, default 0.55 |
+| `sampler_name` | string | no | default `Euler a` |
+| `seed` | number | no | default `-1` |
+| `mask_image` / `maskImage` | string | no | Raw base64 or data URL; when set, Forge inpaints (white ≈ repaint, black ≈ keep) |
+| `mask_blur` / `maskBlur` | number | no | 0–64, default `4` (only with mask) |
+| `inpainting_fill` / `inpaintingFill` | number | no | 0–3: fill / original / latent noise / latent nothing; default `1` |
+| `inpaint_full_res` / `inpaintFullRes` | boolean | no | default `true` when mask present |
+| `inpaint_full_res_padding` / `inpaintFullResPadding` | number | no | 0–256, default `32` |
+
+**Response**: `200 OK` on success
+```json
+{
+  "ok": true,
+  "path": "/uploads/i2i_1710000000000.png",
+  "info": null
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: Missing or invalid `init_image`
+- `500 Internal Server Error`: Node build without `fetch`
+- `502 Bad Gateway`: Forge unreachable, HTTP error from Forge, or no images in response
 
 ---
 

@@ -40,6 +40,14 @@ python -m defora_cli.forge_cli deforum --preset my_deforum_preset.json \
   "cosmic fractal cathedral" \
   -N "lowres, text, watermark"
 
+# 8) img2img from a reference still (Forge must be running)
+python -m defora_cli.forge_cli img2img --init-image ./ref.png \
+  "same scene, golden hour lighting" --denoising-strength 0.52
+
+# 9) Inpainting (mask: same size as init recommended; white = repaint, black = keep)
+python -m defora_cli.forge_cli img2img --init-image ./scene.png --mask-image ./mask.png \
+  "replace masked area with a red door" --denoising-strength 0.75
+
 Environment variables
 ---------------------
 FORGE_API_BASE   Base URL of Forge API (default: http://127.0.0.1:7860)
@@ -52,6 +60,7 @@ import json
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -440,6 +449,74 @@ def cmd_img(args: argparse.Namespace) -> None:
         print(p)
 
 
+# --- Command: img2img ----------------------------------------------------------
+
+
+def cmd_img2img(args: argparse.Namespace) -> None:
+    """Single-batch img2img via /sdapi/v1/img2img (Forge / A1111-compatible)."""
+    base_url = args.base_url
+    init_path = Path(args.init_image).expanduser()
+    if not init_path.is_file():
+        print(f"[error] Init image not found: {init_path}", file=sys.stderr)
+        sys.exit(1)
+    raw = init_path.read_bytes()
+    init_b64 = base64.b64encode(raw).decode("ascii")
+
+    model_title, cls_key, profile = choose_model(
+        base_url,
+        model_hint=args.model,
+        no_auto_model=args.no_auto_model,
+        verbose=not args.quiet,
+    )
+    params = resolve_img_params(args, profile)
+
+    if not args.quiet:
+        print(
+            f"[info] img2img model: {model_title or 'unknown'} ({cls_key}), "
+            f"denoise={args.denoising_strength}, steps={params['steps']}, cfg={params['cfg_scale']}",
+            file=sys.stderr,
+        )
+
+    payload: Dict[str, Any] = {
+        "init_images": [init_b64],
+        "prompt": args.prompt,
+        "negative_prompt": args.negative or "",
+        "steps": int(params["steps"]),
+        "cfg_scale": float(params["cfg_scale"]),
+        "sampler_name": params["sampler"],
+        "width": int(args.width),
+        "height": int(args.height),
+        "denoising_strength": float(args.denoising_strength),
+        "batch_size": int(args.num_images),
+        "n_iter": 1,
+        "seed": int(args.seed),
+        "resize_mode": int(args.resize_mode),
+    }
+
+    mask_path = getattr(args, "mask_image", None)
+    if mask_path:
+        mp = Path(str(mask_path)).expanduser()
+        if not mp.is_file():
+            print(f"[error] Mask image not found: {mp}", file=sys.stderr)
+            sys.exit(1)
+        payload["mask"] = base64.b64encode(mp.read_bytes()).decode("ascii")
+        payload["mask_blur"] = int(getattr(args, "mask_blur", 4))
+        payload["inpainting_fill"] = int(getattr(args, "inpainting_fill", 1))
+        payload["inpaint_full_res"] = bool(getattr(args, "inpaint_full_res", True))
+        payload["inpaint_full_res_padding"] = int(getattr(args, "inpaint_full_res_padding", 32))
+
+    data = api_post(base_url, "/sdapi/v1/img2img", payload, timeout=600)
+    images = data.get("images", [])
+    if not images:
+        print("No images returned, raw response:", data, file=sys.stderr)
+        sys.exit(1)
+
+    outdir = os.path.join(args.outdir, "img2img")
+    paths = decode_and_save_images(images, outdir, prefix="i2i")
+    for p in paths:
+        print(p)
+
+
 # --- Command: deforum ----------------------------------------------------------
 
 
@@ -734,6 +811,7 @@ Examples:
             "Command-line client for Stable Diffusion WebUI Forge.\n\n"
             "Subcommands:\n"
             "  img       Generate still images (txt2img) with model-aware defaults.\n"
+            "  img2img   Transform a reference image (sdapi/v1/img2img).\n"
             "  deforum   Submit Deforum animation batches (supports JSON presets).\n"
             "  models    List available models and their detected profiles.\n"
         ),
@@ -849,6 +927,96 @@ Examples:
         help="-1 = random seed (delegated to Forge).",
     )
     p_img.set_defaults(func=cmd_img)
+
+    # ------- img2img --------
+    p_i2i = subparsers.add_parser(
+        "img2img",
+        help="Run img2img with an init image and model-aware defaults.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        description=(
+            "Calls /sdapi/v1/img2img on Forge.\n\n"
+            "Requires a raster init image (PNG/JPEG/WebP). Denoising strength controls how\n"
+            "much the init is altered (typical 0.35–0.75).\n\n"
+            "With --mask-image, Forge runs inpainting (mask same size as init is recommended;\n"
+            "white regions are repainted, black kept — A1111/Forge convention)."
+        ),
+    )
+    p_i2i.add_argument("prompt", help="Positive prompt.")
+    p_i2i.add_argument(
+        "--init-image",
+        required=True,
+        help="Path to the reference / init image file.",
+    )
+    p_i2i.add_argument(
+        "--mask-image",
+        default=None,
+        help="Optional inpaint mask image (PNG). Same dimensions as init recommended.",
+    )
+    p_i2i.add_argument(
+        "--mask-blur",
+        type=int,
+        default=4,
+        help="Mask blur in pixels (inpainting only).",
+    )
+    p_i2i.add_argument(
+        "--inpainting-fill",
+        type=int,
+        choices=(0, 1, 2, 3),
+        default=1,
+        help="Forge fill mode: 0=fill, 1=original, 2=latent noise, 3=latent nothing.",
+    )
+    p_i2i.add_argument(
+        "--inpaint-full-res",
+        dest="inpaint_full_res",
+        action="store_true",
+        default=True,
+        help="Enable inpaint_full_res when using a mask (default: on).",
+    )
+    p_i2i.add_argument(
+        "--no-inpaint-full-res",
+        dest="inpaint_full_res",
+        action="store_false",
+        help="Disable inpaint_full_res.",
+    )
+    p_i2i.add_argument(
+        "--inpaint-full-res-padding",
+        type=int,
+        default=32,
+        help="Padding when inpaint_full_res is enabled.",
+    )
+    p_i2i.add_argument(
+        "-N",
+        "--negative",
+        default="",
+        help="Negative prompt.",
+    )
+    p_i2i.add_argument(
+        "-n",
+        "--num-images",
+        type=int,
+        default=1,
+        help="Number of images in one batch.",
+    )
+    p_i2i.add_argument("-W", "--width", type=int, default=1024, help="Target width (pixels).")
+    p_i2i.add_argument("-H", "--height", type=int, default=1024, help="Target height (pixels).")
+    p_i2i.add_argument(
+        "--denoising-strength",
+        type=float,
+        default=0.55,
+        help="img2img denoising strength (0 = almost unchanged, 1 = ignore init).",
+    )
+    p_i2i.add_argument(
+        "--resize-mode",
+        type=int,
+        choices=(0, 1, 2),
+        default=0,
+        help="Forge resize mode: 0=stretch, 1=crop, 2=pad (see Forge docs).",
+    )
+    p_i2i.add_argument("--steps", type=int, default=None, help="Sampling steps (model-aware default if omitted).")
+    p_i2i.add_argument("--cfg-scale", type=float, default=None, help="CFG scale (model-aware default if omitted).")
+    p_i2i.add_argument("--sampler", default=None, help="Sampler name (model-aware default if omitted).")
+    p_i2i.add_argument("--seed", type=int, default=-1, help="-1 = random.")
+    p_i2i.set_defaults(func=cmd_img2img)
 
     # ------- deforum --------
     p_def = subparsers.add_parser(
@@ -992,6 +1160,7 @@ def main() -> None:
     # defaulting to `img`.
     if len(sys.argv) > 1 and sys.argv[1] not in {
         "img",
+        "img2img",
         "deforum",
         "models",
         "-h",

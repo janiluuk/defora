@@ -29,6 +29,7 @@ The web UI consists of 7 main tabs:
 **Purpose**: Manage positive and negative prompts with morphing
 
 **Features**:
+- **img2img / inpaint** panel: init image, optional mask (inpaint), blur & fill mode, full-res toggle, submit via `POST /api/img2img` (result under `/uploads/…` when Forge is up); **Plugin registry** list from `GET /api/plugins` (read-only)
 - Positive prompt text area
 - Negative prompt text area
 - Prompt morphing controls
@@ -124,6 +125,7 @@ The web UI consists of 7 main tabs:
 - Only visible when audio file is loaded
 - Frequency-to-parameter mapping (up to 8 mappings)
 - Frequency range input (Hz min/max)
+- Quick **band preset** chips (Sub, Bass, Lo-mid, Mid, High, Air) to set Hz range per mapping row
 - Output range input (parameter min/max)
 - Target parameter selection from grouped list
 - Apply mapping button

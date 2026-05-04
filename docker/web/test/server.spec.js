@@ -70,6 +70,18 @@ describe("web server frames API", () => {
     expect(res.body.sdForge.pollIntervalMs).to.equal(0);
   });
 
+  it("GET /api/plugins returns a list", async () => {
+    const res = await request.get("/api/plugins");
+    expect(res.status).to.equal(200);
+    expect(res.body.plugins).to.be.an("array");
+  });
+
+  it("POST /api/img2img rejects missing init_image", async () => {
+    const res = await request.post("/api/img2img").send({ prompt: "x" });
+    expect(res.status).to.equal(400);
+    expect(res.body.error).to.be.a("string");
+  });
+
   it("sequencer API lists, saves, loads timelines", async () => {
     let res = await request.get("/api/sequencer");
     expect(res.status).to.equal(200);
