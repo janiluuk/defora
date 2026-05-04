@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.9] - 2026-05-04
+
+## What's Changed
+
+- Add SD-Forge poll/status UI; align README, ROADMAP, WEB_UI tabs (#28) (11452df)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.8...v0.2.9
+
+
 ## [0.2.8] - 2026-02-01
 
 ## What's Changed
