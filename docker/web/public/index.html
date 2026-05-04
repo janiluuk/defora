@@ -184,6 +184,14 @@
         <button class="btn" @click="sendControl('transport',{action:'toggle'})">⏯</button>
         <button class="btn ghost" @click="sendControl('transport',{action:'stop'})">⏹</button>
         <button class="btn ghost" @click="sendControl('transport',{action:'record'})">● Rec</button>
+        <div
+          class="pill"
+          :class="{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}"
+          v-if="apiHealth.sdForge"
+          :title="apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'"
+        >
+          <span class="dot"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
+        </div>
         <div class="pill"><span>FPS</span><strong>{{ stats.fps }}</strong></div>
         <div class="pill"><span>Lat</span><strong>{{ stats.lat }}ms</strong></div>
       </div>
@@ -1244,6 +1252,8 @@
           isRecording: false,
           streamUrl: "",
           previewBarCollapsed: false,
+          apiHealth: { sdForge: { available: null, lastChecked: null, pollIntervalMs: 0 } },
+          apiStatusTimer: null,
         };
       },
       computed: {
@@ -1268,8 +1278,10 @@
         this.refreshPresets();
         this.loadControlNetModels();
         this.refreshLoras();
+        this.refreshApiHealth();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
+          this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
         }
         this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
         this.lfoTimer = setInterval(() => this.runLfos(), 120);
@@ -1277,6 +1289,7 @@
       },
       beforeUnmount() {
         if (this.framesTimer) clearInterval(this.framesTimer);
+        if (this.apiStatusTimer) clearInterval(this.apiStatusTimer);
         if (this.playbackTimer) clearInterval(this.playbackTimer);
         if (this.lfoTimer) clearInterval(this.lfoTimer);
         if (this.beatTimer) clearInterval(this.beatTimer);
@@ -1288,6 +1301,19 @@
         }
       },
       methods: {
+        async refreshApiHealth() {
+          if (typeof fetch !== "function") return;
+          try {
+            const res = await fetch("/api/status");
+            if (!res.ok) return;
+            const j = await res.json();
+            if (j && j.sdForge) {
+              this.apiHealth = { sdForge: { ...j.sdForge } };
+            }
+          } catch (_e) {
+            /* ignore */
+          }
+        },
         switchTab(id) {
           this.currentTab = id;
         },

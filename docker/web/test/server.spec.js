@@ -57,6 +57,14 @@ describe("web server frames API", () => {
     expect(res.text).to.equal("OK");
   });
 
+  it("/api/status includes sdForge poll interval metadata", async () => {
+    const res = await request.get("/api/status");
+    expect(res.status).to.equal(200);
+    expect(res.body.sdForge).to.be.an("object");
+    expect(res.body.sdForge).to.have.property("pollIntervalMs");
+    expect(res.body.sdForge.pollIntervalMs).to.equal(0);
+  });
+
   it("spawns audio modulator with mappings", async () => {
     const proc = new EventEmitter();
     proc.stdout = new Readable({ read() {} });
