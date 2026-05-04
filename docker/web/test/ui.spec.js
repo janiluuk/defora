@@ -44,7 +44,12 @@ function loadAppDefinition() {
     navigator: {},
     WebSocket: class {},
     location: { protocol: "http:", host: "localhost" },
-    document: { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
+    document:
+      typeof global.document !== "undefined" &&
+      global.document &&
+      typeof global.document.createElement === "function"
+        ? global.document
+        : { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
     // Proxy to the outer fetch so tests can stub/intercept network calls
     fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
     FileReader: global.FileReader,
@@ -172,6 +177,7 @@ describe("Deforumation Web UI", () => {
     // Now audio mapping should be visible
     const allSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
     expect(allSubtitles.join(" ")).to.include("Audio → Parameter Mapping");
+    expect(allSubtitles.join(" ")).to.include("Spectral overview");
 
     appVm.switchTab("SETTINGS");
     await nextTick();
@@ -346,6 +352,34 @@ describe("Deforumation Web UI behavior", () => {
     expect(bodies[0].audioPath).to.equal("/tmp/song.wav");
     expect(bodies[0].mappings[0].freq_max).to.equal(300);
     delete global.fetch;
+  });
+
+  it("spectrogramFromAudioBuffer returns RGBA heatmap for sine buffer", () => {
+    class FakeBuf {
+      constructor() {
+        this.sampleRate = 8000;
+        this.length = 8192;
+        this.numberOfChannels = 1;
+      }
+      getChannelData() {
+        const d = new Float32Array(this.length);
+        for (let i = 0; i < d.length; i++) {
+          d[i] = 0.45 * Math.sin((2 * Math.PI * 220 * i) / this.sampleRate);
+        }
+        return d;
+      }
+    }
+    const instance = instantiate(appDef);
+    const rgba = instance.spectrogramFromAudioBuffer(new FakeBuf());
+    expect(rgba).to.be.an("object");
+    expect(rgba.width).to.be.above(32);
+    expect(rgba.height).to.be.above(16);
+    expect(rgba.data.length).to.equal(rgba.width * rgba.height * 4);
+    let max = 0;
+    for (let i = 0; i < rgba.data.length; i += 4) {
+      max = Math.max(max, rgba.data[i] + rgba.data[i + 1] + rgba.data[i + 2]);
+    }
+    expect(max).to.be.above(40);
   });
 
   it("handleAudioUpload posts file data and updates track", async () => {

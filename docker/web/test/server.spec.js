@@ -96,7 +96,7 @@ describe("web server frames API", () => {
           id: "tr1",
           param: "translation_x",
           keyframes: [
-            { t: 0, v: 0 },
+            { t: 0, v: 0, easing: "easeIn" },
             { t: 4, v: 2 },
           ],
         },
@@ -111,10 +111,30 @@ describe("web server frames API", () => {
     expect(res.status).to.equal(200);
     expect(res.body.timeline.version).to.equal(1);
     expect(res.body.timeline.tracks).to.have.lengthOf(1);
+    expect(res.body.timeline.tracks[0].keyframes[0].easing).to.equal("easeIn");
     res = await request.delete("/api/sequencer/test_clip");
     expect(res.status).to.equal(200);
     res = await request.get("/api/sequencer/test_clip");
     expect(res.status).to.equal(404);
+  });
+
+  it("sequencer API rejects invalid keyframe easing", async () => {
+    const timeline = {
+      version: 1,
+      durationSec: 2,
+      fps: 24,
+      loop: true,
+      tracks: [
+        {
+          id: "tr1",
+          param: "translation_x",
+          keyframes: [{ t: 0, v: 0, easing: "bounce" }, { t: 2, v: 1 }],
+        },
+      ],
+    };
+    const res = await request.post("/api/sequencer/bad_ease").send(timeline);
+    expect(res.status).to.equal(400);
+    expect(res.body.error).to.be.a("string");
   });
 
   it("spawns audio modulator with mappings", async () => {

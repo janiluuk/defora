@@ -204,6 +204,8 @@ async function start(opts = {}) {
 
   app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
 
+  const SEQUENCER_EASING = new Set(["linear", "easeIn", "easeOut", "easeInOut"]);
+
   function validateTimeline(body) {
     if (!body || typeof body !== "object") return "invalid body";
     if (body.version !== 1) return "version must be 1";
@@ -220,6 +222,11 @@ async function start(opts = {}) {
         if (!kf || typeof kf !== "object") return "invalid keyframe";
         if (typeof kf.t !== "number" || typeof kf.v !== "number") return "keyframe requires numeric t and v";
         if (kf.t < 0 || kf.t > body.durationSec) return "keyframe t outside 0..durationSec";
+        if (kf.easing != null) {
+          if (typeof kf.easing !== "string" || !SEQUENCER_EASING.has(kf.easing)) {
+            return "invalid keyframe.easing (use linear|easeIn|easeOut|easeInOut)";
+          }
+        }
       }
     }
     return null;
