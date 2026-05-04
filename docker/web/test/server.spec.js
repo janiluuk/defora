@@ -13,11 +13,13 @@ describe("web server frames API", () => {
   let svc;
   let tmp;
   let uploads;
+  let sequencers;
   let request;
 
   beforeEach(async () => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
     uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencers = fs.mkdtempSync(path.join(os.tmpdir(), "seq-"));
     const f1 = path.join(tmp, "frame_0005.png");
     const f2 = path.join(tmp, "frame_0010.png");
     fs.writeFileSync(f1, "a");
@@ -25,7 +27,7 @@ describe("web server frames API", () => {
     const early = Date.now() - 5000;
     fs.utimesSync(f1, early / 1000, early / 1000);
 
-    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, enableMq: false });
+    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, sequencersDir: sequencers, enableMq: false });
     request = supertest(`http://127.0.0.1:${svc.port}`);
   });
 
@@ -38,6 +40,9 @@ describe("web server frames API", () => {
     }
     if (uploads) {
       fs.rmSync(uploads, { recursive: true, force: true });
+    }
+    if (sequencers) {
+      fs.rmSync(sequencers, { recursive: true, force: true });
     }
   });
 
@@ -65,6 +70,53 @@ describe("web server frames API", () => {
     expect(res.body.sdForge.pollIntervalMs).to.equal(0);
   });
 
+  it("GET /api/plugins returns a list", async () => {
+    const res = await request.get("/api/plugins");
+    expect(res.status).to.equal(200);
+    expect(res.body.plugins).to.be.an("array");
+  });
+
+  it("POST /api/img2img rejects missing init_image", async () => {
+    const res = await request.post("/api/img2img").send({ prompt: "x" });
+    expect(res.status).to.equal(400);
+    expect(res.body.error).to.be.a("string");
+  });
+
+  it("sequencer API lists, saves, loads timelines", async () => {
+    let res = await request.get("/api/sequencer");
+    expect(res.status).to.equal(200);
+    expect(res.body.timelines).to.deep.equal([]);
+    const timeline = {
+      version: 1,
+      durationSec: 4,
+      fps: 24,
+      loop: true,
+      tracks: [
+        {
+          id: "tr1",
+          param: "translation_x",
+          keyframes: [
+            { t: 0, v: 0 },
+            { t: 4, v: 2 },
+          ],
+        },
+      ],
+    };
+    res = await request.post("/api/sequencer/test_clip").send(timeline);
+    expect(res.status).to.equal(200);
+    expect(res.body.ok).to.equal(true);
+    res = await request.get("/api/sequencer");
+    expect(res.body.timelines).to.include("test_clip");
+    res = await request.get("/api/sequencer/test_clip");
+    expect(res.status).to.equal(200);
+    expect(res.body.timeline.version).to.equal(1);
+    expect(res.body.timeline.tracks).to.have.lengthOf(1);
+    res = await request.delete("/api/sequencer/test_clip");
+    expect(res.status).to.equal(200);
+    res = await request.get("/api/sequencer/test_clip");
+    expect(res.status).to.equal(404);
+  });
+
   it("spawns audio modulator with mappings", async () => {
     const proc = new EventEmitter();
     proc.stdout = new Readable({ read() {} });
@@ -78,7 +130,7 @@ describe("web server frames API", () => {
     if (svc && svc.close) {
       await svc.close();
     }
-    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, enableMq: false, spawner });
+    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, sequencersDir: sequencers, enableMq: false, spawner });
     request = supertest(`http://127.0.0.1:${svc.port}`);
 
     const res = await request

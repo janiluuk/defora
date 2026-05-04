@@ -29,6 +29,7 @@ The web UI consists of 7 main tabs:
 **Purpose**: Manage positive and negative prompts with morphing
 
 **Features**:
+- **img2img / inpaint** panel: init image, optional mask (inpaint), blur & fill mode, full-res toggle, submit via `POST /api/img2img` (result under `/uploads/…` when Forge is up); **Plugin registry** list from `GET /api/plugins` (read-only)
 - Positive prompt text area
 - Negative prompt text area
 - Prompt morphing controls
@@ -59,19 +60,21 @@ The web UI consists of 7 main tabs:
 ---
 
 ### 4. MOTION Tab
-**Purpose**: Interactive camera movement control
+**Purpose**: Interactive camera movement plus **animation sequencer** (Phase 2 MVP)
 
 **Features**:
+- **Sequencer**: duration, FPS, loop, playhead scrub, Play/Stop; tracks per mediator parameter with linear keyframes (`t` seconds → value); save/load/delete via `/api/sequencer`; export JSON
+- Playback emits **`liveParam`** over WebSocket (same path as manual sliders)
 - XY Pad for intuitive camera pan control
 - Maps X/Y position to translation_x (-10 to 10) and translation_y (-10 to 10)
 - Real-time updates sent to mediator via WebSocket
-- Motion presets (Static, Orbit, Tunnel, Handheld, Chaos)
-- Cursor styling and visual feedback
+- Zoom / tilt sliders and motion style chips
 
 **Visual Elements**:
+- Sequencer controls above the XY pad
 - 140x140px interactive XY pad with crosshair cursor
 - Visual dot indicating current position
-- Preset buttons for quick motion setup
+- Motion preset / style controls
 
 ---
 
@@ -122,6 +125,7 @@ The web UI consists of 7 main tabs:
 - Only visible when audio file is loaded
 - Frequency-to-parameter mapping (up to 8 mappings)
 - Frequency range input (Hz min/max)
+- Quick **band preset** chips (Sub, Bass, Lo-mid, Mid, High, Air) to set Hz range per mapping row
 - Output range input (parameter min/max)
 - Target parameter selection from grouped list
 - Apply mapping button

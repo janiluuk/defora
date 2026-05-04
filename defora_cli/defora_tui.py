@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Defora TUI — multi-tab ncurses controller (LIVE, PROMPTS, MOTION, AUDIO/BEATS, CONTROLNET, SETTINGS).
+Defora TUI — multi-tab ncurses controller (LIVE, PROMPTS, LORA, MOTION, AUDIO/BEATS, CONTROLNET, SETTINGS).
 
 Designed for large terminals (~170 cols / 45 rows) to feel like a playable instrument:
 - Big preview + waveform strip always visible.
@@ -13,6 +13,7 @@ This is a UI skeleton; hook up real mediator/param logic as needed.
 from __future__ import annotations
 
 import curses
+import json
 import os
 from pathlib import Path
 from dataclasses import dataclass
@@ -20,7 +21,7 @@ from typing import Dict, List, Optional
 
 from .mediator_client import MediatorClient
 
-TABS = ["LIVE", "PROMPTS", "MOTION", "AUDIO", "CONTROLNET", "SETTINGS"]
+TABS = ["LIVE", "PROMPTS", "LORA", "MOTION", "AUDIO", "CONTROLNET", "SETTINGS"]
 SOURCES = ["Manual", "Beat", "MIDI"]
 DEFAULT_MEDIATOR_HOST = os.getenv("DEFORUMATION_MEDIATOR_HOST", "localhost")
 DEFAULT_MEDIATOR_PORT = os.getenv("DEFORUMATION_MEDIATOR_PORT", "8766")
@@ -242,6 +243,36 @@ class DeforaTUI:
         self.frames_dir: Optional[Path] = self.detect_frames_dir()
         self.preview_cache: Dict[str, List[str]] = {}
         self.preview_error: str = ""
+        # LoRA tab: catalog labels + A/B slots (name, strength Param)
+        self.lora_catalog: List[str] = [
+            "(empty)",
+            "style_anime",
+            "style_photo",
+            "detail_enhancer",
+            "character_lora",
+            "sdxl_lightning",
+        ]
+        self.lora_catalog_idx = 0
+        self.lora_crossfader = Param("Crossfader (A←→B)", 0.5, min_value=0.0, max_value=1.0, step=0.05)
+        self.lora_slot_sel = 0  # 0..5 → three A slots then three B
+
+        def mk_strength(v: float) -> Param:
+            return Param("strength", v, min_value=0.0, max_value=2.0, step=0.05)
+
+        self.lora_a: List[tuple[str, Param]] = [
+            ("---", mk_strength(0.0)),
+            ("---", mk_strength(0.0)),
+            ("---", mk_strength(0.0)),
+        ]
+        self.lora_b: List[tuple[str, Param]] = [
+            ("---", mk_strength(0.0)),
+            ("---", mk_strength(0.0)),
+            ("---", mk_strength(0.0)),
+        ]
+        self.lora_state_path = Path(
+            os.getenv("DEFORA_TUI_LORA_STATE", str(Path.home() / ".config" / "defora" / "tui_lora.json"))
+        )
+        self._load_lora_state_safe()
 
     def detect_frames_dir(self) -> Optional[Path]:
         env = os.getenv("DEFORUMATION_FRAMES_DIR")
@@ -324,6 +355,24 @@ class DeforaTUI:
                 self.tab = 4
             elif key in (curses.KEY_F6, ord("6")):
                 self.tab = 5
+            elif key in (curses.KEY_F7, ord("7")):
+                self.tab = 6
+            elif self.tab == 2 and key in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5"), ord("6")):
+                self.lora_slot_sel = int(chr(key)) - 1
+                self.status = f"LoRA slot {self.lora_slot_sel + 1} selected"
+            elif self.tab == 2 and key in (ord("w"), ord("W")):
+                self._save_lora_state()
+            elif self.tab == 2 and key in (ord("e"), ord("E")):
+                self._export_lora_preset_file()
+            elif self.tab == 2 and key in (ord(","), ord(".")):
+                d = -self.lora_crossfader.step if key == ord(",") else self.lora_crossfader.step
+                self.lora_crossfader.adjust(d)
+                self.lora_crossfader.clamp()
+                self.status = f"Crossfader → {self.lora_crossfader.value:.2f}"
+            elif self.tab == 2 and key in (curses.KEY_LEFT, ord("h")):
+                self.adjust_lora_strength(-self.lora_a[0][1].step)
+            elif self.tab == 2 and key in (curses.KEY_RIGHT, ord("l")):
+                self.adjust_lora_strength(self.lora_a[0][1].step)
             elif key in (curses.KEY_LEFT, ord("h")):
                 self.adjust_selected(-self.params[self.selected_param].step)
             elif key in (curses.KEY_RIGHT, ord("l")):
@@ -335,10 +384,20 @@ class DeforaTUI:
             elif key in (ord(" "),):
                 if self.tab == 0:
                     self.params[self.selected_param].next_source()
+                elif self.tab == 2:
+                    self.assign_catalog_to_slot()
             elif key in (ord("k"), curses.KEY_UP):
-                self.prev_param()
+                if self.tab == 2:
+                    self.lora_catalog_idx = (self.lora_catalog_idx - 1) % len(self.lora_catalog)
+                    self.status = f"Catalog: {self.lora_catalog[self.lora_catalog_idx]}"
+                else:
+                    self.prev_param()
             elif key in (ord("j"), curses.KEY_DOWN):
-                self.next_param()
+                if self.tab == 2:
+                    self.lora_catalog_idx = (self.lora_catalog_idx + 1) % len(self.lora_catalog)
+                    self.status = f"Catalog: {self.lora_catalog[self.lora_catalog_idx]}"
+                else:
+                    self.next_param()
             elif key == ord("r"):
                 self.connect_and_sync()
             elif key == ord("g"):
@@ -449,13 +508,112 @@ class DeforaTUI:
             msg = self.bridge.last_error or "unknown mediator error"
             self.status = f"Failed to start generation: {msg}"
 
+    def _load_lora_state_safe(self) -> None:
+        try:
+            if not self.lora_state_path.exists():
+                return
+            blob = json.loads(self.lora_state_path.read_text(encoding="utf-8"))
+            if "crossfader" in blob:
+                self.lora_crossfader.value = float(blob["crossfader"])
+            if "catalog_idx" in blob:
+                self.lora_catalog_idx = int(blob["catalog_idx"]) % max(1, len(self.lora_catalog))
+            for side, key in ((self.lora_a, "group_a"), (self.lora_b, "group_b")):
+                if key not in blob or not isinstance(blob[key], list):
+                    continue
+                for i, pair in enumerate(blob[key][:3]):
+                    if not isinstance(pair, (list, tuple)) or len(pair) < 2:
+                        continue
+                    name, s = str(pair[0]), float(pair[1])
+                    side[i] = (name, side[i][1])
+                    side[i][1].value = s
+                    side[i][1].clamp()
+        except Exception:
+            pass
+
+    def _save_lora_state(self) -> None:
+        try:
+            self.lora_state_path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "version": 1,
+                "crossfader": self.lora_crossfader.value,
+                "catalog_idx": self.lora_catalog_idx,
+                "group_a": [[n, p.value] for n, p in self.lora_a],
+                "group_b": [[n, p.value] for n, p in self.lora_b],
+            }
+            self.lora_state_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            self.status = f"LoRA layout saved to {self.lora_state_path}"
+        except Exception as exc:
+            self.status = f"LoRA save failed: {exc}"
+
+    def _export_lora_preset_file(self) -> None:
+        try:
+            path = self.lora_state_path.with_suffix(".preset.json")
+            loras = []
+            for name, p in self.lora_a + self.lora_b:
+                if name in ("---", "(empty)"):
+                    continue
+                loras.append({"name": name, "strength": p.value, "path": name})
+            payload = {"loras": loras, "crossfaderValue": self.lora_crossfader.value}
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            self.status = f"Exported LoRA preset → {path}"
+        except Exception as exc:
+            self.status = f"LoRA export failed: {exc}"
+
+    def _lora_row_for_sel(self):
+        if self.lora_slot_sel < 3:
+            return self.lora_a, self.lora_slot_sel
+        return self.lora_b, self.lora_slot_sel - 3
+
+    def assign_catalog_to_slot(self) -> None:
+        name = self.lora_catalog[self.lora_catalog_idx]
+        row, idx = self._lora_row_for_sel()
+        row[idx] = (name, row[idx][1])
+        self.status = f"LoRA slot {self.lora_slot_sel + 1}: {name}"
+
+    def adjust_lora_strength(self, delta: float) -> None:
+        row, idx = self._lora_row_for_sel()
+        row[idx][1].adjust(delta)
+        row[idx][1].clamp()
+        self.status = f"LoRA strength → {row[idx][1].value:.2f}"
+
+    def draw_lora(self) -> None:
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(2, 1, "LoRA — GROUP A / GROUP B (terminal)", w - 2, curses.A_BOLD)
+        cur = self.lora_catalog[self.lora_catalog_idx]
+        self.stdscr.addnstr(3, 1, f"Catalog (j/k): {cur}"[: w - 2], w - 2)
+        self.stdscr.addnstr(
+            4,
+            1,
+            f"Crossfader (A←→B): {self.lora_crossfader.value:.2f}  (, .)  w: save  e: export  SPACE: assign"
+            [: w - 2],
+            w - 2,
+        )
+        self.stdscr.addnstr(6, 1, "GROUP A", w - 2, curses.A_BOLD)
+        for i in range(3):
+            name, p = self.lora_a[i]
+            mark = "*" if self.lora_slot_sel == i else " "
+            line = f" {mark}A{i+1} {name[:32]:<33}  str {p.value:.2f}"
+            self.stdscr.addnstr(7 + i, 1, line[: w - 2], w - 2)
+        self.stdscr.addnstr(11, 1, "GROUP B", w - 2, curses.A_BOLD)
+        for i in range(3):
+            name, p = self.lora_b[i]
+            mark = "*" if self.lora_slot_sel == i + 3 else " "
+            line = f" {mark}B{i+1} {name[:32]:<33}  str {p.value:.2f}"
+            self.stdscr.addnstr(12 + i, 1, line[: w - 2], w - 2)
+        preset_hint = (
+            "Slots 1-6 • j/k catalog • ←/→ strength • SPACE assign • "
+            f"state file: {self.lora_state_path}"
+        )
+        self.stdscr.addnstr(h - 4, 1, preset_hint[: w - 2], w - 2)
+
     def draw(self):
         self.stdscr.erase()
         h, w = self.stdscr.getmaxyx()
-        header = f"DEFORA TUI v0.2  Session: {self.session}  [Q]uit  [F1..F6]"
+        header = f"DEFORA TUI v0.2  Session: {self.session}  [Q]uit  [F1..F7]"
         self.stdscr.addnstr(0, 0, header.ljust(w), w - 1, curses.A_REVERSE)
         bar = (
-            f"F1 LIVE  F2 PROMPTS  F3 MOTION  F4 AUDIO/BEATS  F5 CONTROLNET  F6 SETTINGS    "
+            f"F1 LIVE  F2 PROMPTS  F3 LORA  F4 MOTION  F5 AUDIO  F6 CN  F7 SETTINGS  "
             f"Deforum: {self.deforum_status()}  Frames:{self.frames_total}"
         )
         self.stdscr.addnstr(1, 0, bar.ljust(w), w - 1, curses.A_REVERSE)
@@ -465,12 +623,14 @@ class DeforaTUI:
         elif self.tab == 1:
             self.draw_prompts()
         elif self.tab == 2:
-            self.draw_motion()
+            self.draw_lora()
         elif self.tab == 3:
-            self.draw_audio()
+            self.draw_motion()
         elif self.tab == 4:
-            self.draw_controlnet()
+            self.draw_audio()
         elif self.tab == 5:
+            self.draw_controlnet()
+        elif self.tab == 6:
             self.draw_settings()
 
         self.stdscr.addnstr(h - 2, 0, "─" * (w - 1), w - 1)

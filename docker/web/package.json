@@ -5,7 +5,8 @@
   "scripts": {
     "build": "echo 'static assets only'",
     "start": "node server.js",
-    "test": "node --test test/*.spec.js"
+    "test": "node --test test/*.spec.js",
+    "capture-ui-shots": "node scripts/capture-web-ui.mjs"
   },
   "dependencies": {
     "amqplib": "^0.10.3",

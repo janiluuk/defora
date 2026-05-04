@@ -16,9 +16,9 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 |----------------------------|--------|----------|
 | **MIDI** described as a separate “tab” | Web MIDI and mappings live under **SETTINGS** (see `docs/WEB_UI_TABS.md`); not a top-level tab | **Done**: README wording + roadmap cross-links |
 | **Seven** UI areas (incl. **LORA** tab) vs older “6 tabs” copy | The hosted `index.html` includes a dedicated **LORA** tab; some docs still said six tabs | **Done**: `docs/WEB_UI_TABS.md` updated |
-| **TUI LoRA** “integrated in PROMPTS (F2)” | No dedicated TUI LoRA tab; parity with Web LoRA browser is incomplete | Backlog: [Future Enhancements](#future-enhancements) / Phase 3 |
-| **MOTION: Camera curves** (README screenshots) | Web MOTION has XY pad + presets; full curve editor over time is not shipped | [Animation Sequencer](#animation-sequencer) (Phase 2) |
-| **Multi-band / “spectral” audio** (marketing language) | FFT band→parameter exists; named bands (bass/mids/highs), envelope followers, and spectral **viz** are partial or missing | [Advanced Audio Features](#advanced-audio-features) (short-term) |
+| **TUI LoRA** “integrated in PROMPTS (F2)” | README historically pointed at PROMPTS; **F3 LORA** tab now hosts slots + export | **Done** (mediator push still Forge/UI dependent) |
+| **MOTION: Camera curves** (README screenshots) | Sequencer MVP ships linear keyframes + playback; bezier/easing & rich curve editor still open | [Animation Sequencer](#animation-sequencer) (medium-term polish) |
+| **Multi-band / “spectral” audio** (marketing language) | Named Hz presets (`bass_mid_high` CLI layout + Web band chips); envelope follower + `--smooth` on curves; **spectral waveform viz** still optional | Partial → polish in Advanced Audio |
 | **Stream stack** (RTMP, HLS, bridge, RabbitMQ) | Implemented; ensure ops docs stay linked from README | Done (monitor `docs/streaming_stack.md`) |
 | **`deforumation_dashboard`** | Listed in README; treat as first-class like other CLIs | Done (see [Current Features](#current-features-completed)) |
 
@@ -27,9 +27,10 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | Phase | Theme | Scope | Status |
 |-------|--------|--------|--------|
 | **1** | **Connectivity & operator clarity** | Optional `SD_FORGE_POLL_MS` background probe; `/api/status` exposes `pollIntervalMs`; Web UI header **Forge up/down** pill; README + `docs/WEB_UI_TABS.md` alignment (LORA tab, MIDI wording) | **Done** |
-| **2** | **Animation sequencer (MVP)** | Timeline data model, persist/export, mediator hooks for keyframed params; MOTION curve UI tied to data | Planned |
-| **3** | **TUI / audio depth** | TUI LoRA-focused flow or tab; audio band presets + envelope-style routing in modulator / Web UI | Planned |
-| **4** | **img2img & plugins** | As in long-term sections | Planned |
+| **2** | **Animation sequencer (MVP)** | Timeline schema v1, REST persist (`/api/sequencer`), MOTION tab UI (tracks, keyframes, play/scrub, export); WebSocket `liveParam` playback | **Done** |
+| **3** | **TUI / audio depth** | Dedicated **TUI LORA** tab (F3): A/B slots, crossfader, save/load `DEFORA_TUI_LORA_STATE`, export `.preset.json`; **audio**: `--band-layout bass_mid_high`, `--smooth`, `--envelope-*` in `audio_reactive_modulator`; Web MODULATION **freq band quick-picks** | **Done** |
+| **4** | **img2img & plugins** | `forge_cli img2img`; Web **PROMPTS** img2img panel + `POST /api/img2img`; `GET /api/plugins` + `PLUGINS_DIR`; `audio_reactive_modulator --post-plugin` (`module:function`); inpainting / richer plugin UI = future polish | **Done (MVP)** |
+| **5** | **Inpainting & registry UX** | Optional mask on `POST /api/img2img` + `forge_cli img2img --mask-image` (blur, fill, full-res flags); Web mask file + inpaint controls; **PROMPTS** lists `GET /api/plugins` entries | **Done (MVP)** |
 
 ---
 
@@ -64,7 +65,9 @@ Defora is in **active development** with a strong foundation of core features im
 ### 🎹 Performance Interfaces
 
 #### Web UI (Browser-based)
-- ✅ Multi-tab interface (LIVE, PROMPTS, MOTION, MODULATION, CONTROLNET, SETTINGS)
+- ✅ Multi-tab interface (LIVE, PROMPTS, LORA, MOTION, MODULATION, CONTROLNET, SETTINGS)
+- ✅ **PROMPTS img2img / inpainting**: optional mask + inpaint controls; plugin manifest list
+- ✅ **MOTION sequencer (MVP)**: keyframed `liveParam` tracks, save/load via API, export JSON
 - ✅ Real-time parameter sliders with WebSocket control
 - ✅ HLS video streaming with low latency
 - ✅ Beat-synchronized macro system
@@ -77,7 +80,7 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ Session overlay and custom video controls
 
 #### TUI (Terminal-based)
-- ✅ Full ncurses interface with 6 tabs
+- ✅ Full ncurses interface with 7 tabs (incl. **LORA** on F3)
 - ✅ ASCII preview support (when PIL available)
 - ✅ Keyboard navigation and parameter control
 - ✅ Live parameter adjustment
@@ -86,7 +89,7 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ MIDI CC mapping with learn mode
 
 #### CLI Tools
-- ✅ `forge_cli` - Model-aware txt2img/Deforum generation
+- ✅ `forge_cli` - Model-aware txt2img/img2img/inpaint/Deforum generation
 - ✅ `defora_tui` - Full-featured ncurses interface
 - ✅ `deforumation_cli_panel` - Lightweight control panel with hotkeys
 - ✅ `deforumation_dashboard` - Dashboard mirroring Deforumation GUI
@@ -336,13 +339,12 @@ Defora is in **active development** with a strong foundation of core features im
 
 #### Animation Sequencer
 - **Priority**: High
-- **Description**: Timeline-based animation control
-- **Features**:
-  - Visual timeline editor
-  - Keyframe system for all parameters
-  - Animation curves (ease-in/out, bezier)
+- **MVP (Phase 2)**: ✅ Linear keyframe tracks, server persistence (`GET/POST/DELETE /api/sequencer`), MOTION tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
+- **Remaining (polish)**:
+  - Visual multi-track timeline strip (waveform-style lanes)
+  - Easing / bezier segments between keys
   - Scene markers and transitions
-  - Export/import timeline presets
+  - Optional sync to audio BPM or frame counter from HLS
 
 #### ✅ Advanced Prompt System (COMPLETED in v0.2.9)
 

@@ -84,7 +84,10 @@ def test_param_adjust_and_source_cycle():
     assert p.source != orig
 
 
-@pytest.mark.parametrize("tab_method", ["draw_live", "draw_prompts", "draw_motion", "draw_audio", "draw_controlnet", "draw_settings"])
+@pytest.mark.parametrize(
+    "tab_method",
+    ["draw_live", "draw_prompts", "draw_lora", "draw_motion", "draw_audio", "draw_controlnet", "draw_settings"],
+)
 def test_draw_sections(tab_method):
     fake = FakeWin()
     ui = DeforaTUI(fake)
@@ -96,7 +99,7 @@ def test_draw_sections(tab_method):
 def test_draw_switch_tabs():
     fake = FakeWin()
     ui = DeforaTUI(fake)
-    for idx in range(6):
+    for idx in range(7):
         ui.tab = idx
         ui.draw()
     assert fake.calls, "Draw should render across tabs"

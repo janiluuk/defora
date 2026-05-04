@@ -183,15 +183,47 @@ async function start(opts = {}) {
 
   // Preset management API
   const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
+  const sequencersDir =
+    opts.sequencersDir || process.env.SEQUENCER_DIR || path.join(__dirname, "sequencers");
   const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
+  const pluginsDir = opts.pluginsDir || process.env.PLUGINS_DIR || path.join(__dirname, "plugins");
   const uploadRetentionHours = parseInt(process.env.UPLOAD_RETENTION_HOURS || "24", 10);
   
   try {
     await fsp.mkdir(presetsDir, { recursive: true });
   } catch (_e) {}
   try {
+    await fsp.mkdir(sequencersDir, { recursive: true });
+  } catch (_e) {}
+  try {
     await fsp.mkdir(uploadsDir, { recursive: true });
   } catch (_e) {}
+  try {
+    await fsp.mkdir(pluginsDir, { recursive: true });
+  } catch (_e) {}
+
+  app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
+
+  function validateTimeline(body) {
+    if (!body || typeof body !== "object") return "invalid body";
+    if (body.version !== 1) return "version must be 1";
+    if (typeof body.durationSec !== "number" || body.durationSec <= 0 || body.durationSec > 3600) {
+      return "durationSec must be between 0 and 3600";
+    }
+    if (typeof body.fps !== "number" || body.fps < 1 || body.fps > 120) return "fps must be 1–120";
+    if (!Array.isArray(body.tracks)) return "tracks must be an array";
+    for (const tr of body.tracks) {
+      if (!tr || typeof tr !== "object") return "invalid track";
+      if (typeof tr.param !== "string" || !/^[\w.]+$/.test(tr.param)) return "invalid track.param";
+      if (!Array.isArray(tr.keyframes)) return "keyframes must be an array";
+      for (const kf of tr.keyframes) {
+        if (!kf || typeof kf !== "object") return "invalid keyframe";
+        if (typeof kf.t !== "number" || typeof kf.v !== "number") return "keyframe requires numeric t and v";
+        if (kf.t < 0 || kf.t > body.durationSec) return "keyframe t outside 0..durationSec";
+      }
+    }
+    return null;
+  }
 
   // Cleanup function for old audio uploads
   async function cleanupOldUploads() {
@@ -362,6 +394,180 @@ async function start(opts = {}) {
         console.error("[api] preset delete error", err);
         res.status(500).json({ error: "could not delete preset" });
       }
+    }
+  });
+
+  // Animation sequencer timelines (JSON on disk)
+  app.get("/api/sequencer", async (_req, res) => {
+    try {
+      const files = await fsp.readdir(sequencersDir);
+      const timelines = files
+        .filter((f) => f.endsWith(".json"))
+        .map((f) => f.replace(/\.json$/, ""));
+      res.json({ timelines });
+    } catch (err) {
+      console.error("[api] sequencer list error", err);
+      res.status(500).json({ error: "could not list sequencer timelines" });
+    }
+  });
+
+  app.get("/api/sequencer/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid timeline name" });
+      const filePath = path.join(sequencersDir, `${name}.json`);
+      const data = await fsp.readFile(filePath, "utf-8");
+      const timeline = JSON.parse(data);
+      res.json({ name, timeline });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "timeline not found" });
+      } else {
+        console.error("[api] sequencer load error", err);
+        res.status(500).json({ error: "could not load timeline" });
+      }
+    }
+  });
+
+  app.post("/api/sequencer/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid timeline name" });
+      const timeline = req.body;
+      const errMsg = validateTimeline(timeline);
+      if (errMsg) return res.status(400).json({ error: errMsg });
+      const filePath = path.join(sequencersDir, `${name}.json`);
+      await fsp.writeFile(filePath, JSON.stringify(timeline, null, 2), "utf-8");
+      res.json({ ok: true, name });
+    } catch (err) {
+      console.error("[api] sequencer save error", err);
+      res.status(500).json({ error: "could not save timeline" });
+    }
+  });
+
+  app.delete("/api/sequencer/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid timeline name" });
+      const filePath = path.join(sequencersDir, `${name}.json`);
+      await fsp.unlink(filePath);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "timeline not found" });
+      } else {
+        console.error("[api] sequencer delete error", err);
+        res.status(500).json({ error: "could not delete timeline" });
+      }
+    }
+  });
+
+  app.get("/api/plugins", async (_req, res) => {
+    try {
+      const manifestPath = path.join(pluginsDir, "manifest.json");
+      const raw = await fsp.readFile(manifestPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const plugins = Array.isArray(parsed) ? parsed : parsed.plugins || [];
+      res.json({ plugins });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return res.json({ plugins: [] });
+      }
+      console.error("[api] plugins list error", err);
+      res.status(500).json({ error: "could not read plugin manifest" });
+    }
+  });
+
+  app.post("/api/img2img", async (req, res) => {
+    const body = req.body || {};
+    const init = body.init_image || body.initImage;
+    if (!init || typeof init !== "string") {
+      return res.status(400).json({ error: "init_image required (data URL or raw base64)" });
+    }
+    let b64 = init.trim();
+    const dataUrl = /^data:image\/[^;]+;base64,(.+)$/i.exec(b64);
+    if (dataUrl) b64 = dataUrl[1];
+
+    let maskB64 = null;
+    const maskRaw = body.mask_image || body.maskImage;
+    if (maskRaw && typeof maskRaw === "string" && maskRaw.trim()) {
+      maskB64 = maskRaw.trim();
+      const maskDataUrl = /^data:image\/[^;]+;base64,(.+)$/i.exec(maskB64);
+      if (maskDataUrl) maskB64 = maskDataUrl[1];
+    }
+
+    const forgeUrl = forgeBaseUrl();
+    const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 28));
+    const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 1024));
+    const denoise = Math.min(1, Math.max(0, parseFloat(body.denoising_strength ?? body.denoisingStrength) || 0.55));
+    const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
+    const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
+
+    const payload = {
+      init_images: [b64],
+      prompt: String(body.prompt || ""),
+      negative_prompt: String(body.negative_prompt || body.negativePrompt || ""),
+      steps,
+      cfg_scale: cfg,
+      width: w,
+      height: h,
+      denoising_strength: denoise,
+      sampler_name: sampler,
+      batch_size: 1,
+      n_iter: 1,
+      seed: Number.isFinite(seed) ? seed : -1,
+      resize_mode: 0,
+    };
+
+    if (maskB64) {
+      const maskBlur = Math.min(64, Math.max(0, parseInt(body.mask_blur ?? body.maskBlur, 10) || 4));
+      const inpaintingFill = Math.min(3, Math.max(0, parseInt(body.inpainting_fill ?? body.inpaintingFill, 10) || 1));
+      const ifr = body.inpaint_full_res ?? body.inpaintFullRes;
+      const inpaintFullRes = !(ifr === false || ifr === "false" || ifr === 0 || ifr === "0");
+      const pad = Math.min(256, Math.max(0, parseInt(body.inpaint_full_res_padding ?? body.inpaintFullResPadding, 10) || 32));
+      payload.mask = maskB64;
+      payload.mask_blur = maskBlur;
+      payload.inpainting_fill = inpaintingFill;
+      payload.inpaint_full_res = inpaintFullRes;
+      payload.inpaint_full_res_padding = pad;
+    }
+
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available in this Node build" });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 600000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/img2img`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: "Forge img2img failed", status: response.status, detail: text.slice(0, 500) });
+      }
+      const data = await response.json();
+      const images = data.images || [];
+      if (!images.length) {
+        return res.status(502).json({ error: "Forge returned no images", raw: data });
+      }
+      const outName = `i2i_${Date.now()}.png`;
+      const outPath = path.join(uploadsDir, outName);
+      let imgB64 = images[0];
+      if (typeof imgB64 === "string" && imgB64.includes(",")) {
+        imgB64 = imgB64.split(",", 2)[1];
+      }
+      const buf = Buffer.from(imgB64, "base64");
+      await fsp.writeFile(outPath, buf);
+      res.json({ ok: true, path: `/uploads/${outName}`, info: data.info || null });
+    } catch (err) {
+      console.error("[api] img2img error", err);
+      res.status(502).json({ error: String(err.message || err) });
     }
   });
 

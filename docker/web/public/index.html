@@ -473,6 +473,65 @@
               </div>
             </div>
           </div>
+
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🖼 img2img <span class="framesync-accent">(Forge)</span></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">
+                Reference image → <code>/api/img2img</code> (SD-Forge). Optional <strong>mask</strong> enables inpainting (white = repaint, black = keep). Output under <code>/uploads/</code>.
+              </div>
+              <div style="margin-top:10px; display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; align-items:end;">
+                <div>
+                  <div class="framesync-subtitle">Init image</div>
+                  <input type="file" accept="image/*" class="framesync-input" style="font-size:11px;" @change="handleImg2imgFile">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Mask (inpaint)</div>
+                  <input type="file" accept="image/*" class="framesync-input" style="font-size:11px;" @change="handleImg2imgMask">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Denoise</div>
+                  <input type="number" class="framesync-input" v-model.number="img2img.denoisingStrength" min="0" max="1" step="0.05">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">W × H</div>
+                  <div style="display:flex; gap:6px;">
+                    <input type="number" class="framesync-input" v-model.number="img2img.width" min="64" max="2048" step="64" style="font-size:11px;">
+                    <input type="number" class="framesync-input" v-model.number="img2img.height" min="64" max="2048" step="64" style="font-size:11px;">
+                  </div>
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Mask blur</div>
+                  <input type="number" class="framesync-input" v-model.number="img2img.maskBlur" min="0" max="64" step="1" style="font-size:11px;">
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Inpaint fill</div>
+                  <select class="framesync-input" v-model.number="img2img.inpaintingFill" style="font-size:11px;">
+                    <option :value="0">Fill</option>
+                    <option :value="1">Original</option>
+                    <option :value="2">Latent noise</option>
+                    <option :value="3">Latent nothing</option>
+                  </select>
+                </div>
+                <div>
+                  <div class="framesync-subtitle">Full-res inpaint</div>
+                  <label style="font-size:11px; color:#9ecfff;"><input type="checkbox" v-model="img2img.inpaintFullRes"> On</label>
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:10px;">
+                <button type="button" class="framesync-button" @click="submitImg2img">▶ Submit to Forge</button>
+                <button type="button" class="framesync-button" style="opacity:0.85;" @click="clearImg2imgMask">Clear mask</button>
+                <a v-if="img2img.lastPath" :href="img2img.lastPath" target="_blank" rel="noopener" style="font-size:11px; color:#ff8a1a;">Open last result</a>
+              </div>
+              <div class="framesync-list" style="margin-top:8px; font-size:11px;">{{ img2img.status }}</div>
+              <div v-if="pluginsRegistry.length" class="framesync-subtitle" style="margin-top:12px;">Plugin registry</div>
+              <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
+                <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
+              </ul>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="currentTab==='LORA'">
@@ -586,6 +645,73 @@
         </div>
 
         <div v-else-if="currentTab==='MOTION'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⏱ Animation <span class="framesync-accent">Sequencer</span></div>
+                <div class="pill" :class="{'danger': sequencerPlaying}">
+                  <span class="dot"></span>{{ sequencerPlaying ? 'Playing' : 'Stopped' }}
+                </div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; align-items:end;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Duration (s)</div>
+                  <input type="number" class="framesync-input" v-model.number="sequencer.durationSec" min="0.5" max="600" step="0.5" @change="clampSequencerPlayhead">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">FPS</div>
+                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Loop</div>
+                  <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</label>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Save as</div>
+                  <input type="text" class="framesync-input" v-model.trim="sequencerSaveName" placeholder="my_timeline" style="font-size:12px;">
+                </div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
+              <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <button type="button" class="framesync-button" @click="toggleSequencerPlayback">{{ sequencerPlaying ? '⏹ Stop' : '▶ Play' }}</button>
+                <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
+                <button type="button" class="framesync-button" @click="saveSequencerTimeline">💾 Save</button>
+                <button type="button" class="framesync-button" @click="exportSequencerDownload">⬇ Export JSON</button>
+                <select class="framesync-input" style="max-width:160px; font-size:11px;" v-model="sequencerLoadPick" @change="loadSequencerTimeline">
+                  <option value="">Load saved…</option>
+                  <option v-for="n in sequencerList" :key="'seq-'+n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Tracks</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+                <select class="framesync-input" style="min-width:140px; font-size:11px;" v-model="sequencerNewParam">
+                  <option v-for="opt in sequencerParamOptions" :key="'sp-'+opt.key" :value="opt.key">{{ opt.label }}</option>
+                </select>
+                <button type="button" class="framesync-button" @click="addSequencerTrack">+ Track</button>
+                <span class="framesync-list" style="font-size:11px;">Keyframe value</span>
+                <input type="number" class="framesync-input" style="width:100px; font-size:11px;" v-model.number="sequencerKeyframeVal" step="any">
+                <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
+              </div>
+              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <strong style="color:#ff8a1a; font-size:13px;">{{ tr.param }}</strong>
+                  <label style="font-size:11px; color:#9bc4e2;">
+                    <input type="radio" :value="tr.id" v-model="sequencerSelectedTrackId"> edit
+                  </label>
+                  <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
+                </div>
+                <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
+                  <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px;">
+                    t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
+                    <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
+                  </span>
+                  <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
+                </div>
+              </div>
+              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:#5af2a9;">{{ sequencerStatus }}</div>
+            </div>
+          </div>
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -817,6 +943,11 @@
                         <input class="framesync-input" type="number" v-model.number="m.freq_max" step="10" style="padding:4px; font-size:10px;" placeholder="Max">
                       </div>
                     </div>
+                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
+                      <button type="button" class="framesync-button" style="font-size:9px;padding:2px 6px;"
+                        v-for="b in audioBandChips" :key="'ab'+idx+b.key"
+                        @click="applyAudioBandPreset(idx, b.key)">{{ b.label }}</button>
+                    </div>
                     
                     <div class="fs-field" style="margin-top:4px;">
                       <span style="font-size:10px;">Output Range</span>
@@ -1017,9 +1148,11 @@
         </div>
 
         <div v-else-if="currentTab==='MOTION'">
-          <h4>Camera curves</h4>
-          <div class="wave" style="height:100px; background:#11182a; margin-bottom:8px;"></div>
-          <div style="font-size:12px; color:var(--muted);">Pan X/Y and Zoom curves over beats. Tools: Apply Sine/Saw, Smooth, Snap to Beats.</div>
+          <h4>Sequencer & camera</h4>
+          <div class="chips">
+            <span class="chip" v-for="tr in sequencer.tracks" :key="'ctx-'+tr.id">{{ tr.param }} ({{ (tr.keyframes && tr.keyframes.length) || 0 }} kf)</span>
+          </div>
+          <div style="font-size:12px; color:var(--muted); margin-top:8px;">Playhead {{ sequencerPlayhead.toFixed(2) }}s / {{ sequencer.durationSec }}s · {{ sequencerPlaying ? 'playing' : 'stopped' }}</div>
         </div>
 
         <div v-else-if="currentTab==='MODULATION'">
@@ -1103,6 +1236,19 @@
             zoom: "Beat",
           },
           prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5 },
+          img2img: {
+            dataUrl: null,
+            maskDataUrl: null,
+            maskBlur: 4,
+            inpaintingFill: 1,
+            inpaintFullRes: true,
+            denoisingStrength: 0.55,
+            width: 1024,
+            height: 1024,
+            status: "",
+            lastPath: null,
+          },
+          pluginsRegistry: [],
           morphSlots: [
             { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
             { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
@@ -1129,6 +1275,14 @@
             { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
             { param: "translation_z", freq_min: 1200, freq_max: 3000, out_min: -5, out_max: 5 },
           ],
+          audioBandPresets: {
+            sub: { label: "Sub", freq_min: 20, freq_max: 60 },
+            bass: { label: "Bass", freq_min: 60, freq_max: 250 },
+            lowmid: { label: "Lo-mid", freq_min: 250, freq_max: 500 },
+            mid: { label: "Mid", freq_min: 500, freq_max: 2000 },
+            high: { label: "High", freq_min: 2000, freq_max: 8000 },
+            air: { label: "Air", freq_min: 8000, freq_max: 16000 },
+          },
           lfoBpm: 120,
           lfoTargets: [
             { key: "cfg", label: "Vibe (CFG)", min: 0, max: 30, default: 6, group: "Style" },
@@ -1254,6 +1408,17 @@
           previewBarCollapsed: false,
           apiHealth: { sdForge: { available: null, lastChecked: null, pollIntervalMs: 0 } },
           apiStatusTimer: null,
+          sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [] },
+          sequencerPlayhead: 0,
+          sequencerPlaying: false,
+          sequencerTimer: null,
+          sequencerSaveName: "default_clip",
+          sequencerLoadPick: "",
+          sequencerList: [],
+          sequencerStatus: "",
+          sequencerNewParam: "translation_x",
+          sequencerKeyframeVal: 0,
+          sequencerSelectedTrackId: null,
         };
       },
       computed: {
@@ -1269,6 +1434,17 @@
           });
           return Object.entries(groups).map(([label, items]) => ({ label, items }));
         },
+        sequencerParamOptions() {
+          return this.lfoTargets.map((t) => ({ key: t.key, label: t.label }));
+        },
+        audioBandChips() {
+          return Object.entries(this.audioBandPresets).map(([key, v]) => ({
+            key,
+            label: v.label,
+            freq_min: v.freq_min,
+            freq_max: v.freq_max,
+          }));
+        },
       },
       mounted() {
         this.attachPlayer();
@@ -1279,6 +1455,8 @@
         this.loadControlNetModels();
         this.refreshLoras();
         this.refreshApiHealth();
+        this.refreshSequencerList();
+        this.refreshPlugins();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
           this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
@@ -1288,6 +1466,7 @@
         this.beatTimer = setInterval(() => this.processBeat(), 50);
       },
       beforeUnmount() {
+        this.stopSequencerPlayback();
         if (this.framesTimer) clearInterval(this.framesTimer);
         if (this.apiStatusTimer) clearInterval(this.apiStatusTimer);
         if (this.playbackTimer) clearInterval(this.playbackTimer);
@@ -1647,6 +1826,88 @@
         removeAudioMapping(index) {
           this.audioMappings.splice(index, 1);
         },
+        applyAudioBandPreset(mapIndex, bandKey) {
+          const spec = this.audioBandPresets[bandKey];
+          const row = this.audioMappings[mapIndex];
+          if (!spec || !row) return;
+          row.freq_min = spec.freq_min;
+          row.freq_max = spec.freq_max;
+        },
+        handleImg2imgFile(evt) {
+          const f = evt.target.files && evt.target.files[0];
+          if (!f) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            this.img2img.dataUrl = reader.result;
+            this.img2img.status = "Init image loaded";
+          };
+          reader.onerror = () => {
+            this.img2img.status = "Could not read file";
+          };
+          reader.readAsDataURL(f);
+        },
+        handleImg2imgMask(evt) {
+          const f = evt.target.files && evt.target.files[0];
+          if (!f) return;
+          const reader = new FileReader();
+          reader.onload = () => {
+            this.img2img.maskDataUrl = reader.result;
+            this.img2img.status = "Mask loaded (inpaint)";
+          };
+          reader.onerror = () => {
+            this.img2img.status = "Could not read mask file";
+          };
+          reader.readAsDataURL(f);
+        },
+        clearImg2imgMask() {
+          this.img2img.maskDataUrl = null;
+          this.img2img.status = "Mask cleared";
+        },
+        async refreshPlugins() {
+          if (typeof fetch !== "function") return;
+          try {
+            const res = await fetch("/api/plugins");
+            if (!res.ok) return;
+            const j = await res.json();
+            this.pluginsRegistry = Array.isArray(j.plugins) ? j.plugins : [];
+          } catch (_) {
+            this.pluginsRegistry = [];
+          }
+        },
+        async submitImg2img() {
+          if (!this.img2img.dataUrl) {
+            this.img2img.status = "Choose an init image first";
+            return;
+          }
+          this.img2img.status = "Submitting…";
+          try {
+            const body = {
+              init_image: this.img2img.dataUrl,
+              prompt: this.prompts.pos,
+              negative_prompt: this.prompts.neg,
+              denoising_strength: this.img2img.denoisingStrength,
+              width: this.img2img.width,
+              height: this.img2img.height,
+            };
+            if (this.img2img.maskDataUrl) {
+              body.mask_image = this.img2img.maskDataUrl;
+              body.mask_blur = this.img2img.maskBlur;
+              body.inpainting_fill = this.img2img.inpaintingFill;
+              body.inpaint_full_res = this.img2img.inpaintFullRes;
+            }
+            const res = await fetch("/api/img2img", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || j.detail || res.statusText);
+            this.img2img.lastPath = j.path || null;
+            this.img2img.status = j.path ? `OK → ${j.path}` : "OK";
+          } catch (e) {
+            this.img2img.status = String(e.message || e);
+          }
+        },
         addLfo() {
           const nextId = this.lfos.length ? Math.max(...this.lfos.map((l) => l.id)) + 1 : 1;
           this.lfos.push({
@@ -1995,6 +2256,207 @@
               this.sendControl("liveParam", { [mapping.key]: norm });
             }
           }
+        },
+        sortedKeyframes(tr) {
+          return [...(tr.keyframes || [])].sort((a, b) => a.t - b.t);
+        },
+        sequencerPayload() {
+          return {
+            version: 1,
+            durationSec: Number(this.sequencer.durationSec),
+            fps: Number(this.sequencer.fps),
+            loop: !!this.sequencer.loop,
+            tracks: this.sequencer.tracks.map((tr) => ({
+              id: tr.id,
+              param: tr.param,
+              keyframes: [...tr.keyframes].sort((a, b) => a.t - b.t),
+            })),
+          };
+        },
+        clampSequencerPlayhead() {
+          const d = Number(this.sequencer.durationSec) || 0;
+          if (this.sequencerPlayhead < 0) this.sequencerPlayhead = 0;
+          if (this.sequencerPlayhead > d) this.sequencerPlayhead = d;
+        },
+        interpolateTrack(tr, tSec) {
+          const dur = Number(this.sequencer.durationSec) || 0;
+          const t = Math.min(Math.max(0, tSec), dur);
+          const kf = this.sortedKeyframes(tr);
+          if (!kf.length) return null;
+          if (t <= kf[0].t) return kf[0].v;
+          if (t >= kf[kf.length - 1].t) return kf[kf.length - 1].v;
+          let i = 0;
+          while (i < kf.length - 1 && kf[i + 1].t < t) i += 1;
+          const a = kf[i];
+          const b = kf[i + 1];
+          if (!b) return a.v;
+          const u = (t - a.t) / (b.t - a.t);
+          return a.v + u * (b.v - a.v);
+        },
+        applySequencerAt(tSec) {
+          const payload = {};
+          for (const tr of this.sequencer.tracks) {
+            const v = this.interpolateTrack(tr, tSec);
+            if (v !== null && Number.isFinite(v)) payload[tr.param] = v;
+          }
+          if (Object.keys(payload).length) this.sendControl("liveParam", payload);
+        },
+        previewSequencerFrame() {
+          this.clampSequencerPlayhead();
+          if (!this.ws || this.ws.readyState !== 1) return;
+          this.applySequencerAt(this.sequencerPlayhead);
+        },
+        tickSequencer() {
+          const dur = Number(this.sequencer.durationSec) || 0;
+          const dt = 1 / Math.max(1, Number(this.sequencer.fps) || 24);
+          let next = this.sequencerPlayhead + dt;
+          if (next >= dur - 1e-9) {
+            if (this.sequencer.loop) next = 0;
+            else {
+              this.sequencerPlayhead = dur;
+              this.applySequencerAt(this.sequencerPlayhead);
+              this.stopSequencerPlayback();
+              return;
+            }
+          }
+          this.sequencerPlayhead = next;
+          this.applySequencerAt(this.sequencerPlayhead);
+        },
+        toggleSequencerPlayback() {
+          if (this.sequencerPlaying) {
+            this.stopSequencerPlayback();
+            return;
+          }
+          if (!this.ws || this.ws.readyState !== 1) {
+            this.sequencerStatus = "WebSocket not connected";
+            return;
+          }
+          if (!this.sequencer.tracks.length) {
+            this.sequencerStatus = "Add at least one track with keyframes";
+            return;
+          }
+          const hasKf = this.sequencer.tracks.some((tr) => tr.keyframes && tr.keyframes.length);
+          if (!hasKf) {
+            this.sequencerStatus = "Add keyframes to play";
+            return;
+          }
+          this.sequencerPlaying = true;
+          this.sequencerStatus = "";
+          const ms = Math.max(16, Math.round(1000 / Math.max(1, Number(this.sequencer.fps) || 24)));
+          this.sequencerTimer = setInterval(() => this.tickSequencer(), ms);
+        },
+        stopSequencerPlayback() {
+          this.sequencerPlaying = false;
+          if (this.sequencerTimer) {
+            clearInterval(this.sequencerTimer);
+            this.sequencerTimer = null;
+          }
+        },
+        addSequencerTrack() {
+          const param = this.sequencerNewParam;
+          if (this.sequencer.tracks.some((x) => x.param === param)) {
+            this.sequencerStatus = "Track already exists for " + param;
+            return;
+          }
+          const id = "tr-" + Date.now() + "-" + Math.random().toString(36).slice(2, 7);
+          this.sequencer.tracks.push({ id, param, keyframes: [] });
+          this.sequencerSelectedTrackId = id;
+          this.sequencerStatus = "";
+        },
+        removeSequencerTrack(id) {
+          this.sequencer.tracks = this.sequencer.tracks.filter((x) => x.id !== id);
+          if (this.sequencerSelectedTrackId === id) this.sequencerSelectedTrackId = null;
+        },
+        addSequencerKeyframe() {
+          const tid = this.sequencerSelectedTrackId || (this.sequencer.tracks[0] && this.sequencer.tracks[0].id);
+          const tr = this.sequencer.tracks.find((x) => x.id === tid);
+          if (!tr) {
+            this.sequencerStatus = "Add a track first";
+            return;
+          }
+          this.clampSequencerPlayhead();
+          const t = Math.min(Math.max(0, this.sequencerPlayhead), Number(this.sequencer.durationSec) || 0);
+          const v = Number(this.sequencerKeyframeVal);
+          if (Number.isNaN(v)) {
+            this.sequencerStatus = "Invalid keyframe value";
+            return;
+          }
+          tr.keyframes.push({ t, v });
+          this.sequencerStatus = "";
+        },
+        removeSequencerKeyframe(trackId, sortedIdx) {
+          const tr = this.sequencer.tracks.find((x) => x.id === trackId);
+          if (!tr) return;
+          const sorted = this.sortedKeyframes(tr);
+          const victim = sorted[sortedIdx];
+          if (!victim) return;
+          const ix = tr.keyframes.indexOf(victim);
+          if (ix >= 0) tr.keyframes.splice(ix, 1);
+        },
+        async refreshSequencerList() {
+          if (typeof fetch !== "function") return;
+          try {
+            const res = await fetch("/api/sequencer");
+            const j = await res.json();
+            if (Array.isArray(j.timelines)) this.sequencerList = j.timelines;
+          } catch (_e) {}
+        },
+        async saveSequencerTimeline() {
+          const raw = (this.sequencerSaveName || "timeline").trim();
+          const name = raw.replace(/[^a-zA-Z0-9_-]/g, "");
+          if (!name) {
+            this.sequencerStatus = "Invalid save name";
+            return;
+          }
+          try {
+            const res = await fetch("/api/sequencer/" + encodeURIComponent(name), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(this.sequencerPayload()),
+            });
+            const j = await res.json();
+            if (!res.ok) throw new Error(j.error || res.statusText);
+            this.sequencerStatus = "Saved " + name;
+            await this.refreshSequencerList();
+          } catch (e) {
+            this.sequencerStatus = String(e.message || e);
+          }
+        },
+        async loadSequencerTimeline() {
+          const name = this.sequencerLoadPick;
+          if (!name) return;
+          try {
+            const res = await fetch("/api/sequencer/" + encodeURIComponent(name));
+            const j = await res.json();
+            if (!res.ok || !j.timeline) throw new Error(j.error || "load failed");
+            const tl = j.timeline;
+            if (tl.durationSec != null) this.sequencer.durationSec = tl.durationSec;
+            if (tl.fps != null) this.sequencer.fps = tl.fps;
+            this.sequencer.loop = tl.loop !== false;
+            this.sequencer.tracks = Array.isArray(tl.tracks)
+              ? tl.tracks.map((tr) => ({
+                  id: tr.id || "tr-" + Math.random().toString(36).slice(2),
+                  param: tr.param,
+                  keyframes: Array.isArray(tr.keyframes) ? tr.keyframes.slice() : [],
+                }))
+              : [];
+            this.sequencerSaveName = name;
+            this.sequencerSelectedTrackId = this.sequencer.tracks[0] ? this.sequencer.tracks[0].id : null;
+            this.clampSequencerPlayhead();
+            this.sequencerStatus = "Loaded " + name;
+          } catch (e) {
+            this.sequencerStatus = String(e.message || e);
+          }
+        },
+        exportSequencerDownload() {
+          const json = JSON.stringify(this.sequencerPayload(), null, 2);
+          const blob = new Blob([json], { type: "application/json" });
+          const base = (this.sequencerSaveName || "sequencer").replace(/[^a-zA-Z0-9_-]/g, "") || "sequencer";
+          const a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = base + ".json";
+          a.click();
+          URL.revokeObjectURL(a.href);
         },
         xyPadMouseDown(evt) {
           this.xyPad.dragging = true;

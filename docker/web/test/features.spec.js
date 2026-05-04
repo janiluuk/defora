@@ -16,13 +16,15 @@ describe("Preset Management API", () => {
   let uploads;
   let request;
   let presetsDir;
+  let sequencersDir;
 
   beforeEach(async () => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
     uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
     presetsDir = fs.mkdtempSync(path.join(os.tmpdir(), "presets-"));
+    sequencersDir = fs.mkdtempSync(path.join(os.tmpdir(), "sequencers-"));
 
-    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, presetsDir, enableMq: false });
+    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, presetsDir, sequencersDir, enableMq: false });
     request = supertest(`http://127.0.0.1:${svc.port}`);
   });
 
@@ -30,7 +32,7 @@ describe("Preset Management API", () => {
     if (svc && svc.close) {
       await svc.close();
     }
-    [tmp, uploads, presetsDir].forEach((dir) => {
+    [tmp, uploads, presetsDir, sequencersDir].forEach((dir) => {
       if (dir && fs.existsSync(dir)) {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -132,13 +134,15 @@ describe("ControlNet API", () => {
   let svc;
   let tmp;
   let uploads;
+  let sequencersDir;
   let request;
 
   beforeEach(async () => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
     uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencersDir = fs.mkdtempSync(path.join(os.tmpdir(), "sequencers-"));
 
-    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, enableMq: false });
+    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, sequencersDir, enableMq: false });
     request = supertest(`http://127.0.0.1:${svc.port}`);
   });
 
@@ -146,7 +150,7 @@ describe("ControlNet API", () => {
     if (svc && svc.close) {
       await svc.close();
     }
-    [tmp, uploads].forEach((dir) => {
+    [tmp, uploads, sequencersDir].forEach((dir) => {
       if (dir && fs.existsSync(dir)) {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -183,13 +187,15 @@ describe("Audio File Upload Lifecycle", () => {
   let svc;
   let tmp;
   let uploads;
+  let sequencersDir;
   let request;
 
   beforeEach(async () => {
     tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
     uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencersDir = fs.mkdtempSync(path.join(os.tmpdir(), "sequencers-"));
 
-    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, enableMq: false });
+    svc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, sequencersDir, enableMq: false });
     request = supertest(`http://127.0.0.1:${svc.port}`);
   });
 
@@ -197,7 +203,7 @@ describe("Audio File Upload Lifecycle", () => {
     if (svc && svc.close) {
       await svc.close();
     }
-    [tmp, uploads].forEach((dir) => {
+    [tmp, uploads, sequencersDir].forEach((dir) => {
       if (dir && fs.existsSync(dir)) {
         fs.rmSync(dir, { recursive: true, force: true });
       }
