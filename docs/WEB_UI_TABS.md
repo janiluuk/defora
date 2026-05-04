@@ -63,7 +63,7 @@ The web UI consists of 7 main tabs:
 **Purpose**: Interactive camera movement plus **animation sequencer** (Phase 2 MVP)
 
 **Features**:
-- **Sequencer**: duration, FPS, loop, playhead scrub, Play/Stop; tracks per mediator parameter with linear keyframes (`t` seconds → value); save/load/delete via `/api/sequencer`; export JSON
+- **Sequencer**: duration, FPS, loop, playhead scrub, Play/Stop; **scene markers** (named cues at time `t`, rail + jump/delete, persisted in timeline JSON); tracks per mediator parameter with keyframes (`t` seconds → value) and per-segment easing (`linear` / `easeIn` / `easeOut` / `easeInOut`); save/load/delete via `/api/sequencer`; export JSON
 - Playback emits **`liveParam`** over WebSocket (same path as manual sliders)
 - XY Pad for intuitive camera pan control
 - Maps X/Y position to translation_x (-10 to 10) and translation_y (-10 to 10)
@@ -87,6 +87,8 @@ The web UI consists of 7 main tabs:
 
 #### 🎵 Audio & Tempo Section
 - Audio file upload with format validation
+- **Spectral overview** after upload: offline FFT spectrogram (time →, low frequency at bottom); same PNG in the LIVE preview strip and context row when audio is loaded
+- **Live spectrum** while the reference `<audio>` plays: Web Audio `AnalyserNode` FFT bars in MODULATION and a compact strip next to the offline image on LIVE (enable A/V sync and play video, or any playback of the upload)
 - BPM detection and manual input (20-300 BPM)
 - Beat phase indicator with real-time visualization (%)
 - Tap tempo and auto-detect controls
