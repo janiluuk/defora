@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.10] - 2026-05-04
+
+## What's Changed
+
+- feat(web): Forge status, sequencer, img2img, spectral viz, scene markers (#30) (91c825e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.10...v0.2.10
+
+
 ## [0.2.9] - 2026-05-04
 
 ## What's Changed
