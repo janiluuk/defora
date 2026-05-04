@@ -8,6 +8,7 @@ This document describes the REST API endpoints available in the Defora web serve
 - [Frames](#frames)
 - [Audio](#audio)
 - [Presets](#presets)
+- [Animation sequencer](#animation-sequencer)
 - [ControlNet](#controlnet)
 
 ---
@@ -297,6 +298,60 @@ Delete a preset.
 - `400 Bad Request`: Invalid preset name
 - `404 Not Found`: Preset doesn't exist
 - `500 Internal Server Error`: Could not delete preset
+
+---
+
+## Animation sequencer
+
+Keyframe timelines for the Web UI **MOTION** tab are stored as JSON under `SEQUENCER_DIR` (default: `docker/web/sequencers`). Playback sends merged `liveParam` updates over the WebSocket control channel (same as sliders).
+
+Timeline schema (`version` **1**):
+
+- `durationSec` (number): timeline length in seconds (positive, ≤ 3600).
+- `fps` (number): playback sample rate (1–120).
+- `loop` (boolean, optional): repeat when playback reaches the end.
+- `tracks` (array): each track has `id`, `param` (mediator parameter key), and `keyframes` (`t` in seconds, `v` numeric value). Linear interpolation between keyframes.
+
+### GET /api/sequencer
+
+List saved timeline names (without `.json`).
+
+**Response**: `200 OK`
+```json
+{ "timelines": ["intro_pan", "chorus_zoom"] }
+```
+
+### GET /api/sequencer/:name
+
+Load one timeline JSON.
+
+**Response**: `200 OK`
+```json
+{
+  "name": "intro_pan",
+  "timeline": {
+    "version": 1,
+    "durationSec": 8,
+    "fps": 24,
+    "loop": true,
+    "tracks": [
+      {
+        "id": "tr1",
+        "param": "translation_x",
+        "keyframes": [{ "t": 0, "v": 0 }, { "t": 8, "v": 3 }]
+      }
+    ]
+  }
+}
+```
+
+### POST /api/sequencer/:name
+
+Save or overwrite a timeline.
+
+### DELETE /api/sequencer/:name
+
+Remove a saved timeline file.
 
 ---
 

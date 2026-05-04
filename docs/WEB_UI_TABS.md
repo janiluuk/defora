@@ -59,19 +59,21 @@ The web UI consists of 7 main tabs:
 ---
 
 ### 4. MOTION Tab
-**Purpose**: Interactive camera movement control
+**Purpose**: Interactive camera movement plus **animation sequencer** (Phase 2 MVP)
 
 **Features**:
+- **Sequencer**: duration, FPS, loop, playhead scrub, Play/Stop; tracks per mediator parameter with linear keyframes (`t` seconds → value); save/load/delete via `/api/sequencer`; export JSON
+- Playback emits **`liveParam`** over WebSocket (same path as manual sliders)
 - XY Pad for intuitive camera pan control
 - Maps X/Y position to translation_x (-10 to 10) and translation_y (-10 to 10)
 - Real-time updates sent to mediator via WebSocket
-- Motion presets (Static, Orbit, Tunnel, Handheld, Chaos)
-- Cursor styling and visual feedback
+- Zoom / tilt sliders and motion style chips
 
 **Visual Elements**:
+- Sequencer controls above the XY pad
 - 140x140px interactive XY pad with crosshair cursor
 - Visual dot indicating current position
-- Preset buttons for quick motion setup
+- Motion preset / style controls
 
 ---
 

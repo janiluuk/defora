@@ -183,6 +183,8 @@ async function start(opts = {}) {
 
   // Preset management API
   const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
+  const sequencersDir =
+    opts.sequencersDir || process.env.SEQUENCER_DIR || path.join(__dirname, "sequencers");
   const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
   const uploadRetentionHours = parseInt(process.env.UPLOAD_RETENTION_HOURS || "24", 10);
   
@@ -190,8 +192,32 @@ async function start(opts = {}) {
     await fsp.mkdir(presetsDir, { recursive: true });
   } catch (_e) {}
   try {
+    await fsp.mkdir(sequencersDir, { recursive: true });
+  } catch (_e) {}
+  try {
     await fsp.mkdir(uploadsDir, { recursive: true });
   } catch (_e) {}
+
+  function validateTimeline(body) {
+    if (!body || typeof body !== "object") return "invalid body";
+    if (body.version !== 1) return "version must be 1";
+    if (typeof body.durationSec !== "number" || body.durationSec <= 0 || body.durationSec > 3600) {
+      return "durationSec must be between 0 and 3600";
+    }
+    if (typeof body.fps !== "number" || body.fps < 1 || body.fps > 120) return "fps must be 1–120";
+    if (!Array.isArray(body.tracks)) return "tracks must be an array";
+    for (const tr of body.tracks) {
+      if (!tr || typeof tr !== "object") return "invalid track";
+      if (typeof tr.param !== "string" || !/^[\w.]+$/.test(tr.param)) return "invalid track.param";
+      if (!Array.isArray(tr.keyframes)) return "keyframes must be an array";
+      for (const kf of tr.keyframes) {
+        if (!kf || typeof kf !== "object") return "invalid keyframe";
+        if (typeof kf.t !== "number" || typeof kf.v !== "number") return "keyframe requires numeric t and v";
+        if (kf.t < 0 || kf.t > body.durationSec) return "keyframe t outside 0..durationSec";
+      }
+    }
+    return null;
+  }
 
   // Cleanup function for old audio uploads
   async function cleanupOldUploads() {
@@ -361,6 +387,71 @@ async function start(opts = {}) {
       } else {
         console.error("[api] preset delete error", err);
         res.status(500).json({ error: "could not delete preset" });
+      }
+    }
+  });
+
+  // Animation sequencer timelines (JSON on disk)
+  app.get("/api/sequencer", async (_req, res) => {
+    try {
+      const files = await fsp.readdir(sequencersDir);
+      const timelines = files
+        .filter((f) => f.endsWith(".json"))
+        .map((f) => f.replace(/\.json$/, ""));
+      res.json({ timelines });
+    } catch (err) {
+      console.error("[api] sequencer list error", err);
+      res.status(500).json({ error: "could not list sequencer timelines" });
+    }
+  });
+
+  app.get("/api/sequencer/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid timeline name" });
+      const filePath = path.join(sequencersDir, `${name}.json`);
+      const data = await fsp.readFile(filePath, "utf-8");
+      const timeline = JSON.parse(data);
+      res.json({ name, timeline });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "timeline not found" });
+      } else {
+        console.error("[api] sequencer load error", err);
+        res.status(500).json({ error: "could not load timeline" });
+      }
+    }
+  });
+
+  app.post("/api/sequencer/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid timeline name" });
+      const timeline = req.body;
+      const errMsg = validateTimeline(timeline);
+      if (errMsg) return res.status(400).json({ error: errMsg });
+      const filePath = path.join(sequencersDir, `${name}.json`);
+      await fsp.writeFile(filePath, JSON.stringify(timeline, null, 2), "utf-8");
+      res.json({ ok: true, name });
+    } catch (err) {
+      console.error("[api] sequencer save error", err);
+      res.status(500).json({ error: "could not save timeline" });
+    }
+  });
+
+  app.delete("/api/sequencer/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid timeline name" });
+      const filePath = path.join(sequencersDir, `${name}.json`);
+      await fsp.unlink(filePath);
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "timeline not found" });
+      } else {
+        console.error("[api] sequencer delete error", err);
+        res.status(500).json({ error: "could not delete timeline" });
       }
     }
   });
