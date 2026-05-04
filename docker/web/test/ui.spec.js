@@ -7,6 +7,18 @@ const { describe, it, before, beforeEach } = require("node:test");
 let createApp;
 let nextTick;
 
+/** GitHub Actions often uses Node without global `File`; jsdom exposes File/Blob for tests. */
+function ensureGlobalFileAndBlob() {
+  if (typeof globalThis.File === "function" && typeof globalThis.Blob === "function") return;
+  const { window } = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
+    url: "http://localhost",
+    pretendToBeVisual: true,
+  });
+  if (typeof globalThis.Blob !== "function") globalThis.Blob = window.Blob;
+  if (typeof globalThis.File !== "function") globalThis.File = window.File;
+}
+ensureGlobalFileAndBlob();
+
 function loadAppDefinition() {
   if (typeof global.FileReader !== "function") {
     global.FileReader = class {
