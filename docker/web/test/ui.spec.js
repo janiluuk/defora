@@ -7,15 +7,43 @@ const { describe, it, before, beforeEach } = require("node:test");
 let createApp;
 let nextTick;
 
-/** GitHub Actions often uses Node without global `File`; jsdom exposes File/Blob for tests. */
+/**
+ * CI uses Node 18: native `Blob` exists but `File` often does not. JSDOM `File` is not accepted
+ * by Node's `URL.createObjectURL`. Subclass native `Blob` as `File` when needed so
+ * `file instanceof Blob` and blob URLs behave like the browser.
+ */
 function ensureGlobalFileAndBlob() {
-  if (typeof globalThis.File === "function" && typeof globalThis.Blob === "function") return;
+  const B = globalThis.Blob;
+  const F = globalThis.File;
+  if (typeof F === "function" && typeof B === "function") {
+    try {
+      const probe = new F([new Uint8Array(1)], "p", { type: "application/octet-stream" });
+      if (!(probe instanceof B)) throw new Error("File/Blob mismatch");
+      if (typeof URL.createObjectURL === "function") {
+        const u = URL.createObjectURL(probe);
+        URL.revokeObjectURL(u);
+      }
+      return;
+    } catch {
+      /* fall through */
+    }
+  }
+  if (typeof B === "function" && typeof F !== "function") {
+    globalThis.File = class FilePoly extends B {
+      constructor(bits, name, options = {}) {
+        super(bits, options);
+        this.name = String(name);
+        this.lastModified = options.lastModified ?? Date.now();
+      }
+    };
+    return;
+  }
   const { window } = new JSDOM("<!DOCTYPE html><html><body></body></html>", {
     url: "http://localhost",
     pretendToBeVisual: true,
   });
-  if (typeof globalThis.Blob !== "function") globalThis.Blob = window.Blob;
-  if (typeof globalThis.File !== "function") globalThis.File = window.File;
+  globalThis.Blob = window.Blob;
+  globalThis.File = window.File;
 }
 ensureGlobalFileAndBlob();
 
