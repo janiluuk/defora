@@ -248,7 +248,8 @@ Minimal control panel with hotkey bindings:
 - `DEFORUMATION_MEDIATOR_HOST`/`DEFORUMATION_MEDIATOR_PORT` — defaults for mediator-backed UIs (panel, dashboard, monitor).
 - `CONTROL_TOKEN` — WebSocket control token for the web UI (set when running docker-compose).
 - `MEDIATOR_HOST` (compose bridge) — set this if `host.docker.internal` is not available on your host (common on Linux) so the control bridge can reach the mediator.
-- Web MIDI: enable in your browser and map controls in the web UI (MIDI tab) to live parameters.
+- `SD_FORGE_POLL_MS` — if set to a positive value (milliseconds) on the **web** stack, the API periodically probes SD-Forge so `/api/status` and the Web UI Forge indicator stay current without opening model list endpoints.
+- Web MIDI: enable in your browser and map controls in the **Settings** tab (Controllers / WebMIDI) to live parameters.
 
 ## Project Status & Roadmap
 

@@ -2,18 +2,46 @@
 
 This document outlines the current status, unfinished features, and planned future development for Defora — an audio-visual instrument for Stable Diffusion.
 
-**Last Updated**: 2026-01-25 | **Version**: 0.2.7 (in progress)
+**Last Updated**: 2026-05-04 | **Version**: 0.2.8+ (in progress)
+
+---
+
+## README ↔ roadmap alignment
+
+### Gap analysis (claims vs tracked work)
+
+Cross-checking [README.md](README.md) with this roadmap surfaced the following **documentation or product gaps** (now tracked in [Phased delivery](#phased-delivery)):
+
+| README / product surface | Issue | Tracking |
+|----------------------------|--------|----------|
+| **MIDI** described as a separate “tab” | Web MIDI and mappings live under **SETTINGS** (see `docs/WEB_UI_TABS.md`); not a top-level tab | **Done**: README wording + roadmap cross-links |
+| **Seven** UI areas (incl. **LORA** tab) vs older “6 tabs” copy | The hosted `index.html` includes a dedicated **LORA** tab; some docs still said six tabs | **Done**: `docs/WEB_UI_TABS.md` updated |
+| **TUI LoRA** “integrated in PROMPTS (F2)” | No dedicated TUI LoRA tab; parity with Web LoRA browser is incomplete | Backlog: [Future Enhancements](#future-enhancements) / Phase 3 |
+| **MOTION: Camera curves** (README screenshots) | Web MOTION has XY pad + presets; full curve editor over time is not shipped | [Animation Sequencer](#animation-sequencer) (Phase 2) |
+| **Multi-band / “spectral” audio** (marketing language) | FFT band→parameter exists; named bands (bass/mids/highs), envelope followers, and spectral **viz** are partial or missing | [Advanced Audio Features](#advanced-audio-features) (short-term) |
+| **Stream stack** (RTMP, HLS, bridge, RabbitMQ) | Implemented; ensure ops docs stay linked from README | Done (monitor `docs/streaming_stack.md`) |
+| **`deforumation_dashboard`** | Listed in README; treat as first-class like other CLIs | Done (see [Current Features](#current-features-completed)) |
+
+### Phased delivery
+
+| Phase | Theme | Scope | Status |
+|-------|--------|--------|--------|
+| **1** | **Connectivity & operator clarity** | Optional `SD_FORGE_POLL_MS` background probe; `/api/status` exposes `pollIntervalMs`; Web UI header **Forge up/down** pill; README + `docs/WEB_UI_TABS.md` alignment (LORA tab, MIDI wording) | **Done** |
+| **2** | **Animation sequencer (MVP)** | Timeline data model, persist/export, mediator hooks for keyframed params; MOTION curve UI tied to data | Planned |
+| **3** | **TUI / audio depth** | TUI LoRA-focused flow or tab; audio band presets + envelope-style routing in modulator / Web UI | Planned |
+| **4** | **img2img & plugins** | As in long-term sections | Planned |
 
 ---
 
 ## Table of Contents
 
-1. [Project Status Overview](#project-status-overview)
-2. [Current Features (Completed)](#current-features-completed)
-3. [Incomplete/In-Progress Features](#incompletein-progress-features)
-4. [Planned Features](#planned-features)
-5. [Future Enhancements](#future-enhancements)
-6. [Long-Term Vision](#long-term-vision)
+1. [README ↔ roadmap alignment](#readme--roadmap-alignment)
+2. [Project Status Overview](#project-status-overview)
+3. [Current Features (Completed)](#current-features-completed)
+4. [Incomplete/In-Progress Features](#incompletein-progress-features)
+5. [Planned Features](#planned-features)
+6. [Future Enhancements](#future-enhancements)
+7. [Long-Term Vision](#long-term-vision)
 
 ---
 
@@ -175,8 +203,8 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ **NEW**: Source indicator in responses (sd-forge/cache/placeholder)
 
 **Remaining Enhancements** (low priority):
-- Automatic periodic polling for model availability
-- Visual indicator in UI for model source
+- ~~Automatic periodic polling for model availability~~ → **Done**: set `SD_FORGE_POLL_MS` (e.g. `30000`) on the web stack to probe SD-Forge on an interval; `/api/status` reports `pollIntervalMs`; Web UI shows Forge status in the header.
+- Visual indicator in UI for **model list source** (sd-forge vs cache vs placeholder) on CN/LoRA pickers
 - Better error messages in browser console
 
 ### ✅ Test Coverage (COMPLETED in v0.2.7)
@@ -348,9 +376,9 @@ Defora is in **active development** with a strong foundation of core features im
 - Advanced prompt weighting syntax
 - Integration with SD-Forge attention syntax
 
-#### Advanced Audio Features
+#### Advanced ControlNet & live input
 - **Priority**: Medium
-- **Description**: More ControlNet features
+- **Description**: Richer ControlNet inputs and routing (distinct from short-term “Advanced Audio Features”)
 - **Features**:
   - Multiple ControlNet preprocessing
   - Live camera/video input for ControlNet
@@ -600,10 +628,10 @@ Defora follows [Semantic Versioning](https://semver.org/):
 ### Version History
 
 - **0.1.0** (Initial): Basic CLI, web UI skeleton, docker stack
-- **0.2.0** (Current): Full web UI, TUI, audio modulation, streaming
-- **0.3.0** (Q2 2026): Runs management integration, model management
-- **0.4.0** (Q3 2026): Animation sequencer, advanced prompts
-- **0.5.0** (Q4 2026): img2img, plugin system
+- **0.2.x** (Current track): Full web UI (incl. LORA tab), TUI, audio modulation, streaming, runs tooling, distributed generation, performance APIs
+- **0.3.0** (Q2 2026): Sequencer MVP + docs parity (README / WEB_UI_TABS); polish runs filters/export
+- **0.4.0** (Q3 2026): Deeper sequencer (curves, markers), img2img groundwork
+- **0.5.0** (Q4 2026): img2img & inpainting UX, plugin hooks
 - **1.0.0** (Q1 2027): Production-ready release
 
 ---
@@ -634,4 +662,4 @@ This roadmap and the Defora project are open source. See [LICENSE](LICENSE) for 
 
 ---
 
-**Last Updated**: 2026-01-24 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)
+**Last Updated**: 2026-05-04 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)

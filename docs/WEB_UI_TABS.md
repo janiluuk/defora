@@ -4,7 +4,7 @@ This document provides an overview of all tabs in the Defora web interface.
 
 ## Tab Structure
 
-The web UI consists of 6 main tabs:
+The web UI consists of 7 main tabs:
 
 ### 1. LIVE Tab
 **Purpose**: Real-time parameter control and live generation monitoring
@@ -43,7 +43,22 @@ The web UI consists of 6 main tabs:
 
 ---
 
-### 3. MOTION Tab
+### 3. LORA Tab
+**Purpose**: Browse and blend LoRA models for the current session
+
+**Features**:
+- List of available LoRAs (from API when SD-Forge is reachable)
+- Per-slot or grouped strength controls
+- A/B grouping and crossfader-style blending (when enabled in UI)
+- Refresh to sync with the server model list
+
+**Visual Elements**:
+- LoRA cards or rows with strength sliders
+- Group A / Group B affordances where applicable
+
+---
+
+### 4. MOTION Tab
 **Purpose**: Interactive camera movement control
 
 **Features**:
@@ -60,7 +75,7 @@ The web UI consists of 6 main tabs:
 
 ---
 
-### 4. MODULATION Tab (Unified)
+### 5. MODULATION Tab (Unified)
 **Purpose**: Comprehensive audio, LFO, and beat-synced modulation control
 
 **Theme**: FrameSync dark blue (#061726) with orange accents (#ff8a1a)
@@ -131,7 +146,7 @@ The web UI consists of 6 main tabs:
 
 ---
 
-### 5. CN (ControlNet) Tab
+### 6. CN (ControlNet) Tab
 **Purpose**: ControlNet model management and configuration
 
 **Features**:
@@ -151,7 +166,7 @@ The web UI consists of 6 main tabs:
 
 ---
 
-### 6. SETTINGS Tab
+### 7. SETTINGS Tab
 **Purpose**: System settings and MIDI configuration
 
 **Features**:

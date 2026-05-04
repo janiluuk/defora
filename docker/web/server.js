@@ -31,6 +31,32 @@ async function start(opts = {}) {
     currentModel: null,
   };
 
+  function forgeBaseUrl() {
+    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    return `http://${forgeHost}:${forgePort}`;
+  }
+
+  /** Lightweight SD-Forge reachability check (updates apiStatus). */
+  async function probeSdForge() {
+    if (typeof fetch === "undefined") return;
+    const forgeUrl = forgeBaseUrl();
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+      clearTimeout(timeout);
+      apiStatus.sdForgeAvailable = response.ok;
+      apiStatus.lastChecked = new Date().toISOString();
+    } catch (_e) {
+      apiStatus.sdForgeAvailable = false;
+      apiStatus.lastChecked = new Date().toISOString();
+    }
+  }
+
   const app = express();
   app.use(express.json({ limit: "50mb" }));
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
@@ -55,10 +81,12 @@ async function start(opts = {}) {
   
   // API status endpoint for model availability
   app.get("/api/status", (_req, res) => {
+    const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
     res.json({
       sdForge: {
         available: apiStatus.sdForgeAvailable,
         lastChecked: apiStatus.lastChecked,
+        pollIntervalMs: Number.isFinite(sdForgePollMs) && sdForgePollMs > 0 ? sdForgePollMs : 0,
       },
       models: {
         controlNet: apiStatus.controlNetModels !== null ? 'cached' : 'not-loaded',
@@ -1611,6 +1639,15 @@ async function start(opts = {}) {
     });
   });
 
+  let forgePollTimer = null;
+  const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
+  if (Number.isFinite(sdForgePollMs) && sdForgePollMs > 0) {
+    probeSdForge().catch(() => {});
+    forgePollTimer = setInterval(() => {
+      probeSdForge().catch(() => {});
+    }, sdForgePollMs);
+  }
+
   let lastPlaylistMtime = 0;
   const pollTimer = setInterval(async () => {
     try {
@@ -1638,6 +1675,7 @@ async function start(opts = {}) {
 
   const close = async () => {
     clearInterval(pollTimer);
+    if (forgePollTimer) clearInterval(forgePollTimer);
     clearInterval(cleanupTimer);
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
