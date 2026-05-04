@@ -203,7 +203,14 @@
         <div class="video-wrap">
           <video id="player" ref="videoPlayer" autoplay muted playsinline></video>
           <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
-          <audio ref="avSyncAudio" preload="auto" playsinline style="display:none" :src="audio.objectUrl || undefined"></audio>
+          <audio
+            ref="avSyncAudio"
+            data-testid="av-sync-audio"
+            preload="auto"
+            playsinline
+            style="display:none"
+            :src="audio.objectUrl || undefined"
+          ></audio>
           <div class="overlay">
             <div style="font-size: 14px; font-weight: 700;">Defora · Session: {{ session }}</div>
             <div>Seed {{ hud.seed }}</div>
@@ -320,12 +327,12 @@
               </div>
               <div style="margin-top:10px;">
                 <label class="framesync-subtitle" style="display:flex; align-items:center; gap:8px;">
-                  <input type="checkbox" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
+                  <input type="checkbox" data-testid="av-sync-enable" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
                 </label>
               </div>
               <div style="margin-top:10px;">
                 <div class="framesync-subtitle">Video lead (seconds)</div>
-                <input type="number" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
+                <input type="number" data-testid="av-sync-lead" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
                 <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
               </div>
             </div>
@@ -2297,8 +2304,10 @@
           const a = this.$refs.avSyncAudio;
           if (a) {
             try {
-              a.pause();
-            } catch (_e) {}
+              if (typeof a.pause === "function") a.pause();
+            } catch (_e) {
+              /* jsdom / headless may not implement media pause */
+            }
           }
           this.audioStatus = "Idle";
           if (this.$refs.audioFileInput) {
