@@ -312,7 +312,8 @@ Timeline schema (`version` **1**):
 - `durationSec` (number): timeline length in seconds (positive, ≤ 3600).
 - `fps` (number): playback sample rate (1–120).
 - `loop` (boolean, optional): repeat when playback reaches the end.
-- `tracks` (array): each track has `id`, `param` (mediator parameter key), and `keyframes` (`t` in seconds, `v` numeric value). Linear interpolation between keyframes.
+- `markers` (optional array): scene cues `{ t, name }` with `t` in seconds within `0..durationSec`, `name` a 1–48 character label (`[a-zA-Z0-9_ \\-.]+`). At most **64** markers. Omitted or empty means none.
+- `tracks` (array): each track has `id`, `param` (mediator parameter key), and `keyframes` (`t` in seconds, `v` numeric value). Optional `easing` on a keyframe controls the segment **from that keyframe to the next**: `linear` (default), `easeIn`, `easeOut`, `easeInOut` (cubic). Unknown values are rejected on save.
 
 ### GET /api/sequencer
 
@@ -336,11 +337,12 @@ Load one timeline JSON.
     "durationSec": 8,
     "fps": 24,
     "loop": true,
+    "markers": [{ "t": 0, "name": "Intro" }, { "t": 4, "name": "Chorus" }],
     "tracks": [
       {
         "id": "tr1",
         "param": "translation_x",
-        "keyframes": [{ "t": 0, "v": 0 }, { "t": 8, "v": 3 }]
+        "keyframes": [{ "t": 0, "v": 0, "easing": "easeInOut" }, { "t": 8, "v": 3 }]
       }
     ]
   }

@@ -81,7 +81,7 @@ Sync your visuals to audio with beat-driven macros and LFOs:
 <tr>
 <td width="50%">
 <img src="screenshots/modulation-tab.png" alt="Web UI Modulation" width="100%" />
-<p><b>Web UI:</b> Audio waveform, LFO modulators, beat macros, and parameter mapping</p>
+<p><b>Web UI:</b> Audio waveform + upload spectrogram + live spectrum bars, LFO modulators, beat macros, and parameter mapping</p>
 </td>
 <td width="50%">
 <img src="screenshots/tui-audio.png" alt="TUI Audio" width="100%" />

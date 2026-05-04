@@ -65,6 +65,7 @@
     .thumb { width: 92px; height: 54px; display: block; background: #11182a; object-fit: cover; }
     .thumb-label { position: absolute; left: 0; right: 0; bottom: 0; padding: 3px 6px; font-size: 11px; color: var(--text); background: linear-gradient(180deg, transparent, rgba(0,0,0,0.7)); }
     .wave { height: 40px; border-radius: 8px; background: linear-gradient(90deg, rgba(255,83,217,0.2), rgba(45,226,255,0.2)); border: 1px solid var(--border); }
+    .spectral-preview { width: 100%; max-height: 140px; border-radius: 8px; border: 1px solid var(--border); display: block; object-fit: fill; background: #031b2d; }
     .rack { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.25); }
     .rack h3 { margin: 0 0 8px 0; }
     .slider-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; color: var(--muted); }
@@ -202,6 +203,15 @@
       <div class="preview">
         <div class="video-wrap">
           <video id="player" ref="videoPlayer" autoplay muted playsinline></video>
+          <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
+          <audio
+            ref="avSyncAudio"
+            data-testid="av-sync-audio"
+            preload="auto"
+            playsinline
+            style="display:none"
+            :src="audio.objectUrl || undefined"
+          ></audio>
           <div class="overlay">
             <div style="font-size: 14px; font-weight: 700;">Defora · Session: {{ session }}</div>
             <div>Seed {{ hud.seed }}</div>
@@ -261,7 +271,13 @@
         </div>
         
         <div class="timeline" style="margin-top: 4px;">
-          <div class="wave"></div>
+          <template v-if="audio.objectUrl">
+            <div style="display:flex; gap:4px; align-items:stretch;">
+              <img v-if="audioSpectrogramDataUrl" class="spectral-preview" style="height:40px; flex:1; min-width:0;" :src="audioSpectrogramDataUrl" alt="Offline spectrogram" />
+              <canvas ref="liveSpectrumCanvasStrip" width="160" height="40" style="flex:0 0 160px; width:160px; height:40px; border-radius:8px; border:1px solid var(--border); background:#031b2d;" aria-label="Live spectrum"></canvas>
+            </div>
+          </template>
+          <div v-else class="wave"></div>
         </div>
       </div>
 
@@ -305,6 +321,26 @@
               <div class="framesync-subtitle" style="margin-top:16px;">Motion Presets</div>
               <div class="framesync-footer" style="margin-top:8px;">
                 <button class="framesync-button" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🔊 Reference <span class="framesync-accent">A/V sync</span></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">
+                Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.
+              </div>
+              <div style="margin-top:10px;">
+                <label class="framesync-subtitle" style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" data-testid="av-sync-enable" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
+                </label>
+              </div>
+              <div style="margin-top:10px;">
+                <div class="framesync-subtitle">Video lead (seconds)</div>
+                <input type="number" data-testid="av-sync-lead" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
+                <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
               </div>
             </div>
           </div>
@@ -673,6 +709,54 @@
               </div>
               <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
               <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
+              <div
+                v-if="Number(sequencer.durationSec) > 0"
+                style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;"
+                title="Scene markers (click to jump)"
+              >
+                <div style="position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;"></div>
+                <div
+                  v-for="(m, mi) in sortedSequencerMarkers"
+                  :key="'mk-'+mi+'-'+(m.t || 0)"
+                  style="position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;"
+                  :style="{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }"
+                >
+                  <button
+                    type="button"
+                    class="framesync-button"
+                    style="position:absolute; left:50%; transform:translateX(-50%); top:0; padding:2px 6px; font-size:9px; max-width:72px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                    :title="m.name + ' @ ' + m.t.toFixed(2) + 's'"
+                    @click="jumpToSequencerMarker(m)"
+                  >{{ m.name }}</button>
+                </div>
+                <div
+                  :style="{
+                    position: 'absolute',
+                    top: '0',
+                    bottom: '0',
+                    width: '3px',
+                    marginLeft: '-1.5px',
+                    background: '#ff8a1a',
+                    boxShadow: '0 0 6px #ff8a1a',
+                    zIndex: 3,
+                    pointerEvents: 'none',
+                    borderRadius: '1px',
+                    left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%',
+                  }"
+                ></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:12px;">Scene markers</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
+                <input type="text" class="framesync-input" style="max-width:160px; font-size:11px;" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
+                <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
+              </div>
+              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
+                <span v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
+                  <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
+                  <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
+                </span>
+              </div>
+              <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
                 <button type="button" class="framesync-button" @click="toggleSequencerPlayback">{{ sequencerPlaying ? '⏹ Stop' : '▶ Play' }}</button>
                 <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
@@ -702,8 +786,14 @@
                   <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
                 </div>
                 <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
-                  <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px;">
+                  <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
                     t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
+                    <select class="framesync-input" style="font-size:10px; max-width:110px; padding:2px 4px;" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
+                      <option value="linear">linear</option>
+                      <option value="easeIn">easeIn</option>
+                      <option value="easeOut">easeOut</option>
+                      <option value="easeInOut">easeInOut</option>
+                    </select>
                     <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
                   </span>
                   <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
@@ -817,6 +907,18 @@
                       <span class="framesync-dot"></span> Sync to audio
                     </div>
                   </div>
+                </div>
+              </div>
+
+              <div v-if="audio.uploadedFile" class="framesync-panel" style="margin-top:12px;">
+                <div class="framesync-subtitle">📡 Spectral overview</div>
+                <div style="font-size:10px; color:#7fb3d6; margin-bottom:6px;">Time → · Low frequency at bottom (offline FFT after upload).</div>
+                <img v-if="audioSpectrogramDataUrl" class="spectral-preview" :src="audioSpectrogramDataUrl" alt="Spectrogram" />
+                <div v-else-if="audioSpectrogramStatus" class="framesync-list" style="font-style:italic;">{{ audioSpectrogramStatus }}</div>
+                <div v-if="audio.objectUrl" style="margin-top:10px;">
+                  <div class="framesync-subtitle" style="font-size:11px;">🔊 Live spectrum</div>
+                  <div style="font-size:9px; color:#7fb3d6; margin-bottom:4px;">FFT bars while the reference track plays (LIVE: enable sync + play video, or any playback of the upload).</div>
+                  <canvas ref="liveSpectrumCanvas" width="280" height="56" style="width:100%; max-width:100%; height:56px; border-radius:8px; border:1px solid #0c3048; background:#031b2d;" aria-label="Live spectrum"></canvas>
                 </div>
               </div>
 
@@ -1153,6 +1255,7 @@
             <span class="chip" v-for="tr in sequencer.tracks" :key="'ctx-'+tr.id">{{ tr.param }} ({{ (tr.keyframes && tr.keyframes.length) || 0 }} kf)</span>
           </div>
           <div style="font-size:12px; color:var(--muted); margin-top:8px;">Playhead {{ sequencerPlayhead.toFixed(2) }}s / {{ sequencer.durationSec }}s · {{ sequencerPlaying ? 'playing' : 'stopped' }}</div>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px;">Scene markers: {{ sortedSequencerMarkers.length }}</div>
         </div>
 
         <div v-else-if="currentTab==='MODULATION'">
@@ -1162,7 +1265,8 @@
             <span class="chip" v-for="m in macrosRack.filter(x => x.on)" :key="'ctx-mac'+m.target">Macro: {{ m.target }}</span>
           </div>
           <div v-if="audio.uploadedFile" style="margin-top:8px;">
-            <div class="wave" style="height:80px; background:#11182a; margin-bottom:8px;"></div>
+            <img v-if="audioSpectrogramDataUrl" class="spectral-preview" style="height:80px; margin-bottom:8px;" :src="audioSpectrogramDataUrl" alt="Spectrogram" />
+            <div v-else class="wave" style="height:80px; background:#11182a; margin-bottom:8px;"></div>
             <div style="font-size:12px; color:var(--muted);">Audio mappings: {{ audioMappings.filter(m => m.param).length }} active</div>
           </div>
         </div>
@@ -1199,6 +1303,171 @@
 
   <script>
     const { createApp } = Vue;
+
+    function fftRadix2(re, im) {
+      const n = re.length;
+      let j = 0;
+      for (let i = 1; i < n; i++) {
+        let bit = n >>> 1;
+        for (; (j & bit) !== 0; bit >>>= 1) j ^= bit;
+        j ^= bit;
+        if (i < j) {
+          const tr = re[i];
+          re[i] = re[j];
+          re[j] = tr;
+          const ti = im[i];
+          im[i] = im[j];
+          im[j] = ti;
+        }
+      }
+      for (let len = 2; len <= n; len <<= 1) {
+        const ang = (-2 * Math.PI) / len;
+        const wlenRe = Math.cos(ang);
+        const wlenIm = Math.sin(ang);
+        for (let i = 0; i < n; i += len) {
+          let wRe = 1;
+          let wIm = 0;
+          for (let j = 0; j < len / 2; j++) {
+            const k = i + j + len / 2;
+            const tre = re[k] * wRe - im[k] * wIm;
+            const tim = re[k] * wIm + im[k] * wRe;
+            re[k] = re[i + j] - tre;
+            im[k] = im[i + j] - tim;
+            re[i + j] += tre;
+            im[i + j] += tim;
+            const nwRe = wRe * wlenRe - wIm * wlenIm;
+            const nwIm = wRe * wlenIm + wIm * wlenRe;
+            wRe = nwRe;
+            wIm = nwIm;
+          }
+        }
+      }
+    }
+
+    function spectrogramHeatColor(u) {
+      const x = Math.min(1, Math.max(0, Math.pow(u, 0.48)));
+      const r = Math.floor(6 + x * (200 + 55 * (1 - x)));
+      const g = Math.floor(18 + x * 190 + (1 - x) * 40);
+      const b = Math.floor(44 + x * 255);
+      return [r, g, b];
+    }
+
+    function buildSpectrogramRgba(audioBuffer, opts) {
+      opts = opts || {};
+      const fftSize = opts.fftSize || 2048;
+      const numCols = opts.numCols || 280;
+      const numRows = opts.numRows || 72;
+      const maxDurationSec = opts.maxDurationSec || 120;
+      if ((fftSize & (fftSize - 1)) !== 0) return null;
+      const sr = audioBuffer.sampleRate;
+      const nCh = audioBuffer.numberOfChannels;
+      const len0 = audioBuffer.length;
+      const maxSamples = Math.min(len0, Math.floor(sr * maxDurationSec));
+      const mono = new Float32Array(maxSamples);
+      if (nCh === 1) {
+        mono.set(audioBuffer.getChannelData(0).subarray(0, maxSamples));
+      } else {
+        for (let c = 0; c < nCh; c++) {
+          const ch = audioBuffer.getChannelData(c);
+          for (let i = 0; i < maxSamples; i++) mono[i] += ch[i];
+        }
+        const inv = 1 / nCh;
+        for (let i = 0; i < maxSamples; i++) mono[i] *= inv;
+      }
+      const winLen = fftSize;
+      if (maxSamples < winLen + 8) return null;
+      const re = new Float32Array(fftSize);
+      const im = new Float32Array(fftSize);
+      const magScratch = new Float32Array(fftSize / 2);
+      const grid = new Float32Array(numCols * numRows);
+      let maxVal = 1e-12;
+      const nBins = fftSize / 2;
+      const colStrideMax = maxSamples - winLen;
+      for (let col = 0; col < numCols; col++) {
+        const start = Math.floor((col / Math.max(1, numCols - 1)) * colStrideMax);
+        for (let i = 0; i < winLen; i++) {
+          const w = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (winLen - 1 || 1));
+          re[i] = mono[start + i] * w;
+          im[i] = 0;
+        }
+        fftRadix2(re, im);
+        for (let b = 1; b < nBins; b++) {
+          const mr = re[b];
+          const mi = im[b];
+          magScratch[b] = Math.sqrt(mr * mr + mi * mi + 1e-24);
+        }
+        for (let yi = 0; yi < numRows; yi++) {
+          const binLo = 1 + Math.floor(((nBins - 2) * yi) / numRows);
+          const binHi = 1 + Math.floor(((nBins - 2) * (yi + 1)) / numRows);
+          let s = 0;
+          let cnt = 0;
+          for (let b = binLo; b <= binHi; b++) {
+            s += magScratch[b];
+            cnt += 1;
+          }
+          const v = cnt ? s / cnt : 0;
+          const yr = numRows - 1 - yi;
+          grid[yr * numCols + col] = v;
+          if (v > maxVal) maxVal = v;
+        }
+      }
+      const W = numCols;
+      const H = numRows;
+      const data = new Uint8ClampedArray(W * H * 4);
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          const v = grid[y * W + x] / maxVal;
+          const [r, g, b] = spectrogramHeatColor(v);
+          const p = (y * W + x) * 4;
+          data[p] = r;
+          data[p + 1] = g;
+          data[p + 2] = b;
+          data[p + 3] = 255;
+        }
+      }
+      return { width: W, height: H, data };
+    }
+
+    function paintLiveSpectrumBandBars(ctx2, freqBytes, width, height) {
+      const n = freqBytes.length;
+      const bars = 36;
+      ctx2.fillStyle = "#031b2d";
+      ctx2.fillRect(0, 0, width, height);
+      const barW = width / bars;
+      for (let b = 0; b < bars; b++) {
+        const i0 = Math.floor((b * n) / bars);
+        const i1 = Math.max(i0 + 1, Math.floor(((b + 1) * n) / bars));
+        let m = 0;
+        for (let i = i0; i < i1; i++) m = Math.max(m, freqBytes[i] / 255);
+        const bh = Math.max(1, m * (height - 2));
+        let fill = "#0c3048";
+        if (m > 0.06) fill = "#2de2ff";
+        if (m > 0.22) fill = "#ff8a1a";
+        if (m > 0.42) fill = "#ff53d9";
+        ctx2.fillStyle = fill;
+        ctx2.fillRect(b * barW + 0.5, height - bh, Math.max(1, barW - 1.5), bh);
+      }
+    }
+
+    function spectrogramRgbaToDataUrl(spec) {
+      if (!spec || !spec.data || typeof document === "undefined" || !document.createElement) return null;
+      const canvas = document.createElement("canvas");
+      const W = spec.width;
+      const H = spec.height;
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext("2d");
+      if (!ctx || !ctx.createImageData) return null;
+      const img = ctx.createImageData(W, H);
+      img.data.set(spec.data);
+      ctx.putImageData(img, 0, 0);
+      try {
+        return canvas.toDataURL("image/png");
+      } catch (_e) {
+        return null;
+      }
+    }
+
     createApp({
       data() {
         return {
@@ -1268,7 +1537,12 @@
           },
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
           xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
-          audio: { track: "", bpm: 114.8, uploadedFile: null },
+          audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
+          audioSpectrogramDataUrl: null,
+          audioSpectrogramStatus: "",
+          _spectrogramGen: 0,
+          avSyncEnabled: false,
+          avSyncLeadSec: 4,
           audioStatus: "Idle",
           audioMappings: [
             { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
@@ -1408,7 +1682,7 @@
           previewBarCollapsed: false,
           apiHealth: { sdForge: { available: null, lastChecked: null, pollIntervalMs: 0 } },
           apiStatusTimer: null,
-          sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [] },
+          sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [] },
           sequencerPlayhead: 0,
           sequencerPlaying: false,
           sequencerTimer: null,
@@ -1418,6 +1692,7 @@
           sequencerStatus: "",
           sequencerNewParam: "translation_x",
           sequencerKeyframeVal: 0,
+          sequencerMarkerName: "Scene",
           sequencerSelectedTrackId: null,
         };
       },
@@ -1445,6 +1720,10 @@
             freq_max: v.freq_max,
           }));
         },
+        sortedSequencerMarkers() {
+          const raw = (this.sequencer && this.sequencer.markers) || [];
+          return [...raw].sort((a, b) => a.t - b.t);
+        },
       },
       mounted() {
         this.attachPlayer();
@@ -1466,6 +1745,7 @@
         this.beatTimer = setInterval(() => this.processBeat(), 50);
       },
       beforeUnmount() {
+        this.disposeLiveAudioAnalyser();
         this.stopSequencerPlayback();
         if (this.framesTimer) clearInterval(this.framesTimer);
         if (this.apiStatusTimer) clearInterval(this.apiStatusTimer);
@@ -1570,15 +1850,52 @@
               const s = (t % 60).toFixed(2).padStart(5, "0");
               this.timecode = `${String(m).padStart(2, "0")}:${s}`;
             }
+            this.syncReferenceAudioToVideo(video);
           };
           this.errorHandler = () => {
             setTimeout(() => this.attachPlayer(), 800);
           };
           video.addEventListener("timeupdate", this.timeHandler);
           video.addEventListener("error", this.errorHandler);
-          video.addEventListener("play", () => { this.isPlaying = true; });
-          video.addEventListener("pause", () => { this.isPlaying = false; });
+          video.addEventListener("play", () => {
+            this.isPlaying = true;
+            this.syncAvAudioPlayState(true, video);
+          });
+          video.addEventListener("pause", () => {
+            this.isPlaying = false;
+            this.syncAvAudioPlayState(false, video);
+          });
           this.autoplayVideo(video);
+        },
+        syncReferenceAudioToVideo(video) {
+          if (!this.avSyncEnabled || !this.audio.objectUrl) return;
+          const v = video || this.playerEl;
+          const a = this.$refs.avSyncAudio;
+          if (!v || !a || v.paused) return;
+          const lag = Number(this.avSyncLeadSec);
+          const L = Number.isFinite(lag) && lag >= 0 ? lag : 4;
+          const target = Math.max(0, v.currentTime - L);
+          if (Math.abs(a.currentTime - target) > 0.12) {
+            try {
+              a.currentTime = target;
+            } catch (_e) {
+              /* ignore seek errors on sparse codecs */
+            }
+          }
+          if (a.paused) {
+            a.play().catch(() => {});
+          }
+        },
+        syncAvAudioPlayState(playing, video) {
+          const a = this.$refs.avSyncAudio;
+          if (!a || !this.avSyncEnabled || !this.audio.objectUrl) return;
+          const v = video || this.playerEl;
+          if (playing && v) {
+            this.syncReferenceAudioToVideo(v);
+            a.play().catch(() => {});
+          } else {
+            a.pause();
+          }
         },
         autoplayVideo(video) {
           const el = video || this.playerEl;
@@ -2167,17 +2484,204 @@
             this.presetStatus = `Error deleting preset: ${err.message}`;
           }
         },
+        invalidateAudioSpectrogram() {
+          this._spectrogramGen = (this._spectrogramGen || 0) + 1;
+          this.audioSpectrogramDataUrl = null;
+          this.audioSpectrogramStatus = "";
+        },
+        scheduleAudioSpectrogramDecode(expectedGen) {
+          if (typeof setTimeout !== "function") return;
+          setTimeout(() => {
+            this.runAudioSpectrogramFromObjectUrl(expectedGen).catch(() => {});
+          }, 0);
+        },
+        async runAudioSpectrogramFromObjectUrl(expectedGen) {
+          const AC = typeof AudioContext !== "undefined" ? AudioContext : typeof webkitAudioContext !== "undefined" ? webkitAudioContext : null;
+          if (!AC || !this.audio.objectUrl || typeof fetch !== "function") {
+            if (expectedGen === this._spectrogramGen) this.audioSpectrogramStatus = "";
+            return;
+          }
+          if (expectedGen !== this._spectrogramGen) return;
+          let ctx = null;
+          try {
+            const res = await fetch(this.audio.objectUrl);
+            const ab = await res.arrayBuffer();
+            if (expectedGen !== this._spectrogramGen) return;
+            ctx = new AC();
+            const audioBuf = await ctx.decodeAudioData(ab.slice(0));
+            if (expectedGen !== this._spectrogramGen) return;
+            const rgba = buildSpectrogramRgba(audioBuf, {});
+            if (!rgba) {
+              this.audioSpectrogramStatus = "";
+              return;
+            }
+            const dataUrl = spectrogramRgbaToDataUrl(rgba);
+            if (expectedGen !== this._spectrogramGen) return;
+            this.audioSpectrogramDataUrl = dataUrl;
+            this.audioSpectrogramStatus = dataUrl ? "" : "";
+          } catch (_e) {
+            if (expectedGen === this._spectrogramGen) this.audioSpectrogramStatus = "";
+          } finally {
+            try {
+              if (ctx && typeof ctx.close === "function") await ctx.close();
+            } catch (_e2) {
+              /* ignore */
+            }
+          }
+        },
+        spectrogramFromAudioBuffer(audioBuffer, opts) {
+          return buildSpectrogramRgba(audioBuffer, opts || {});
+        },
+        disposeLiveAudioAnalyser() {
+          if (this._liveSpecRaf != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(this._liveSpecRaf);
+          }
+          this._liveSpecRaf = null;
+          const el = this.$refs && this.$refs.avSyncAudio;
+          if (el && this._liveSpecMediaHandlers) {
+            const h = this._liveSpecMediaHandlers;
+            if (h.play) el.removeEventListener("play", h.play);
+            if (h.pause) el.removeEventListener("pause", h.pause);
+            this._liveSpecMediaHandlers = null;
+          }
+          try {
+            if (this._liveSpecSource && typeof this._liveSpecSource.disconnect === "function") this._liveSpecSource.disconnect();
+          } catch (_e) {
+            /* ignore */
+          }
+          try {
+            if (this._liveSpecAnalyser && typeof this._liveSpecAnalyser.disconnect === "function") this._liveSpecAnalyser.disconnect();
+          } catch (_e2) {
+            /* ignore */
+          }
+          try {
+            if (this._liveSpecGain && typeof this._liveSpecGain.disconnect === "function") this._liveSpecGain.disconnect();
+          } catch (_e3) {
+            /* ignore */
+          }
+          const ctx = this._liveSpecCtx;
+          this._liveSpecCtx = null;
+          this._liveSpecSource = null;
+          this._liveSpecAnalyser = null;
+          this._liveSpecGain = null;
+          this._liveSpecFreqBuf = null;
+          if (ctx && typeof ctx.close === "function") {
+            try {
+              void ctx.close();
+            } catch (_e4) {
+              /* ignore */
+            }
+          }
+        },
+        setupLiveAudioAnalyser() {
+          const AC = typeof AudioContext !== "undefined" ? AudioContext : typeof webkitAudioContext !== "undefined" ? webkitAudioContext : null;
+          if (!AC) return;
+          this.disposeLiveAudioAnalyser();
+          const el = this.$refs && this.$refs.avSyncAudio;
+          if (!el || !this.audio.objectUrl) return;
+          try {
+            const ctx = new AC();
+            const source = ctx.createMediaElementSource(el);
+            const analyser = ctx.createAnalyser();
+            analyser.fftSize = 1024;
+            analyser.smoothingTimeConstant = 0.78;
+            const gain = ctx.createGain();
+            gain.gain.value = 1;
+            source.connect(analyser);
+            analyser.connect(gain);
+            gain.connect(ctx.destination);
+            this._liveSpecCtx = ctx;
+            this._liveSpecSource = source;
+            this._liveSpecAnalyser = analyser;
+            this._liveSpecGain = gain;
+            this._liveSpecFreqBuf = new Uint8Array(analyser.frequencyBinCount);
+            const onPlay = () => this.onLiveAudioPlay();
+            const onPause = () => this.onLiveAudioPause();
+            el.addEventListener("play", onPlay);
+            el.addEventListener("pause", onPause);
+            this._liveSpecMediaHandlers = { play: onPlay, pause: onPause };
+            if (!el.paused) this.onLiveAudioPlay();
+          } catch (_e) {
+            this.disposeLiveAudioAnalyser();
+          }
+        },
+        onLiveAudioPlay() {
+          try {
+            if (this._liveSpecCtx && this._liveSpecCtx.state === "suspended" && typeof this._liveSpecCtx.resume === "function") {
+              void this._liveSpecCtx.resume();
+            }
+          } catch (_e) {
+            /* ignore */
+          }
+          this.scheduleLiveSpectrumFrame();
+        },
+        onLiveAudioPause() {
+          if (this._liveSpecRaf != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(this._liveSpecRaf);
+          }
+          this._liveSpecRaf = null;
+          this.paintLiveSpectrumCanvases(null);
+        },
+        scheduleLiveSpectrumFrame() {
+          if (this._liveSpecRaf != null) return;
+          if (typeof requestAnimationFrame !== "function") return;
+          this._liveSpecRaf = requestAnimationFrame(() => {
+            this._liveSpecRaf = null;
+            const el = this.$refs && this.$refs.avSyncAudio;
+            const analyser = this._liveSpecAnalyser;
+            const buf = this._liveSpecFreqBuf;
+            if (!analyser || !buf) return;
+            if (el && !el.paused && !el.ended) {
+              analyser.getByteFrequencyData(buf);
+              this.paintLiveSpectrumCanvases(buf);
+              this.scheduleLiveSpectrumFrame();
+            } else {
+              this.paintLiveSpectrumCanvases(null);
+            }
+          });
+        },
+        paintLiveSpectrumCanvases(freqBytes) {
+          const canvases = [this.$refs.liveSpectrumCanvas, this.$refs.liveSpectrumCanvasStrip].filter(Boolean);
+          for (const c of canvases) {
+            if (!c || !c.getContext) continue;
+            const ctx2 = c.getContext("2d");
+            if (!ctx2) continue;
+            const w = c.width || 280;
+            const h = c.height || 56;
+            if (!freqBytes || !freqBytes.length) {
+              ctx2.fillStyle = "#031b2d";
+              ctx2.fillRect(0, 0, w, h);
+              continue;
+            }
+            paintLiveSpectrumBandBars(ctx2, freqBytes, w, h);
+          }
+        },
         // Audio file upload methods
         async handleAudioUpload(evt) {
           const file = evt.target.files[0];
           if (!file) return;
+          this.disposeLiveAudioAnalyser();
+          this.invalidateAudioSpectrogram();
           const maxSizeBytes = 50 * 1024 * 1024; // 50MB
-          if (file.size > maxSizeBytes) {
+          if (file.size != null && file.size > maxSizeBytes) {
             this.audioStatus = "Audio file is too large. Maximum supported size is 50MB.";
             if (evt && evt.target) {
               evt.target.value = "";
             }
             return;
+          }
+          if (this.audio.objectUrl) {
+            try {
+              URL.revokeObjectURL(this.audio.objectUrl);
+            } catch (_e) {}
+            this.audio.objectUrl = null;
+          }
+          if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof Blob !== "undefined" && file instanceof Blob) {
+            try {
+              this.audio.objectUrl = URL.createObjectURL(file);
+            } catch (_e) {
+              this.audio.objectUrl = null;
+            }
           }
           this.audioStatus = "Uploading audio…";
           try {
@@ -2199,14 +2703,53 @@
             this.audio.uploadedFile = file.name;
             this.audio.track = json.path || file.name;
             this.audioStatus = "Audio uploaded";
+            const gen = this._spectrogramGen;
+            if (this.audio.objectUrl) {
+              this.audioSpectrogramStatus = "Analyzing…";
+              this.scheduleAudioSpectrogramDecode(gen);
+            }
+            const scheduleSetup = () => {
+              try {
+                this.setupLiveAudioAnalyser();
+              } catch (_e) {
+                /* ignore */
+              }
+            };
+            if (typeof this.$nextTick === "function") this.$nextTick(scheduleSetup);
+            else setTimeout(scheduleSetup, 0);
           } catch (err) {
-            this.audioStatus = String(err);
+            if (this.audio.objectUrl) {
+              try {
+                URL.revokeObjectURL(this.audio.objectUrl);
+              } catch (_e2) {}
+              this.audio.objectUrl = null;
+            }
+            this.audioStatus = String(err && err.message ? err.message : err);
             console.error("Audio upload failed:", err);
+            this.invalidateAudioSpectrogram();
+            this.disposeLiveAudioAnalyser();
           }
         },
         clearAudioFile() {
+          this.disposeLiveAudioAnalyser();
+          this.invalidateAudioSpectrogram();
           this.audio.uploadedFile = null;
           this.audio.track = "";
+          if (this.audio.objectUrl) {
+            try {
+              URL.revokeObjectURL(this.audio.objectUrl);
+            } catch (_e) {}
+            this.audio.objectUrl = null;
+          }
+          this.avSyncEnabled = false;
+          const a = this.$refs.avSyncAudio;
+          if (a) {
+            try {
+              if (typeof a.pause === "function") a.pause();
+            } catch (_e) {
+              /* jsdom / headless may not implement media pause */
+            }
+          }
           this.audioStatus = "Idle";
           if (this.$refs.audioFileInput) {
             this.$refs.audioFileInput.value = "";
@@ -2260,12 +2803,34 @@
         sortedKeyframes(tr) {
           return [...(tr.keyframes || [])].sort((a, b) => a.t - b.t);
         },
+        setKeyframeEasing(kf, mode) {
+          if (!kf) return;
+          kf.easing = mode === "linear" ? undefined : mode;
+        },
+        sequencerEaseT(u, mode) {
+          const uu = Math.min(1, Math.max(0, u));
+          const m = mode || "linear";
+          if (m === "easeIn") return uu * uu * uu;
+          if (m === "easeOut") return 1 - (1 - uu) ** 3;
+          if (m === "easeInOut") {
+            if (uu < 0.5) return 4 * uu * uu * uu;
+            return 1 - (-2 * uu + 2) ** 3 / 2;
+          }
+          return uu;
+        },
         sequencerPayload() {
+          const markers = Array.isArray(this.sequencer.markers)
+            ? [...this.sequencer.markers]
+                .map((m) => ({ t: Number(m.t), name: String(m.name || "").trim() }))
+                .filter((m) => m.name && Number.isFinite(m.t))
+                .sort((a, b) => a.t - b.t)
+            : [];
           return {
             version: 1,
             durationSec: Number(this.sequencer.durationSec),
             fps: Number(this.sequencer.fps),
             loop: !!this.sequencer.loop,
+            markers,
             tracks: this.sequencer.tracks.map((tr) => ({
               id: tr.id,
               param: tr.param,
@@ -2273,10 +2838,52 @@
             })),
           };
         },
+        clampSequencerMarkers() {
+          const d = Number(this.sequencer.durationSec) || 0;
+          const arr = this.sequencer.markers;
+          if (!Array.isArray(arr)) return;
+          for (const m of arr) {
+            if (!m || typeof m.t !== "number") continue;
+            if (m.t < 0) m.t = 0;
+            if (m.t > d) m.t = d;
+          }
+        },
         clampSequencerPlayhead() {
           const d = Number(this.sequencer.durationSec) || 0;
           if (this.sequencerPlayhead < 0) this.sequencerPlayhead = 0;
           if (this.sequencerPlayhead > d) this.sequencerPlayhead = d;
+          this.clampSequencerMarkers();
+        },
+        addSequencerMarker() {
+          this.clampSequencerPlayhead();
+          const d = Number(this.sequencer.durationSec) || 0;
+          let name = (this.sequencerMarkerName || "").trim() || "Scene";
+          if (name.length > 48) name = name.slice(0, 48);
+          if (!/^[a-zA-Z0-9_ \-.]+$/.test(name)) {
+            this.sequencerStatus = "Marker label: letters, digits, space, underscore, hyphen, dot only";
+            return;
+          }
+          if (!Array.isArray(this.sequencer.markers)) this.sequencer.markers = [];
+          if (this.sequencer.markers.length >= 64) {
+            this.sequencerStatus = "Maximum 64 markers";
+            return;
+          }
+          const t = Math.min(Math.max(0, this.sequencerPlayhead), d);
+          this.sequencer.markers.push({ t, name });
+          this.sequencerStatus = "";
+        },
+        removeSequencerMarker(sortedIdx) {
+          const sorted = this.sortedSequencerMarkers;
+          const victim = sorted[sortedIdx];
+          if (!victim || !Array.isArray(this.sequencer.markers)) return;
+          const ix = this.sequencer.markers.indexOf(victim);
+          if (ix >= 0) this.sequencer.markers.splice(ix, 1);
+        },
+        jumpToSequencerMarker(m) {
+          if (!m || typeof m.t !== "number") return;
+          const d = Number(this.sequencer.durationSec) || 0;
+          this.sequencerPlayhead = Math.min(Math.max(0, m.t), d);
+          this.previewSequencerFrame();
         },
         interpolateTrack(tr, tSec) {
           const dur = Number(this.sequencer.durationSec) || 0;
@@ -2290,8 +2897,12 @@
           const a = kf[i];
           const b = kf[i + 1];
           if (!b) return a.v;
-          const u = (t - a.t) / (b.t - a.t);
-          return a.v + u * (b.v - a.v);
+          const span = b.t - a.t;
+          if (span <= 0) return a.v;
+          const u = (t - a.t) / span;
+          const ease = a.easing || "linear";
+          const w = this.sequencerEaseT(u, ease);
+          return a.v + w * (b.v - a.v);
         },
         applySequencerAt(tSec) {
           const payload = {};
@@ -2433,6 +3044,11 @@
             if (tl.durationSec != null) this.sequencer.durationSec = tl.durationSec;
             if (tl.fps != null) this.sequencer.fps = tl.fps;
             this.sequencer.loop = tl.loop !== false;
+            this.sequencer.markers = Array.isArray(tl.markers)
+              ? tl.markers
+                  .map((m) => ({ t: Number(m.t), name: String(m.name || "").trim() }))
+                  .filter((m) => m.name && Number.isFinite(m.t))
+              : [];
             this.sequencer.tracks = Array.isArray(tl.tracks)
               ? tl.tracks.map((tr) => ({
                   id: tr.id || "tr-" + Math.random().toString(36).slice(2),

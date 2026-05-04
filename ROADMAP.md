@@ -17,8 +17,8 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **MIDI** described as a separate “tab” | Web MIDI and mappings live under **SETTINGS** (see `docs/WEB_UI_TABS.md`); not a top-level tab | **Done**: README wording + roadmap cross-links |
 | **Seven** UI areas (incl. **LORA** tab) vs older “6 tabs” copy | The hosted `index.html` includes a dedicated **LORA** tab; some docs still said six tabs | **Done**: `docs/WEB_UI_TABS.md` updated |
 | **TUI LoRA** “integrated in PROMPTS (F2)” | README historically pointed at PROMPTS; **F3 LORA** tab now hosts slots + export | **Done** (mediator push still Forge/UI dependent) |
-| **MOTION: Camera curves** (README screenshots) | Sequencer MVP ships linear keyframes + playback; bezier/easing & rich curve editor still open | [Animation Sequencer](#animation-sequencer) (medium-term polish) |
-| **Multi-band / “spectral” audio** (marketing language) | Named Hz presets (`bass_mid_high` CLI layout + Web band chips); envelope follower + `--smooth` on curves; **spectral waveform viz** still optional | Partial → polish in Advanced Audio |
+| **MOTION: Camera curves** (README screenshots) | Sequencer supports per-segment cubic easing; bezier handles & rich curve editor still optional polish | [Animation Sequencer](#animation-sequencer) |
+| **Multi-band / “spectral” audio** (marketing language) | Named Hz presets (`bass_mid_high` CLI layout + Web band chips); envelope follower + `--smooth` on curves; **offline spectrogram** + **live `AnalyserNode`** bars (reference `<audio>`) on Web upload | **Done (MVP)** · richer live viz / metering polish optional |
 | **Stream stack** (RTMP, HLS, bridge, RabbitMQ) | Implemented; ensure ops docs stay linked from README | Done (monitor `docs/streaming_stack.md`) |
 | **`deforumation_dashboard`** | Listed in README; treat as first-class like other CLIs | Done (see [Current Features](#current-features-completed)) |
 
@@ -31,6 +31,10 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **3** | **TUI / audio depth** | Dedicated **TUI LORA** tab (F3): A/B slots, crossfader, save/load `DEFORA_TUI_LORA_STATE`, export `.preset.json`; **audio**: `--band-layout bass_mid_high`, `--smooth`, `--envelope-*` in `audio_reactive_modulator`; Web MODULATION **freq band quick-picks** | **Done** |
 | **4** | **img2img & plugins** | `forge_cli img2img`; Web **PROMPTS** img2img panel + `POST /api/img2img`; `GET /api/plugins` + `PLUGINS_DIR`; `audio_reactive_modulator --post-plugin` (`module:function`); inpainting / richer plugin UI = future polish | **Done (MVP)** |
 | **5** | **Inpainting & registry UX** | Optional mask on `POST /api/img2img` + `forge_cli img2img --mask-image` (blur, fill, full-res flags); Web mask file + inpaint controls; **PROMPTS** lists `GET /api/plugins` entries | **Done (MVP)** |
+| **6** | **Sequencer easing (MVP)** | Optional `easing` per keyframe segment (`linear` / `easeIn` / `easeOut` / `easeInOut`); MOTION keyframe row control; `validateTimeline` + API docs | **Done** |
+| **7** | **Spectral audio overview (MVP)** | After upload: `AudioContext.decodeAudioData` + Hann-window FFT spectrogram (PNG); MODULATION “Spectral overview”, LIVE timeline strip, context strip; roadmap/docs/tests | **Done** |
+| **8** | **Live spectral bars (MVP)** | `MediaElementAudioSourceNode` + `AnalyserNode` on `avSyncAudio`; FFT band bars on MODULATION canvas + LIVE strip while reference track plays; dispose on clear/unmount; tests | **Done** |
+| **9** | **Sequencer scene markers (MVP)** | Optional `markers[]` on timeline (`t`, `name`); `validateTimeline`; MOTION rail + list, jump + delete, save/load/export; API tests + docs | **Done** |
 
 ---
 
@@ -67,14 +71,14 @@ Defora is in **active development** with a strong foundation of core features im
 #### Web UI (Browser-based)
 - ✅ Multi-tab interface (LIVE, PROMPTS, LORA, MOTION, MODULATION, CONTROLNET, SETTINGS)
 - ✅ **PROMPTS img2img / inpainting**: optional mask + inpaint controls; plugin manifest list
-- ✅ **MOTION sequencer (MVP)**: keyframed `liveParam` tracks, save/load via API, export JSON
+- ✅ **MOTION sequencer**: keyframed `liveParam` tracks, per-segment easing, **scene markers**, save/load via API, export JSON
 - ✅ Real-time parameter sliders with WebSocket control
 - ✅ HLS video streaming with low latency
 - ✅ Beat-synchronized macro system
 - ✅ Web MIDI support with CC mapping
 - ✅ LoRA browser with crossfader and A/B grouping
 - ✅ Motion presets with parameter values
-- ✅ Audio waveform visualization
+- ✅ Audio waveform visualization (LIVE strip), **upload spectrogram** (FFT overview in MODULATION), and **live spectrum bars** while reference audio plays
 - ✅ LFO modulators (Sine, Triangle, Sawtooth, Square, Random)
 - ✅ Frame thumbnails and playback stats
 - ✅ Session overlay and custom video controls
@@ -295,7 +299,7 @@ Defora is in **active development** with a strong foundation of core features im
 - **Features**:
   - Multi-band audio mapping (bass, mids, highs)
   - Audio envelope followers
-  - Spectral analysis visualization
+  - **Spectral visualization**: ✅ offline FFT spectrogram after Web upload (Phase 7); ✅ live `AnalyserNode` band bars on reference playback (Phase 8)
   - MIDI clock sync for external sequencers
   - Audio recording from system audio
 
@@ -339,11 +343,11 @@ Defora is in **active development** with a strong foundation of core features im
 
 #### Animation Sequencer
 - **Priority**: High
-- **MVP (Phase 2)**: ✅ Linear keyframe tracks, server persistence (`GET/POST/DELETE /api/sequencer`), MOTION tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
+- **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), MOTION tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
 - **Remaining (polish)**:
   - Visual multi-track timeline strip (waveform-style lanes)
-  - Easing / bezier segments between keys
-  - Scene markers and transitions
+  - Custom bezier handles between keys
+  - Marker-driven transitions (actions beyond jump/playhead) — optional
   - Optional sync to audio BPM or frame counter from HLS
 
 #### ✅ Advanced Prompt System (COMPLETED in v0.2.9)

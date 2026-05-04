@@ -8,6 +8,16 @@ let createApp;
 let nextTick;
 
 function loadAppDefinition() {
+  if (typeof global.FileReader !== "function") {
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => {
+          if (typeof this.onload === "function") this.onload();
+        });
+      }
+    };
+  }
   const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
   const match = html.match(/<script>([\s\S]*?)<\/script>/);
   if (!match) throw new Error("App script not found");
@@ -34,11 +44,24 @@ function loadAppDefinition() {
     navigator: {},
     WebSocket: class {},
     location: { protocol: "http:", host: "localhost" },
-    document: { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
+    document:
+      typeof global.document !== "undefined" &&
+      global.document &&
+      typeof global.document.createElement === "function"
+        ? global.document
+        : { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
     // Proxy to the outer fetch so tests can stub/intercept network calls
     fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
     FileReader: global.FileReader,
+    URL: global.URL,
+    Blob: global.Blob,
+    File: global.File,
+    Buffer: global.Buffer,
     setInterval: () => 0,
+    setTimeout: global.setTimeout,
+    clearTimeout: global.clearTimeout,
+    requestAnimationFrame: (fn) => setTimeout(fn, 0),
+    cancelAnimationFrame: (id) => clearTimeout(id),
     console,
   };
 
@@ -153,11 +176,15 @@ describe("Deforumation Web UI", () => {
     // When audio is uploaded, audio mapping section becomes visible
     appVm.audio.uploadedFile = "song.wav";
     appVm.audio.track = "/tmp/song.wav";
+    appVm.audio.objectUrl = "blob:http://localhost/fake-audio";
     await nextTick();
     
     // Now audio mapping should be visible
     const allSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
     expect(allSubtitles.join(" ")).to.include("Audio → Parameter Mapping");
+    expect(allSubtitles.join(" ")).to.include("Spectral overview");
+    expect(allSubtitles.join(" ")).to.include("Live spectrum");
+    appVm.audio.objectUrl = null;
 
     appVm.switchTab("SETTINGS");
     await nextTick();
@@ -334,6 +361,41 @@ describe("Deforumation Web UI behavior", () => {
     delete global.fetch;
   });
 
+  it("disposeLiveAudioAnalyser is safe when nothing is wired", () => {
+    const instance = instantiate(appDef);
+    instance.disposeLiveAudioAnalyser();
+    instance.disposeLiveAudioAnalyser();
+    expect(instance._liveSpecCtx).to.equal(null);
+  });
+
+  it("spectrogramFromAudioBuffer returns RGBA heatmap for sine buffer", () => {
+    class FakeBuf {
+      constructor() {
+        this.sampleRate = 8000;
+        this.length = 8192;
+        this.numberOfChannels = 1;
+      }
+      getChannelData() {
+        const d = new Float32Array(this.length);
+        for (let i = 0; i < d.length; i++) {
+          d[i] = 0.45 * Math.sin((2 * Math.PI * 220 * i) / this.sampleRate);
+        }
+        return d;
+      }
+    }
+    const instance = instantiate(appDef);
+    const rgba = instance.spectrogramFromAudioBuffer(new FakeBuf());
+    expect(rgba).to.be.an("object");
+    expect(rgba.width).to.be.above(32);
+    expect(rgba.height).to.be.above(16);
+    expect(rgba.data.length).to.equal(rgba.width * rgba.height * 4);
+    let max = 0;
+    for (let i = 0; i < rgba.data.length; i += 4) {
+      max = Math.max(max, rgba.data[i] + rgba.data[i + 1] + rgba.data[i + 2]);
+    }
+    expect(max).to.be.above(40);
+  });
+
   it("handleAudioUpload posts file data and updates track", async () => {
     const calls = [];
     global.fetch = async (_url, opts) => {
@@ -415,5 +477,330 @@ describe("Deforumation Web UI behavior", () => {
     instance.sendPreset("NonExistent");
 
     expect(instance.ws.sent.length).to.equal(0);
+  });
+});
+
+describe("Reference A/V sync", () => {
+  let appDef;
+
+  beforeEach(() => {
+    appDef = loadAppDefinition();
+  });
+
+  function inst(extra = {}) {
+    return instantiate(appDef, extra);
+  }
+
+  it("syncReferenceAudioToVideo does nothing when sync is disabled", () => {
+    const audio = { currentTime: 0, paused: false, play: () => Promise.resolve() };
+    const instance = inst({ $refs: { avSyncAudio: audio }, avSyncEnabled: false, audio: { objectUrl: "blob:x" } });
+    instance.syncReferenceAudioToVideo({ currentTime: 99, paused: false });
+    expect(audio.currentTime).to.equal(0);
+  });
+
+  it("syncReferenceAudioToVideo does nothing without objectUrl", () => {
+    const audio = { currentTime: 0, paused: false };
+    const instance = inst({ $refs: { avSyncAudio: audio }, avSyncEnabled: true, audio: { objectUrl: null } });
+    instance.syncReferenceAudioToVideo({ currentTime: 10, paused: false });
+    expect(audio.currentTime).to.equal(0);
+  });
+
+  it("syncReferenceAudioToVideo does nothing when video is paused", () => {
+    const audio = { currentTime: 0, paused: false };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      avSyncLeadSec: 4,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncReferenceAudioToVideo({ currentTime: 20, paused: true });
+    expect(audio.currentTime).to.equal(0);
+  });
+
+  it("syncReferenceAudioToVideo seeks audio to video time minus lead when drift is large", () => {
+    const audio = { currentTime: 0, paused: true, play: () => Promise.resolve() };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      avSyncLeadSec: 5,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncReferenceAudioToVideo({ currentTime: 20, paused: false });
+    expect(audio.currentTime).to.equal(15);
+  });
+
+  it("syncReferenceAudioToVideo clamps target at zero", () => {
+    const audio = { currentTime: 0, paused: true, play: () => Promise.resolve() };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      avSyncLeadSec: 50,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncReferenceAudioToVideo({ currentTime: 3, paused: false });
+    expect(audio.currentTime).to.equal(0);
+  });
+
+  it("syncReferenceAudioToVideo does not seek when already within drift window", () => {
+    const audio = { currentTime: 9.95, paused: true, play: () => Promise.resolve() };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      avSyncLeadSec: 2,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncReferenceAudioToVideo({ currentTime: 12, paused: false });
+    expect(audio.currentTime).to.equal(9.95);
+  });
+
+  it("syncReferenceAudioToVideo uses default lead of 4 when avSyncLeadSec is NaN", () => {
+    const audio = { currentTime: 0, paused: true, play: () => Promise.resolve() };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      avSyncLeadSec: Number.NaN,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncReferenceAudioToVideo({ currentTime: 14, paused: false });
+    expect(audio.currentTime).to.equal(10);
+  });
+
+  it("syncAvAudioPlayState(true) seeks and plays when enabled with objectUrl", () => {
+    const audio = { currentTime: 0, paused: true, play: () => { audio.paused = false; return Promise.resolve(); } };
+    const video = { currentTime: 8, paused: false };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      avSyncLeadSec: 2,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncAvAudioPlayState(true, video);
+    expect(audio.currentTime).to.equal(6);
+    expect(audio.paused).to.equal(false);
+  });
+
+  it("syncAvAudioPlayState(false) pauses reference audio", () => {
+    const audio = { currentTime: 3, paused: false, pause: () => { audio.paused = true; } };
+    const instance = inst({
+      $refs: { avSyncAudio: audio },
+      avSyncEnabled: true,
+      audio: { objectUrl: "blob:x" },
+    });
+    instance.syncAvAudioPlayState(false, { paused: true });
+    expect(audio.paused).to.equal(true);
+  });
+
+  it("syncAvAudioPlayState is a no-op when sync disabled", () => {
+    let plays = 0;
+    const audio = { play: () => { plays += 1; return Promise.resolve(); }, pause: () => {} };
+    const instance = inst({ $refs: { avSyncAudio: audio }, avSyncEnabled: false, audio: { objectUrl: "blob:x" } });
+    instance.syncAvAudioPlayState(true, { currentTime: 1, paused: false });
+    expect(plays).to.equal(0);
+  });
+
+  it("handleAudioUpload assigns objectUrl for real File/Blob uploads", async () => {
+    global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/srv/out.wav" }) });
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    const wav = new File([Buffer.from("RIFFxxxxWAVEfmt ")], "clip.wav", { type: "audio/wav" });
+    const instance = inst();
+    await instance.handleAudioUpload({ target: { files: [wav] } });
+    expect(instance.audio.objectUrl).to.be.a("string").and.to.match(/^blob:/);
+    expect(instance.audio.track).to.equal("/srv/out.wav");
+    if (instance.audio.objectUrl) {
+      URL.revokeObjectURL(instance.audio.objectUrl);
+    }
+    delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("handleAudioUpload revokes objectUrl when upload fails after blob creation", async () => {
+    global.fetch = async () => ({ ok: false, json: async () => ({ error: "disk full" }) });
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    const wav = new File([Buffer.alloc(64)], "bad.wav", { type: "audio/wav" });
+    const instance = inst();
+    await instance.handleAudioUpload({ target: { files: [wav] } });
+    expect(instance.audio.objectUrl).to.equal(null);
+    expect(instance.audioStatus).to.include("disk full");
+    delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("clearAudioFile revokes objectUrl and disables av sync", async () => {
+    global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/tmp/a.wav" }) });
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    const wav = new File([Buffer.alloc(32)], "z.wav", { type: "audio/wav" });
+    const instance = inst({
+      avSyncEnabled: true,
+      $refs: { avSyncAudio: { pause: () => {} }, audioFileInput: { value: "" } },
+    });
+    await instance.handleAudioUpload({ target: { files: [wav] } });
+    expect(instance.audio.objectUrl).to.be.a("string");
+    instance.clearAudioFile();
+    expect(instance.audio.objectUrl).to.equal(null);
+    expect(instance.avSyncEnabled).to.equal(false);
+    delete global.fetch;
+    delete global.FileReader;
+  });
+});
+
+describe("Reference A/V sync mounted e2e", () => {
+  let dom;
+  let document;
+  let appVm;
+
+  before(async () => {
+    const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+    dom = new JSDOM(html, { url: "http://localhost" });
+    global.window = dom.window;
+    global.document = dom.window.document;
+    global.navigator = dom.window.navigator;
+    global.location = dom.window.location;
+    global.SVGElement = dom.window.SVGElement;
+    global.HTMLElement = dom.window.HTMLElement;
+    global.Element = dom.window.Element;
+    global.Node = dom.window.Node;
+    const et = dom.window.EventTarget.prototype;
+    const playerProbe = () => dom.window.document.getElementById("player");
+    const ensureVideoEventSurface = () => {
+      const el = playerProbe();
+      if (!el) return;
+      if (typeof el.addEventListener !== "function") {
+        el.addEventListener = et.addEventListener.bind(el);
+        el.removeEventListener = et.removeEventListener.bind(el);
+        el.dispatchEvent = et.dispatchEvent.bind(el);
+      }
+    };
+    ({ createApp, nextTick } = require("vue"));
+    const appDef = loadAppDefinition();
+    appDef.mounted = () => {};
+    appVm = createApp(appDef).mount("#app");
+    document = dom.window.document;
+    ensureVideoEventSurface();
+  });
+
+  function resetAvSyncState() {
+    if (appVm.audio.objectUrl) {
+      try {
+        URL.revokeObjectURL(appVm.audio.objectUrl);
+      } catch (_e) {}
+    }
+    appVm.audio.track = "";
+    appVm.audio.uploadedFile = null;
+    appVm.audio.objectUrl = null;
+    appVm.avSyncEnabled = false;
+    appVm.avSyncLeadSec = 4;
+    appVm.audioStatus = "Idle";
+    if (appVm.hls && typeof appVm.hls.destroy === "function") {
+      try {
+        appVm.hls.destroy();
+      } catch (_e) {}
+    }
+    appVm.hls = null;
+    appVm.playerEl = null;
+  }
+
+  beforeEach(async () => {
+    resetAvSyncState();
+    await nextTick();
+    appVm.switchTab("LIVE");
+    await nextTick();
+  });
+
+  it("renders hidden sync audio element and LIVE controls", () => {
+    const audio = document.querySelector('[data-testid="av-sync-audio"]');
+    expect(audio).to.exist;
+    expect(document.querySelector('[data-testid="av-sync-enable"]')).to.exist;
+    expect(document.querySelector('[data-testid="av-sync-lead"]')).to.exist;
+  });
+
+  it("upload binds blob URL to the sync audio element src", async () => {
+    global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/uploaded.wav" }) });
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    const wav = new File([Buffer.alloc(128)], "live.wav", { type: "audio/wav" });
+    await appVm.handleAudioUpload({ target: { files: [wav] } });
+    await nextTick();
+    expect(appVm.audio.objectUrl).to.be.a("string").and.to.match(/^blob:/);
+    const el = document.querySelector('[data-testid="av-sync-audio"]');
+    expect(el).to.exist;
+    delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("enabling sync after upload leaves checkbox enabled once objectUrl exists", async () => {
+    global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/u.wav" }) });
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    const wav = new File([Buffer.alloc(64)], "e.wav", { type: "audio/wav" });
+    await appVm.handleAudioUpload({ target: { files: [wav] } });
+    await nextTick();
+    const cb = document.querySelector('[data-testid="av-sync-enable"]');
+    expect(cb.disabled).to.equal(false);
+    cb.click();
+    await nextTick();
+    expect(appVm.avSyncEnabled).to.equal(true);
+    delete global.fetch;
+    delete global.FileReader;
+  });
+
+  it("mounted: syncReferenceAudioToVideo uses real DOM audio ref after upload", async () => {
+    global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/sync.wav" }) });
+    global.FileReader = class {
+      readAsDataURL() {
+        this.result = "data:audio/wav;base64,ZmFrZQ==";
+        setImmediate(() => this.onload());
+      }
+    };
+    const wav = new File([Buffer.alloc(72)], "sync.wav", { type: "audio/wav" });
+    await appVm.handleAudioUpload({ target: { files: [wav] } });
+    await nextTick();
+    appVm.avSyncEnabled = true;
+    appVm.avSyncLeadSec = 2;
+    const audioEl = document.querySelector('[data-testid="av-sync-audio"]');
+    expect(audioEl).to.exist;
+    expect(appVm.$refs.avSyncAudio).to.equal(audioEl);
+    let ct = 0;
+    Object.defineProperty(audioEl, "currentTime", {
+      configurable: true,
+      get() {
+        return ct;
+      },
+      set(v) {
+        ct = v;
+      },
+    });
+    audioEl.paused = true;
+    audioEl.play = () => {
+      audioEl.paused = false;
+      return Promise.resolve();
+    };
+    const video = { currentTime: 11, paused: false };
+    appVm.syncReferenceAudioToVideo(video);
+    expect(ct).to.equal(9);
+    delete global.fetch;
+    delete global.FileReader;
   });
 });

@@ -204,6 +204,8 @@ async function start(opts = {}) {
 
   app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
 
+  const SEQUENCER_EASING = new Set(["linear", "easeIn", "easeOut", "easeInOut"]);
+
   function validateTimeline(body) {
     if (!body || typeof body !== "object") return "invalid body";
     if (body.version !== 1) return "version must be 1";
@@ -220,6 +222,23 @@ async function start(opts = {}) {
         if (!kf || typeof kf !== "object") return "invalid keyframe";
         if (typeof kf.t !== "number" || typeof kf.v !== "number") return "keyframe requires numeric t and v";
         if (kf.t < 0 || kf.t > body.durationSec) return "keyframe t outside 0..durationSec";
+        if (kf.easing != null) {
+          if (typeof kf.easing !== "string" || !SEQUENCER_EASING.has(kf.easing)) {
+            return "invalid keyframe.easing (use linear|easeIn|easeOut|easeInOut)";
+          }
+        }
+      }
+    }
+    if (body.markers != null) {
+      if (!Array.isArray(body.markers)) return "markers must be an array";
+      if (body.markers.length > 64) return "too many markers (max 64)";
+      const markerNameOk = /^[a-zA-Z0-9_ \-.]{1,48}$/;
+      for (const mk of body.markers) {
+        if (!mk || typeof mk !== "object") return "invalid marker";
+        if (typeof mk.t !== "number" || typeof mk.name !== "string") return "marker requires numeric t and string name";
+        if (mk.t < 0 || mk.t > body.durationSec) return "marker t outside 0..durationSec";
+        const nm = mk.name.trim();
+        if (!markerNameOk.test(nm)) return "invalid marker.name (1–48 chars: letters, digits, space, _ - .)";
       }
     }
     return null;
