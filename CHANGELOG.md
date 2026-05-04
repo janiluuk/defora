@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.10] - 2026-05-04
+
+## What's Changed
+
+- Forge status, img2img/inpaint, plugins, docs, and refreshed web screenshots (#29) (d637795)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.9...v0.2.10
+
+
 ## [0.2.9] - 2026-05-04
 
 ## What's Changed
