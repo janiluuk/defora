@@ -202,6 +202,8 @@
       <div class="preview">
         <div class="video-wrap">
           <video id="player" ref="videoPlayer" autoplay muted playsinline></video>
+          <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
+          <audio ref="avSyncAudio" preload="auto" playsinline style="display:none" :src="audio.objectUrl || undefined"></audio>
           <div class="overlay">
             <div style="font-size: 14px; font-weight: 700;">Defora · Session: {{ session }}</div>
             <div>Seed {{ hud.seed }}</div>
@@ -305,6 +307,26 @@
               <div class="framesync-subtitle" style="margin-top:16px;">Motion Presets</div>
               <div class="framesync-footer" style="margin-top:8px;">
                 <button class="framesync-button" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🔊 Reference <span class="framesync-accent">A/V sync</span></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">
+                Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.
+              </div>
+              <div style="margin-top:10px;">
+                <label class="framesync-subtitle" style="display:flex; align-items:center; gap:8px;">
+                  <input type="checkbox" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
+                </label>
+              </div>
+              <div style="margin-top:10px;">
+                <div class="framesync-subtitle">Video lead (seconds)</div>
+                <input type="number" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
+                <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
               </div>
             </div>
           </div>
@@ -1268,7 +1290,9 @@
           },
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
           xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
-          audio: { track: "", bpm: 114.8, uploadedFile: null },
+          audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
+          avSyncEnabled: false,
+          avSyncLeadSec: 4,
           audioStatus: "Idle",
           audioMappings: [
             { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
@@ -1570,15 +1594,52 @@
               const s = (t % 60).toFixed(2).padStart(5, "0");
               this.timecode = `${String(m).padStart(2, "0")}:${s}`;
             }
+            this.syncReferenceAudioToVideo(video);
           };
           this.errorHandler = () => {
             setTimeout(() => this.attachPlayer(), 800);
           };
           video.addEventListener("timeupdate", this.timeHandler);
           video.addEventListener("error", this.errorHandler);
-          video.addEventListener("play", () => { this.isPlaying = true; });
-          video.addEventListener("pause", () => { this.isPlaying = false; });
+          video.addEventListener("play", () => {
+            this.isPlaying = true;
+            this.syncAvAudioPlayState(true, video);
+          });
+          video.addEventListener("pause", () => {
+            this.isPlaying = false;
+            this.syncAvAudioPlayState(false, video);
+          });
           this.autoplayVideo(video);
+        },
+        syncReferenceAudioToVideo(video) {
+          if (!this.avSyncEnabled || !this.audio.objectUrl) return;
+          const v = video || this.playerEl;
+          const a = this.$refs.avSyncAudio;
+          if (!v || !a || v.paused) return;
+          const lag = Number(this.avSyncLeadSec);
+          const L = Number.isFinite(lag) && lag >= 0 ? lag : 4;
+          const target = Math.max(0, v.currentTime - L);
+          if (Math.abs(a.currentTime - target) > 0.12) {
+            try {
+              a.currentTime = target;
+            } catch (_e) {
+              /* ignore seek errors on sparse codecs */
+            }
+          }
+          if (a.paused) {
+            a.play().catch(() => {});
+          }
+        },
+        syncAvAudioPlayState(playing, video) {
+          const a = this.$refs.avSyncAudio;
+          if (!a || !this.avSyncEnabled || !this.audio.objectUrl) return;
+          const v = video || this.playerEl;
+          if (playing && v) {
+            this.syncReferenceAudioToVideo(v);
+            a.play().catch(() => {});
+          } else {
+            a.pause();
+          }
         },
         autoplayVideo(video) {
           const el = video || this.playerEl;
@@ -2172,12 +2233,25 @@
           const file = evt.target.files[0];
           if (!file) return;
           const maxSizeBytes = 50 * 1024 * 1024; // 50MB
-          if (file.size > maxSizeBytes) {
+          if (file.size != null && file.size > maxSizeBytes) {
             this.audioStatus = "Audio file is too large. Maximum supported size is 50MB.";
             if (evt && evt.target) {
               evt.target.value = "";
             }
             return;
+          }
+          if (this.audio.objectUrl) {
+            try {
+              URL.revokeObjectURL(this.audio.objectUrl);
+            } catch (_e) {}
+            this.audio.objectUrl = null;
+          }
+          if (typeof URL !== "undefined" && typeof URL.createObjectURL === "function" && typeof Blob !== "undefined" && file instanceof Blob) {
+            try {
+              this.audio.objectUrl = URL.createObjectURL(file);
+            } catch (_e) {
+              this.audio.objectUrl = null;
+            }
           }
           this.audioStatus = "Uploading audio…";
           try {
@@ -2200,13 +2274,32 @@
             this.audio.track = json.path || file.name;
             this.audioStatus = "Audio uploaded";
           } catch (err) {
-            this.audioStatus = String(err);
+            if (this.audio.objectUrl) {
+              try {
+                URL.revokeObjectURL(this.audio.objectUrl);
+              } catch (_e2) {}
+              this.audio.objectUrl = null;
+            }
+            this.audioStatus = String(err && err.message ? err.message : err);
             console.error("Audio upload failed:", err);
           }
         },
         clearAudioFile() {
           this.audio.uploadedFile = null;
           this.audio.track = "";
+          if (this.audio.objectUrl) {
+            try {
+              URL.revokeObjectURL(this.audio.objectUrl);
+            } catch (_e) {}
+            this.audio.objectUrl = null;
+          }
+          this.avSyncEnabled = false;
+          const a = this.$refs.avSyncAudio;
+          if (a) {
+            try {
+              a.pause();
+            } catch (_e) {}
+          }
           this.audioStatus = "Idle";
           if (this.$refs.audioFileInput) {
             this.$refs.audioFileInput.value = "";
