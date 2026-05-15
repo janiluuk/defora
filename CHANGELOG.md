@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.2.11] - 2026-05-15
+
+## What's Changed
+
+- Fix (6b3a903)
+- chore: bump version to 0.2.10 [skip ci] (41bbc53)
+- feat(web): Forge status, sequencer, img2img, spectral viz, scene markers (#30) (91c825e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.10...v0.2.11
+
+
 ## [0.2.10] - 2026-05-04
 
 ## What's Changed
