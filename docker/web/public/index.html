@@ -1207,6 +1207,120 @@
             </div>
           </div>
         </div>
+
+        <div v-else-if="currentTab==='GENERATE'">
+          <!-- Generator Settings -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">✨ Story <span class="framesync-accent">Generator</span></div>
+                <button class="framesync-button" :disabled="generator.isGenerating" @click="generateStory" style="min-width:120px;">
+                  {{ generator.isGenerating ? '⏳ Generating…' : '▶ Generate' }}
+                </button>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Theme / Story concept</div>
+                <input class="framesync-input" v-model="generator.theme" placeholder="e.g. A Space Traveler, Ancient Forest, Cyberpunk City…" style="width:100%;">
+              </div>
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Style preset</div>
+                  <select class="framesync-select" v-model="generator.stylePreset">
+                    <option value="Masterpiece, Realistic">Masterpiece Realistic</option>
+                    <option value="Masterpiece, Cinematic">Cinematic</option>
+                    <option value="Masterpiece, best quality, anime">Anime</option>
+                    <option value="oil painting, impressionism">Oil Painting</option>
+                    <option value="digital art, concept art, surrealistic">Surrealist</option>
+                    <option value="watercolor, illustration">Watercolor</option>
+                    <option value="custom">Custom…</option>
+                  </select>
+                </div>
+                <div class="framesync-stack" v-if="generator.stylePreset === 'custom'">
+                  <div class="framesync-subtitle">Custom style</div>
+                  <input class="framesync-input" v-model="generator.customStyle" placeholder="your style keywords">
+                </div>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">FPS</div>
+                  <select class="framesync-select" v-model.number="generator.fps">
+                    <option :value="12">12</option>
+                    <option :value="15">15</option>
+                    <option :value="24">24</option>
+                    <option :value="30">30</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Resolution</div>
+                  <select class="framesync-select" v-model="generator.resolution">
+                    <option>768x512</option>
+                    <option>1024x576</option>
+                    <option>1280x720</option>
+                    <option>512x512</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Total frames</div>
+                  <select class="framesync-select" v-model.number="generator.totalFrames">
+                    <option :value="120">120</option>
+                    <option :value="240">240</option>
+                    <option :value="360">360</option>
+                    <option :value="480">480</option>
+                    <option :value="600">600</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Scenes</div>
+                  <select class="framesync-select" v-model.number="generator.numScenes">
+                    <option :value="3">3</option>
+                    <option :value="4">4</option>
+                    <option :value="5">5</option>
+                    <option :value="6">6</option>
+                    <option :value="8">8</option>
+                  </select>
+                </div>
+              </div>
+              <div v-if="generator.status" class="framesync-subtitle" style="margin-top:8px; text-align:center; color:#ff8a1a;">{{ generator.status }}</div>
+            </div>
+          </div>
+
+          <!-- Generator Preset Management -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">💾 Generator <span class="framesync-accent">Presets</span></div>
+                <button class="framesync-button" @click="refreshGeneratorPresets">🔄</button>
+              </div>
+              <div class="framesync-footer" style="margin-top:10px; flex-wrap:wrap;">
+                <button class="framesync-button" v-for="p in generatorPresets" :key="p"
+                  :class="{active: currentGeneratorPreset===p}" @click="loadGeneratorPreset(p)">{{ p }}</button>
+                <span v-if="generatorPresets.length===0" style="font-size:12px; color:var(--muted);">No saved presets yet.</span>
+              </div>
+              <div style="display:flex; gap:8px; margin-top:10px; align-items:center;">
+                <input class="framesync-input" v-model="newGeneratorPresetName" placeholder="preset name" style="flex:1;">
+                <button class="framesync-button" @click="saveGeneratorPreset">💾 Save</button>
+                <button class="framesync-button" v-if="currentGeneratorPreset"
+                  @click="deleteGeneratorPreset(currentGeneratorPreset)"
+                  style="border-color:#ff4d6d; color:#ff4d6d;">🗑</button>
+              </div>
+              <div v-if="generatorPresetStatus" class="framesync-subtitle" style="margin-top:6px; text-align:center;">{{ generatorPresetStatus }}</div>
+            </div>
+          </div>
+
+          <!-- Generated Story Result -->
+          <div class="rack" v-if="generator.result">
+            <div class="framesync-panel" style="border-color:#ff8a1a; box-shadow:0 0 24px rgba(255,138,26,0.12);">
+              <div class="framesync-header">
+                <div class="framesync-title">📜 Generated <span class="framesync-accent">Story</span></div>
+                <div style="display:flex; gap:6px;">
+                  <button class="framesync-button" style="border-color:#5af2a9; color:#5af2a9;" @click="approveStory">✓ Apply to Prompts</button>
+                  <button class="framesync-button" style="border-color:#ff4d6d; color:#ff4d6d;" @click="rejectStory">✗ Discard</button>
+                </div>
+              </div>
+              <pre style="margin-top:12px; font-size:10px; color:#cfe5f5; background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:12px; overflow-x:auto; white-space:pre-wrap; max-height:420px; overflow-y:auto; line-height:1.5;">{{ generator.result.formatted }}</pre>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Bottom context panel -->
@@ -1275,6 +1389,17 @@
           <h4>Drive parameters</h4>
           <div class="chips">
             <span class="chip">Vibe / CFG</span><span class="chip">Camera pan</span><span class="chip">Zoom pulses</span><span class="chip">Noise / Glitch</span>
+          </div>
+        </div>
+
+        <div v-else-if="currentTab==='GENERATE'">
+          <h4>Story Generator</h4>
+          <div style="display:flex; gap:16px; flex-wrap:wrap; font-size:12px; color:var(--muted);">
+            <span>Theme: <strong style="color:var(--text);">{{ generator.theme || '(random)' }}</strong></span>
+            <span>Style: <strong style="color:var(--text);">{{ generator.stylePreset === 'custom' ? generator.customStyle : generator.stylePreset }}</strong></span>
+            <span>{{ generator.totalFrames }} frames @ {{ generator.fps }}fps — {{ generator.numScenes }} scenes</span>
+            <span>Resolution: <strong style="color:var(--text);">{{ generator.resolution }}</strong></span>
+            <span v-if="generator.result" style="color:#5af2a9;">Story ready — approve or discard above.</span>
           </div>
         </div>
 
@@ -1480,6 +1605,7 @@
             { id: "MODULATION", label: "MODULATION" },
             { id: "CONTROLNET", label: "CN" },
             { id: "SETTINGS", label: "SETTINGS" },
+            { id: "GENERATE", label: "GENERATE" },
           ],
           currentTab: "LIVE",
           stats: { fps: 27, lat: 120 },
@@ -1676,6 +1802,106 @@
           currentPreset: null,
           newPresetName: "",
           presetStatus: "",
+          generator: {
+            theme: '',
+            stylePreset: 'Masterpiece, Realistic',
+            customStyle: '',
+            fps: 15,
+            resolution: '768x512',
+            totalFrames: 480,
+            numScenes: 4,
+            isGenerating: false,
+            result: null,
+            status: '',
+          },
+          generatorPresets: [],
+          currentGeneratorPreset: null,
+          newGeneratorPresetName: '',
+          generatorPresetStatus: '',
+          genData: {
+            defaultThemes: [
+              'A Space Odyssey', 'Ancient Forest Spirits', 'Cyberpunk Metropolis',
+              'Ocean Deep Journey', 'Desert Storm', 'Northern Lights',
+              'Forgotten Temple', 'Dream Cascade', 'Volcanic Awakening',
+            ],
+            sceneDescriptors: {
+              opening: ['breathtaking', 'vast', 'sweeping', 'ethereal', 'majestic'],
+              buildup: ['mysterious', 'dynamic', 'intricate', 'vivid', 'dramatic'],
+              climax: ['spectacular', 'monumental', 'transcendent', 'overwhelming', 'blazing'],
+              closing: ['serene', 'contemplative', 'golden', 'fading', 'peaceful'],
+            },
+            environments: [
+              [
+                'under a star-filled cosmic sky, with distant galaxies spiraling overhead',
+                'amidst swirling nebulas of violet and gold, cosmic dust drifting in silence',
+                'as a distant supernova illuminates the void in searing white light',
+              ],
+              [
+                'in an ancient stone temple covered in glowing moss and cascading vines',
+                'beneath towering primordial trees whose canopy filters the light into emerald shards',
+                'surrounded by bioluminescent flora in a sacred grove shrouded in mist',
+              ],
+              [
+                'in a rain-soaked neon-lit alley reflecting crimson and cyan holograms',
+                'overlooking an endless cyberpunk skyline of floating towers and data streams',
+                'amid holographic billboards and towering spires reaching into smog-veiled clouds',
+              ],
+              [
+                'in the abyssal depths of the ocean, ancient coral cathedrals rising around',
+                'among bioluminescent jellyfish drifting in silence through the dark water',
+                'as shafts of filtered light pierce the deep sea revealing alien beauty',
+              ],
+              [
+                'across sun-scorched dunes stretching to a molten horizon',
+                'in the heart of a vast desert, sand pillars rising like ancient sentinels',
+                'as a crimson storm rolls across the barren expanse in slow majesty',
+              ],
+            ],
+            lighting: [
+              'bathed in celestial golden hour light', 'under dramatic chiaroscuro shadows',
+              'in ethereal bioluminescent glow', 'lit by searing volumetric sunbeams',
+              'suffused in cold blue moonlight', 'glowing with warm amber candlelight',
+              'illuminated by crackling electric light', 'in diffused overcast atmosphere',
+              'under blazing aurora ribbons of green and violet',
+            ],
+            quality: [
+              'masterpiece, best quality, highly detailed, sharp focus, vivid, photorealistic, immersive, ultra-detailed, flawlessly executed',
+              'masterpiece, best quality, extremely detailed CG unity 8k wallpaper, Photorealistic, trending on artstation, trending on CGsociety, Intricate, High Detail, dramatic',
+              'masterpiece, best quality, (ultra-realistic:1.2), (highly detailed:1.2), (intricate:1.1), stunning, magnificent, Superior, Remarkable',
+              'masterpiece, best quality, 8K UHD, cinematic composition, professional color grading, film grain, shallow depth of field, Captivating',
+            ],
+            techSpecs: [
+              'Bokeh, Depth of Field, HDR, bloom, Chromatic Aberration, 8K resolution, art by midjourney',
+              '4K UHD image, cinematic view, unreal engine 5, ultra-high resolution, Photorealistic, Realistic',
+              '8K, high quality, Intricate, Sharp, Ultra-detailed, Crisp, Cinematic, Fine-tuned, hires',
+              'HDR, award winning photography, Bokeh, Depth of Field, bloom, trending on artstation, trending on CGsociety',
+            ],
+            artists: {
+              'Masterpiece, Realistic': ['Greg Rutkowski', 'Artgerm', 'WLOP', 'Ross Tran', 'Ruan Jia', 'Alphonse Mucha'],
+              'Masterpiece, Cinematic': ['Roger Deakins', 'Chris Foss', 'Syd Mead', 'Moebius', 'Simon Stålenhag', 'John Harris'],
+              'Masterpiece, best quality, anime': ['Makoto Shinkai', 'Yoshitaka Amano', 'Ilya Kuvshinov', 'Studio Ghibli', 'CLAMP'],
+              'oil painting, impressionism': ['Claude Monet', 'Pierre-Auguste Renoir', 'John Singer Sargent', 'Vasily Surikov', 'Victor Vasnetsov', 'Konstantin Makovsky'],
+              'digital art, concept art, surrealistic': ['Zdzisław Beksiński', 'H.R. Giger', 'Simon Stålenhag', 'Hieronymus Bosch', 'Salvador Dali'],
+              'watercolor, illustration': ['James Gurney', 'Arthur Rackham', 'Edmund Dulac', 'Kay Nielsen', 'John Bauer'],
+              default: ['Artgerm', 'Greg Rutkowski', 'WLOP', 'Alphonse Mucha', 'midjourney'],
+            },
+            negatives: [
+              'blur, cgi, bad quality, watermark, text, amateur',
+              'low quality, blurry, low resolution, pixelated, jpeg artifacts, watermark',
+              'bad anatomy, extra limbs, deformed, ugly, poorly drawn, bad quality',
+              'oversaturated, flat lighting, boring composition, low quality, signature',
+            ],
+            cameraBehaviors: [
+              { zoom: '1.002', tx: 0, ty: 0 },
+              { zoom: '0.999', tx: 0, ty: 0 },
+              { zoom: '1.001', tx: 2, ty: 0 },
+              { zoom: '1.001', tx: -2, ty: 0 },
+              { zoom: '1.001', tx: 0, ty: -1 },
+              { zoom: '1.001', tx: 0, ty: 1 },
+              { zoom: 'BREATHE', tx: 0, ty: 0 },
+              { zoom: '1.002', tx: 1, ty: -0.5 },
+            ],
+          },
           isPlaying: false,
           isRecording: false,
           streamUrl: "",
@@ -1731,6 +1957,7 @@
         this.scanMidi();
         this.refreshFrames();
         this.refreshPresets();
+        this.refreshGeneratorPresets();
         this.loadControlNetModels();
         this.refreshLoras();
         this.refreshApiHealth();
@@ -3238,6 +3465,196 @@
           this.loras.groupA = [];
           this.loras.groupB = [];
           this.sendControl("loras", { groupA: [], groupB: [], crossfaderValue: this.prompts.crossfaderValue });
+        },
+
+        // ─── Story Generator ─────────────────────────────────────────────────
+        _genRnd(arr) {
+          return arr[Math.floor(Math.random() * arr.length)];
+        },
+        _buildScene(theme, style, idx, total) {
+          const r = (a) => this._genRnd(a);
+          const g = this.genData;
+          const mood = idx === 0 ? 'opening' : idx >= total - 1 ? 'closing' : idx < Math.ceil(total / 2) ? 'buildup' : 'climax';
+          const adj = r(g.sceneDescriptors[mood]);
+          const envPool = g.environments[idx % g.environments.length];
+          const env = r(envPool);
+          const light = r(g.lighting);
+          const qual = r(g.quality);
+          const tech = r(g.techSpecs);
+          const artistPool = g.artists[style] || g.artists.default;
+          const a1 = r(artistPool);
+          let a2 = r(artistPool);
+          for (let i = 0; i < 5 && a2 === a1 && artistPool.length > 1; i++) a2 = r(artistPool);
+          const neg = r(g.negatives);
+          return `A ${adj} scene from ${theme} — ${env}, ${light}. ${qual}, ${tech}, inspired by ${a1} and ${a2} --neg ${neg}`;
+        },
+        _buildMotion(numScenes, framesPerScene, totalFrames) {
+          const g = this.genData;
+          const r = Math.random.bind(Math);
+          const behaviors = g.cameraBehaviors;
+          const assigned = [];
+          let last = null;
+          for (let i = 0; i < numScenes; i++) {
+            let b;
+            let tries = 0;
+            do { b = behaviors[Math.floor(r() * behaviors.length)]; tries++; }
+            while (b === last && behaviors.length > 1 && tries < 10);
+            assigned.push(b);
+            last = b;
+          }
+          const zParts = [], txParts = [], tyParts = [], tcxParts = [], tcyParts = [];
+          let prevTx = null, prevTy = null, prevTcx = null, prevTcy = null;
+          for (let i = 0; i < numScenes; i++) {
+            const frame = i * framesPerScene;
+            const b = assigned[i];
+            const zVal = b.zoom === 'BREATHE'
+              ? `1.0025+0.002*sin(1.25*3.14*t/${framesPerScene})`
+              : b.zoom;
+            zParts.push(`${frame}:(${zVal})`);
+            if (b.tx !== prevTx) { txParts.push(`${frame}:(${b.tx})`); prevTx = b.tx; }
+            if (b.ty !== prevTy) { tyParts.push(`${frame}:(${b.ty})`); prevTy = b.ty; }
+            const tcx = Math.round((0.3 + r() * 0.4) * 10) / 10;
+            const tcy = Math.round((0.3 + r() * 0.4) * 10) / 10;
+            if (tcx !== prevTcx) { tcxParts.push(`${frame}:(${tcx})`); prevTcx = tcx; }
+            if (tcy !== prevTcy) { tcyParts.push(`${frame}:(${tcy})`); prevTcy = tcy; }
+          }
+          zParts.push(`${totalFrames}:(1.0)`);
+          if (prevTx !== 0) txParts.push(`${totalFrames}:(0)`);
+          if (prevTy !== 0) tyParts.push(`${totalFrames}:(0)`);
+          const motion = { Zoom: zParts.join(', ') };
+          if (txParts.length) motion['Translation X'] = txParts.join(', ');
+          if (tyParts.length) motion['Translation Y'] = tyParts.join(', ');
+          if (tcxParts.length > 1) motion['Transform Center X'] = tcxParts.join(', ');
+          if (tcyParts.length > 1) motion['Transform Center Y'] = tcyParts.join(', ');
+          return motion;
+        },
+        generateStory() {
+          const g = this.generator;
+          const gd = this.genData;
+          g.isGenerating = true;
+          g.status = 'Generating…';
+          g.result = null;
+          // Run async so the UI can update
+          setTimeout(() => {
+            try {
+              const theme = g.theme.trim() || this._genRnd(gd.defaultThemes);
+              const style = g.stylePreset === 'custom' ? (g.customStyle.trim() || 'Masterpiece, Realistic') : g.stylePreset;
+              const fps = g.fps;
+              const [width, height] = g.resolution.split('x').map(Number);
+              const totalFrames = g.totalFrames;
+              const numScenes = g.numScenes;
+              const framesPerScene = Math.floor(totalFrames / numScenes);
+              const scenes = {};
+              for (let i = 0; i < numScenes; i++) {
+                scenes[String(i * framesPerScene)] = this._buildScene(theme, style, i, numScenes);
+              }
+              const motion = this._buildMotion(numScenes, framesPerScene, totalFrames);
+              // Format output
+              const lines = [
+                `Theme: ${theme}`,
+                `Style: ${style}`,
+                `Resolution: ${width}x${height}`,
+                `FPS: ${fps}`,
+                `Total frames: ${totalFrames}`,
+                '',
+                JSON.stringify(scenes, null, 2),
+                '',
+                'Motion Settings:',
+              ];
+              for (const [k, v] of Object.entries(motion)) lines.push(`${k}: ${v}`);
+              g.result = { theme, style, width, height, fps, totalFrames, scenes, motion, formatted: lines.join('\n') };
+              g.status = 'Story ready — review and approve below!';
+            } catch (err) {
+              g.status = `Error: ${err.message}`;
+            } finally {
+              g.isGenerating = false;
+              setTimeout(() => { g.status = ''; }, 4000);
+            }
+          }, 30);
+        },
+        approveStory() {
+          if (!this.generator.result) return;
+          const { scenes, motion } = this.generator.result;
+          this.prompts.pos = JSON.stringify(scenes, null, 2);
+          this.sendPrompts();
+          this.sendControl('motionSettings', motion);
+          this.generator.result = null;
+          this.generator.status = 'Applied!';
+          this.currentTab = 'PROMPTS';
+          setTimeout(() => { this.generator.status = ''; }, 3000);
+        },
+        rejectStory() {
+          this.generator.result = null;
+          this.generator.status = 'Discarded.';
+          setTimeout(() => { this.generator.status = ''; }, 2000);
+        },
+        async refreshGeneratorPresets() {
+          try {
+            const res = await fetch('/api/presets');
+            const data = await res.json();
+            this.generatorPresets = (data.presets || []).filter(p => p.startsWith('gen-'));
+          } catch (err) {
+            console.error('Failed to load generator presets', err);
+          }
+        },
+        async loadGeneratorPreset(name) {
+          try {
+            const res = await fetch(`/api/presets/${name}`);
+            const data = await res.json();
+            if (data.preset && data.preset.generator) {
+              Object.assign(this.generator, data.preset.generator);
+              this.generator.result = null;
+              this.currentGeneratorPreset = name;
+              this.generatorPresetStatus = `Loaded: ${name}`;
+              setTimeout(() => { this.generatorPresetStatus = ''; }, 3000);
+            }
+          } catch (err) {
+            this.generatorPresetStatus = `Error: ${err.message}`;
+          }
+        },
+        async saveGeneratorPreset() {
+          const raw = (this.newGeneratorPresetName || 'default').replace(/[^a-zA-Z0-9_-]/g, '-');
+          const name = `gen-${raw}`;
+          const preset = {
+            generator: {
+              theme: this.generator.theme,
+              stylePreset: this.generator.stylePreset,
+              customStyle: this.generator.customStyle,
+              fps: this.generator.fps,
+              resolution: this.generator.resolution,
+              totalFrames: this.generator.totalFrames,
+              numScenes: this.generator.numScenes,
+            },
+          };
+          try {
+            const res = await fetch(`/api/presets/${name}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(preset),
+            });
+            const data = await res.json();
+            if (data.ok) {
+              this.currentGeneratorPreset = name;
+              this.newGeneratorPresetName = '';
+              this.generatorPresetStatus = `Saved: ${name}`;
+              await this.refreshGeneratorPresets();
+              setTimeout(() => { this.generatorPresetStatus = ''; }, 3000);
+            }
+          } catch (err) {
+            this.generatorPresetStatus = `Error: ${err.message}`;
+          }
+        },
+        async deleteGeneratorPreset(name) {
+          if (!confirm(`Delete preset "${name}"?`)) return;
+          try {
+            await fetch(`/api/presets/${name}`, { method: 'DELETE' });
+            this.currentGeneratorPreset = null;
+            this.generatorPresetStatus = `Deleted: ${name}`;
+            await this.refreshGeneratorPresets();
+            setTimeout(() => { this.generatorPresetStatus = ''; }, 3000);
+          } catch (err) {
+            this.generatorPresetStatus = `Error: ${err.message}`;
+          }
         },
       },
     }).mount("#app");

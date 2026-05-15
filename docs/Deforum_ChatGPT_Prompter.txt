@@ -1,0 +1,104 @@
+﻿- Reference guide of what is Stable Diffusion and how to build a scene for a Deforum prompt:
+
+Stable Diffusion is a deep learning model for generating images based on text descriptions and can be applied to inpainting, outpainting, and image-to-image translations guided by text prompts. Developing a good scene is essential for creating high-quality videos.
+A good scene should be detailed and specific, including keyword categories such as subject, medium, style, artist, website, resolution, additional details, color, and lighting. Popular keywords include "digital painting," "portrait," "concept art," "hyperrealistic," and "pop-art." Mentioning a specific artist or website can also strongly influence the image's style. 
+For example, a scene for an image of Emma Watson as a sorceress could be: "Emma Watson as a powerful mysterious sorceress, casting lightning magic, detailed clothing, digital painting, hyperrealistic, fantasy, surrealist, full body."
+Artist names can be used as strong modifiers to create a specific style by blending the techniques of multiple artists. Websites like Artstation and DeviantArt offer numerous images in various genres, and incorporating them in a prompt can help guide the image towards these styles. Adding details such as resolution, color, and lighting can enhance the image further.
+Building a good scene is an iterative process. Start with a simple prompt including the subject, medium, and style, and then gradually add one or two keywords to refine the image.
+Association effects occur when certain attributes are strongly correlated. For instance, specifying eye color in a prompt might result in specific ethnicities being generated. Celebrity names can also carry unintended associations, affecting the pose or outfit in the image. Artist names, too, can influence the generated images.
+In summary, Stable Diffusion is a powerful deep learning model for generating images based on text descriptions. Developing a good scene is essential for generating high-quality videos.
+Deforum use several scene, concatenated in a bigger prompt to create videos.
+
+- Examples of scenes:
+
+"masterpiece, best quality, high quality, extremely detailed CG unity 8k wallpaper, The vast and quiet taiga stretches to the horizon, with dense green trees grouped in deep harmony, as the fresh breeze whispers through their leaves and crystal snow lies on the frozen ground, creating a stunning and peaceful landscape, Bokeh, Depth of Field, HDR, bloom, Chromatic Aberration, Photorealistic, extremely detailed, trending on artstation, trending on CGsociety, Intricate, High Detail, dramatic, art by midjourney"
+"a painting of a woman in medieval knight armor with a castle in the background and clouds in the sky behind her, (impressionism:1.1), ('rough painting style':1.5), ('large brush texture':1.2), ('palette knife':1.2), (dabbing:1.4), ('highly detailed':1.5), professional majestic painting by Vasily Surikov, Victor Vasnetsov, (Konstantin Makovsky:1.3), trending on ArtStation, trending on CGSociety, Intricate, High Detail, Sharp focus, dramatic"
+"masterpiece, best quality, high quality, extremely detailed CG unity 8k wallpaper, flowering landscape, A dry place like an empty desert, dearest, foxy, Mono Lake, hackberry,3D Digital Paintings, award winning photography, Bokeh, Depth of Field, HDR, bloom, Chromatic Aberration, Photorealistic, extremely detailed, trending on artstation, trending on CGsociety, Intricate, High Detail, dramatic, art by midjourney"
+"portrait of french women in full steel knight armor, highly detailed, heart professional majestic oil painting by Vasily Surikov, Victor Vasnetsov, Konstantin Makovsky, trending on ArtStation, trending on CGSociety, Intricate, High Detail, Sharp focus, dramatic, photorealistic"
+"Architectural digest photo of a maximalist green solar living room with lots of flowers and plants, golden light, hyperrealistic surrealism, award winning masterpiece with incredible details, epic stunning pink surrounding and round corners, big windows"
+
+The following elements are a description of the scene structure. You should not include the label of a section like "Scene description:".
+[Scene description]: A short, clear description of the overall scene or subject of the image. This could include the main characters or objects in the scene, as well as any relevant background.
+[Modifiers]: A list of words or phrases that describe the desired mood, style, lighting, and other elements of the image. These modifiers should be used to provide additional information to the model about how to generate the image, and can include things like "dark, intricate, highly detailed, sharp focus, Vivid, Lifelike, Immersive, Flawless, Exquisite, Stupendous, Magnificent, Superior, Remarkable, Captivating, Wondrous, Enthralling, Unblemished, Marvelous, Superlative, Evocative, Poignant, Luminous, Crystal-clear, Superb, Transcendent, Phenomenal, Masterful, elegant, sublime, radiant, balanced, graceful, exquisite, lovely, enchanting, polished, refined, sophisticated".
+[Artist or style inspiration]: A list of artists or art styles that can be used as inspiration for the image. This could include specific artists, such as "by artgerm and greg rutkowski, Pierre Auguste Cot, Jules Bastien-Lepage, Daniel F. Gerhartz, Jules Joseph Lefebvre, Alexandre Cabanel, Bouguereau, Jeremy Lipking, Thomas Lawrence, Albert Lynch, Sophie Anderson, Carle Van Loo, Roberto Ferri" or art movements, such as "Bauhaus cubism."
+[Technical specifications]: Additional information that evoke quality and details. This could include things like: "4K UHD image, cinematic view, unreal engine 5, Photorealistic, Realistic, High-definition, Majestic, hires, ultra-high resolution, 8K, high quality, Intricate, Sharp, Ultra-detailed, Crisp, Cinematic, Fine-tuned"
+
+- Scene Structure:
+The structure sequence can vary. However, the following is a good reference:
+[Scene description]. [Modifiers], [Technical specifications], inspired by [Artist or style inspiration]
+
+- Special Modifiers:
+In the examples you can notice that some terms are closed between (). That instructes the Generative Model to take more attention to this words. If there are more (()) it means more attention.
+Similarly, you can find a structure like this (word:1.4). That means this word will evoke more attention from the Generative Model. The number "1.4" means 140%. Therefore, if a word whitout modifiers has a weight of 100%, a word as in the example (word:1.4), will have a weight of 140%.
+You can also use these notations to evoke more attention to specific words.
+
+
+Okay, knowing this, create an engaging and immersive video prompt for Deforum, composed of several scenes in JSON format, with each scene described independently. 
+Apply consistent motion settings to make the video feel like a small movie. Use 15 fps, a resolution of 768(pixel width)*512(pixel height) for the video, and provide both the scene JSON and motion settings in a codeblock, in a concise format.
+
+- Scene JSON format:
+{
+  "frame_number": "[Scene description]. [Modifiers], [Technical specifications], inspired by [Artist or style inspiration] --neg negative_description",
+  "frame_number": "[Scene description]. [Modifiers], [Technical specifications], inspired by [Artist or style inspiration] --neg negative_description"
+}
+Motion settings:
+Zoom: frame_number:(value), frame_number:(value), ...
+Angle: frame_number:(value), frame_number:(value), ...
+Transform Center X: frame_number:(value), frame_number:(value), ...
+Transform Center Y: frame_number:(value), frame_number:(value), ...
+Translation X: frame_number:(value), frame_number:(value), ...
+Translation Y: frame_number:(value), frame_number:(value), ...
+
+- Parameters:
+frame_number: The starting frame of the scene in the video. 0 for the first scene, then 45 frames per scene by default.
+style is the visual style to apply to the scene. It can be an artistic styles like 'impressionism' or 'art nouveau', or styles inspired by artists like 'Van Gogh' or 'Monet'.
+negative_description: Words after "--neg" to use if needed for each scene as negative prompt. Should always be used, but leave empty if none.
+Angle is an operator to rotate the canvas clockwise/ anticlockwise in degrees per frame. A positive value rotates the image counterclockwise, a negative value rotates clockwise. By default, the rotation is around the center of the image. You can control the center of rotation by setting Transform Center X and Transform Center Y. Value 1.01 is slow, 1.04 is fast, 1.06 is very fast and will create artefacts on the edge of the picture, moving too fast..
+Zoom is an operator that scales the canvas size, multiplicatively. Use a zoom value larger than 1 to zoom in and less than 1 to zoom out. Value 1.01 is slow, 1.04 is fast, 1.06 is very fast.
+Translation X is an operator to move the canvas left/right in pixels per frame. Use Translation X to move the image sideways. Use a positive value to move the image to the right and a negative value to move the image to the left. Value 1 is slow, 4 is fast, 6 is very fast.
+Translation Y is an operator to move the canvas up/down in pixels per frame. Use Translation Y to move the camera up and down. Use a positive value to move the image down and a negative value to move the image up. Value 1 is slow, 4 is fast, 6 is very fast.
+Transform Center is for changing the focal point of zoom and/or rotation. The default value is 0.5 for both X and Y, which is the center of the image. (X, Y) = (0, 0) is the top left corner, and (1, 1) is the bottom right corner.
+
+- Equations:
+You can use equations as value for the motion settings. Actually, it can be better, for more immersive and consistent camera movements. Basics examples of equations: 
+0:(1.0025+0.002*sin(1.25*3.14*t/30))
+0:(2*sin(2*3.14*t/24))
+
+- Random example of expected response (correct format):
+`
+Theme: A Space Traveler
+Style: Masterpiece, Realistic
+Resolution: 768x512
+FPS: 15
+Total frames: 480
+{
+"0": "A breathtaking view of the cosmos, showcasing countless twinkling stars and vibrant nebulas against a dark background. Masterpiece, best quality, vivid, photorealistic, immersive, ultra-detailed, flawlessly executed, stunningly beautiful. 8K UHD resolution, sharp focus, fine-tuned color balance, ultra-realistic details, inspired by NASA, Hubble Space Telescope --neg blur, cgi, illustration, bad quality",
+"120": "The traveler's spaceship moves through an asteroid field, its sleek surface reflecting the light of nearby stars. The asteroids are varied in size and shape, some jagged and rough, others smooth and rounded. As the spaceship glides past, the asteroids appear to be almost within reach, creating an immersive and stunning experience. Masterpiece, best quality, ultra-realistic, 8K resolution, inspired by science fiction artwork by Chris Foss and Syd Mead. --neg blur, cgi, illustration, bad quality",
+"240": "The traveler's spaceship approaches a gas giant with vibrant colors and swirling storms. The planet is surrounded by a multitude of moons that create a sense of depth and scale. The focus of the image is on the intricate details of the planet's swirling clouds, with photorealistic lighting creating a dramatic effect. The moons also feature prominently, with each one unique in shape and size. Masterpiece, best quality, 4K resolution, HDR, sharp focus, highly detailed, photorealistic lighting, inspired by surrealistic style. --neg blur, cgi, illustration, bad quality",
+"360": "The traveler, standing in awe at the edge of a misty cliff, overlooking an alien landscape filled with towering, bioluminescent plants. Ethereal, ultra-realistic, vivid, breathtaking, awe-inspiring. Masterpiece, best quality, 4K UHD image, photorealistic, sharp, high detail, inspired by James Cameron, Avatar. --neg blur, bad quality",
+}
+Motion Settings:
+Zoom: 0:(1.00), 135:(1.02+0.002*sin(1.25*3.14*t/135)), 270:(1.00), 450:(1.01+0.002*sin(1.25*3.14*t/60)), 480:(1.00)
+Angle: 0:(0), 90:(-0.5), 135:(0), 180:(0), 225:(-0.5), 270:(0), 315:(0.5), 360:(0), 405:(0), 450:(0.5), 480:(0)
+Transform Center X: 0:(0.5), 135:(0.2), 270:(0.5), 405:(0.8), 480:(0.5)
+Transform Center Y: 0:(0.5), 135:(0.8), 270:(0.5), 405:(0.2), 480:(0.5)
+Translation X: 0:(0), 45:(2), 90:(3), 135:(0), 180:(1), 225:(0), 270:(2), 315:(-3), 360:(0), 405:(2), 450:(0)
+Translation Y: 0:(0), 135:(-1), 270:(0), 405:(1), 480:(0)
+`
+
+As you can notice above, the number marking the beginning of the last scene cannot be the same as the total number of frames, the total is necessarily higher, as much as the duration of the last scene.
+Also, unchanged motion settings are skipped, you must not mention every scene motion setting's value if it does not change from the previous one. Set the new motion setting only if the value is changing. The negative prompt should not be mentionned if empty.
+Vary the style in your responses.
+
+- Final Instructions:
+
+1. ALWAYS provide both the scene JSON and motion settings in a codeblock !
+2. You must create very rich and very detailed scenes with striking and short visual elements descriptions. Use the 'Reference guide' to build overwhelmingly beautiful scenes.
+3. Ensure coherence and progression between scenes, with a clear narrative arc.
+4. Using various camera movements, and effects to create a cinematic experience is the most important part in your response. Include wide shots, close-ups, tracking shots, pans, tilts, and other camera techniques using motion settings. Limit the movement speed, it can be disconcerting, the value must be reasonable.
+5. Equations can be used to create unique and complex camera movements and effects in the video. Use equations to match the desired camera movements and enhance the visual style of the scene. Respect the syntax of the equation.
+6. The angle motion should be used sparingly and with purpose. It can be disconcerting and unusual if overused, so make sure to apply it only when it adds value to the scene or enhances the storytelling.
+7. To create a more fluid video, increase the number of scenes with subtle visual variations, simulating natural movement within the scene. Achieve this by describing incremental changes in the positions or states of the scene's elements, ensuring smooth transitions between the scenes.
+8. The total number of frames should be divided and rounded among the scenes. Each scene should have a duration of the same number of frames.
+
+Now, reply with "I got it! Ask me for a theme or a random one! Also, give me the total frames number, the style or the video duration to adapt the prompt." if you understood the instructions above and are ready to proceed.

@@ -32,8 +32,8 @@ async function start(opts = {}) {
   };
 
   function forgeBaseUrl() {
-    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
+    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
+    const forgePort = process.env.SD_FORGE_PORT || "7869";
     return `http://${forgeHost}:${forgePort}`;
   }
 
