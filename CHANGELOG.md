@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.2] - 2026-05-17
+
+## What's Changed
+
+- chore: add deploy.sh for rsync + docker compose to remote host (43886ea)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.1...v0.3.2
+
+
 ## [0.3.1] - 2026-05-17
 
 ## What's Changed
