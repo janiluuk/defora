@@ -33,7 +33,7 @@ async function start(opts = {}) {
 
   function forgeBaseUrl() {
     const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7869";
+    const forgePort = process.env.SD_FORGE_PORT || "7860";
     return `http://${forgeHost}:${forgePort}`;
   }
 
@@ -592,7 +592,7 @@ async function start(opts = {}) {
 
   // ControlNet models API
   app.get("/api/controlnet/models", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
     const forgePort = process.env.SD_FORGE_PORT || "7860";
     const forgeUrl = `http://${forgeHost}:${forgePort}`;
     
@@ -692,7 +692,7 @@ async function start(opts = {}) {
 
   // SD Models (Checkpoints) API endpoints
   app.get("/api/sd-models", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
     const forgePort = process.env.SD_FORGE_PORT || "7860";
     const forgeUrl = `http://${forgeHost}:${forgePort}`;
     
@@ -781,7 +781,7 @@ async function start(opts = {}) {
 
   // Get current SD model
   app.get("/api/sd-models/current", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
     const forgePort = process.env.SD_FORGE_PORT || "7860";
     const forgeUrl = `http://${forgeHost}:${forgePort}`;
     
@@ -824,7 +824,7 @@ async function start(opts = {}) {
 
   // Switch SD model
   app.post("/api/sd-models/switch", async (req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
     const forgePort = process.env.SD_FORGE_PORT || "7860";
     const forgeUrl = `http://${forgeHost}:${forgePort}`;
     
@@ -921,7 +921,7 @@ async function start(opts = {}) {
 
   // LoRA API endpoints
   app.get("/api/loras", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "sd-forge";
+    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
     const forgePort = process.env.SD_FORGE_PORT || "7860";
     const forgeUrl = `http://${forgeHost}:${forgePort}`;
     
@@ -1011,6 +1011,113 @@ async function start(opts = {}) {
     }
     
     res.json({ loras: placeholderLoras, source: 'placeholder' });
+  });
+
+  // Forge Settings API
+
+  app.get("/api/forge/options", async (_req, res) => {
+    const forgeUrl = forgeBaseUrl();
+    try {
+      if (typeof fetch === 'undefined') throw new Error('fetch not available');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const options = await response.json();
+      apiStatus.sdForgeAvailable = true;
+      return res.json({ options, available: true });
+    } catch (err) {
+      apiStatus.sdForgeAvailable = false;
+      return res.json({ options: {}, available: false, error: err.message });
+    }
+  });
+
+  app.post("/api/forge/options", async (req, res) => {
+    const forgeUrl = forgeBaseUrl();
+    const updates = req.body;
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: "Invalid options" });
+    }
+    try {
+      if (typeof fetch === 'undefined') throw new Error('fetch not available');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+      }
+      return res.json({ success: true });
+    } catch (err) {
+      return res.status(502).json({ error: "Failed to update options", message: err.message });
+    }
+  });
+
+  app.get("/api/forge/samplers", async (_req, res) => {
+    const forgeUrl = forgeBaseUrl();
+    try {
+      if (typeof fetch === 'undefined') throw new Error('fetch not available');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/samplers`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const samplers = await response.json();
+      return res.json({ samplers });
+    } catch (err) {
+      return res.json({ samplers: [], error: err.message });
+    }
+  });
+
+  app.get("/api/forge/schedulers", async (_req, res) => {
+    const forgeUrl = forgeBaseUrl();
+    try {
+      if (typeof fetch === 'undefined') throw new Error('fetch not available');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/schedulers`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const schedulers = await response.json();
+      return res.json({ schedulers });
+    } catch (err) {
+      return res.json({ schedulers: [], error: err.message });
+    }
+  });
+
+  app.get("/api/forge/vae", async (_req, res) => {
+    const forgeUrl = forgeBaseUrl();
+    try {
+      if (typeof fetch === 'undefined') throw new Error('fetch not available');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 5000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/vae`, {
+        signal: controller.signal,
+        headers: { 'Accept': 'application/json' }
+      });
+      clearTimeout(timeout);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const vaeList = await response.json();
+      return res.json({ vae: vaeList });
+    } catch (err) {
+      return res.json({ vae: [], error: err.message });
+    }
   });
 
   // Advanced Prompt System API endpoints

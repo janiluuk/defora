@@ -98,6 +98,8 @@
     .framesync-row { display: grid; grid-template-columns: 1.1fr 2fr 1.2fr 1.2fr; gap: 12px; margin-top: 12px; }
     .framesync-stack { display: grid; gap: 10px; }
     .framesync-subtitle { font-size: 12px; color: #9bc4e2; margin-bottom: 6px; letter-spacing: 0.3px; }
+    .framesync-checkbox { font-size: 12px; color: #9bc4e2; display:flex; align-items:center; gap:8px; cursor:pointer; }
+    .framesync-checkbox input[type="checkbox"] { accent-color: #5af2a9; }
     .framesync-list { font-size: 12px; color: #cfe5f5; }
     .framesync-list .item { padding: 4px 0; border-bottom: 1px solid rgba(12, 48, 72, 0.6); }
     .framesync-list .item:last-child { border-bottom: none; }
@@ -1208,6 +1210,171 @@
           </div>
         </div>
 
+        <div v-else-if="currentTab==='FORGE'">
+          <!-- Forge Connection Status -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🔌 <span class="framesync-accent">Connection</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Host</div>
+                  <input class="framesync-input" v-model="forge.host" placeholder="192.168.2.102">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Port</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.port" placeholder="7860">
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px; display:flex; gap:8px;">
+                <button class="framesync-button" @click="refreshForgeStatus" :disabled="forge.loading">
+                  {{ forge.loading ? 'Checking…' : '🔄 Check Status' }}
+                </button>
+                <button class="framesync-button" @click="saveForgeConnection">💾 Save</button>
+                <span class="framesync-subtitle" style="margin-left:auto; align-self:center;">
+                  {{ forge.available === true ? '✅ Forge up' : forge.available === false ? '❌ Forge down' : '⏳ Unknown' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Model Selection -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🧠 <span class="framesync-accent">Model</span></div>
+                <span class="framesync-subtitle" v-if="forge.currentModel">{{ forge.currentModel }}</span>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">SD Model</div>
+                <select class="framesync-select" v-model="forge.selectedModel">
+                  <option value="">— Select model —</option>
+                  <option v-for="m in forge.models" :key="m.title" :value="m.model_name">{{ m.title }}</option>
+                </select>
+              </div>
+              <div class="framesync-footer" style="margin-top:10px; display:flex; gap:8px;">
+                <button class="framesync-button" @click="refreshForgeModels">🔄 Refresh</button>
+                <button class="framesync-button" @click="switchForgeModel" :disabled="!forge.selectedModel || forge.switching">
+                  {{ forge.switching ? 'Loading…' : '🔄 Switch' }}
+                </button>
+              </div>
+              <div v-if="forge.modelInfo" style="margin-top:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:10px;">
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:8px;">
+                  <div><span class="framesync-subtitle">Type</span><br>{{ forge.modelInfo.type }}</div>
+                  <div><span class="framesync-subtitle">Rec. Steps</span><br>{{ forge.modelInfo.recommended_steps }}</div>
+                  <div><span class="framesync-subtitle">Base Res</span><br>{{ forge.modelInfo.base_resolution }}px</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Generation Parameters -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⚙️ <span class="framesync-accent">Generation</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Sampler</div>
+                  <select class="framesync-select" v-model="forge.options.sampler_name">
+                    <option v-for="s in forge.samplers" :key="s.name" :value="s.name">{{ s.name }}</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Scheduler</div>
+                  <select class="framesync-select" v-model="forge.options.scheduler">
+                    <option v-for="s in forge.schedulers" :key="s" :value="s">{{ s }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Steps</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.steps" min="1" max="150">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">CFG Scale</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.cfg_scale" min="0" max="30" step="0.5">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Width</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.width" min="64" max="2048" step="64">
+                </div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Height</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.height" min="64" max="2048" step="64">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Batch Size</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.batch_size" min="1" max="8">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">VAE</div>
+                  <select class="framesync-select" v-model="forge.options.sd_vae">
+                    <option value="Automatic">Automatic</option>
+                    <option v-for="v in forge.vaeList" :key="v.model_name" :value="v.model_name">{{ v.model_name }}</option>
+                  </select>
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px; display:flex; gap:8px;">
+                <button class="framesync-button" @click="refreshForgeOptions">🔄 Refresh</button>
+                <button class="framesync-button" @click="applyForgeOptions">✅ Apply</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Advanced Options -->
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🔧 <span class="framesync-accent">Advanced</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">CLIP Skip</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.clip_skip" min="1" max="12">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Eta DDIM</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.eta_ddim" min="0" max="1" step="0.1">
+                </div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Eta Ancestral</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.eta_ancestral" min="0" max="1" step="0.1">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Sigma Churn</div>
+                  <input class="framesync-input" type="number" v-model.number="forge.options.sigma_churn" min="0" max="1" step="0.01">
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <label class="framesync-checkbox">
+                  <input type="checkbox" v-model="forge.options.enable_emphasis"> Enable emphasis (weights)
+                </label>
+              </div>
+              <div style="margin-top:6px;">
+                <label class="framesync-checkbox">
+                  <input type="checkbox" v-model="forge.options.use_old_sampling"> Use old k-diffusion sampling
+                </label>
+              </div>
+              <div style="margin-top:6px;">
+                <label class="framesync-checkbox">
+                  <input type="checkbox" v-model="forge.options.do_not_add_watermark"> Do not add watermark
+                </label>
+              </div>
+              <div class="framesync-footer" style="margin-top:12px; display:flex; gap:8px;">
+                <button class="framesync-button" @click="applyForgeOptions">✅ Apply All</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div v-else-if="currentTab==='GENERATE'">
           <!-- Generator Settings -->
           <div class="rack">
@@ -1422,6 +1589,24 @@
             </tbody>
           </table>
         </div>
+
+        <div v-else-if="currentTab==='FORGE'">
+          <h4>Forge Quick Status</h4>
+          <table class="table">
+            <tbody>
+              <tr><td>Status</td><td>{{ forge.available === true ? '✅ Up' : forge.available === false ? '❌ Down' : '⏳ ?' }}</td></tr>
+              <tr><td>Host</td><td>{{ forge.host }}:{{ forge.port }}</td></tr>
+              <tr><td>Model</td><td>{{ forge.currentModel || '—' }}</td></tr>
+              <tr><td>Sampler</td><td>{{ forge.options.sampler_name || '—' }}</td></tr>
+              <tr><td>Steps</td><td>{{ forge.options.steps || '—' }}</td></tr>
+              <tr><td>CFG</td><td>{{ forge.options.cfg_scale || '—' }}</td></tr>
+              <tr><td>Resolution</td><td>{{ forge.options.width || '—' }}×{{ forge.options.height || '—' }}</td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:12px;">
+            <button class="framesync-button" @click="refreshForgeAll" style="width:100%;">🔄 Refresh All</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1605,6 +1790,7 @@
             { id: "MODULATION", label: "MODULATION" },
             { id: "CONTROLNET", label: "CN" },
             { id: "SETTINGS", label: "SETTINGS" },
+            { id: "FORGE", label: "FORGE" },
             { id: "GENERATE", label: "GENERATE" },
           ],
           currentTab: "LIVE",
@@ -1818,6 +2004,37 @@
           currentGeneratorPreset: null,
           newGeneratorPresetName: '',
           generatorPresetStatus: '',
+          forge: {
+            host: '192.168.2.102',
+            port: 7860,
+            available: null,
+            loading: false,
+            switching: false,
+            currentModel: '',
+            selectedModel: '',
+            models: [],
+            modelInfo: null,
+            samplers: [],
+            schedulers: [],
+            vaeList: [],
+            options: {
+              sampler_name: 'DPM++ 2M Karras',
+              scheduler: 'normal',
+              steps: 24,
+              cfg_scale: 7.0,
+              width: 1024,
+              height: 576,
+              batch_size: 1,
+              sd_vae: 'Automatic',
+              clip_skip: 1,
+              eta_ddim: 0.0,
+              eta_ancestral: 1.0,
+              sigma_churn: 0.0,
+              enable_emphasis: true,
+              use_old_sampling: false,
+              do_not_add_watermark: false,
+            },
+          },
           genData: {
             defaultThemes: [
               'A Space Odyssey', 'Ancient Forest Spirits', 'Cyberpunk Metropolis',
@@ -1963,6 +2180,7 @@
         this.refreshApiHealth();
         this.refreshSequencerList();
         this.refreshPlugins();
+        this.refreshForgeAll();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
           this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
@@ -3655,6 +3873,130 @@
           } catch (err) {
             this.generatorPresetStatus = `Error: ${err.message}`;
           }
+        },
+
+        // Forge settings methods
+        forgeUrl() {
+          return `http://${this.forge.host}:${this.forge.port}`;
+        },
+        async refreshForgeStatus() {
+          this.forge.loading = true;
+          try {
+            const res = await fetch('/api/status');
+            const data = await res.json();
+            if (data.sdForge) {
+              this.forge.available = data.sdForge.available;
+            } else {
+              this.forge.available = false;
+            }
+          } catch (err) {
+            this.forge.available = false;
+          } finally {
+            this.forge.loading = false;
+          }
+        },
+        async saveForgeConnection() {
+          try {
+            const res = await fetch('/api/forge/options', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({}),
+            });
+            await res.json();
+            await this.refreshForgeStatus();
+          } catch (err) {
+            console.error('Failed to save connection', err);
+          }
+        },
+        async refreshForgeModels() {
+          try {
+            const res = await fetch('/api/sd-models');
+            const data = await res.json();
+            this.forge.models = data.models || [];
+          } catch (err) {
+            console.error('Failed to load models', err);
+          }
+        },
+        async switchForgeModel() {
+          if (!this.forge.selectedModel) return;
+          this.forge.switching = true;
+          try {
+            const res = await fetch('/api/sd-models/switch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ model_name: this.forge.selectedModel }),
+            });
+            const data = await res.json();
+            if (data.success) {
+              this.forge.currentModel = this.forge.selectedModel;
+              if (data.model && data.model.metadata) {
+                this.forge.modelInfo = data.model.metadata;
+              }
+            }
+          } catch (err) {
+            console.error('Failed to switch model', err);
+          } finally {
+            this.forge.switching = false;
+          }
+        },
+        async refreshForgeOptions() {
+          try {
+            const [optRes, sampRes, schedRes, vaeRes, curRes] = await Promise.all([
+              fetch('/api/forge/options'),
+              fetch('/api/forge/samplers'),
+              fetch('/api/forge/schedulers'),
+              fetch('/api/forge/vae'),
+              fetch('/api/sd-models/current'),
+            ]);
+            const opt = await optRes.json();
+            const samp = await sampRes.json();
+            const sched = await schedRes.json();
+            const vae = await vaeRes.json();
+            const cur = await curRes.json();
+
+            this.forge.available = opt.available;
+            this.forge.samplers = samp.samplers || [];
+            this.forge.schedulers = sched.schedulers || [];
+            this.forge.vaeList = vae.vae || [];
+            if (cur.model) {
+              this.forge.currentModel = cur.model.model_name || cur.model.title || '';
+            }
+
+            const o = opt.options || {};
+            const keys = ['sampler_name', 'scheduler', 'steps', 'cfg_scale', 'width', 'height', 'batch_size', 'sd_vae', 'clip_skip', 'eta_ddim', 'eta_ancestral', 'sigma_churn', 'enable_emphasis', 'use_old_sampling', 'do_not_add_watermark'];
+            for (const k of keys) {
+              if (o[k] !== undefined) this.forge.options[k] = o[k];
+            }
+          } catch (err) {
+            console.error('Failed to load forge options', err);
+          }
+        },
+        async applyForgeOptions() {
+          const keys = ['sampler_name', 'scheduler', 'steps', 'cfg_scale', 'width', 'height', 'batch_size', 'sd_vae', 'clip_skip', 'eta_ddim', 'eta_ancestral', 'sigma_churn', 'enable_emphasis', 'use_old_sampling', 'do_not_add_watermark'];
+          const updates = {};
+          for (const k of keys) {
+            updates[k] = this.forge.options[k];
+          }
+          try {
+            const res = await fetch('/api/forge/options', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updates),
+            });
+            const data = await res.json();
+            if (!data.success) {
+              console.error('Failed to apply options', data);
+            }
+          } catch (err) {
+            console.error('Failed to apply forge options', err);
+          }
+        },
+        async refreshForgeAll() {
+          await Promise.all([
+            this.refreshForgeStatus(),
+            this.refreshForgeModels(),
+            this.refreshForgeOptions(),
+          ]);
         },
       },
     }).mount("#app");

@@ -171,8 +171,10 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("CN");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    // Should have 7 tabs total (added LORA tab for LoRA browser)
-    expect(tabs.length).to.equal(7);
+    expect(tabs.join(" ")).to.include("FORGE");
+    expect(tabs.join(" ")).to.include("GENERATE");
+    // Should have 9 tabs total
+    expect(tabs.length).to.equal(9);
   });
 
   it("has a video player and overlay HUD", () => {
