@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.0] - 2026-05-17
+
+## What's Changed
+
+- feat: add FORGE settings tab and fix Docker healthchecks (#31) (81c3ad6)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.2.11...v0.3.0
+
+
 ## [0.2.11] - 2026-05-15
 
 ## What's Changed
