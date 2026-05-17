@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.1] - 2026-05-17
+
+## What's Changed
+
+- feat(ui): restructure tabs with sub-pills for PARAMETERS and SETTINGS (625fbeb)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.0...v0.3.1
+
+
 ## [0.3.0] - 2026-05-17
 
 ## What's Changed
