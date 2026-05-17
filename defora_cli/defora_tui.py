@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 
 from .mediator_client import MediatorClient
 
-TABS = ["LIVE", "PROMPTS", "PARAMETERS", "MOTION", "MODULATION", "SETTINGS", "GENERATE"]
+TABS = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "SETTINGS", "GENERATE"]
 SOURCES = ["Manual", "Beat", "MIDI"]
 DEFAULT_MEDIATOR_HOST = os.getenv("DEFORUMATION_MEDIATOR_HOST", "localhost")
 DEFAULT_MEDIATOR_PORT = os.getenv("DEFORUMATION_MEDIATOR_PORT", "8766")
@@ -214,7 +214,7 @@ class DeforaTUI:
     ):
         self.stdscr = SafeWindow(stdscr)
         self.tab = 0
-        self.param_sub_tab = 0  # 0=LORA, 1=CONTROLNET
+        self.prompts_sub_tab = 0  # 0=PROMPTS, 1=LORA, 2=CONTROLNET
         self.settings_sub_tab = 0  # 0=ENGINE, 1=FORGE, 2=MIDI, 3=PRESETS
         self.params: Dict[str, Param] = {
             "cfg": Param("Vibe (CFG)", 6.0, min_value=0.0, max_value=30.0, step=0.5),
@@ -357,28 +357,27 @@ class DeforaTUI:
                 self.tab = 4
             elif key in (curses.KEY_F6, ord("6")):
                 self.tab = 5
-            elif key in (curses.KEY_F7, ord("7")):
-                self.tab = 6
-            elif self.tab == 2 and key in (ord("p"), ord("P")):
-                self.param_sub_tab ^= 1
-                self.status = f"Parameters: {'LoRA' if self.param_sub_tab == 0 else 'ControlNet'}"
-            elif self.tab == 2 and key in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5"), ord("6")):
+            elif self.tab == 1 and key in (ord("p"), ord("P")):
+                self.prompts_sub_tab = (self.prompts_sub_tab + 1) % 3
+                labels = ["Prompts", "LoRA", "ControlNet"]
+                self.status = f"Prompts: {labels[self.prompts_sub_tab]}"
+            elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5"), ord("6")):
                 self.lora_slot_sel = int(chr(key)) - 1
                 self.status = f"LoRA slot {self.lora_slot_sel + 1} selected"
-            elif self.tab == 2 and key in (ord("w"), ord("W")):
+            elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (ord("w"), ord("W")):
                 self._save_lora_state()
-            elif self.tab == 2 and key in (ord("e"), ord("E")):
+            elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (ord("e"), ord("E")):
                 self._export_lora_preset_file()
-            elif self.tab == 2 and key in (ord(","), ord(".")):
+            elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (ord(","), ord(".")):
                 d = -self.lora_crossfader.step if key == ord(",") else self.lora_crossfader.step
                 self.lora_crossfader.adjust(d)
                 self.lora_crossfader.clamp()
                 self.status = f"Crossfader → {self.lora_crossfader.value:.2f}"
-            elif self.tab == 2 and key in (curses.KEY_LEFT, ord("h")):
+            elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (curses.KEY_LEFT, ord("h")):
                 self.adjust_lora_strength(-self.lora_a[0][1].step)
-            elif self.tab == 2 and key in (curses.KEY_RIGHT, ord("l")):
+            elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (curses.KEY_RIGHT, ord("l")):
                 self.adjust_lora_strength(self.lora_a[0][1].step)
-            elif self.tab == 5 and key in (ord("p"), ord("P")):
+            elif self.tab == 4 and key in (ord("p"), ord("P")):
                 self.settings_sub_tab = (self.settings_sub_tab + 1) % 4
                 labels = ["Engine", "Forge", "MIDI", "Presets"]
                 self.status = f"Settings: {labels[self.settings_sub_tab]}"
@@ -622,7 +621,7 @@ class DeforaTUI:
         header = f"DEFORA TUI v0.2  Session: {self.session}  [Q]uit  [F1..F7]"
         self.stdscr.addnstr(0, 0, header.ljust(w), w - 1, curses.A_REVERSE)
         bar = (
-            f"F1 LIVE  F2 PROMPTS  F3 PARAMS  F4 MOTION  F5 MODULATION  F6 SETTINGS  F7 GENERATE  "
+            f"F1 LIVE  F2 PROMPTS  F3 MOTION  F4 MODULATION  F5 SETTINGS  F6 GENERATE  "
             f"Deforum: {self.deforum_status()}  Frames:{self.frames_total}"
         )
         self.stdscr.addnstr(1, 0, bar.ljust(w), w - 1, curses.A_REVERSE)
@@ -632,14 +631,12 @@ class DeforaTUI:
         elif self.tab == 1:
             self.draw_prompts()
         elif self.tab == 2:
-            self.draw_parameters()
-        elif self.tab == 3:
             self.draw_motion()
-        elif self.tab == 4:
+        elif self.tab == 3:
             self.draw_modulation()
-        elif self.tab == 5:
+        elif self.tab == 4:
             self.draw_settings()
-        elif self.tab == 6:
+        elif self.tab == 5:
             self.draw_generate()
 
         self.stdscr.addnstr(h - 2, 0, "─" * (w - 1), w - 1)
@@ -742,20 +739,32 @@ class DeforaTUI:
 
     def draw_prompts(self):
         h, w = self.stdscr.getmaxyx()
-        self.stdscr.addnstr(2, 1, "POSITIVE PROMPT A (FULL WIDTH)", w - 2, curses.A_BOLD)
+        sub_labels = ["PROMPTS", "LORA", "CONTROLNET"]
+        bar = "  ".join(f"[{t}]" if self.prompts_sub_tab == i else f" {t} " for i, t in enumerate(sub_labels))
+        self.stdscr.addnstr(2, 1, f"PROMPTS  {bar}  (P to cycle)", w - 2, curses.A_BOLD)
+        if self.prompts_sub_tab == 0:
+            self._draw_prompts_content()
+        elif self.prompts_sub_tab == 1:
+            self.draw_lora()
+        else:
+            self.draw_controlnet()
+
+    def _draw_prompts_content(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(3, 1, "POSITIVE PROMPT A (FULL WIDTH)", w - 2, curses.A_BOLD)
         self.stdscr.addnstr(
-            3,
+            4,
             1,
             '"clown squeezed into a comically small box, shot in a photographic style, detailed view, highlighting the clown"',
             w - 2,
         )
-        self.stdscr.addnstr(4, 1, "(E to edit in full-screen editor)", w - 2)
-        self.stdscr.addnstr(6, 1, "NEGATIVE PROMPT", w - 2, curses.A_BOLD)
+        self.stdscr.addnstr(5, 1, "(E to edit in full-screen editor)", w - 2)
+        self.stdscr.addnstr(7, 1, "NEGATIVE PROMPT", w - 2, curses.A_BOLD)
         self.stdscr.addnstr(
-            7, 1, '"(bad quality), (worst quality), broken hands, bad anatomy, deformed, boring"', w - 2
+            8, 1, '"(bad quality), (worst quality), broken hands, bad anatomy, deformed, boring"', w - 2
         )
-        self.stdscr.addnstr(9, 1, "PROMPT MORPHING", w - 2, curses.A_BOLD)
-        self.stdscr.addnstr(10, 1, "Morph: [ON ]    Global blend A ●────────────○──────────── B", w - 2)
+        self.stdscr.addnstr(10, 1, "PROMPT MORPHING", w - 2, curses.A_BOLD)
+        self.stdscr.addnstr(11, 1, "Morph: [ON ]    Global blend A ●────────────○──────────── B", w - 2)
         table = [
             "ID  On  Name           A prompt                  B prompt                  Range (A..B)",
             "1   X   clean→mad      clean evil clown          abstract mad clown        0.40 – 1.00",
@@ -764,23 +773,13 @@ class DeforaTUI:
             "4   .   extra slot     (empty)                   (empty)                   0.00 – 1.00",
         ]
         for i, line in enumerate(table):
-            self.stdscr.addnstr(12 + i, 1, line, w - 2)
+            self.stdscr.addnstr(13 + i, 1, line, w - 2)
         self.stdscr.addnstr(
             h - 4,
             1,
             "↑/↓ move • SPACE toggle • A/B edit • R range • N new • DEL delete • U update • CTRL+S save • CTRL+L load",
             w - 2,
         )
-
-    def draw_parameters(self):
-        h, w = self.stdscr.getmaxyx()
-        sub_tabs = ["LORA", "CONTROLNET"]
-        bar = "  ".join(f"[{t}]" if (self.param_sub_tab == 0 and t == "LORA") or (self.param_sub_tab == 1 and t == "CONTROLNET") else f" {t} " for t in sub_tabs)
-        self.stdscr.addnstr(2, 1, f"PARAMETERS  {bar}", w - 2, curses.A_BOLD)
-        if self.param_sub_tab == 0:
-            self.draw_lora()
-        else:
-            self.draw_controlnet()
 
     def draw_motion(self):
         h, w = self.stdscr.getmaxyx()

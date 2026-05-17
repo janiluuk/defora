@@ -166,13 +166,12 @@ describe("Deforumation Web UI", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
-    expect(tabs.join(" ")).to.include("PARAMETERS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("SETTINGS");
     expect(tabs.join(" ")).to.include("GENERATE");
-    // Should have 7 tabs total
-    expect(tabs.length).to.equal(7);
+    // Should have 6 tabs total
+    expect(tabs.length).to.equal(6);
   });
 
   it("has a video player and overlay HUD", () => {

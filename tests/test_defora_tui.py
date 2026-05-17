@@ -86,7 +86,7 @@ def test_param_adjust_and_source_cycle():
 
 @pytest.mark.parametrize(
     "tab_method",
-    ["draw_live", "draw_prompts", "draw_parameters", "draw_motion", "draw_modulation", "draw_controlnet", "draw_settings", "draw_generate", "draw_forge_settings"],
+    ["draw_live", "draw_prompts", "draw_motion", "draw_modulation", "draw_settings", "draw_generate", "draw_forge_settings", "draw_lora", "draw_controlnet"],
 )
 def test_draw_sections(tab_method):
     fake = FakeWin()

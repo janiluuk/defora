@@ -352,6 +352,12 @@
         </div>
 
         <div v-else-if="currentTab==='PROMPTS'">
+          <div class="sub-pills">
+            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='PROMPTS'}" @click="switchSubTab('PROMPTS','PROMPTS')">PROMPTS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='LORA'}" @click="switchSubTab('PROMPTS','LORA')">LORA</button>
+            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CONTROLNET'}" @click="switchSubTab('PROMPTS','CONTROLNET')">CONTROLNET</button>
+          </div>
+          <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
           <!-- Base Prompt Section at Top -->
           <div class="rack">
             <div class="framesync-panel">
@@ -418,7 +424,7 @@
                       </div>
                     </div>
                     <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
-                      No LoRAs in Group A<br/>Add from LORA tab
+                      No LoRAs in Group A<br/>Add from LORA sub-tab
                     </div>
                     <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
                       +{{ loras.groupA.length - 3 }} more
@@ -491,7 +497,7 @@
                       </div>
                     </div>
                     <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
-                      No LoRAs in Group B<br/>Add from LORA tab
+                      No LoRAs in Group B<br/>Add from LORA sub-tab
                     </div>
                     <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
                       +{{ loras.groupB.length - 3 }} more
@@ -573,14 +579,8 @@
               </ul>
             </div>
           </div>
-        </div>
-
-        <div v-else-if="currentTab==='PARAMETERS'">
-          <div class="sub-pills">
-            <button class="sub-pill" :class="{active: currentSubTab.PARAMETERS==='LORA'}" @click="switchSubTab('PARAMETERS','LORA')">LORA</button>
-            <button class="sub-pill" :class="{active: currentSubTab.PARAMETERS==='CONTROLNET'}" @click="switchSubTab('PARAMETERS','CONTROLNET')">CONTROLNET</button>
           </div>
-          <div v-if="currentSubTab.PARAMETERS==='LORA'">
+          <div v-else-if="currentSubTab.PROMPTS==='LORA'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -689,7 +689,7 @@
             </div>
           </div>
           </div>
-          <div v-else-if="currentSubTab.PARAMETERS==='CONTROLNET'">
+          <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -1532,21 +1532,35 @@
         </div>
 
         <div v-else-if="currentTab==='PROMPTS'">
-          <h4>Morph slots</h4>
-          <table class="table">
-            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
-            <tbody>
-              <tr v-for="slot in morphSlots" :key="slot.id">
-                <td>{{ slot.id }}</td>
-                <td>{{ slot.on ? '●' : '○' }}</td>
-                <td>{{ slot.name }}</td>
-                <td>{{ slot.a }}</td>
-                <td>{{ slot.b }}</td>
-                <td>{{ slot.range }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
+          <h4>Prompts & Parameters</h4>
+          <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
+            <table class="table">
+              <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
+              <tbody>
+                <tr v-for="slot in morphSlots" :key="slot.id">
+                  <td>{{ slot.id }}</td>
+                  <td>{{ slot.on ? '●' : '○' }}</td>
+                  <td>{{ slot.name }}</td>
+                  <td>{{ slot.a }}</td>
+                  <td>{{ slot.b }}</td>
+                  <td>{{ slot.range }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
+          </div>
+          <div v-else-if="currentSubTab.PROMPTS==='LORA'">
+            <div class="chips">
+              <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
+              <span class="chip">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>
+            </div>
+          </div>
+          <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
+            <div class="chips">
+              <span class="chip">ControlNet: {{ cn.active }}</span>
+              <span class="chip">Slots: {{ cn.slots.length }}</span>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="currentTab==='MOTION'">
@@ -1568,14 +1582,6 @@
             <img v-if="audioSpectrogramDataUrl" class="spectral-preview" style="height:80px; margin-bottom:8px;" :src="audioSpectrogramDataUrl" alt="Spectrogram" />
             <div v-else class="wave" style="height:80px; background:#11182a; margin-bottom:8px;"></div>
             <div style="font-size:12px; color:var(--muted);">Audio mappings: {{ audioMappings.filter(m => m.param).length }} active</div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='PARAMETERS'">
-          <h4>Parameters</h4>
-          <div class="chips">
-            <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
-            <span class="chip">ControlNet: {{ cn.active }}</span>
           </div>
         </div>
 
@@ -1805,14 +1811,13 @@
           tabs: [
             { id: "LIVE", label: "LIVE" },
             { id: "PROMPTS", label: "PROMPTS" },
-            { id: "PARAMETERS", label: "PARAMETERS" },
             { id: "MOTION", label: "MOTION" },
             { id: "MODULATION", label: "MODULATION" },
             { id: "SETTINGS", label: "SETTINGS" },
             { id: "GENERATE", label: "GENERATE" },
           ],
           currentTab: "LIVE",
-          currentSubTab: { PARAMETERS: 'LORA', SETTINGS: 'ENGINE' },
+          currentSubTab: { PROMPTS: 'PROMPTS', SETTINGS: 'ENGINE' },
           stats: { fps: 27, lat: 120 },
           hud: { seed: 42490527 },
           timecode: "00:00.00",
