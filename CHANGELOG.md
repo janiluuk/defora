@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.3] - 2026-05-17
+
+## What's Changed
+
+- feat(ui): move LORA and CONTROLNET as sub-tabs under PROMPTS (5acba0a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.2...v0.3.3
+
+
 ## [0.3.2] - 2026-05-17
 
 ## What's Changed
