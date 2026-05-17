@@ -166,15 +166,13 @@ describe("Deforumation Web UI", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
-    expect(tabs.join(" ")).to.include("LORA");
+    expect(tabs.join(" ")).to.include("PARAMETERS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
-    expect(tabs.join(" ")).to.include("CN");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    expect(tabs.join(" ")).to.include("FORGE");
     expect(tabs.join(" ")).to.include("GENERATE");
-    // Should have 9 tabs total
-    expect(tabs.length).to.equal(9);
+    // Should have 7 tabs total
+    expect(tabs.length).to.equal(7);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -229,6 +227,7 @@ describe("Deforumation Web UI", () => {
     appVm.audio.objectUrl = null;
 
     appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "MIDI");
     await nextTick();
     const settingsHeadings = [...document.querySelectorAll(".framesync-title, .rack h4")].map((h) => h.textContent.trim());
     expect(settingsHeadings.join(" ")).to.include("Controllers");

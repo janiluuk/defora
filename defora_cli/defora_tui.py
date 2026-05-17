@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Defora TUI — multi-tab ncurses controller (LIVE, PROMPTS, LORA, MOTION, AUDIO/BEATS, CONTROLNET, SETTINGS).
+Defora TUI — multi-tab ncurses controller (LIVE, PROMPTS, PARAMETERS, MOTION, MODULATION, SETTINGS, GENERATE).
 
 Designed for large terminals (~170 cols / 45 rows) to feel like a playable instrument:
 - Big preview + waveform strip always visible.
@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 
 from .mediator_client import MediatorClient
 
-TABS = ["LIVE", "PROMPTS", "LORA", "MOTION", "AUDIO", "CONTROLNET", "SETTINGS"]
+TABS = ["LIVE", "PROMPTS", "PARAMETERS", "MOTION", "MODULATION", "SETTINGS", "GENERATE"]
 SOURCES = ["Manual", "Beat", "MIDI"]
 DEFAULT_MEDIATOR_HOST = os.getenv("DEFORUMATION_MEDIATOR_HOST", "localhost")
 DEFAULT_MEDIATOR_PORT = os.getenv("DEFORUMATION_MEDIATOR_PORT", "8766")
@@ -214,6 +214,8 @@ class DeforaTUI:
     ):
         self.stdscr = SafeWindow(stdscr)
         self.tab = 0
+        self.param_sub_tab = 0  # 0=LORA, 1=CONTROLNET
+        self.settings_sub_tab = 0  # 0=ENGINE, 1=FORGE, 2=MIDI, 3=PRESETS
         self.params: Dict[str, Param] = {
             "cfg": Param("Vibe (CFG)", 6.0, min_value=0.0, max_value=30.0, step=0.5),
             "strength": Param("Strength", 0.65, max_value=1.5, step=0.05),
@@ -357,6 +359,9 @@ class DeforaTUI:
                 self.tab = 5
             elif key in (curses.KEY_F7, ord("7")):
                 self.tab = 6
+            elif self.tab == 2 and key in (ord("p"), ord("P")):
+                self.param_sub_tab ^= 1
+                self.status = f"Parameters: {'LoRA' if self.param_sub_tab == 0 else 'ControlNet'}"
             elif self.tab == 2 and key in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5"), ord("6")):
                 self.lora_slot_sel = int(chr(key)) - 1
                 self.status = f"LoRA slot {self.lora_slot_sel + 1} selected"
@@ -373,6 +378,10 @@ class DeforaTUI:
                 self.adjust_lora_strength(-self.lora_a[0][1].step)
             elif self.tab == 2 and key in (curses.KEY_RIGHT, ord("l")):
                 self.adjust_lora_strength(self.lora_a[0][1].step)
+            elif self.tab == 5 and key in (ord("p"), ord("P")):
+                self.settings_sub_tab = (self.settings_sub_tab + 1) % 4
+                labels = ["Engine", "Forge", "MIDI", "Presets"]
+                self.status = f"Settings: {labels[self.settings_sub_tab]}"
             elif key in (curses.KEY_LEFT, ord("h")):
                 self.adjust_selected(-self.params[self.selected_param].step)
             elif key in (curses.KEY_RIGHT, ord("l")):
@@ -613,7 +622,7 @@ class DeforaTUI:
         header = f"DEFORA TUI v0.2  Session: {self.session}  [Q]uit  [F1..F7]"
         self.stdscr.addnstr(0, 0, header.ljust(w), w - 1, curses.A_REVERSE)
         bar = (
-            f"F1 LIVE  F2 PROMPTS  F3 LORA  F4 MOTION  F5 AUDIO  F6 CN  F7 SETTINGS  "
+            f"F1 LIVE  F2 PROMPTS  F3 PARAMS  F4 MOTION  F5 MODULATION  F6 SETTINGS  F7 GENERATE  "
             f"Deforum: {self.deforum_status()}  Frames:{self.frames_total}"
         )
         self.stdscr.addnstr(1, 0, bar.ljust(w), w - 1, curses.A_REVERSE)
@@ -623,15 +632,15 @@ class DeforaTUI:
         elif self.tab == 1:
             self.draw_prompts()
         elif self.tab == 2:
-            self.draw_lora()
+            self.draw_parameters()
         elif self.tab == 3:
             self.draw_motion()
         elif self.tab == 4:
-            self.draw_audio()
+            self.draw_modulation()
         elif self.tab == 5:
-            self.draw_controlnet()
-        elif self.tab == 6:
             self.draw_settings()
+        elif self.tab == 6:
+            self.draw_generate()
 
         self.stdscr.addnstr(h - 2, 0, "─" * (w - 1), w - 1)
         self.stdscr.addnstr(h - 1, 0, self.status.ljust(w - 1), w - 1)
@@ -763,6 +772,16 @@ class DeforaTUI:
             w - 2,
         )
 
+    def draw_parameters(self):
+        h, w = self.stdscr.getmaxyx()
+        sub_tabs = ["LORA", "CONTROLNET"]
+        bar = "  ".join(f"[{t}]" if (self.param_sub_tab == 0 and t == "LORA") or (self.param_sub_tab == 1 and t == "CONTROLNET") else f" {t} " for t in sub_tabs)
+        self.stdscr.addnstr(2, 1, f"PARAMETERS  {bar}", w - 2, curses.A_BOLD)
+        if self.param_sub_tab == 0:
+            self.draw_lora()
+        else:
+            self.draw_controlnet()
+
     def draw_motion(self):
         h, w = self.stdscr.getmaxyx()
         self.stdscr.addnstr(2, 1, "CAMERA LIVE CONTROLS", w - 2, curses.A_BOLD)
@@ -790,9 +809,9 @@ class DeforaTUI:
             self.stdscr.addnstr(9 + i, 1, line, w - 2)
         self.stdscr.addnstr(h - 4, 1, "Hints: apply presets with number keys • SHIFT+F1..F4 save preset slots", w - 2)
 
-    def draw_audio(self):
+    def draw_modulation(self):
         h, w = self.stdscr.getmaxyx()
-        self.stdscr.addnstr(2, 1, "TRACK & TEMPO", w - 2, curses.A_BOLD)
+        self.stdscr.addnstr(2, 1, "AUDIO & MODULATION", w - 2, curses.A_BOLD)
         self.stdscr.addnstr(3, 1, "Track: my_track.wav    [T Change]   BPM: [Auto 114.8]  (M manual • Tap tempo [K])", w - 2)
         self.stdscr.addnstr(4, 1, "Tempo changes: |120 @ bar 1|  |128 @ bar 17|  |110 @ bar 33|   (E edit)", w - 2)
         self.stdscr.addnstr(6, 1, "WAVEFORM + TEMPO LANE", w - 2, curses.A_BOLD)
@@ -851,7 +870,21 @@ class DeforaTUI:
 
     def draw_settings(self):
         h, w = self.stdscr.getmaxyx()
-        self.stdscr.addnstr(2, 1, "ENGINE", w - 2, curses.A_BOLD)
+        sub_labels = ["ENGINE", "FORGE", "MIDI", "PRESETS"]
+        bar = "  ".join(f"[{t}]" if self.settings_sub_tab == i else f" {t} " for i, t in enumerate(sub_labels))
+        self.stdscr.addnstr(2, 1, f"SETTINGS  {bar}  (P to cycle)", w - 2, curses.A_BOLD)
+        if self.settings_sub_tab == 0:
+            self._draw_settings_engine()
+        elif self.settings_sub_tab == 1:
+            self.draw_forge_settings()
+        elif self.settings_sub_tab == 2:
+            self._draw_settings_midi()
+        elif self.settings_sub_tab == 3:
+            self._draw_settings_presets()
+
+    def _draw_settings_engine(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(3, 1, "ENGINE", w - 2, curses.A_BOLD)
         eng = [
             "Resolution: [1024x576]   FPS: [30]     Steps: [30]",
             "Sampler:   [DPM++ 2M Karras]",
@@ -891,9 +924,85 @@ class DeforaTUI:
         self.stdscr.addnstr(
             h - 4,
             1,
-            "Hints: TAB move sections • ENTER edit • +/- tweak numbers • CTRL+S save config",
+            "Hints: +/- tweak numbers • CTRL+S save config",
             w - 2,
         )
+
+    def _draw_settings_midi(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(3, 1, "CONTROLLERS / MIDI", w - 2, curses.A_BOLD)
+        ctrl = [
+            "Devices:",
+            "  ● LaunchControl XL        [ON ]",
+            "  ○ MiniLab mk2             [off]",
+            "  ○ Virtual MIDI Bus 1      [off]",
+            "  [R]escan devices                      MIDI: OK",
+            "Learn mode: [OFF] (press L to toggle; move a knob to capture CC)",
+            "Mappings:",
+            "  CC 21 (LaunchControl) → Vibe (CFG)",
+            "  CC 22 (LaunchControl) → Strength",
+            "  CC 23 (LaunchControl) → Zoom",
+            "For selected mapping: Mode [Absolute] Range 0–100% Curve [Linear]",
+        ]
+        for i, line in enumerate(ctrl):
+            self.stdscr.addnstr(4 + i, 1, line, w - 2)
+        mapping = [
+            "Source (device/CC)        → Target parameter         Mode      Range       Curve",
+            "LaunchControl CC21        → Vibe (CFG)              Absolute   0–100%     Linear",
+            "LaunchControl CC22        → Strength                Absolute   0–100%     Linear",
+            "LaunchControl CC23        → Zoom                    Absolute   0–150%     Exponential",
+            "↑/↓ select • ENTER edit target • M mode • R range • C curve • DEL remove",
+        ]
+        base = 16
+        for i, line in enumerate(mapping):
+            self.stdscr.addnstr(base + i, 1, line, w - 2)
+
+    def _draw_settings_presets(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(3, 1, "PRESET MANAGEMENT", w - 2, curses.A_BOLD)
+        presets = [
+            "Saved presets:",
+            "  1. default_vibe",
+            "  2. cinematic_zoom",
+            "  3. audio_reactive",
+            "",
+            "Controls: L load preset • S save current • D delete selected",
+            "Current: default_vibe",
+        ]
+        for i, line in enumerate(presets):
+            self.stdscr.addnstr(4 + i, 1, line, w - 2)
+
+    def draw_forge_settings(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(3, 1, "FORGE CONNECTION", w - 2, curses.A_BOLD)
+        forge = [
+            f"Host: 192.168.2.102  Port: 7860",
+            f"Status: {'Connected' if self.bridge.connected else 'Disconnected'}",
+            "",
+            "MODEL:",
+            f"  Current: (none loaded)",
+            f"  Sampler: DPM++ 2M Karras  Steps: 24  CFG: 7.0",
+            f"  Resolution: 1024x576  Batch: 1",
+            "",
+            "Controls: R refresh • S switch model • A apply options",
+        ]
+        for i, line in enumerate(forge):
+            self.stdscr.addnstr(4 + i, 1, line, w - 2)
+
+    def draw_generate(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(2, 1, "STORY GENERATOR", w - 2, curses.A_BOLD)
+        gen = [
+            "Theme / Story concept: (empty)",
+            "",
+            "Style preset: Masterpiece Realistic",
+            "FPS: 15  Resolution: 768x512  Total frames: 480  Scenes: 4",
+            "",
+            "Controls: G generate • A approve story • R reject",
+            "Status: Idle",
+        ]
+        for i, line in enumerate(gen):
+            self.stdscr.addnstr(3 + i, 1, line, w - 2)
 
 
 def main(stdscr):
