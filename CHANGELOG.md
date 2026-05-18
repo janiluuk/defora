@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.6] - 2026-05-18
+
+## What's Changed
+
+- feat(runs): add runs browser UI with filtering, sorting, export, and comparison (63137cc)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.5...v0.3.6
+
+
 ## [0.3.5] - 2026-05-18
 
 ## What's Changed
