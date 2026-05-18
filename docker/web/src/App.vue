@@ -43,7 +43,7 @@
         </div>
 
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
-        <audio ref="audioEl" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
+        <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
         <div class="timeline" style="margin-top: 4px;">
           <template v-if="audio.objectUrl">
@@ -1137,10 +1137,11 @@ export default {
   name: 'App',
   data() {
     return {
-      showFrames: true,
-      isPlaying: false,
-      isRecording: false,
-      lfoOn: true,
+       showFrames: true,
+       isPlaying: false,
+       isRecording: false,
+       streamUrl: "",
+       lfoOn: true,
       beatMacroOn: true,
       apiHealth: { sdForge: null },
       forgeHost: process.env.SD_FORGE_HOST || '192.168.2.102',
@@ -2617,9 +2618,101 @@ export default {
  invalidateAudioSpectrogram() {
    this._spectrogramGen = (this._spectrogramGen || 0) + 1;
    this.audioSpectrogramDataUrl = null;
-   this.audioSpectrogramStatus = "";
- },
- scheduleAudioSpectrogramDecode(expectedGen) {
+    this.audioSpectrogramStatus = "";
+  },
+  buildSpectrogramRgba(audioBuffer, opts) {
+    const sampleRate = audioBuffer.sampleRate;
+    const channels = audioBuffer.numberOfChannels;
+    const length = audioBuffer.length;
+    const channelData = audioBuffer.getChannelData(0);
+    
+    // Adaptive FFT size based on audio length
+    const fftSize = length >= 8192 ? 1024 : Math.max(256, Math.pow(2, Math.floor(Math.log2(length / 4))));
+    const hopSize = fftSize / 2;
+    const numFrames = Math.max(1, Math.floor((length - fftSize) / hopSize) + 1);
+    const numBins = fftSize / 2;
+    
+    const width = Math.max(64, numFrames);
+    const height = Math.max(32, Math.min(numBins, 128));
+    const data = new Uint8ClampedArray(width * height * 4);
+    
+    // Step frame positions evenly across the audio
+    const step = Math.max(1, numFrames / width);
+    
+    for (let x = 0; x < width; x++) {
+      const frameStart = Math.floor(x * step);
+      const offset = frameStart * hopSize;
+      
+      // Apply Hann window and compute DFT for each frequency bin
+      for (let y = 0; y < height; y++) {
+        let real = 0;
+        let imag = 0;
+        
+        for (let n = 0; n < fftSize; n++) {
+          const idx = offset + n;
+          if (idx >= length) break;
+          
+          const window = 0.5 * (1 - Math.cos((2 * Math.PI * n) / (fftSize - 1)));
+          const sample = channelData[idx] * window;
+          
+          const angle = (2 * Math.PI * y * n) / fftSize;
+          real += sample * Math.cos(angle);
+          imag -= sample * Math.sin(angle);
+        }
+        
+        const magnitude = Math.sqrt(real * real + imag * imag) / fftSize;
+        const intensity = Math.min(1, magnitude * 10); // Scale up for visibility
+        
+        // Convert to color (blue -> cyan -> green -> yellow -> red)
+        const idx4 = (y * width + x) * 4;
+        if (intensity < 0.25) {
+          data[idx4] = 0;
+          data[idx4 + 1] = Math.floor(intensity * 4 * 255);
+          data[idx4 + 2] = 255;
+        } else if (intensity < 0.5) {
+          data[idx4] = 0;
+          data[idx4 + 1] = 255;
+          data[idx4 + 2] = Math.floor((1 - (intensity - 0.25) * 4) * 255);
+        } else if (intensity < 0.75) {
+          data[idx4] = Math.floor((intensity - 0.5) * 4 * 255);
+          data[idx4 + 1] = 255;
+          data[idx4 + 2] = 0;
+        } else {
+          data[idx4] = 255;
+          data[idx4 + 1] = Math.floor((1 - (intensity - 0.75) * 4) * 255);
+          data[idx4 + 2] = 0;
+        }
+        data[idx4 + 3] = 255; // Alpha
+      }
+    }
+    
+    return { width, height, data };
+  },
+  spectrogramRgbaToDataUrl(rgba) {
+    if (typeof OffscreenCanvas !== "undefined") {
+      const canvas = new OffscreenCanvas(rgba.width, rgba.height);
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.createImageData(rgba.width, rgba.height);
+      imageData.data.set(rgba.data);
+      ctx.putImageData(imageData, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+    
+    // Fallback for environments without OffscreenCanvas
+    if (typeof document !== "undefined") {
+      const canvas = document.createElement("canvas");
+      canvas.width = rgba.width;
+      canvas.height = rgba.height;
+      const ctx = canvas.getContext("2d");
+      const imageData = ctx.createImageData(rgba.width, rgba.height);
+      imageData.data.set(rgba.data);
+      ctx.putImageData(imageData, 0, 0);
+      return canvas.toDataURL("image/png");
+    }
+    
+    return null;
+  },
+  scheduleAudioSpectrogramDecode(expectedGen) {
    if (typeof setTimeout !== "function") return;
    setTimeout(() => {
      this.runAudioSpectrogramFromObjectUrl(expectedGen).catch(() => {});
@@ -2640,12 +2733,12 @@ export default {
      ctx = new AC();
      const audioBuf = await ctx.decodeAudioData(ab.slice(0));
      if (expectedGen !== this._spectrogramGen) return;
-     const rgba = buildSpectrogramRgba(audioBuf, {});
+      const rgba = this.buildSpectrogramRgba(audioBuf, {});
      if (!rgba) {
        this.audioSpectrogramStatus = "";
        return;
      }
-     const dataUrl = spectrogramRgbaToDataUrl(rgba);
+      const dataUrl = this.spectrogramRgbaToDataUrl(rgba);
      if (expectedGen !== this._spectrogramGen) return;
      this.audioSpectrogramDataUrl = dataUrl;
      this.audioSpectrogramStatus = dataUrl ? "" : "";
@@ -2659,9 +2752,9 @@ export default {
      }
    }
  },
- spectrogramFromAudioBuffer(audioBuffer, opts) {
-   return buildSpectrogramRgba(audioBuffer, opts || {});
- },
+  spectrogramFromAudioBuffer(audioBuffer, opts) {
+    return this.buildSpectrogramRgba(audioBuffer, opts || {});
+  },
  disposeLiveAudioAnalyser() {
    if (this._liveSpecRaf != null && typeof cancelAnimationFrame === "function") {
      cancelAnimationFrame(this._liveSpecRaf);

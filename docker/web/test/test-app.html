@@ -50,7 +50,7 @@
         </div>
 
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
-        <audio ref="audioEl" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
+        <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
         <div class="timeline" style="margin-top: 4px;">
           <template v-if="audio.objectUrl">
