@@ -33,7 +33,7 @@
           <div class="overlay">
             <div>
               <div class="timecode">{{ timecode }}</div>
-              <div style="font-size:11px; color:var(--muted);">seed {{ hud.seed }}</div>
+              <div style="font-size:11px; color:var(--muted);">Seed {{ hud.seed }}</div>
             </div>
             <div style="text-align:right;">
               <div>{{ stats.fps }} fps</div>

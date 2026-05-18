@@ -145,10 +145,11 @@ describe("Deforumation Web UI", () => {
     appVm.switchTab("MOTION");
     await nextTick();
     const titles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
-    expect(titles.join(" ")).to.include("Camera");
     expect(titles.join(" ")).to.include("Motion");
     appVm.switchTab("LIVE");
     await nextTick();
+    const liveTitles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
+    expect(liveTitles.join(" ")).to.include("Camera");
   });
 
   it("shows prompts/morph table structure", async () => {
