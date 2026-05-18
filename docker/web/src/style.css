@@ -160,6 +160,12 @@
     .thumb-placeholder svg { width: 30px; height: 30px; opacity: 0.3; }
     video::-webkit-media-controls { display: none !important; }
     video::-webkit-media-controls-enclosure { display: none !important; }
+    .runs-row-selected { background: rgba(45, 226, 255, 0.08) !important; }
+    .status-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; }
+    .status-completed { background: rgba(90, 242, 169, 0.15); color: #5af2a9; }
+    .status-failed { background: rgba(255, 77, 109, 0.15); color: #ff4d6d; }
+    .status-running { background: rgba(45, 226, 255, 0.15); color: #2de2ff; }
+    .status-queued { background: rgba(251, 191, 36, 0.15); color: #fbbf24; }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }

@@ -613,6 +613,188 @@
           </div>
         </div>
 
+        <div v-else-if="currentTab==='RUNS'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">📁 Runs <span class="framesync-accent">Browser</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span style="font-size:11px; color:#7fb3d6;">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
+                  <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
+                </div>
+              </div>
+
+              <!-- Filters -->
+              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;">
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
+                <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
+                  <option value="">All Status</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="running">Running</option>
+                  <option value="queued">Queued</option>
+                </select>
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
+              </div>
+
+              <!-- Sort controls -->
+              <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <span style="font-size:11px; color:#7fb3d6;">Sort:</span>
+                <select class="framesync-select" v-model="runsSort.field" @change="applyRunsFilters" style="max-width:140px;">
+                  <option value="started_at">Date</option>
+                  <option value="run_id">Run ID</option>
+                  <option value="model">Model</option>
+                  <option value="frame_count">Frames</option>
+                  <option value="status">Status</option>
+                  <option value="tag">Tag</option>
+                </select>
+                <button class="framesync-button" @click="runsSort.order = runsSort.order === 'desc' ? 'asc' : 'desc'; applyRunsFilters();" style="padding:4px 10px;">
+                  {{ runsSort.order === 'desc' ? '↓ Desc' : '↑ Asc' }}
+                </button>
+                <div style="flex:1;"></div>
+                <button class="framesync-button" @click="exportRuns('json')" style="padding:4px 10px;">📥 JSON</button>
+                <button class="framesync-button" @click="exportRuns('csv')" style="padding:4px 10px;">📥 CSV</button>
+              </div>
+
+              <!-- Runs table -->
+              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid #0c3048; border-radius:8px;">
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                  <thead style="position:sticky; top:0; background:#0b1526; z-index:1;">
+                    <tr style="border-bottom:1px solid #13233d;">
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Thumb</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Run ID</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Status</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Model</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Frames</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Seed</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Tag</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Date</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid #0c3048;" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
+                      <td style="padding:6px;">
+                        <img v-if="run.has_thumbnail" :src="`/api/runs/${run.run_id}/thumb`" style="width:48px; height:48px; object-fit:cover; border-radius:4px;" alt="">
+                        <div v-else style="width:48px; height:48px; background:#0c3048; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:10px;">No img</div>
+                      </td>
+                      <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.run_id }}</td>
+                      <td style="padding:6px;">
+                        <span class="status-chip" :class="'status-' + run.status">{{ run.status }}</span>
+                      </td>
+                      <td style="padding:6px; font-size:10px;">{{ run.model || '-' }}</td>
+                      <td style="padding:6px; font-size:10px;">{{ run.frame_count || run.length_frames || '-' }}</td>
+                      <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.seed || '-' }}</td>
+                      <td style="padding:6px; font-size:10px;">{{ run.tag || '-' }}</td>
+                      <td style="padding:6px; font-size:10px; color:#7fb3d6;">{{ formatDate(run.started_at) }}</td>
+                      <td style="padding:6px;">
+                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="showRunDetails(run)" title="Details">👁</button>
+                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="rerunRun(run)" title="Rerun">🔄</button>
+                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="deleteRun(run)" title="Delete">🗑</button>
+                      </td>
+                    </tr>
+                    <tr v-if="runsFiltered.length === 0">
+                      <td colspan="9" style="padding:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+                        No runs found. Adjust filters or refresh.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Run details modal -->
+          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <div class="framesync-title">📋 Run Details: <span style="font-family:monospace; font-size:12px;">{{ runsDetailView.run_id }}</span></div>
+              <button class="framesync-button" @click="runsDetailView = null">✕ Close</button>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; font-size:11px;">
+              <div>
+                <div class="framesync-subtitle">Status</div>
+                <span class="status-chip" :class="'status-' + runsDetailView.status">{{ runsDetailView.status }}</span>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Model</div>
+                <div>{{ runsDetailView.model || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Frames</div>
+                <div>{{ runsDetailView.frame_count || runsDetailView.length_frames || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Seed</div>
+                <div style="font-family:monospace;">{{ runsDetailView.seed || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Steps</div>
+                <div>{{ runsDetailView.steps || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Strength</div>
+                <div>{{ runsDetailView.strength || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">CFG</div>
+                <div>{{ runsDetailView.cfg || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Tag</div>
+                <div>{{ runsDetailView.tag || '-' }}</div>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="framesync-subtitle">Positive Prompt</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_positive || '-' }}</div>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="framesync-subtitle">Negative Prompt</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_negative || '-' }}</div>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="framesync-subtitle">Notes</div>
+                <textarea class="framesync-input" v-model="runsDetailView.notes" style="min-height:60px; font-size:10px;" placeholder="Add notes..."></textarea>
+                <button class="framesync-button" style="margin-top:6px; padding:4px 12px;" @click="saveRunNotes(runsDetailView)">💾 Save Notes</button>
+              </div>
+            </div>
+
+            <!-- Frame thumbnails -->
+            <div v-if="runsDetailView.frames && runsDetailView.frames.length" style="margin-top:12px;">
+              <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
+              <div style="display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto;">
+                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid #0c3048;" :alt="f">
+              </div>
+            </div>
+          </div>
+
+          <!-- Comparison view -->
+          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
+              <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:10px;">
+                <thead>
+                  <tr style="border-bottom:1px solid #13233d;">
+                    <th style="padding:6px; text-align:left; color:#7fb3d6;">Property</th>
+                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:#7fb3d6; font-family:monospace;">{{ runId }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="prop in ['status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag']" :key="prop" style="border-bottom:1px solid #0c3048;">
+                    <td style="padding:4px; color:#7fb3d6;">{{ prop }}</td>
+                    <td v-for="runId in runsSelected" :key="runId" style="padding:4px; font-family:monospace;">
+                      {{ getRunProp(runId, prop) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <div v-else-if="currentTab==='SETTINGS'">
           <div class="sub-pills">
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
@@ -1164,6 +1346,7 @@ export default {
         { id: "MOTION", label: "MOTION" },
         { id: "MODULATION", label: "MODULATION" },
         { id: "AUDIO", label: "AUDIO" },
+        { id: "RUNS", label: "RUNS" },
         { id: "SETTINGS", label: "SETTINGS" },
         { id: "GENERATE", label: "GENERATE" },
       ],
@@ -1403,9 +1586,16 @@ export default {
       morphCollapsed: true,
       forgeAdvancedCollapsed: true,
       storyResultCollapsed: false,
-      lfoCanvasRefs: {},
-      _lfoAnimFrame: null,
-    };
+       lfoCanvasRefs: {},
+       _lfoAnimFrame: null,
+       runsAll: [],
+       runsFiltered: [],
+       runsFilter: { search: "", status: "", tag: "", model: "" },
+       runsSort: { field: "started_at", order: "desc" },
+       runsSelected: [],
+       runsDetailView: null,
+       runsStatus: "",
+     };
   },
   computed: {
     activeSlot() {
@@ -1489,6 +1679,7 @@ export default {
     this.beatTimer = setInterval(() => this.processBeat(), 50);
     this.startLfoAnimation();
     this.setupKeyboardShortcuts();
+    this.refreshRuns();
     this.$nextTick(() => {
       this.refreshSequencerList();
       setTimeout(() => this.drawTimeline(), 200);
@@ -1515,19 +1706,149 @@ export default {
   },
   methods: {
 
- async refreshApiHealth() {
-   if (typeof fetch !== "function") return;
-   try {
-     const res = await fetch("/api/status");
-     if (!res.ok) return;
-     const j = await res.json();
-     if (j && j.sdForge) {
-       this.apiHealth = { sdForge: { ...j.sdForge } };
-     }
-   } catch (_e) {
-     /* ignore */
-   }
- },
+  async refreshApiHealth() {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch("/api/status");
+      if (!res.ok) return;
+      const j = await res.json();
+      if (j && j.sdForge) {
+        this.apiHealth = { sdForge: { ...j.sdForge } };
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+  },
+  async refreshRuns() {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch("/api/runs");
+      if (!res.ok) return;
+      const data = await res.json();
+      this.runsAll = data.runs || [];
+      this.applyRunsFilters();
+    } catch (_e) {
+      this.runsStatus = "Failed to load runs";
+    }
+  },
+  applyRunsFilters() {
+    let filtered = [...this.runsAll];
+    const { search, status, tag, model } = this.runsFilter;
+    if (status) filtered = filtered.filter(r => r.status === status);
+    if (tag) filtered = filtered.filter(r => (r.tag || "").toLowerCase().includes(tag.toLowerCase()));
+    if (model) filtered = filtered.filter(r => (r.model || "").toLowerCase().includes(model.toLowerCase()));
+    if (search) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(r =>
+        (r.run_id || "").toLowerCase().includes(s) ||
+        (r.tag || "").toLowerCase().includes(s) ||
+        (r.model || "").toLowerCase().includes(s) ||
+        (r.prompt_positive || "").toLowerCase().includes(s) ||
+        (r.notes || "").toLowerCase().includes(s)
+      );
+    }
+    const { field, order } = this.runsSort;
+    filtered.sort((a, b) => {
+      let va = a[field] || "";
+      let vb = b[field] || "";
+      if (typeof va === "number" && typeof vb === "number") {
+        return order === "desc" ? vb - va : va - vb;
+      }
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+      return order === "desc" ? vb.localeCompare(va) : va.localeCompare(vb);
+    });
+    this.runsFiltered = filtered;
+  },
+  toggleRunSelect(runId) {
+    const idx = this.runsSelected.indexOf(runId);
+    if (idx >= 0) this.runsSelected.splice(idx, 1);
+    else this.runsSelected.push(runId);
+  },
+  async showRunDetails(run) {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`);
+      if (!res.ok) return;
+      this.runsDetailView = await res.json();
+    } catch (_e) {
+      this.runsStatus = "Failed to load run details";
+    }
+  },
+  async rerunRun(run) {
+    if (typeof fetch !== "function") return;
+    if (!confirm(`Rerun ${run.run_id}?`)) return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}/rerun`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrides: {} }),
+      });
+      const data = await res.json();
+      this.runsStatus = data.success ? `Rerun request saved for ${run.run_id}` : data.error;
+    } catch (_e) {
+      this.runsStatus = "Failed to submit rerun";
+    }
+  },
+  async deleteRun(run) {
+    if (typeof fetch !== "function") return;
+    if (!confirm(`Delete ${run.run_id}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await this.refreshRuns();
+        this.runsStatus = `Deleted ${run.run_id}`;
+      } else {
+        this.runsStatus = data.error;
+      }
+    } catch (_e) {
+      this.runsStatus = "Failed to delete run";
+    }
+  },
+  async saveRunNotes(run) {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: run.notes }),
+      });
+      const data = await res.json();
+      this.runsStatus = data.success ? "Notes saved" : data.error;
+    } catch (_e) {
+      this.runsStatus = "Failed to save notes";
+    }
+  },
+  async exportRuns(format) {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch(`/api/runs/export?format=${format}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `runs_export.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (_e) {
+      this.runsStatus = "Failed to export";
+    }
+  },
+  getRunProp(runId, prop) {
+    const run = this.runsAll.find(r => r.run_id === runId);
+    return run ? (run[prop] !== undefined ? run[prop] : '-') : '-';
+  },
+  formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return dateStr;
+    }
+  },
  switchTab(id) {
    this.currentTab = id;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}

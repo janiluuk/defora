@@ -1878,6 +1878,234 @@ async function start(opts = {}) {
     }, distributedPool.healthCheckInterval * 1000);
   }
 
+  // Runs browser API
+  const runsDir = opts.runsDir || process.env.RUNS_DIR || "/data/runs";
+  
+  function loadRunManifest(runPath) {
+    const manifestPath = path.join(runPath, "run.json");
+    if (!fs.existsSync(manifestPath)) return null;
+    try {
+      const data = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      return { ...data, run_id: path.basename(runPath), manifest_path: manifestPath };
+    } catch {
+      return null;
+    }
+  }
+
+  function listRuns() {
+    if (!fs.existsSync(runsDir)) return [];
+    const runs = [];
+    const entries = fs.readdirSync(runsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        const runPath = path.join(runsDir, entry.name);
+        const manifest = loadRunManifest(runPath);
+        if (manifest) {
+          // Look for thumbnail
+          const thumbPath = path.join(runPath, "thumb.png");
+          if (fs.existsSync(thumbPath)) {
+            manifest.has_thumbnail = true;
+          }
+          // Look for last frame
+          if (manifest.last_frame && fs.existsSync(manifest.last_frame)) {
+            manifest.last_frame_exists = true;
+          }
+          runs.push(manifest);
+        }
+      }
+    }
+    return runs.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
+  }
+
+  app.get("/api/runs", (req, res) => {
+    const runs = listRuns();
+    const { status, tag, model, search, sort, order } = req.query;
+    
+    let filtered = runs;
+    
+    if (status) {
+      filtered = filtered.filter(r => r.status === status);
+    }
+    if (tag) {
+      filtered = filtered.filter(r => r.tag && r.tag.toLowerCase().includes(tag.toLowerCase()));
+    }
+    if (model) {
+      filtered = filtered.filter(r => r.model && r.model.toLowerCase().includes(model.toLowerCase()));
+    }
+    if (search) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(r => 
+        (r.run_id || "").toLowerCase().includes(s) ||
+        (r.tag || "").toLowerCase().includes(s) ||
+        (r.model || "").toLowerCase().includes(s) ||
+        (r.prompt_positive || "").toLowerCase().includes(s) ||
+        (r.notes || "").toLowerCase().includes(s)
+      );
+    }
+    
+    if (sort) {
+      const reverse = order === "desc";
+      filtered.sort((a, b) => {
+        let va = a[sort] || "";
+        let vb = b[sort] || "";
+        if (typeof va === "number" && typeof vb === "number") {
+          return reverse ? vb - va : va - vb;
+        }
+        va = String(va).toLowerCase();
+        vb = String(vb).toLowerCase();
+        return reverse ? vb.localeCompare(va) : va.localeCompare(vb);
+      });
+    }
+    
+    res.json({ runs: filtered, total: runs.length, filtered: filtered.length });
+  });
+
+  app.get("/api/runs/:runId", (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    const manifest = loadRunManifest(runPath);
+    if (!manifest) {
+      return res.status(404).json({ error: "Run not found" });
+    }
+    
+    // Get frame list
+    const frames = [];
+    if (fs.existsSync(runPath)) {
+      const entries = fs.readdirSync(runPath);
+      for (const entry of entries) {
+        if (entry.match(/^frame_\d+\.png$/)) {
+          frames.push(entry);
+        }
+      }
+    }
+    
+    manifest.frames = frames.sort();
+    res.json(manifest);
+  });
+
+  app.get("/api/runs/:runId/thumb", (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    const thumbPath = path.join(runPath, "thumb.png");
+    if (!fs.existsSync(thumbPath)) {
+      // Try to find any frame
+      const entries = fs.readdirSync(runPath).filter(e => e.match(/^frame_\d+\.png$/)).sort();
+      if (entries.length > 0) {
+        const framePath = path.join(runPath, entries[0]);
+        return res.sendFile(framePath);
+      }
+      return res.status(404).json({ error: "No thumbnail found" });
+    }
+    res.sendFile(thumbPath);
+  });
+
+  app.get("/api/runs/:runId/frames/:frameName", (req, res) => {
+    const framePath = path.join(runsDir, req.params.runId, req.params.frameName);
+    if (!fs.existsSync(framePath) || !framePath.startsWith(runsDir)) {
+      return res.status(404).json({ error: "Frame not found" });
+    }
+    res.sendFile(framePath);
+  });
+
+  app.put("/api/runs/:runId", (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    const manifestPath = path.join(runPath, "run.json");
+    if (!fs.existsSync(manifestPath)) {
+      return res.status(404).json({ error: "Run not found" });
+    }
+    
+    try {
+      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
+      const { tag, notes, metadata } = req.body;
+      if (tag !== undefined) manifest.tag = tag;
+      if (notes !== undefined) manifest.notes = notes;
+      if (metadata !== undefined) manifest.metadata = { ...manifest.metadata, ...metadata };
+      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/runs/:runId", (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    if (!fs.existsSync(runPath)) {
+      return res.status(404).json({ error: "Run not found" });
+    }
+    
+    try {
+      fs.rmSync(runPath, { recursive: true, force: true });
+      res.json({ success: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/runs/export", (req, res) => {
+    const runs = listRuns();
+    const format = req.query.format || "json";
+    
+    if (format === "csv") {
+      const headers = ["run_id", "status", "started_at", "model", "frame_count", "tag", "seed", "steps", "strength", "cfg", "notes"];
+      const csvRows = [headers.join(",")];
+      for (const run of runs) {
+        const row = headers.map(h => {
+          const val = run[h] !== undefined ? String(run[h]).replace(/"/g, '""') : "";
+          return `"${val}"`;
+        });
+        csvRows.push(row.join(","));
+      }
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=runs_export.csv");
+      res.send(csvRows.join("\n"));
+    } else {
+      res.json({ runs });
+    }
+  });
+
+  app.post("/api/runs/:runId/rerun", async (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    const manifest = loadRunManifest(runPath);
+    if (!manifest) {
+      return res.status(404).json({ error: "Run not found" });
+    }
+    
+    const { overrides } = req.body || {};
+    const rerunRequest = {
+      mode: "rerun",
+      run_id: manifest.run_id,
+      original_manifest: manifest,
+      overrides: overrides || {},
+      created_at: new Date().toISOString(),
+    };
+    
+    const requestPath = path.join(runPath, "rerun_request.json");
+    fs.writeFileSync(requestPath, JSON.stringify(rerunRequest, null, 2));
+    
+    res.json({ success: true, request_path: requestPath });
+  });
+
+  app.post("/api/runs/:runId/continue", async (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    const manifest = loadRunManifest(runPath);
+    if (!manifest) {
+      return res.status(404).json({ error: "Run not found" });
+    }
+    
+    const { overrides, from_frame } = req.body || {};
+    const continueRequest = {
+      mode: "continue",
+      run_id: manifest.run_id,
+      original_manifest: manifest,
+      from_frame: from_frame || manifest.frame_count,
+      overrides: overrides || {},
+      created_at: new Date().toISOString(),
+    };
+    
+    const requestPath = path.join(runPath, "continue_request.json");
+    fs.writeFileSync(requestPath, JSON.stringify(continueRequest, null, 2));
+    
+    res.json({ success: true, request_path: requestPath });
+  });
+
   const server = app.listen(port, () => {
     const actualPort = server.address().port;
     console.log(`[web] API/WS listening on ${actualPort}`);
