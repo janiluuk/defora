@@ -293,6 +293,7 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🎨 Vibe & <span class="framesync-accent">Style</span></div>
+                <button class="framesync-button" @click="resetVibeParams">↺ Reset</button>
               </div>
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack" v-for="p in liveVibe" :key="p.key">
@@ -311,6 +312,7 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">📹 <span class="framesync-accent">Camera</span></div>
+                <button class="framesync-button" @click="resetCameraParams">↺ Reset</button>
               </div>
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack" v-for="p in liveCam" :key="p.key">
@@ -323,17 +325,18 @@
                   </div>
                 </div>
               </div>
-              <div class="framesync-subtitle" style="margin-top:16px;">Motion Presets</div>
-              <div class="framesync-footer" style="margin-top:8px;">
-                <button class="framesync-button" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</button>
-              </div>
+            </div>
+          </div>
+        </div>
             </div>
           </div>
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🔊 Reference <span class="framesync-accent">A/V sync</span></div>
+                <button class="framesync-button" @click="avSyncCollapsed = !avSyncCollapsed">{{ avSyncCollapsed ? '▼ Show' : '▲ Hide' }}</button>
               </div>
+              <div v-if="!avSyncCollapsed">
               <div class="framesync-subtitle" style="margin-top:8px;">
                 Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.
               </div>
@@ -346,6 +349,7 @@
                 <div class="framesync-subtitle">Video lead (seconds)</div>
                 <input type="number" data-testid="av-sync-lead" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
                 <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
+              </div>
               </div>
             </div>
           </div>
@@ -382,10 +386,12 @@
                     <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enabled</button>
                     <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disabled</button>
                   </div>
+                  <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? '▼ Show' : '▲ Hide' }}</button>
                   <button class="framesync-button" @click="applyLoras" style="padding:6px 16px;">✓ Apply All</button>
                 </div>
               </div>
               
+              <div v-if="!morphCollapsed">
               <!-- Main Crossfader Section with A/B Groups -->
               <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
                 
@@ -505,6 +511,7 @@
                   </div>
                 </div>
               </div>
+              </div>
             </div>
           </div>
           
@@ -525,7 +532,9 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🖼 img2img <span class="framesync-accent">(Forge)</span></div>
+                <button class="framesync-button" @click="img2img.show = !img2img.show">{{ img2img.show ? '▲ Hide' : '▼ Show' }}</button>
               </div>
+              <div v-if="img2img.show">
               <div class="framesync-subtitle" style="margin-top:8px;">
                 Reference image → <code>/api/img2img</code> (SD-Forge). Optional <strong>mask</strong> enables inpainting (white = repaint, black = keep). Output under <code>/uploads/</code>.
               </div>
@@ -577,6 +586,7 @@
               <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
                 <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
               </ul>
+              </div>
             </div>
           </div>
           </div>
@@ -746,127 +756,6 @@
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
-                <div class="framesync-title">⏱ Animation <span class="framesync-accent">Sequencer</span></div>
-                <div class="pill" :class="{'danger': sequencerPlaying}">
-                  <span class="dot"></span>{{ sequencerPlaying ? 'Playing' : 'Stopped' }}
-                </div>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; align-items:end;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Duration (s)</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.durationSec" min="0.5" max="600" step="0.5" @change="clampSequencerPlayhead">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">FPS</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Loop</div>
-                  <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</label>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Save as</div>
-                  <input type="text" class="framesync-input" v-model.trim="sequencerSaveName" placeholder="my_timeline" style="font-size:12px;">
-                </div>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
-              <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
-              <div
-                v-if="Number(sequencer.durationSec) > 0"
-                style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;"
-                title="Scene markers (click to jump)"
-              >
-                <div style="position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;"></div>
-                <div
-                  v-for="(m, mi) in sortedSequencerMarkers"
-                  :key="'mk-'+mi+'-'+(m.t || 0)"
-                  style="position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;"
-                  :style="{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }"
-                >
-                  <button
-                    type="button"
-                    class="framesync-button"
-                    style="position:absolute; left:50%; transform:translateX(-50%); top:0; padding:2px 6px; font-size:9px; max-width:72px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
-                    :title="m.name + ' @ ' + m.t.toFixed(2) + 's'"
-                    @click="jumpToSequencerMarker(m)"
-                  >{{ m.name }}</button>
-                </div>
-                <div
-                  :style="{
-                    position: 'absolute',
-                    top: '0',
-                    bottom: '0',
-                    width: '3px',
-                    marginLeft: '-1.5px',
-                    background: '#ff8a1a',
-                    boxShadow: '0 0 6px #ff8a1a',
-                    zIndex: 3,
-                    pointerEvents: 'none',
-                    borderRadius: '1px',
-                    left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%',
-                  }"
-                ></div>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:12px;">Scene markers</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
-                <input type="text" class="framesync-input" style="max-width:160px; font-size:11px;" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
-                <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
-              </div>
-              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
-                <span v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
-                  <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
-                  <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
-                </span>
-              </div>
-              <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                <button type="button" class="framesync-button" @click="toggleSequencerPlayback">{{ sequencerPlaying ? '⏹ Stop' : '▶ Play' }}</button>
-                <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
-                <button type="button" class="framesync-button" @click="saveSequencerTimeline">💾 Save</button>
-                <button type="button" class="framesync-button" @click="exportSequencerDownload">⬇ Export JSON</button>
-                <select class="framesync-input" style="max-width:160px; font-size:11px;" v-model="sequencerLoadPick" @change="loadSequencerTimeline">
-                  <option value="">Load saved…</option>
-                  <option v-for="n in sequencerList" :key="'seq-'+n" :value="n">{{ n }}</option>
-                </select>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:14px;">Tracks</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <select class="framesync-input" style="min-width:140px; font-size:11px;" v-model="sequencerNewParam">
-                  <option v-for="opt in sequencerParamOptions" :key="'sp-'+opt.key" :value="opt.key">{{ opt.label }}</option>
-                </select>
-                <button type="button" class="framesync-button" @click="addSequencerTrack">+ Track</button>
-                <span class="framesync-list" style="font-size:11px;">Keyframe value</span>
-                <input type="number" class="framesync-input" style="width:100px; font-size:11px;" v-model.number="sequencerKeyframeVal" step="any">
-                <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
-              </div>
-              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="color:#ff8a1a; font-size:13px;">{{ tr.param }}</strong>
-                  <label style="font-size:11px; color:#9bc4e2;">
-                    <input type="radio" :value="tr.id" v-model="sequencerSelectedTrackId"> edit
-                  </label>
-                  <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
-                </div>
-                <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
-                  <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
-                    t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
-                    <select class="framesync-input" style="font-size:10px; max-width:110px; padding:2px 4px;" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
-                      <option value="linear">linear</option>
-                      <option value="easeIn">easeIn</option>
-                      <option value="easeOut">easeOut</option>
-                      <option value="easeInOut">easeInOut</option>
-                    </select>
-                    <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
-                  </span>
-                  <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
-                </div>
-              </div>
-              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:#5af2a9;">{{ sequencerStatus }}</div>
-            </div>
-          </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
                 <div class="framesync-title">🎮 Camera <span class="framesync-accent">Pad</span></div>
               </div>
               <div style="margin-top:12px; display:flex; justify-content:center;">
@@ -905,229 +794,220 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🎬 Motion <span class="framesync-accent">Style</span></div>
+                <button class="framesync-button" @click="saveCurrentMotionStyle">💾 Save</button>
               </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">Presets (click to apply — controls move to match)</div>
               <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" v-for="m in motionStyles" :key="m" @click="sendControl('motionStyle',{style:m})">{{ m }}</button>
+                <button class="framesync-button" v-for="m in motionStyles" :key="m" @click="applyMotionPreset(m)">{{ m }}</button>
+              </div>
+              <div v-if="Object.keys(motionStylesSaved).length" style="margin-top:12px;">
+                <div class="framesync-subtitle">Saved Styles</div>
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <span v-for="(s, name) in motionStylesSaved" :key="name" style="display:inline-flex; gap:4px; align-items:center;">
+                    <button class="framesync-button" @click="applySavedMotionStyle(name)">{{ name }}</button>
+                    <button class="framesync-button" style="border-color:#ff4d6d; color:#ff4d6d; padding:2px 6px; font-size:9px;" @click="deleteSavedMotionStyle(name)">✕</button>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div v-else-if="currentTab==='MODULATION'">
-          <!-- Unified Modulation Tab with FrameSync styling -->
+        <div v-else-if="currentTab==='AUDIO'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
-                <div class="framesync-title">🎵 Audio & <span class="framesync-accent">Modulation</span></div>
+                <div class="framesync-title">📁 Audio <span class="framesync-accent">Source</span></div>
                 <div class="pill" :class="{'danger': !audio.uploadedFile}">
                   <span class="dot"></span>
                   {{ audio.uploadedFile ? 'Audio loaded' : 'No audio' }}
                 </div>
               </div>
-              
-              <!-- Audio Upload & BPM Section -->
-              <div class="framesync-row" style="grid-template-columns: 1.2fr 1fr 1fr 1fr; margin-top:12px;">
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
                 <div class="framesync-stack">
-                  <div class="framesync-panel">
-                    <div class="framesync-subtitle">📁 Audio Source</div>
-                    <div v-if="audio.uploadedFile" class="framesync-list" style="margin:6px 0;">
-                      <div class="item">{{ audio.uploadedFile }}</div>
-                    </div>
-                    <input type="file" accept="audio/*" @change="handleAudioUpload" class="framesync-input" style="font-size:11px;" ref="audioFileInput">
-                    <div class="framesync-footer" style="margin-top:6px;">
-                      <button class="framesync-button" v-if="audio.uploadedFile" @click="clearAudioFile">✕ Clear</button>
-                    </div>
+                  <div class="framesync-subtitle">Upload track</div>
+                  <input type="file" accept="audio/*" @change="handleAudioUpload" class="framesync-input" style="font-size:11px;" ref="audioFileInput">
+                  <div v-if="audio.uploadedFile" class="framesync-list" style="margin-top:6px;">
+                    <div class="item">{{ audio.uploadedFile }}</div>
+                  </div>
+                  <div class="framesync-footer" style="margin-top:6px;">
+                    <button class="framesync-button" v-if="audio.uploadedFile" @click="clearAudioFile">✕ Clear</button>
                   </div>
                 </div>
                 <div class="framesync-stack">
-                  <div class="framesync-panel">
-                    <div class="framesync-subtitle">🎵 Tempo (BPM)</div>
-                    <input type="number" class="framesync-input" v-model.number="audio.bpm" min="20" max="300" style="font-size:24px; text-align:center; margin:8px 0;">
-                    <div class="framesync-footer">
-                      <button class="framesync-button">🎯 Detect</button>
-                      <button class="framesync-button">👆 Tap</button>
-                    </div>
-                  </div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-panel">
-                    <div class="framesync-subtitle">⏱️ Beat Phase</div>
-                    <div style="margin:12px 0; text-align:center;">
-                      <div class="pill" :class="{'danger': beatPhase < 0.1}" style="font-size:18px;">
-                        <span class="dot"></span>
-                        {{ Math.round(beatPhase * 100) }}%
-                      </div>
-                    </div>
-                    <div class="framesync-subtitle" style="font-size:10px; text-align:center; color:#7fb3d6;">Beat detection active</div>
-                  </div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-panel">
-                    <div class="framesync-subtitle">🎛️ Global LFO BPM</div>
-                    <input type="number" class="framesync-input" v-model.number="lfoBpm" min="20" max="240" style="font-size:18px; text-align:center; margin:8px 0;">
-                    <div class="framesync-toggle" @click="() => {}">
-                      <span class="framesync-dot"></span> Sync to audio
-                    </div>
+                  <div class="framesync-subtitle">Tempo (BPM)</div>
+                  <input type="number" class="framesync-input" v-model.number="audio.bpm" min="20" max="300" style="font-size:24px; text-align:center; margin:8px 0;">
+                  <div class="framesync-footer">
+                    <button class="framesync-button">🎯 Detect</button>
+                    <button class="framesync-button">👆 Tap</button>
                   </div>
                 </div>
               </div>
-
-              <div v-if="audio.uploadedFile" class="framesync-panel" style="margin-top:12px;">
+              <div v-if="audio.uploadedFile" style="margin-top:12px;">
                 <div class="framesync-subtitle">📡 Spectral overview</div>
                 <div style="font-size:10px; color:#7fb3d6; margin-bottom:6px;">Time → · Low frequency at bottom (offline FFT after upload).</div>
                 <img v-if="audioSpectrogramDataUrl" class="spectral-preview" :src="audioSpectrogramDataUrl" alt="Spectrogram" />
                 <div v-else-if="audioSpectrogramStatus" class="framesync-list" style="font-style:italic;">{{ audioSpectrogramStatus }}</div>
                 <div v-if="audio.objectUrl" style="margin-top:10px;">
                   <div class="framesync-subtitle" style="font-size:11px;">🔊 Live spectrum</div>
-                  <div style="font-size:9px; color:#7fb3d6; margin-bottom:4px;">FFT bars while the reference track plays (LIVE: enable sync + play video, or any playback of the upload).</div>
                   <canvas ref="liveSpectrumCanvas" width="280" height="56" style="width:100%; max-width:100%; height:56px; border-radius:8px; border:1px solid #0c3048; background:#031b2d;" aria-label="Live spectrum"></canvas>
                 </div>
               </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⚡ Beat <span class="framesync-accent">Macros</span></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">Per-beat parameter modulation (each macro has its own enable toggle)</div>
+              <div class="lfo-grid" style="margin-top:12px;">
+                <div class="lfo-card" v-for="(m, idx) in macrosRack" :key="'mac'+idx">
+                  <h4>
+                    <span>Macro {{ idx+1 }}</span>
+                    <label class="switch" style="cursor:pointer;">
+                      <input type="checkbox" v-model="m.on" style="display:none;">
+                      <span class="dot" :style="{background: m.on ? '#ff8a1a' : '#444', width:'14px', height:'14px'}"></span>
+                    </label>
+                  </h4>
+                  <div class="meta">{{ m.on ? 'Enabled' : 'Disabled' }}</div>
+                  <div class="mod-preview" style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; margin:6px 0; padding:4px;">
+                    <svg viewBox="0 0 120 28" preserveAspectRatio="none">
+                      <path v-if="m.shape==='Sine'" d="M0 14 C 15 0, 30 28, 45 14 S 75 0, 90 14 S 105 28, 120 14" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else-if="m.shape==='Saw'" d="M0 22 L40 4 M40 4 L40 22 L80 4 M80 4 L80 22 L120 4" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                      <path v-else d="M0 20 L15 14 L30 22 L45 8 L60 20 L75 12 L90 22 L105 10 L120 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
+                    </svg>
+                  </div>
+                  <select class="framesync-select" v-model="m.target" style="font-size:11px; padding:4px; margin-bottom:6px;">
+                    <option v-for="t in lfoTargets" :key="'mac'+t.key" :value="t.key">{{ t.label }}</option>
+                  </select>
+                  <div class="framesync-buttons" style="gap:4px;">
+                    <button class="framesync-button" v-for="s in ['Sine', 'Saw', 'Noise']" :key="s" :class="{active: m.shape===s}" @click="m.shape=s" style="padding:4px 6px; font-size:10px;">
+                      {{ s === 'Sine' ? '〰' : s === 'Saw' ? '⟋' : '◈' }}
+                    </button>
+                  </div>
+                  <div style="margin-top:6px;">
+                    <div class="framesync-subtitle">Depth</div>
+                    <input type="range" min="0" max="1" step="0.01" v-model.number="m.depth" class="framesync-input" style="padding:2px;">
+                  </div>
+                  <div style="margin-top:6px;">
+                    <div class="framesync-subtitle">BPM</div>
+                    <input type="number" class="framesync-input" v-model.number="m.bpm" min="20" max="300" style="font-size:11px; padding:4px;">
+                  </div>
+                  <div class="framesync-footer" style="margin-top:6px;">
+                    <button class="framesync-button" @click="removeMacro(idx)" style="font-size:10px;">🗑 Del</button>
+                  </div>
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" @click="addMacro" v-if="macrosRack.length<6">➕ Add Macro</button>
+              </div>
+            </div>
+          </div>
+          <div v-if="audio.uploadedFile" class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎚️ Audio → <span class="framesync-accent">Param Mapping</span></div>
+              </div>
+              <div class="audio-map-grid" style="margin-top:12px;">
+                <div class="audio-map-card" v-for="(m, idx) in audioMappings.slice(0, 6)" :key="'amap'+idx">
+                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between; margin-bottom:6px;">
+                    <span style="font-size:11px; color:#9bc4e2;">Map {{ idx+1 }}</span>
+                    <button class="framesync-button" @click="removeAudioMapping(idx)" style="font-size:10px; padding:2px 6px;">✕</button>
+                  </div>
+                  <div class="framesync-subtitle">Target</div>
+                  <select class="framesync-select" v-model="m.param" style="font-size:11px; padding:4px; margin-bottom:6px;">
+                    <option value="">None</option>
+                    <optgroup v-for="group in lfoTargetGroups" :key="'amap'+group.label" :label="group.label">
+                      <option v-for="t in group.items" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
+                    </optgroup>
+                  </select>
+                  <div class="framesync-subtitle">Freq Range</div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px; margin-bottom:6px;">
+                    <input class="framesync-input" type="number" v-model.number="m.freq_min" step="10" style="padding:4px; font-size:10px;" placeholder="Min">
+                    <input class="framesync-input" type="number" v-model.number="m.freq_max" step="10" style="padding:4px; font-size:10px;" placeholder="Max">
+                  </div>
+                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">
+                    <button type="button" class="framesync-button" style="font-size:9px;padding:2px 6px;"
+                      v-for="b in audioBandChips" :key="'ab'+idx+b.key"
+                      @click="applyAudioBandPreset(idx, b.key)">{{ b.label }}</button>
+                  </div>
+                  <div class="framesync-subtitle">Output Range</div>
+                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
+                    <input class="framesync-input" type="number" v-model.number="m.out_min" step="0.1" style="padding:4px; font-size:10px;" placeholder="Min">
+                    <input class="framesync-input" type="number" v-model.number="m.out_max" step="0.1" style="padding:4px; font-size:10px;" placeholder="Max">
+                  </div>
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" @click="addAudioMapping" v-if="audioMappings.length<8">➕ Add Mapping</button>
+                <button class="framesync-button" @click="runAudioMod">▶ Apply Audio Mapping</button>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:6px; font-size:10px; text-align:center;">Status: {{ audioStatus }}</div>
+            </div>
+          </div>
+        </div>
 
-              <!-- LFO Modulators Section -->
-              <div class="framesync-subtitle" style="margin-top:16px;">🌊 LFO Modulators</div>
-              <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:8px;">
-                <div class="framesync-panel" v-for="(l, idx) in lfos.slice(0, 6)" :key="l.id">
-                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
-                    <span style="font-size:11px; color:#9bc4e2;">LFO {{ idx+1 }}</span>
+        <div v-else-if="currentTab==='MODULATION'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🌊 LFO <span class="framesync-accent">Modulators</span></div>
+                <div class="pill" :class="{'danger': !lfos.some(l => l.on)}">
+                  <span class="dot"></span>
+                  {{ lfos.filter(l => l.on).length }} active
+                </div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:8px;">Multi-target LFOs — each LFO can modulate multiple parameters simultaneously</div>
+              <div class="lfo-grid" style="margin-top:12px;">
+                <div class="lfo-card" v-for="(l, idx) in lfos.slice(0, 6)" :key="l.id">
+                  <h4>
+                    <span>LFO {{ idx+1 }}</span>
                     <label class="switch" style="cursor:pointer;">
                       <input type="checkbox" v-model="l.on" style="display:none;">
                       <span class="dot" :style="{background: l.on ? '#ff8a1a' : '#444', width:'14px', height:'14px'}"></span>
                     </label>
-                  </div>
-                  
-                  <!-- LFO Preview Graph -->
-                  <div class="mod-preview" style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; margin:6px 0; padding:4px;">
-                    <svg viewBox="0 0 120 28" preserveAspectRatio="none">
-                      <path v-if="l.shape==='Sine'" d="M0 14 C 15 0, 30 28, 45 14 S 75 0, 90 14 S 105 28, 120 14" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="l.shape==='Triangle'" d="M0 22 L30 4 L60 22 L90 4 L120 22" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="l.shape==='Saw'" d="M0 22 L40 4 M40 4 L40 22 L80 4 M80 4 L80 22 L120 4" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else-if="l.shape==='Square'" d="M0 22 L0 4 L40 4 L40 22 L80 22 L80 4 L120 4" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                      <path v-else d="M0 20 L15 14 L30 22 L45 8 L60 20 L75 12 L90 22 L105 10 L120 20" fill="none" stroke="#ff8a1a" stroke-width="2"/>
-                    </svg>
-                  </div>
-                  
-                  <div class="fs-field" style="margin-bottom:4px;">
-                    <span style="font-size:10px;">Target</span>
-                    <select class="framesync-select" v-model="l.target" @change="initLfoBase(l)" style="font-size:11px; padding:4px;">
-                      <option value="">None</option>
+                  </h4>
+                  <div class="meta">{{ l.on ? 'Enabled' : 'Disabled' }} · {{ l.shape }} · Speed {{ l.speed.toFixed(1) }}x</div>
+                  <canvas :ref="el => lfoCanvasRefs[l.id] = el" width="280" height="48" style="width:100%; height:48px; background:#031b2d; border:1px solid #0c3048; border-radius:6px; margin:6px 0; display:block;"></canvas>
+                  <div class="framesync-subtitle">Targets</div>
+                  <div style="display:flex; flex-wrap:wrap; gap:4px; margin-bottom:6px;">
+                    <span v-for="(t, ti) in l.targets" :key="'lt'+ti" style="background:#0b1526; border:1px solid #173753; border-radius:999px; padding:2px 8px; font-size:10px; color:#cfe5f5; display:inline-flex; align-items:center; gap:4px;">
+                      {{ t }}
+                      <button @click="removeLfoTarget(idx, ti)" style="background:transparent; border:none; color:#ff4d6d; cursor:pointer; padding:0; font-size:10px;">✕</button>
+                    </span>
+                    <select class="framesync-select" v-model="lfoTargetPick[idx]" @change="addLfoTarget(idx)" style="font-size:10px; padding:2px 4px; max-width:100px;">
+                      <option value="">+ Add…</option>
                       <optgroup v-for="group in lfoTargetGroups" :key="'lfo'+group.label" :label="group.label">
                         <option v-for="t in group.items" :key="'lfo'+t.key" :value="t.key">{{ t.label }}</option>
                       </optgroup>
                     </select>
                   </div>
-                  
                   <div class="framesync-buttons" style="gap:4px;">
                     <button class="framesync-button" v-for="s in lfoShapes" :key="s" :class="{active: l.shape===s}" @click="l.shape=s" style="padding:4px 6px; font-size:10px;">
                       {{ s === 'Sine' ? '〰' : s === 'Triangle' ? '△' : s === 'Saw' ? '⟋' : '▭' }}
                     </button>
                   </div>
-                  
-                  <div class="fs-field" style="margin-top:4px;">
-                    <span style="font-size:10px;">Depth</span>
+                  <div style="margin-top:6px;">
+                    <div class="framesync-subtitle">Speed</div>
+                    <input type="range" min="0.1" max="5" step="0.1" v-model.number="l.speed" class="framesync-input" style="padding:2px;">
+                  </div>
+                  <div style="margin-top:6px;">
+                    <div class="framesync-subtitle">Depth</div>
                     <input type="range" min="0" max="1" step="0.01" v-model.number="l.depth" class="framesync-input" style="padding:2px;">
                   </div>
-                  
-                  <div class="framesync-footer" style="margin-top:4px;">
+                  <div style="margin-top:6px;">
+                    <div class="framesync-subtitle">BPM</div>
+                    <input type="number" class="framesync-input" v-model.number="l.bpm" min="20" max="240" style="font-size:11px; padding:4px;">
+                  </div>
+                  <div class="framesync-footer" style="margin-top:6px;">
+                    <button class="framesync-button" @click="resetLfo(idx)" style="font-size:10px;">↺ Reset</button>
                     <button class="framesync-button" @click="removeLfo(idx)" style="font-size:10px;">🗑 Del</button>
                   </div>
                 </div>
               </div>
-              
               <div class="framesync-footer" style="margin-top:8px;">
                 <button class="framesync-button" @click="addLfo" v-if="lfos.length<8">➕ Add LFO</button>
-              </div>
-
-              <!-- Beat Macros Section -->
-              <div class="framesync-subtitle" style="margin-top:16px;">⚡ Beat Macros</div>
-              <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:8px; margin-top:8px;">
-                <div class="framesync-panel" v-for="(m, idx) in macrosRack.slice(0, 6)" :key="'mac'+idx">
-                  <div style="display:flex; gap:6px; align-items:center; justify-content:space-between;">
-                    <span style="font-size:11px; color:#9bc4e2;">Macro {{ idx+1 }}</span>
-                    <label class="switch" style="cursor:pointer;">
-                      <input type="checkbox" v-model="m.on" style="display:none;">
-                      <span class="dot" :style="{background: m.on ? '#ff8a1a' : '#444', width:'14px', height:'14px'}"></span>
-                    </label>
-                  </div>
-                  
-                  <div class="fs-field" style="margin-top:6px;">
-                    <span style="font-size:10px;">Target</span>
-                    <select class="framesync-select" v-model="m.target" style="font-size:11px; padding:4px;">
-                      <option>Vibe (CFG)</option>
-                      <option>Zoom</option>
-                      <option>Noise</option>
-                    </select>
-                  </div>
-                  
-                  <div class="framesync-buttons" style="gap:4px; margin-top:4px;">
-                    <button class="framesync-button" v-for="s in ['Sine', 'Saw', 'Noise']" :key="s" :class="{active: m.shape===s}" @click="m.shape=s" style="padding:4px 6px; font-size:10px;">
-                      {{ s === 'Sine' ? '〰' : s === 'Saw' ? '⟋' : '◈' }}
-                    </button>
-                  </div>
-                  
-                  <div class="fs-field" style="margin-top:4px;">
-                    <span style="font-size:10px;">Depth</span>
-                    <input type="number" class="framesync-input" v-model.number="m.depth" min="0" max="1" step="0.01" style="padding:4px; font-size:11px;">
-                  </div>
-                  
-                  <div class="framesync-footer" style="margin-top:4px;">
-                    <button class="framesync-button" @click="removeMacro(idx)" style="font-size:10px;">🗑 Del</button>
-                  </div>
-                </div>
-              </div>
-              
-              <div class="framesync-footer" style="margin-top:8px;">
-                <button class="framesync-button" @click="addMacro" v-if="macrosRack.length<6">➕ Add Macro</button>
-              </div>
-
-              <!-- Audio Mapping Section (only visible if audio is loaded) -->
-              <div v-if="audio.uploadedFile" style="margin-top:16px;">
-                <div class="framesync-subtitle">🎚️ Audio → Parameter Mapping</div>
-                <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:8px; margin-top:8px;">
-                  <div class="framesync-panel" v-for="(m, idx) in audioMappings.slice(0, 6)" :key="'amap'+idx">
-                    <div style="display:flex; gap:6px; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                      <span style="font-size:11px; color:#9bc4e2;">Map {{ idx+1 }}</span>
-                      <button class="framesync-button" @click="removeAudioMapping(idx)" style="font-size:10px; padding:2px 6px;">✕</button>
-                    </div>
-                    
-                    <div class="fs-field" style="margin-bottom:4px;">
-                      <span style="font-size:10px;">Target</span>
-                      <select class="framesync-select" v-model="m.param" style="font-size:11px; padding:4px;">
-                        <option value="">None</option>
-                        <optgroup v-for="group in lfoTargetGroups" :key="'amap'+group.label" :label="group.label">
-                          <option v-for="t in group.items" :key="'amap'+t.key" :value="t.key">{{ t.label }}</option>
-                        </optgroup>
-                      </select>
-                    </div>
-                    
-                    <div class="fs-field">
-                      <span style="font-size:10px;">Freq Range</span>
-                      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
-                        <input class="framesync-input" type="number" v-model.number="m.freq_min" step="10" style="padding:4px; font-size:10px;" placeholder="Min">
-                        <input class="framesync-input" type="number" v-model.number="m.freq_max" step="10" style="padding:4px; font-size:10px;" placeholder="Max">
-                      </div>
-                    </div>
-                    <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:6px;">
-                      <button type="button" class="framesync-button" style="font-size:9px;padding:2px 6px;"
-                        v-for="b in audioBandChips" :key="'ab'+idx+b.key"
-                        @click="applyAudioBandPreset(idx, b.key)">{{ b.label }}</button>
-                    </div>
-                    
-                    <div class="fs-field" style="margin-top:4px;">
-                      <span style="font-size:10px;">Output Range</span>
-                      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:4px;">
-                        <input class="framesync-input" type="number" v-model.number="m.out_min" step="0.1" style="padding:4px; font-size:10px;" placeholder="Min">
-                        <input class="framesync-input" type="number" v-model.number="m.out_max" step="0.1" style="padding:4px; font-size:10px;" placeholder="Max">
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <div class="framesync-footer" style="margin-top:8px;">
-                  <button class="framesync-button" @click="addAudioMapping" v-if="audioMappings.length<8">➕ Add Mapping</button>
-                  <button class="framesync-button" @click="runAudioMod">▶ Apply Audio Mapping</button>
-                </div>
-                <div class="framesync-subtitle" style="margin-top:6px; font-size:10px; text-align:center;">Status: {{ audioStatus }}</div>
               </div>
             </div>
           </div>
@@ -1139,6 +1019,7 @@
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='FORGE'}" @click="switchSubTab('SETTINGS','FORGE')">FORGE</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
           <div v-if="currentSubTab.SETTINGS==='ENGINE'">
           <div class="rack">
@@ -1289,7 +1170,9 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🔧 <span class="framesync-accent">Advanced</span></div>
+                <button class="framesync-button" @click="forgeAdvancedCollapsed = !forgeAdvancedCollapsed">{{ forgeAdvancedCollapsed ? '▼ Show' : '▲ Hide' }}</button>
               </div>
+              <div v-if="!forgeAdvancedCollapsed">
               <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">CLIP Skip</div>
@@ -1327,6 +1210,7 @@
               </div>
               <div class="framesync-footer" style="margin-top:12px; display:flex; gap:8px;">
                 <button class="framesync-button" @click="applyForgeOptions">✅ Apply All</button>
+              </div>
               </div>
             </div>
           </div>
@@ -1395,6 +1279,138 @@
         </div>
 
         <div v-else-if="currentTab==='GENERATE'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⏱ Animation <span class="framesync-accent">Sequencer</span></div>
+                <div class="pill" :class="{'danger': sequencerPlaying}">
+                  <span class="dot"></span>{{ sequencerPlaying ? 'Playing' : 'Stopped' }}
+                </div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; align-items:end;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Duration (s)</div>
+                  <input type="number" class="framesync-input" v-model.number="sequencer.durationSec" min="0.5" max="600" step="0.5" @change="clampSequencerPlayhead">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">FPS</div>
+                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Loop</div>
+                  <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</label>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Save as</div>
+                  <input type="text" class="framesync-input" v-model.trim="sequencerSaveName" placeholder="my_timeline" style="font-size:12px;">
+                </div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
+              <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
+              <div
+                v-if="Number(sequencer.durationSec) > 0"
+                style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;"
+                title="Scene markers (click to jump)"
+              >
+                <div style="position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;"></div>
+                <div
+                  v-for="(m, mi) in sortedSequencerMarkers"
+                  :key="'mk-'+mi+'-'+(m.t || 0)"
+                  style="position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;"
+                  :style="{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }"
+                >
+                  <button
+                    type="button"
+                    class="framesync-button"
+                    style="position:absolute; left:50%; transform:translateX(-50%); top:0; padding:2px 6px; font-size:9px; max-width:72px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"
+                    :title="m.name + ' @ ' + m.t.toFixed(2) + 's'"
+                    @click="jumpToSequencerMarker(m)"
+                  >{{ m.name }}</button>
+                </div>
+                <div
+                  :style="{
+                    position: 'absolute',
+                    top: '0',
+                    bottom: '0',
+                    width: '3px',
+                    marginLeft: '-1.5px',
+                    background: '#ff8a1a',
+                    boxShadow: '0 0 6px #ff8a1a',
+                    zIndex: 3,
+                    pointerEvents: 'none',
+                    borderRadius: '1px',
+                    left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%',
+                  }"
+                ></div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:12px;">Scene markers</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
+                <input type="text" class="framesync-input" style="max-width:160px; font-size:11px;" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
+                <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
+              </div>
+              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
+                <span v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
+                  <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
+                  <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
+                </span>
+              </div>
+              <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
+                <button type="button" class="framesync-button" @click="toggleSequencerPlayback">{{ sequencerPlaying ? '⏹ Stop' : '▶ Play' }}</button>
+                <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
+                <button type="button" class="framesync-button" @click="saveSequencerTimeline">💾 Save</button>
+                <button type="button" class="framesync-button" @click="exportSequencerDownload">⬇ Export JSON</button>
+                <select class="framesync-input" style="max-width:160px; font-size:11px;" v-model="sequencerLoadPick" @change="loadSequencerTimeline">
+                  <option value="">Load saved…</option>
+                  <option v-for="n in sequencerList" :key="'seq-'+n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Tracks</div>
+              <div v-if="sequencer.tracks.length" style="margin-top:8px; border:1px solid #0c3048; border-radius:8px; background:#031b2d; overflow:hidden;">
+                <div style="padding:6px 10px; font-size:10px; color:#5a8fb8; border-bottom:1px solid #0c3048; display:flex; justify-content:space-between; align-items:center;">
+                  <span>TIMELINE</span>
+                  <span>{{ sequencer.tracks.length }} track{{ sequencer.tracks.length > 1 ? 's' : '' }} · {{ sequencer.durationSec }}s</span>
+                </div>
+                <div style="position:relative;" ref="timelineContainer">
+                  <canvas ref="timelineCanvas" style="width:100%; display:block; cursor:pointer;" @click="seekTimeline" @mousemove="hoverTimeline"></canvas>
+                  <div v-if="timelineHoverTime !== null" style="position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.3); pointer-events:none; z-index:3;" :style="{ left: timelineHoverPercent + '%' }"></div>
+                </div>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
+                <select class="framesync-input" style="min-width:140px; font-size:11px;" v-model="sequencerNewParam">
+                  <option v-for="opt in sequencerParamOptions" :key="'sp-'+opt.key" :value="opt.key">{{ opt.label }}</option>
+                </select>
+                <button type="button" class="framesync-button" @click="addSequencerTrack">+ Track</button>
+                <span class="framesync-list" style="font-size:11px;">Keyframe value</span>
+                <input type="number" class="framesync-input" style="width:100px; font-size:11px;" v-model.number="sequencerKeyframeVal" step="any">
+                <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
+              </div>
+              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;">
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <strong style="color:#ff8a1a; font-size:13px;">{{ tr.param }}</strong>
+                  <label style="font-size:11px; color:#9bc4e2;">
+                    <input type="radio" :value="tr.id" v-model="sequencerSelectedTrackId"> edit
+                  </label>
+                  <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
+                </div>
+                <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
+                  <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
+                    t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
+                    <select class="framesync-input" style="font-size:10px; max-width:110px; padding:2px 4px;" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
+                      <option value="linear">linear</option>
+                      <option value="easeIn">easeIn</option>
+                      <option value="easeOut">easeOut</option>
+                      <option value="easeInOut">easeInOut</option>
+                    </select>
+                    <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
+                  </span>
+                  <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
+                </div>
+              </div>
+              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:#5af2a9;">{{ sequencerStatus }}</div>
+            </div>
+          </div>
+
           <!-- Generator Settings -->
           <div class="rack">
             <div class="framesync-panel">
@@ -1499,11 +1515,12 @@
               <div class="framesync-header">
                 <div class="framesync-title">📜 Generated <span class="framesync-accent">Story</span></div>
                 <div style="display:flex; gap:6px;">
-                  <button class="framesync-button" style="border-color:#5af2a9; color:#5af2a9;" @click="approveStory">✓ Apply to Prompts</button>
+                  <button class="framesync-button" @click="storyResultCollapsed = !storyResultCollapsed">{{ storyResultCollapsed ? '▼ Show' : '▲ Hide' }}</button>
+                  <button class="framesync-button" style="border-color:#5af2a9; color:#5af2a9;" @click="approveStory">✓ Apply</button>
                   <button class="framesync-button" style="border-color:#ff4d6d; color:#ff4d6d;" @click="rejectStory">✗ Discard</button>
                 </div>
               </div>
-              <pre style="margin-top:12px; font-size:10px; color:#cfe5f5; background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:12px; overflow-x:auto; white-space:pre-wrap; max-height:420px; overflow-y:auto; line-height:1.5;">{{ generator.result.formatted }}</pre>
+              <pre v-if="!storyResultCollapsed" style="margin-top:12px; font-size:10px; color:#cfe5f5; background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:12px; overflow-x:auto; white-space:pre-wrap; max-height:420px; overflow-y:auto; line-height:1.5;">{{ generator.result.formatted }}</pre>
             </div>
           </div>
         </div>
@@ -1564,24 +1581,28 @@
         </div>
 
         <div v-else-if="currentTab==='MOTION'">
-          <h4>Sequencer & camera</h4>
+          <h4>Camera & motion styles</h4>
           <div class="chips">
-            <span class="chip" v-for="tr in sequencer.tracks" :key="'ctx-'+tr.id">{{ tr.param }} ({{ (tr.keyframes && tr.keyframes.length) || 0 }} kf)</span>
+            <span class="chip" v-for="m in motionStyles" :key="'ctx-ms-'+m">{{ m }}</span>
+            <span class="chip" v-for="(s, name) in motionStylesSaved" :key="'ctx-saved-'+name">💾 {{ name }}</span>
           </div>
-          <div style="font-size:12px; color:var(--muted); margin-top:8px;">Playhead {{ sequencerPlayhead.toFixed(2) }}s / {{ sequencer.durationSec }}s · {{ sequencerPlaying ? 'playing' : 'stopped' }}</div>
-          <div style="font-size:12px; color:var(--muted); margin-top:4px;">Scene markers: {{ sortedSequencerMarkers.length }}</div>
+        </div>
+
+        <div v-else-if="currentTab==='AUDIO'">
+          <h4>Audio & beat macros</h4>
+          <div class="chips">
+            <span class="chip">BPM: {{ audio.bpm }}</span>
+            <span class="chip" v-for="(m, idx) in macrosRack.filter(x => x.on)" :key="'ctx-mac'+idx">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>
+          </div>
+          <div v-if="audio.uploadedFile" style="margin-top:8px;">
+            <div style="font-size:12px; color:var(--muted);">Audio mappings: {{ audioMappings.filter(m => m.param).length }} active</div>
+          </div>
         </div>
 
         <div v-else-if="currentTab==='MODULATION'">
-          <h4>Active modulators</h4>
+          <h4>Active LFO modulators</h4>
           <div class="chips">
-            <span class="chip" v-for="l in lfos.filter(x => x.on)" :key="'ctx-lfo'+l.id">LFO {{ l.id }}: {{ l.target || 'None' }}</span>
-            <span class="chip" v-for="m in macrosRack.filter(x => x.on)" :key="'ctx-mac'+m.target">Macro: {{ m.target }}</span>
-          </div>
-          <div v-if="audio.uploadedFile" style="margin-top:8px;">
-            <img v-if="audioSpectrogramDataUrl" class="spectral-preview" style="height:80px; margin-bottom:8px;" :src="audioSpectrogramDataUrl" alt="Spectrogram" />
-            <div v-else class="wave" style="height:80px; background:#11182a; margin-bottom:8px;"></div>
-            <div style="font-size:12px; color:var(--muted);">Audio mappings: {{ audioMappings.filter(m => m.param).length }} active</div>
+            <span class="chip" v-for="(l, idx) in lfos.filter(x => x.on)" :key="'ctx-lfo'+l.id">LFO {{ idx+1 }}: {{ l.targets.join(', ') || 'None' }} · {{ l.shape }} · {{ l.speed.toFixed(1) }}x</span>
           </div>
         </div>
 
@@ -1633,8 +1654,45 @@
             </div>
           </div>
         </div>
-      </div>
-    </div>
+          </div>
+          <div v-else-if="currentSubTab.SETTINGS==='KEYS'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⌨️ <span class="framesync-accent">Keyboard Shortcuts</span></div>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Navigation</div>
+                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                    <div><kbd>1</kbd>–<kbd>7</kbd> Switch tabs (LIVE→GENERATE)</div>
+                  </div>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">LIVE Tab</div>
+                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                    <div><kbd>Space</kbd> Generate image</div>
+                    <div><kbd>R</kbd> Reset Vibe & Camera params</div>
+                  </div>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">PROMPTS Tab</div>
+                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                    <div><kbd>M</kbd> Toggle prompt morphing</div>
+                  </div>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">MODULATION Tab</div>
+                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                    <div><kbd>L</kbd> Toggle LFO</div>
+                    <div><kbd>B</kbd> Toggle Beat Macro</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
   </div>
 
   <script>
@@ -1813,6 +1871,7 @@
             { id: "PROMPTS", label: "PROMPTS" },
             { id: "MOTION", label: "MOTION" },
             { id: "MODULATION", label: "MODULATION" },
+            { id: "AUDIO", label: "AUDIO" },
             { id: "SETTINGS", label: "SETTINGS" },
             { id: "GENERATE", label: "GENERATE" },
           ],
@@ -1842,6 +1901,7 @@
           },
           prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5 },
           img2img: {
+            show: false,
             dataUrl: null,
             maskDataUrl: null,
             maskBlur: 4,
@@ -1872,6 +1932,7 @@
             Chaos: { translation_z: 1.5, translation_x: 0.5, translation_y: 0.3, rotation_z: 5, rotation_y: 10 }
           },
           motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
+          motionStylesSaved: {},
           xyPad: { x: 0, y: 0, dragging: false, padSize: 140 },
           audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
           audioSpectrogramDataUrl: null,
@@ -1909,17 +1970,18 @@
           lfos: Array.from({ length: 6 }).map((_, idx) => ({
             id: idx + 1,
             on: idx === 0,
-            target: idx === 0 ? "cfg" : "",
+            targets: idx === 0 ? ["cfg"] : [],
             shape: "Sine",
             bpm: 120,
+            speed: 1.0,
             depth: 0.1,
             base: null,
             phase: 0,
           })),
           macrosRack: [
-            { id: "macro-0", on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.7, offset: 0.1, show: true },
-            { id: "macro-1", on: true, target: "Zoom", shape: "Saw", bpm: 90, depth: 0.6, offset: 0.2, show: false },
-            { id: "macro-2", on: false, target: "Noise/Glitch", shape: "Noise", bpm: 140, depth: 0.3, offset: 0.0, show: false },
+            { id: "macro-0", on: true, target: "cfg", shape: "Sine", bpm: 120, depth: 0.7, offset: 0.1, show: true },
+            { id: "macro-1", on: true, target: "translation_z", shape: "Saw", bpm: 90, depth: 0.6, offset: 0.2, show: false },
+            { id: "macro-2", on: false, target: "noise_multiplier", shape: "Noise", bpm: 140, depth: 0.3, offset: 0.0, show: false },
             ],
           framesync: {
             presets: ["Basic Strength Schedule", "Basic Noise Schedule", "Basic Init"],
@@ -2161,6 +2223,16 @@
           sequencerKeyframeVal: 0,
           sequencerMarkerName: "Scene",
           sequencerSelectedTrackId: null,
+          timelineHoverTime: null,
+          timelineHoverPercent: 0,
+          timelineCanvasCtx: null,
+          lfoTargetPick: {},
+          avSyncCollapsed: true,
+          morphCollapsed: true,
+          forgeAdvancedCollapsed: true,
+          storyResultCollapsed: false,
+          lfoCanvasRefs: {},
+          _lfoAnimFrame: null,
         };
       },
       computed: {
@@ -2215,6 +2287,8 @@
         this.refreshSequencerList();
         this.refreshPlugins();
         this.refreshForgeAll();
+        this.loadMotionStyles();
+        this.setupKeyboardShortcuts();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
           this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
@@ -2222,6 +2296,11 @@
         this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
         this.lfoTimer = setInterval(() => this.runLfos(), 120);
         this.beatTimer = setInterval(() => this.processBeat(), 50);
+        this.startLfoAnimation();
+        this.$nextTick(() => {
+          this.refreshSequencerList();
+          setTimeout(() => this.drawTimeline(), 200);
+        });
       },
       beforeUnmount() {
         this.disposeLiveAudioAnalyser();
@@ -2231,12 +2310,27 @@
         if (this.playbackTimer) clearInterval(this.playbackTimer);
         if (this.lfoTimer) clearInterval(this.lfoTimer);
         if (this.beatTimer) clearInterval(this.beatTimer);
+        this.stopLfoAnimation();
         if (this.playerEl && this.timeHandler) {
           this.playerEl.removeEventListener("timeupdate", this.timeHandler);
         }
         if (this.playerEl && this.errorHandler) {
           this.playerEl.removeEventListener("error", this.errorHandler);
         }
+        if (typeof document !== "undefined") {
+          document.removeEventListener("keydown", this._keyHandler);
+        }
+      },
+      watch: {
+        sequencer: {
+          handler() {
+            this.$nextTick(() => this.drawTimeline());
+          },
+          deep: true,
+        },
+        sequencerPlayhead() {
+          this.$nextTick(() => this.drawTimeline());
+        },
       },
       methods: {
         async refreshApiHealth() {
@@ -2423,7 +2517,7 @@
           return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
         },
         runLfos(now = this.getNow()) {
-          if (this.audio.track) return; // audio sync takes over
+          if (this.audio.track) return;
           if (this.lastLfoTick === null) {
             this.lastLfoTick = now;
             return;
@@ -2434,23 +2528,115 @@
 
           const payload = {};
           this.lfos.forEach((lfo) => {
-            if (!lfo.on || !lfo.target) return;
-            const target = this.lfoTarget(lfo);
-            if (!target) return;
+            if (!lfo.on || !lfo.targets.length) return;
             const bpm = lfo.bpm || this.lfoBpm || 120;
             const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
-            const base = lfo.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(lfo.base, target.min, target.max);
-            lfo.base = base;
-            const inc = dtSec * (bpm / 60) * Math.PI * 2;
+            const speed = lfo.speed || 1.0;
+            const inc = dtSec * (bpm / 60) * Math.PI * 2 * speed;
             const phase = (lfo.phase || 0) + inc;
             lfo.phase = phase % (Math.PI * 2);
             const wave = this.shapeValue(lfo.shape, lfo.phase);
-            const amp = depth * (target.max - target.min) / 2;
-            const value = this.clampVal(base + wave * amp, target.min, target.max);
-            payload[target.key] = value;
+
+            lfo.targets.forEach((targetKey) => {
+              const target = this.lfoTargets.find((t) => t.key === targetKey);
+              if (!target) return;
+              const base = lfo.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(lfo.base, target.min, target.max);
+              if (lfo.base === null) lfo.base = base;
+              const amp = depth * (target.max - target.min) / 2;
+              const value = this.clampVal(base + wave * amp, target.min, target.max);
+              payload[targetKey] = value;
+            });
           });
           if (Object.keys(payload).length) {
             this.sendControl("liveParam", payload);
+          }
+        },
+        startLfoAnimation() {
+          this.stopLfoAnimation();
+          const animate = (ts) => {
+            this.lfos.forEach((lfo) => {
+              const canvas = this.lfoCanvasRefs[lfo.id];
+              if (!canvas || !canvas.getContext) return;
+              this.drawLfoPreview(canvas, lfo, ts);
+            });
+            this._lfoAnimFrame = requestAnimationFrame(animate);
+          };
+          this._lfoAnimFrame = requestAnimationFrame(animate);
+        },
+        stopLfoAnimation() {
+          if (this._lfoAnimFrame != null && typeof cancelAnimationFrame === "function") {
+            cancelAnimationFrame(this._lfoAnimFrame);
+            this._lfoAnimFrame = null;
+          }
+        },
+        drawLfoPreview(canvas, lfo, ts) {
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return;
+          const w = canvas.width;
+          const h = canvas.height;
+          const mid = h / 2;
+          const amp = (h / 2 - 4) * (lfo.depth || 0.2);
+
+          ctx.fillStyle = "#031b2d";
+          ctx.fillRect(0, 0, w, h);
+
+          // Grid lines
+          ctx.strokeStyle = "rgba(12, 48, 72, 0.5)";
+          ctx.lineWidth = 0.5;
+          ctx.beginPath();
+          ctx.moveTo(0, mid);
+          ctx.lineTo(w, mid);
+          ctx.stroke();
+
+          // Phase offset based on time and speed
+          const speed = (lfo.speed || 1.0) * 0.002;
+          const phase = (ts || 0) * speed;
+
+          ctx.strokeStyle = lfo.on ? "#ff8a1a" : "#444";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+
+          const cycles = 2;
+          for (let x = 0; x < w; x++) {
+            const t = (x / w) * cycles * Math.PI * 2 + phase;
+            let y;
+            const p = t % (Math.PI * 2);
+            if (lfo.shape === "Sine") {
+              y = mid + Math.sin(p) * amp;
+            } else if (lfo.shape === "Triangle") {
+              y = mid + (2 * Math.asin(Math.sin(p)) / Math.PI) * amp;
+            } else if (lfo.shape === "Saw") {
+              y = mid + (p / Math.PI - 1) * amp;
+            } else {
+              y = mid + (Math.sin(p) >= 0 ? 1 : -1) * amp;
+            }
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          // Glow effect when enabled
+          if (lfo.on) {
+            ctx.strokeStyle = "rgba(255, 138, 26, 0.15)";
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            for (let x = 0; x < w; x++) {
+              const t = (x / w) * cycles * Math.PI * 2 + phase;
+              const p = t % (Math.PI * 2);
+              let y;
+              if (lfo.shape === "Sine") {
+                y = mid + Math.sin(p) * amp;
+              } else if (lfo.shape === "Triangle") {
+                y = mid + (2 * Math.asin(Math.sin(p)) / Math.PI) * amp;
+              } else if (lfo.shape === "Saw") {
+                y = mid + (p / Math.PI - 1) * amp;
+              } else {
+                y = mid + (Math.sin(p) >= 0 ? 1 : -1) * amp;
+              }
+              if (x === 0) ctx.moveTo(x, y);
+              else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
           }
         },
         processBeat() {
@@ -2482,7 +2668,7 @@
           const activeMacros = this.macrosRack.filter(m => m.on);
           
           activeMacros.forEach((macro) => {
-            const target = this.lfoTargets.find(t => t.label === macro.target || t.key === macro.target);
+            const target = this.lfoTargets.find(t => t.key === macro.target);
             if (!target) return;
             
             // Determine if this macro should trigger on this beat
@@ -2580,6 +2766,73 @@
           this.sendControl("liveParam", preset);
           console.log(`Applied motion preset: ${name}`, preset);
         },
+        resetVibeParams() {
+          const defaults = { cfg: 6.0, strength: 0.65, noise: 1.0, cfgscale: 5.0 };
+          this.liveVibe.forEach((p) => {
+            if (defaults[p.key] !== undefined) {
+              p.val = defaults[p.key];
+              this.queueLiveParam(p.key, defaults[p.key]);
+            }
+          });
+        },
+        resetCameraParams() {
+          const defaults = { zoom: 0.8, panx: 0, pany: 0, tilt: 0 };
+          this.liveCam.forEach((p) => {
+            if (defaults[p.key] !== undefined) {
+              p.val = defaults[p.key];
+              this.queueLiveParam(p.key, defaults[p.key]);
+            }
+          });
+          this.sendControl("liveParam", this.motionPresets.Static);
+        },
+        setupKeyboardShortcuts() {
+          if (typeof document === "undefined") return;
+          const self = this;
+          this._keyHandler = (e) => {
+            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+            if (e.ctrlKey || e.metaKey || e.altKey) return;
+            switch(e.key) {
+              case "1": case "2": case "3": case "4": case "5": case "6": case "7":
+                const tabs = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "AUDIO", "SETTINGS", "GENERATE"];
+                self.currentTab = tabs[parseInt(e.key) - 1];
+                e.preventDefault();
+                break;
+              case " ":
+                if (self.currentTab === "GENERATE") {
+                  self.generateImage();
+                  e.preventDefault();
+                }
+                break;
+              case "r":
+                if (self.currentTab === "LIVE") {
+                  self.resetVibeParams();
+                  self.resetCameraParams();
+                  e.preventDefault();
+                }
+                break;
+              case "m":
+                if (self.currentTab === "PROMPTS") {
+                  self.prompts.morphOn = !self.prompts.morphOn;
+                  self.setMorph(self.prompts.morphOn);
+                  e.preventDefault();
+                }
+                break;
+              case "l":
+                if (self.currentTab === "MODULATION") {
+                  self.lfoOn = !self.lfoOn;
+                  e.preventDefault();
+                }
+                break;
+              case "b":
+                if (self.currentTab === "MODULATION") {
+                  self.beatMacroOn = !self.beatMacroOn;
+                  e.preventDefault();
+                }
+                break;
+            }
+          };
+          document.addEventListener("keydown", this._keyHandler);
+        },
         midiTarget(key) {
           return this.lfoTargets.find((t) => t.key === key) || null;
         },
@@ -2615,7 +2868,7 @@
         addMacro() {
           if (this.macrosRack.length >= 6) return;
           const id = `macro-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
-          this.macrosRack.push({ id, on: true, target: "Vibe (CFG)", shape: "Sine", bpm: 120, depth: 0.5, offset: 0.0, show: false });
+          this.macrosRack.push({ id, on: true, target: "cfg", shape: "Sine", bpm: 120, depth: 0.5, offset: 0.0, show: false });
         },
         removeMacro(index) {
           if (this.macrosRack.length <= 1) return;
@@ -2714,9 +2967,10 @@
           this.lfos.push({
             id: nextId,
             on: true,
-            target: "",
+            targets: [],
             shape: "Sine",
             bpm: this.lfoBpm || 120,
+            speed: 1.0,
             depth: 0.2,
             base: null,
             phase: 0,
@@ -2725,6 +2979,87 @@
         removeLfo(index) {
           if (this.lfos.length <= 1) return;
           this.lfos.splice(index, 1);
+        },
+        resetLfo(index) {
+          const lfo = this.lfos[index];
+          if (!lfo) return;
+          lfo.targets = [];
+          lfo.shape = "Sine";
+          lfo.bpm = this.lfoBpm || 120;
+          lfo.speed = 1.0;
+          lfo.depth = 0.2;
+          lfo.base = null;
+          lfo.phase = 0;
+          lfo.on = false;
+        },
+        addLfoTarget(lfoIdx) {
+          const pick = this.lfoTargetPick[lfoIdx];
+          if (!pick) return;
+          const lfo = this.lfos[lfoIdx];
+          if (!lfo || lfo.targets.includes(pick)) {
+            this.$set ? this.$set(this.lfoTargetPick, lfoIdx, "") : (this.lfoTargetPick[lfoIdx] = "");
+            return;
+          }
+          lfo.targets.push(pick);
+          if (lfo.base === null) {
+            const target = this.lfoTargets.find((t) => t.key === pick);
+            if (target) lfo.base = target.default ?? (target.min + target.max) / 2;
+          }
+          this.lfoTargetPick[lfoIdx] = "";
+        },
+        removeLfoTarget(lfoIdx, targetIdx) {
+          const lfo = this.lfos[lfoIdx];
+          if (!lfo) return;
+          lfo.targets.splice(targetIdx, 1);
+        },
+        saveCurrentMotionStyle() {
+          const name = prompt("Enter style name:");
+          if (!name || !name.trim()) return;
+          const style = {
+            translation_z: 0.8,
+            rotation_z: 0,
+            rotation_y: 0,
+            translation_x: 0,
+            translation_y: 0,
+          };
+          this.motionStylesSaved[name.trim()] = style;
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('defora_motion_styles', JSON.stringify(this.motionStylesSaved));
+            }
+          } catch(_e) {}
+        },
+        loadMotionStyles() {
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              const saved = window.localStorage.getItem('defora_motion_styles');
+              if (saved) {
+                const parsed = JSON.parse(saved);
+                if (parsed && typeof parsed === 'object') {
+                  this.motionStylesSaved = parsed;
+                }
+              }
+            }
+          } catch(_e) {}
+        },
+        deleteSavedMotionStyle(name) {
+          if (!confirm(`Delete saved style "${name}"?`)) return;
+          delete this.motionStylesSaved[name];
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.setItem('defora_motion_styles', JSON.stringify(this.motionStylesSaved));
+            }
+          } catch(_e) {}
+        },
+        applySavedMotionStyle(name) {
+          const style = this.motionStylesSaved[name];
+          if (!style) return;
+          this.sendControl("liveParam", style);
+        },
+        applyMotionPreset(name) {
+          const preset = this.motionPresets[name];
+          if (!preset) return;
+          this.sendControl("liveParam", preset);
         },
         queueLiveParam(key, val) {
           const now = this.getNow();
@@ -3557,6 +3892,151 @@
           a.download = base + ".json";
           a.click();
           URL.revokeObjectURL(a.href);
+        },
+        getTrackValueAt(tr, t) {
+          const kfs = this.sortedKeyframes(tr);
+          if (!kfs.length) return 0;
+          if (t <= kfs[0].t) return kfs[0].v;
+          if (t >= kfs[kfs.length - 1].t) return kfs[kfs.length - 1].v;
+          for (let i = 0; i < kfs.length - 1; i++) {
+            if (t >= kfs[i].t && t <= kfs[i + 1].t) {
+              const dur = kfs[i + 1].t - kfs[i].t;
+              const u = dur > 0 ? (t - kfs[i].t) / dur : 0;
+              const eased = this.sequencerEaseT(u, kfs[i].easing);
+              return kfs[i].v + (kfs[i + 1].v - kfs[i].v) * eased;
+            }
+          }
+          return kfs[kfs.length - 1].v;
+        },
+        drawTimeline() {
+          const canvas = this.$refs.timelineCanvas;
+          if (!canvas || !this.sequencer.tracks.length) return;
+          const ctx = canvas.getContext("2d");
+          const dpr = window.devicePixelRatio || 1;
+          const rect = canvas.getBoundingClientRect();
+          canvas.width = rect.width * dpr;
+          canvas.height = Math.max(120, this.sequencer.tracks.length * 40 + 20) * dpr;
+          ctx.scale(dpr, dpr);
+          const w = rect.width;
+          const h = rect.height;
+          const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
+          const laneH = (h - 20) / Math.max(1, this.sequencer.tracks.length);
+          const trackColors = ["#2de2ff", "#ff53d9", "#5af2a9", "#ff8a1a", "#a78bfa", "#f472b6", "#34d399", "#fbbf24"];
+          ctx.clearRect(0, 0, w, h);
+          ctx.fillStyle = "#031b2d";
+          ctx.fillRect(0, 0, w, h);
+          this.sequencer.tracks.forEach((tr, idx) => {
+            const y = 20 + idx * laneH;
+            const kfs = this.sortedKeyframes(tr);
+            if (!kfs.length) {
+              ctx.strokeStyle = "#1a3a52";
+              ctx.lineWidth = 1;
+              ctx.setLineDash([4, 4]);
+              ctx.beginPath();
+              ctx.moveTo(0, y + laneH / 2);
+              ctx.lineTo(w, y + laneH / 2);
+              ctx.stroke();
+              ctx.setLineDash([]);
+              ctx.fillStyle = "#3a5a78";
+              ctx.font = "10px monospace";
+              ctx.fillText(tr.param + " (no keyframes)", 6, y + laneH / 2 + 3);
+              return;
+            }
+            let minV = Math.min(...kfs.map(k => k.v));
+            let maxV = Math.max(...kfs.map(k => k.v));
+            const range = maxV - minV || 1;
+            minV -= range * 0.15;
+            maxV += range * 0.15;
+            const color = trackColors[idx % trackColors.length];
+            ctx.strokeStyle = "#0c3048";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(0, y, w, laneH);
+            ctx.fillStyle = color + "20";
+            ctx.fillRect(0, y, w, laneH);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const steps = Math.max(w, 100);
+            for (let i = 0; i <= steps; i++) {
+              const t = (i / steps) * dur;
+              const v = this.getTrackValueAt(tr, t);
+              const px = (t / dur) * w;
+              const py = y + laneH - ((v - minV) / (maxV - minV)) * laneH;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.stroke();
+            kfs.forEach(kf => {
+              const px = (kf.t / dur) * w;
+              const v = kf.v;
+              const py = y + laneH - ((v - minV) / (maxV - minV)) * laneH;
+              ctx.fillStyle = color;
+              ctx.beginPath();
+              ctx.arc(px, py, 4, 0, Math.PI * 2);
+              ctx.fill();
+              ctx.fillStyle = "#fff";
+              ctx.beginPath();
+              ctx.arc(px, py, 2, 0, Math.PI * 2);
+              ctx.fill();
+            });
+            ctx.fillStyle = "#5a8fb8";
+            ctx.font = "9px monospace";
+            ctx.fillText(tr.param, 4, y + 11);
+          });
+          const markers = (this.sequencer.markers || []);
+          markers.forEach(m => {
+            const px = (m.t / dur) * w;
+            ctx.strokeStyle = "#ff4d6d80";
+            ctx.lineWidth = 1;
+            ctx.setLineDash([2, 3]);
+            ctx.beginPath();
+            ctx.moveTo(px, 20);
+            ctx.lineTo(px, h);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.fillStyle = "#ff4d6d";
+            ctx.font = "8px monospace";
+            ctx.fillText(m.name, px + 3, 14);
+          });
+          const playX = (this.sequencerPlayhead / dur) * w;
+          ctx.strokeStyle = "#fff";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(playX, 20);
+          ctx.lineTo(playX, h);
+          ctx.stroke();
+          ctx.fillStyle = "#fff";
+          ctx.beginPath();
+          ctx.moveTo(playX - 5, 20);
+          ctx.lineTo(playX + 5, 20);
+          ctx.lineTo(playX, 26);
+          ctx.closePath();
+          ctx.fill();
+          for (let i = 0; i <= 4; i++) {
+            const t = (dur / 4) * i;
+            const px = (t / dur) * w;
+            ctx.fillStyle = "#3a5a78";
+            ctx.font = "8px monospace";
+            ctx.fillText(t.toFixed(1) + "s", px + 2, h - 2);
+          }
+        },
+        seekTimeline(event) {
+          const canvas = this.$refs.timelineCanvas;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
+          this.sequencerPlayhead = Math.max(0, Math.min(dur, (x / rect.width) * dur));
+          this.drawTimeline();
+        },
+        hoverTimeline(event) {
+          const canvas = this.$refs.timelineCanvas;
+          if (!canvas) return;
+          const rect = canvas.getBoundingClientRect();
+          const x = event.clientX - rect.left;
+          const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
+          this.timelineHoverTime = Math.max(0, Math.min(dur, (x / rect.width) * dur));
+          this.timelineHoverPercent = (x / rect.width) * 100;
         },
         xyPadMouseDown(evt) {
           this.xyPad.dragging = true;

@@ -159,6 +159,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
+    appVm.currentSubTab = { PROMPTS: 'PROMPTS', SETTINGS: 'ENGINE' };
     await nextTick();
   });
 
@@ -168,10 +169,10 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
+    expect(tabs.join(" ")).to.include("AUDIO");
     expect(tabs.join(" ")).to.include("SETTINGS");
     expect(tabs.join(" ")).to.include("GENERATE");
-    // Should have 6 tabs total
-    expect(tabs.length).to.equal(6);
+    expect(tabs.length).to.equal(7);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -181,48 +182,57 @@ describe("Deforumation Web UI", () => {
     expect(overlay.textContent).to.include("Seed");
   });
 
-  it("includes video, sliders, and presets", () => {
+  it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
     const sliderRows = [...document.querySelectorAll(".framesync-stack, .framesync-row input[type='range']")];
     expect(sliderRows.length).to.be.greaterThan(5);
-    const presetButtons = [...document.querySelectorAll(".framesync-button")].filter(b => /Static|Orbit|Tunnel|Handheld|Chaos/.test(b.textContent));
-    expect(presetButtons.length).to.be.greaterThan(0);
+    appVm.switchTab("MOTION");
+    await nextTick();
+    const titles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
+    expect(titles.join(" ")).to.include("Camera");
+    expect(titles.join(" ")).to.include("Motion");
+    appVm.switchTab("LIVE");
+    await nextTick();
   });
 
   it("shows prompts/morph table structure", async () => {
     appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "PROMPTS");
     await nextTick();
-    const morphTable = document.querySelector("table.table");
+    await nextTick();
+    const tables = [...document.querySelectorAll("table.table")];
+    const morphTable = tables.find(t => t.querySelector("th") && t.querySelector("th").textContent.includes("ID"));
     expect(morphTable).to.exist;
     const headers = [...morphTable.querySelectorAll("th")].map((h) => h.textContent.trim());
     expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
   });
 
-  it("toggles modulation tab sections and shows unified interface", async () => {
-    // Switch to unified MODULATION tab
+  it("toggles modulation tab sections and shows LFO modulators", async () => {
     appVm.switchTab("MODULATION");
     await nextTick();
     
-    // Check that the unified modulation tab has the expected sections
     const modSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
-    expect(modSubtitles.join(" ")).to.include("Audio Source");
-    expect(modSubtitles.join(" ")).to.include("LFO Modulators");
-    expect(modSubtitles.join(" ")).to.include("Beat Macros");
+    expect(modSubtitles.join(" ")).to.include("Targets");
+    expect(modSubtitles.join(" ")).to.include("Speed");
+    expect(modSubtitles.join(" ")).to.include("Depth");
     
-    // Audio mapping section should be hidden when no audio file
-    const audioMappingSection = document.querySelector(".framesync-subtitle:has(+ div)");
-    // When audio is uploaded, audio mapping section becomes visible
+    appVm.switchTab("AUDIO");
+    await nextTick();
+    
+    const audioSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
+    expect(audioSubtitles.join(" ")).to.include("Upload track");
+    expect(audioSubtitles.join(" ")).to.include("Tempo (BPM)");
+    expect(audioSubtitles.join(" ")).to.include("Per-beat parameter modulation");
+    
     appVm.audio.uploadedFile = "song.wav";
     appVm.audio.track = "/tmp/song.wav";
     appVm.audio.objectUrl = "blob:http://localhost/fake-audio";
     await nextTick();
     
-    // Now audio mapping should be visible
     const allSubtitles = [...document.querySelectorAll(".framesync-subtitle")].map((h) => h.textContent.trim());
-    expect(allSubtitles.join(" ")).to.include("Audio → Parameter Mapping");
-    expect(allSubtitles.join(" ")).to.include("Spectral overview");
-    expect(allSubtitles.join(" ")).to.include("Live spectrum");
+    expect(allSubtitles.join(" ")).to.include("Target");
+    expect(allSubtitles.join(" ")).to.include("Freq Range");
     appVm.audio.objectUrl = null;
 
     appVm.switchTab("SETTINGS");
@@ -361,7 +371,7 @@ describe("Deforumation Web UI behavior", () => {
     instance.ws = new FakeSocket();
     instance.audio.track = "";
     instance.lfos = [
-      { id: 1, on: true, target: "cfg", shape: "Sine", bpm: 15, depth: 0.2, base: 6, phase: 0 },
+      { id: 1, on: true, targets: ["cfg"], shape: "Sine", bpm: 15, speed: 1.0, depth: 0.2, base: 6, phase: 0 },
     ];
     instance.lastLfoTick = 0;
 
@@ -369,14 +379,14 @@ describe("Deforumation Web UI behavior", () => {
 
     const last = instance.ws.sent.at(-1);
     expect(last.controlType).to.equal("liveParam");
-    expect(last.payload.cfg).to.be.closeTo(9, 0.2); // base 6 + depth*range/2
+    expect(last.payload.cfg).to.be.closeTo(9, 0.2);
   });
 
   it("runLfos skips when audio track is set", () => {
     const instance = instantiate(appDef);
     instance.ws = new FakeSocket();
     instance.audio.track = "song.wav";
-    instance.lfos = [{ id: 1, on: true, target: "cfg", shape: "Sine", bpm: 60, depth: 0.2, base: 6, phase: 0 }];
+    instance.lfos = [{ id: 1, on: true, targets: ["cfg"], shape: "Sine", bpm: 60, speed: 1.0, depth: 0.2, base: 6, phase: 0 }];
     instance.lastLfoTick = 0;
 
     instance.runLfos(1000);
@@ -761,9 +771,11 @@ describe("Reference A/V sync mounted e2e", () => {
     await nextTick();
   });
 
-  it("renders hidden sync audio element and LIVE controls", () => {
+  it("renders hidden sync audio element and LIVE controls", async () => {
     const audio = document.querySelector('[data-testid="av-sync-audio"]');
     expect(audio).to.exist;
+    appVm.avSyncCollapsed = false;
+    await nextTick();
     expect(document.querySelector('[data-testid="av-sync-enable"]')).to.exist;
     expect(document.querySelector('[data-testid="av-sync-lead"]')).to.exist;
   });
@@ -796,6 +808,8 @@ describe("Reference A/V sync mounted e2e", () => {
     };
     const wav = new File([Buffer.alloc(64)], "e.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
+    await nextTick();
+    appVm.avSyncCollapsed = false;
     await nextTick();
     const cb = document.querySelector('[data-testid="av-sync-enable"]');
     expect(cb.disabled).to.equal(false);
