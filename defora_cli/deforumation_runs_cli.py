@@ -139,6 +139,15 @@ class RunBrowser:
         self.selected_runs: set = set()
         self.comparison_mode = False
         self.comparison_runs: List[int] = []
+        self.filter_mode = False
+        self.filter_text = ""
+        self.filter_status = ""
+        self.filter_tag = ""
+        self.filter_model = ""
+        self.sort_field = "run_id"
+        self.sort_reverse = True
+        self.filtered_records: List[RunRecord] = []
+        self._apply_filters()
 
     def reload_records(self) -> None:
         recs = load_manifests()
@@ -146,7 +155,26 @@ class RunBrowser:
             recs = demo_records()
             self.status = "No manifests found; showing demo data. q to quit."
         self.records = recs
-        self.selected = min(self.selected, max(len(self.records) - 1, 0))
+        self._apply_filters()
+        self.selected = min(self.selected, max(len(self.filtered_records) - 1, 0))
+
+    def _apply_filters(self) -> None:
+        recs = self.records
+        if self.filter_text:
+            ft = self.filter_text.lower()
+            recs = [r for r in recs if ft in r.run_id.lower() or ft in (r.prompt_positive or "").lower() or ft in (r.prompt_negative or "").lower() or ft in (r.tag or "").lower()]
+        if self.filter_status:
+            fs = self.filter_status.lower()
+            recs = [r for r in recs if fs in r.status.lower()]
+        if self.filter_tag:
+            ftag = self.filter_tag.lower()
+            recs = [r for r in recs if ftag in (r.tag or "").lower()]
+        if self.filter_model:
+            fm = self.filter_model.lower()
+            recs = [r for r in recs if fm in (r.model or "").lower()]
+        key = self.sort_field
+        recs = sorted(recs, key=lambda r: getattr(r, key) or "", reverse=self.sort_reverse)
+        self.filtered_records = recs
 
     def run(self) -> None:
         curses.curs_set(0)
@@ -165,9 +193,9 @@ class RunBrowser:
                     continue
                 break
             elif key in (curses.KEY_UP, ord("k")):
-                self.selected = (self.selected - 1) % len(self.records)
+                self.selected = (self.selected - 1) % len(self.filtered_records)
             elif key in (curses.KEY_DOWN, ord("j")):
-                self.selected = (self.selected + 1) % len(self.records)
+                self.selected = (self.selected + 1) % len(self.filtered_records)
             elif key in (ord("r"),):
                 self.reload_records()
             elif key == ord("e"):
@@ -208,12 +236,52 @@ class RunBrowser:
                 if not self.comparison_mode:
                     self.comparison_runs = [self.selected]
                     self.comparison_mode = True
-                    self.status = "Comparison mode: Select run to compare (v to add, q to exit)"
+                    self.status = "Comparison mode: Select run to compare (v to add, q to exit compare)"
                 else:
                     if len(self.comparison_runs) < 4:  # Max 4 runs to compare
                         if self.selected not in self.comparison_runs:
                             self.comparison_runs.append(self.selected)
                     self.status = f"Comparing {len(self.comparison_runs)} runs"
+            elif key == ord("/"):
+                # Enter filter mode
+                self.filter_mode = True
+                self.filter_text = ""
+                curses.curs_set(1)
+                self.status = "Filter (run_id/prompt/tag): "
+            elif key == ord("s"):
+                # Cycle sort field
+                fields = ["run_id", "started_at", "status", "model", "length_frames", "tag"]
+                idx = fields.index(self.sort_field) if self.sort_field in fields else 0
+                self.sort_field = fields[(idx + 1) % len(fields)]
+                self._apply_filters()
+                self.status = f"Sort: {self.sort_field} ({'↓' if self.sort_reverse else '↑'})"
+            elif key == ord("S"):
+                # Toggle sort direction
+                self.sort_reverse = not self.sort_reverse
+                self._apply_filters()
+                self.status = f"Sort: {self.sort_field} ({'↓' if self.sort_reverse else '↑'})"
+            elif key == ord("x"):
+                # Export filtered runs
+                self.export_runs()
+            elif self.filter_mode:
+                if key in (10, 13, curses.KEY_ENTER):  # Enter to apply
+                    self.filter_mode = False
+                    curses.curs_set(0)
+                    self._apply_filters()
+                    self.selected = min(self.selected, max(len(self.filtered_records) - 1, 0))
+                    self.status = f"Filter: '{self.filter_text}' ({len(self.filtered_records)} runs)"
+                elif key in (27,):  # ESC to cancel
+                    self.filter_mode = False
+                    self.filter_text = ""
+                    curses.curs_set(0)
+                    self._apply_filters()
+                    self.status = "Filter cleared"
+                elif key in (curses.KEY_BACKSPACE, 127, 8):
+                    self.filter_text = self.filter_text[:-1]
+                    self.status = "Filter (run_id/prompt/tag): " + self.filter_text
+                elif 32 <= key <= 126:
+                    self.filter_text += chr(key)
+                    self.status = "Filter (run_id/prompt/tag): " + self.filter_text
 
     def draw(self) -> None:
         self.stdscr.erase()
@@ -222,17 +290,22 @@ class RunBrowser:
         # Header with mode indicators
         header = "Deforumation Runs"
         if self.batch_mode:
-            header += " [BATCH MODE]"
+            header += " [BATCH]"
         if self.comparison_mode:
             header += f" [COMPARE: {len(self.comparison_runs)} runs]"
+        if self.filter_text:
+            header += f" [FILTER: {self.filter_text}]"
+        header += f" [{self.sort_field}{'↓' if self.sort_reverse else '↑'}]"
         
         # Keybinding help
-        if self.comparison_mode:
+        if self.filter_mode:
+            help_text = " | Type filter text | [Enter] apply | [Esc] cancel"
+        elif self.comparison_mode:
             help_text = " | [↑↓/jk] nav | [v] add to compare | [q] exit compare"
         elif self.batch_mode:
             help_text = " | [↑↓] nav | [SPACE] select | [B] batch rerun | [D] batch delete | [b] exit batch | [q] quit"
         else:
-            help_text = " | [↑↓/jk] nav | [r] reload | [e] overrides | [t] tag | [n] notes | [R] rerun | [c] continue | [b] batch | [v] compare | [q] quit"
+            help_text = " | [↑↓/jk] nav | [/] filter | [s] sort | [S] sort dir | [x] export | [r] reload | [e] overrides | [t] tag | [n] notes | [R] rerun | [c] continue | [b] batch | [v] compare | [q] quit"
         
         self.stdscr.addnstr(0, 0, header + help_text, w - 1, curses.A_BOLD)
         
@@ -250,7 +323,8 @@ class RunBrowser:
     
     def draw_list_view(self, h: int, w: int, list_width: int) -> None:
         """Draw the standard list view"""
-        for idx, rec in enumerate(self.records):
+        recs = self.filtered_records
+        for idx, rec in enumerate(recs):
             if idx >= h - 4:
                 break
             
@@ -265,8 +339,8 @@ class RunBrowser:
             self.stdscr.addnstr(2 + idx, 0, line[: list_width - 1], list_width - 1, attr)
         
         # Details pane (only in list view, not comparison)
-        if not self.comparison_mode:
-            rec = self.records[self.selected]
+        if not self.comparison_mode and recs:
+            rec = recs[self.selected]
             detail_x = list_width + 1
             y = 2
             def add(label: str, value: str) -> None:
@@ -523,8 +597,8 @@ class RunBrowser:
         # Create requests for all selected runs
         count = 0
         for idx in self.selected_runs:
-            if idx < len(self.records):
-                rec = self.records[idx]
+            if idx < len(self.filtered_records):
+                rec = self.filtered_records[idx]
                 request = {
                     "mode": "rerun",
                     "base_run": rec.run_id,
@@ -544,6 +618,77 @@ class RunBrowser:
         
         self.status = f"Batch rerun: {count}/{len(self.selected_runs)} requests created"
         self.selected_runs.clear()
+    
+    def export_runs(self) -> None:
+        """Export filtered runs to CSV or JSON"""
+        recs = self.filtered_records
+        if not recs:
+            self.status = "No runs to export"
+            return
+        
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(h - 2, 0, "Export format: [c] CSV  [j] JSON  [Esc] cancel", w - 1, curses.A_REVERSE)
+        self.stdscr.refresh()
+        
+        key = self.stdscr.getch()
+        if key in (27,):  # ESC
+            self.status = "Export cancelled"
+            return
+        
+        runs_dir = Path("runs")
+        if not runs_dir.exists():
+            self.status = "No runs directory found"
+            return
+        
+        if key in (ord("c"), ord("C")):
+            # Export to CSV
+            import csv
+            export_path = runs_dir / "runs_export.csv"
+            try:
+                with open(export_path, "w", newline="", encoding="utf-8") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(["run_id", "status", "started_at", "model", "length_frames", "tag", "seed", "steps", "strength", "cfg", "prompt_positive", "prompt_negative", "notes"])
+                    for rec in recs:
+                        writer.writerow([
+                            rec.run_id, rec.status, rec.started_at, rec.model,
+                            rec.length_frames, rec.tag or "", rec.seed or "",
+                            rec.steps or "", rec.strength or "", rec.cfg or "",
+                            (rec.prompt_positive or "").replace("\n", " "),
+                            (rec.prompt_negative or "").replace("\n", " "),
+                            (rec.notes or "").replace("\n", " ")
+                        ])
+                self.status = f"Exported {len(recs)} runs to {export_path}"
+            except Exception as e:
+                self.status = f"Export failed: {e}"
+        elif key in (ord("j"), ord("J")):
+            # Export to JSON
+            export_path = runs_dir / "runs_export.json"
+            try:
+                data = []
+                for rec in recs:
+                    data.append({
+                        "run_id": rec.run_id,
+                        "status": rec.status,
+                        "started_at": rec.started_at,
+                        "model": rec.model,
+                        "length_frames": rec.length_frames,
+                        "tag": rec.tag,
+                        "seed": rec.seed,
+                        "steps": rec.steps,
+                        "strength": rec.strength,
+                        "cfg": rec.cfg,
+                        "prompt_positive": rec.prompt_positive,
+                        "prompt_negative": rec.prompt_negative,
+                        "notes": rec.notes,
+                        "manifest_path": str(rec.manifest_path),
+                    })
+                with open(export_path, "w", encoding="utf-8") as f:
+                    json.dump(data, f, indent=2)
+                self.status = f"Exported {len(recs)} runs to {export_path}"
+            except Exception as e:
+                self.status = f"Export failed: {e}"
+        else:
+            self.status = "Export cancelled"
     
     def batch_delete(self) -> None:
         """Batch delete selected runs"""
@@ -566,8 +711,8 @@ class RunBrowser:
         import shutil
         count = 0
         for idx in sorted(self.selected_runs, reverse=True):
-            if idx < len(self.records):
-                rec = self.records[idx]
+            if idx < len(self.filtered_records):
+                rec = self.filtered_records[idx]
                 try:
                     # Delete the entire run directory
                     run_dir = rec.manifest_path.parent
