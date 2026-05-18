@@ -21,7 +21,7 @@ from typing import Dict, List, Optional
 
 from .mediator_client import MediatorClient
 
-TABS = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "SETTINGS", "GENERATE"]
+TABS = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "AUDIO", "SETTINGS", "GENERATE"]
 SOURCES = ["Manual", "Beat", "MIDI"]
 DEFAULT_MEDIATOR_HOST = os.getenv("DEFORUMATION_MEDIATOR_HOST", "localhost")
 DEFAULT_MEDIATOR_PORT = os.getenv("DEFORUMATION_MEDIATOR_PORT", "8766")
@@ -357,6 +357,8 @@ class DeforaTUI:
                 self.tab = 4
             elif key in (curses.KEY_F6, ord("6")):
                 self.tab = 5
+            elif key in (curses.KEY_F7, ord("7")):
+                self.tab = 6
             elif self.tab == 1 and key in (ord("p"), ord("P")):
                 self.prompts_sub_tab = (self.prompts_sub_tab + 1) % 3
                 labels = ["Prompts", "LoRA", "ControlNet"]
@@ -377,7 +379,7 @@ class DeforaTUI:
                 self.adjust_lora_strength(-self.lora_a[0][1].step)
             elif self.tab == 1 and self.prompts_sub_tab == 1 and key in (curses.KEY_RIGHT, ord("l")):
                 self.adjust_lora_strength(self.lora_a[0][1].step)
-            elif self.tab == 4 and key in (ord("p"), ord("P")):
+            elif self.tab == 5 and key in (ord("p"), ord("P")):
                 self.settings_sub_tab = (self.settings_sub_tab + 1) % 4
                 labels = ["Engine", "Forge", "MIDI", "Presets"]
                 self.status = f"Settings: {labels[self.settings_sub_tab]}"
@@ -621,7 +623,7 @@ class DeforaTUI:
         header = f"DEFORA TUI v0.2  Session: {self.session}  [Q]uit  [F1..F7]"
         self.stdscr.addnstr(0, 0, header.ljust(w), w - 1, curses.A_REVERSE)
         bar = (
-            f"F1 LIVE  F2 PROMPTS  F3 MOTION  F4 MODULATION  F5 SETTINGS  F6 GENERATE  "
+            f"F1 LIVE  F2 PROMPTS  F3 MOTION  F4 MODULATION  F5 AUDIO  F6 SETTINGS  F7 GENERATE  "
             f"Deforum: {self.deforum_status()}  Frames:{self.frames_total}"
         )
         self.stdscr.addnstr(1, 0, bar.ljust(w), w - 1, curses.A_REVERSE)
@@ -635,8 +637,10 @@ class DeforaTUI:
         elif self.tab == 3:
             self.draw_modulation()
         elif self.tab == 4:
-            self.draw_settings()
+            self.draw_audio()
         elif self.tab == 5:
+            self.draw_settings()
+        elif self.tab == 6:
             self.draw_generate()
 
         self.stdscr.addnstr(h - 2, 0, "─" * (w - 1), w - 1)
@@ -792,56 +796,68 @@ class DeforaTUI:
         ]
         for i, line in enumerate(rows):
             self.stdscr.addnstr(3 + i, 1, line, w - 2)
-        self.stdscr.addnstr(8, 1, "CAMERA CURVES (MULTI-LANE)", w - 2, curses.A_BOLD)
-        lanes = [
-            "Lane: [Pan X ▼]  View: [All lanes]",
-            "Pan X:  1.0 ───────•───────────────•───────────────•──────────────",
-            "         0.0 ──•──────────•───────────────────────────────•───────",
-            "        -1.0 ────────────────────────────────────────────────────",
-            "Pan Y:  1.0 ──•───────────────•───────────────•─────────────",
-            "         0.0 ────────────────────────────────────────────────",
-            "        -1.0 ────────────────────────────────────────────────",
-            "beats: 0           4               8               12",
-            "Controls: I insert • DEL delete • ←/→ move • ↑/↓ adjust • B snap • TAB change lane",
+        self.stdscr.addnstr(8, 1, "MOTION STYLES", w - 2, curses.A_BOLD)
+        style_lines = [
+            "Saved styles: (none yet)",
+            "",
+            "Controls: S save current style • N name new style • 1-5 apply preset",
         ]
-        for i, line in enumerate(lanes):
+        for i, line in enumerate(style_lines):
             self.stdscr.addnstr(9 + i, 1, line, w - 2)
         self.stdscr.addnstr(h - 4, 1, "Hints: apply presets with number keys • SHIFT+F1..F4 save preset slots", w - 2)
 
     def draw_modulation(self):
         h, w = self.stdscr.getmaxyx()
-        self.stdscr.addnstr(2, 1, "AUDIO & MODULATION", w - 2, curses.A_BOLD)
-        self.stdscr.addnstr(3, 1, "Track: my_track.wav    [T Change]   BPM: [Auto 114.8]  (M manual • Tap tempo [K])", w - 2)
-        self.stdscr.addnstr(4, 1, "Tempo changes: |120 @ bar 1|  |128 @ bar 17|  |110 @ bar 33|   (E edit)", w - 2)
-        self.stdscr.addnstr(6, 1, "WAVEFORM + TEMPO LANE", w - 2, curses.A_BOLD)
-        wf = [
-            "Tempo: 120              120               128                     110",
-            "       |                 |                 |                       |",
-            "Audio:  /\\/\\_/\\/\\/\\__/\\/\\/\\/\\____/\\/\\/\\/\\/__/\\/\\___/\\/\\__/\\/\\/\\__/\\/\\____",
-            "Beats:  |   |   |   |   |   |   |   |   |   |   |   |   |   |   |   |",
+        self.stdscr.addnstr(2, 1, "LFO MODULATORS (multi-target)", w - 2, curses.A_BOLD)
+        self.stdscr.addnstr(3, 1, "Each LFO can modulate multiple parameters simultaneously", w - 2)
+        lfo_lines = [
+            "LFO 1 [ON ] Targets: cfg  Shape: Sine  Speed: 1.0x  Depth: [█████────]",
+            "LFO 2 [off] Targets: (none)  Shape: Sine  Speed: 1.0x  Depth: [██──────]",
+            "LFO 3 [off] Targets: (none)  Shape: Sine  Speed: 1.0x  Depth: [██──────]",
+            "LFO 4 [off] Targets: (none)  Shape: Sine  Speed: 1.0x  Depth: [██──────]",
+            "",
+            "Controls: ↑/↓ select LFO • SPACE toggle • T add target • D remove target",
+            "          ←/→ adjust depth • S change shape • P change speed",
         ]
-        for i, line in enumerate(wf):
-            self.stdscr.addnstr(7 + i, 1, line, w - 2)
-        self.stdscr.addnstr(11, 1, "MACRO RACK (max 6)", w - 2, curses.A_BOLD)
-        rack_lines = [
-            "> Macro 1 [ON ] Target: [Vibe (CFG)] Shape: [Sine] Speed: [1/4 note] Depth: [█████────] Offset: [──○─────] Source: [Beat]",
-            "  Macro 2 [on ] Target: [Zoom]      Shape: [Saw ] Speed: [1 bar   ] Depth: [██████──] Offset: [────○───] Source: [Beat]",
-            "  Macro 3 [off] Target: [Noise]     Shape: [Noise] Speed: [1/8 note] Depth: [███─────] Offset: [────○───] Source: [Beat]",
-            "  [+] Add macro (max 6)    ↑/↓ select macro • ENTER toggle • G show in graph",
-        ]
-        for i, line in enumerate(rack_lines):
-            self.stdscr.addnstr(12 + i, 1, line, w - 2)
-        self.stdscr.addnstr(16, 1, "ACTIVE MACRO CURVE", w - 2, curses.A_BOLD)
-        curve = [
-            "Active: Macro 1 → Vibe (CFG) → Sine @ 1/4",
+        for i, line in enumerate(lfo_lines):
+            self.stdscr.addnstr(4 + i, 1, line, w - 2)
+        self.stdscr.addnstr(12, 1, "LFO PREVIEW", w - 2, curses.A_BOLD)
+        preview = [
+            "Active: LFO 1 → cfg → Sine @ 1.0x",
             "1.0 ───────•─────────────•───────────────",
             "0.0 ──•──────────•────────────────────────",
             "-1.0 ────────────────────────────────────",
-            "     bar 0        4          8          12   Tools: P preset • S smooth • R random • B beat snap",
+            "     bar 0        4          8          12",
         ]
-        for i, line in enumerate(curve):
-            self.stdscr.addnstr(17 + i, 1, line, w - 2)
-        self.stdscr.addnstr(h - 4, 1, "Hint: if target source is MIDI, show warning 'Overridden by MIDI – press O to switch to Beat'", w - 2)
+        for i, line in enumerate(preview):
+            self.stdscr.addnstr(13 + i, 1, line, w - 2)
+        self.stdscr.addnstr(h - 4, 1, "Hint: A tab for audio upload, BPM, beat macros, and audio→param mapping", w - 2)
+
+    def draw_audio(self):
+        h, w = self.stdscr.getmaxyx()
+        self.stdscr.addnstr(2, 1, "AUDIO SOURCE", w - 2, curses.A_BOLD)
+        self.stdscr.addnstr(3, 1, "Track: (no audio loaded)    BPM: [114.8]  [D detect] [K tap tempo]", w - 2)
+        self.stdscr.addnstr(5, 1, "BEAT MACROS (per-beat modulation, each has enable toggle)", w - 2, curses.A_BOLD)
+        macro_lines = [
+            "> Macro 1 [ON ] Target: [Vibe (CFG)] Shape: [Sine] Depth: [█████────] BPM: [120]",
+            "  Macro 2 [on ] Target: [Zoom]      Shape: [Saw ] Depth: [██████──] BPM: [90]",
+            "  Macro 3 [off] Target: [Noise]     Shape: [Noise] Depth: [███─────] BPM: [140]",
+            "",
+            "Controls: ↑/↓ select • SPACE toggle • ←/→ depth • T change target • S change shape",
+        ]
+        for i, line in enumerate(macro_lines):
+            self.stdscr.addnstr(6 + i, 1, line, w - 2)
+        self.stdscr.addnstr(12, 1, "AUDIO → PARAMETER MAPPING", w - 2, curses.A_BOLD)
+        map_lines = [
+            "Map 1: strength    Freq: 20–300 Hz    Out: 0.0–1.5",
+            "Map 2: cfg         Freq: 300–1200 Hz  Out: 0.0–30.0",
+            "Map 3: zoom        Freq: 1200–3000 Hz Out: -5.0–5.0",
+            "",
+            "Controls: A add mapping • D delete • ↑/↓ select • E edit range",
+        ]
+        for i, line in enumerate(map_lines):
+            self.stdscr.addnstr(13 + i, 1, line, w - 2)
+        self.stdscr.addnstr(h - 4, 1, "Hint: MODULATION tab (F4) for LFO modulators; GENERATE tab (F7) for sequencer", w - 2)
 
     def draw_controlnet(self):
         h, w = self.stdscr.getmaxyx()
@@ -990,7 +1006,17 @@ class DeforaTUI:
 
     def draw_generate(self):
         h, w = self.stdscr.getmaxyx()
-        self.stdscr.addnstr(2, 1, "STORY GENERATOR", w - 2, curses.A_BOLD)
+        self.stdscr.addnstr(2, 1, "ANIMATION SEQUENCER", w - 2, curses.A_BOLD)
+        seq = [
+            "Duration: 8.0s  FPS: 24  Loop: [X]  Playhead: 0.00s",
+            "Tracks: (none)  Markers: (none)",
+            "",
+            "Controls: A add track • M add marker • P play/stop • S save • L load",
+            "          ←/→ move playhead • K add keyframe • D delete",
+        ]
+        for i, line in enumerate(seq):
+            self.stdscr.addnstr(3 + i, 1, line, w - 2)
+        self.stdscr.addnstr(9, 1, "STORY GENERATOR", w - 2, curses.A_BOLD)
         gen = [
             "Theme / Story concept: (empty)",
             "",
@@ -1001,7 +1027,7 @@ class DeforaTUI:
             "Status: Idle",
         ]
         for i, line in enumerate(gen):
-            self.stdscr.addnstr(3 + i, 1, line, w - 2)
+            self.stdscr.addnstr(10 + i, 1, line, w - 2)
 
 
 def main(stdscr):
