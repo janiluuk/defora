@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.4] - 2026-05-18
+
+## What's Changed
+
+- feat(ui): add timeline viz, keyboard shortcuts, param reset, motion style persistence (#32) (ad50316)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.3...v0.3.4
+
+
 ## [0.3.3] - 2026-05-17
 
 ## What's Changed
