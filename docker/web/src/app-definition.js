@@ -2,7 +2,8 @@
 
 
 module.exports = {
-  template: `<header>
+  template: `  <div id="app">
+    <header>
       <div class="tabs">
         <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
           {{ tab.label }}
@@ -615,6 +616,188 @@ module.exports = {
           </div>
         </div>
 
+        <div v-else-if="currentTab==='RUNS'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">📁 Runs <span class="framesync-accent">Browser</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span style="font-size:11px; color:#7fb3d6;">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
+                  <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
+                </div>
+              </div>
+
+              <!-- Filters -->
+              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;">
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
+                <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
+                  <option value="">All Status</option>
+                  <option value="completed">Completed</option>
+                  <option value="failed">Failed</option>
+                  <option value="running">Running</option>
+                  <option value="queued">Queued</option>
+                </select>
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
+              </div>
+
+              <!-- Sort controls -->
+              <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
+                <span style="font-size:11px; color:#7fb3d6;">Sort:</span>
+                <select class="framesync-select" v-model="runsSort.field" @change="applyRunsFilters" style="max-width:140px;">
+                  <option value="started_at">Date</option>
+                  <option value="run_id">Run ID</option>
+                  <option value="model">Model</option>
+                  <option value="frame_count">Frames</option>
+                  <option value="status">Status</option>
+                  <option value="tag">Tag</option>
+                </select>
+                <button class="framesync-button" @click="runsSort.order = runsSort.order === 'desc' ? 'asc' : 'desc'; applyRunsFilters();" style="padding:4px 10px;">
+                  {{ runsSort.order === 'desc' ? '↓ Desc' : '↑ Asc' }}
+                </button>
+                <div style="flex:1;"></div>
+                <button class="framesync-button" @click="exportRuns('json')" style="padding:4px 10px;">📥 JSON</button>
+                <button class="framesync-button" @click="exportRuns('csv')" style="padding:4px 10px;">📥 CSV</button>
+              </div>
+
+              <!-- Runs table -->
+              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid #0c3048; border-radius:8px;">
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                  <thead style="position:sticky; top:0; background:#0b1526; z-index:1;">
+                    <tr style="border-bottom:1px solid #13233d;">
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Thumb</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Run ID</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Status</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Model</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Frames</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Seed</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Tag</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Date</th>
+                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid #0c3048;" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
+                      <td style="padding:6px;">
+                        <img v-if="run.has_thumbnail" :src="\`/api/runs/\${run.run_id}/thumb\`" style="width:48px; height:48px; object-fit:cover; border-radius:4px;" alt="">
+                        <div v-else style="width:48px; height:48px; background:#0c3048; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:10px;">No img</div>
+                      </td>
+                      <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.run_id }}</td>
+                      <td style="padding:6px;">
+                        <span class="status-chip" :class="'status-' + run.status">{{ run.status }}</span>
+                      </td>
+                      <td style="padding:6px; font-size:10px;">{{ run.model || '-' }}</td>
+                      <td style="padding:6px; font-size:10px;">{{ run.frame_count || run.length_frames || '-' }}</td>
+                      <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.seed || '-' }}</td>
+                      <td style="padding:6px; font-size:10px;">{{ run.tag || '-' }}</td>
+                      <td style="padding:6px; font-size:10px; color:#7fb3d6;">{{ formatDate(run.started_at) }}</td>
+                      <td style="padding:6px;">
+                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="showRunDetails(run)" title="Details">👁</button>
+                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="rerunRun(run)" title="Rerun">🔄</button>
+                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="deleteRun(run)" title="Delete">🗑</button>
+                      </td>
+                    </tr>
+                    <tr v-if="runsFiltered.length === 0">
+                      <td colspan="9" style="padding:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+                        No runs found. Adjust filters or refresh.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <!-- Run details modal -->
+          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <div class="framesync-title">📋 Run Details: <span style="font-family:monospace; font-size:12px;">{{ runsDetailView.run_id }}</span></div>
+              <button class="framesync-button" @click="runsDetailView = null">✕ Close</button>
+            </div>
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; font-size:11px;">
+              <div>
+                <div class="framesync-subtitle">Status</div>
+                <span class="status-chip" :class="'status-' + runsDetailView.status">{{ runsDetailView.status }}</span>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Model</div>
+                <div>{{ runsDetailView.model || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Frames</div>
+                <div>{{ runsDetailView.frame_count || runsDetailView.length_frames || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Seed</div>
+                <div style="font-family:monospace;">{{ runsDetailView.seed || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Steps</div>
+                <div>{{ runsDetailView.steps || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Strength</div>
+                <div>{{ runsDetailView.strength || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">CFG</div>
+                <div>{{ runsDetailView.cfg || '-' }}</div>
+              </div>
+              <div>
+                <div class="framesync-subtitle">Tag</div>
+                <div>{{ runsDetailView.tag || '-' }}</div>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="framesync-subtitle">Positive Prompt</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_positive || '-' }}</div>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="framesync-subtitle">Negative Prompt</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_negative || '-' }}</div>
+              </div>
+              <div style="grid-column: span 2;">
+                <div class="framesync-subtitle">Notes</div>
+                <textarea class="framesync-input" v-model="runsDetailView.notes" style="min-height:60px; font-size:10px;" placeholder="Add notes..."></textarea>
+                <button class="framesync-button" style="margin-top:6px; padding:4px 12px;" @click="saveRunNotes(runsDetailView)">💾 Save Notes</button>
+              </div>
+            </div>
+
+            <!-- Frame thumbnails -->
+            <div v-if="runsDetailView.frames && runsDetailView.frames.length" style="margin-top:12px;">
+              <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
+              <div style="display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto;">
+                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="\`/api/runs/\${runsDetailView.run_id}/frames/\${f}\`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid #0c3048;" :alt="f">
+              </div>
+            </div>
+          </div>
+
+          <!-- Comparison view -->
+          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
+              <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="width:100%; border-collapse:collapse; font-size:10px;">
+                <thead>
+                  <tr style="border-bottom:1px solid #13233d;">
+                    <th style="padding:6px; text-align:left; color:#7fb3d6;">Property</th>
+                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:#7fb3d6; font-family:monospace;">{{ runId }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="prop in ['status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag']" :key="prop" style="border-bottom:1px solid #0c3048;">
+                    <td style="padding:4px; color:#7fb3d6;">{{ prop }}</td>
+                    <td v-for="runId in runsSelected" :key="runId" style="padding:4px; font-family:monospace;">
+                      {{ getRunProp(runId, prop) }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
         <div v-else-if="currentTab==='SETTINGS'">
           <div class="sub-pills">
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
@@ -1128,8 +1311,9 @@ module.exports = {
           <span class="chip">Style: {{ generator.stylePreset }}</span>
         </div>
       </div>
-    </div>`,
-  name: 'App',
+    </div>
+  </div>`,
+
   data() {
     return {
        showFrames: true,

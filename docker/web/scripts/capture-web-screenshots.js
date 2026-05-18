@@ -10,7 +10,7 @@ const { spawn } = require("child_process");
 async function startServer() {
   return new Promise((resolve) => {
     const publicDir = path.join(__dirname, "..", "public");
-    const server = spawn("python", ["-m", "http.server", "9999"], {
+    const server = spawn("python3", ["-m", "http.server", "9999"], {
       cwd: publicDir,
       stdio: "pipe",
     });
@@ -81,11 +81,12 @@ async function captureScreenshots() {
   const tabs = [
     { name: "live", text: "LIVE" },
     { name: "prompts", text: "PROMPTS" },
-    { name: "lora", text: "LORA" },
     { name: "motion", text: "MOTION" },
     { name: "modulation", text: "MODULATION" },
-    { name: "cn", text: "CN" },
+    { name: "audio", text: "AUDIO" },
+    { name: "runs", text: "RUNS" },
     { name: "settings", text: "SETTINGS" },
+    { name: "generate", text: "GENERATE" },
   ];
 
   // Capture screenshot for each tab
