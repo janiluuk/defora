@@ -595,7 +595,15 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">📚 LoRA <span class="framesync-accent">Browser</span></div>
-                <button class="framesync-button" @click="refreshLoras">🔄 Refresh</button>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span class="source" v-if="loras.source" style="font-size:10px;">
+                    <span v-if="loras.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
+                    <span v-else-if="loras.source==='cache'" style="color:#fbbf24;">● Cache</span>
+                    <span v-else-if="loras.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
+                    <span v-else style="color:#7fb3d6;">● {{ loras.source }}</span>
+                  </span>
+                  <button class="framesync-button" @click="refreshLoras">🔄 Refresh</button>
+                </div>
               </div>
               <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; max-height:400px; overflow-y:auto;">
                 <div v-for="lora in loras.available" :key="lora.id" 
@@ -704,6 +712,15 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🎯 ControlNet <span class="framesync-accent">Slots</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span class="source" v-if="cn.source" style="font-size:10px;">
+                    <span v-if="cn.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
+                    <span v-else-if="cn.source==='cache'" style="color:#fbbf24;">● Cache</span>
+                    <span v-else-if="cn.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
+                    <span v-else style="color:#7fb3d6;">● {{ cn.source }}</span>
+                  </span>
+                  <button class="framesync-button" @click="loadControlNetModels">🔄 Refresh</button>
+                </div>
               </div>
               <div class="framesync-footer" style="margin-top:12px;">
                 <button class="framesync-button" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</button>
@@ -1923,6 +1940,7 @@
             available: [],
             groupA: [],
             groupB: [],
+            source: "unknown",
           },
           motionPresets: {
             Static: { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
@@ -2037,6 +2055,7 @@
             ],
             active: "CN2",
             availableModels: [],
+            source: "unknown",
           },
           midi: {
             supported: !!navigator.requestMIDIAccess,
@@ -3580,6 +3599,7 @@
             const res = await fetch("/api/controlnet/models");
             const data = await res.json();
             this.cn.availableModels = data.models || [];
+            this.cn.source = data.source || "unknown";
           } catch (err) {
             console.error("Failed to load ControlNet models", err);
           }
@@ -4090,6 +4110,7 @@
                 selected: false,
                 group: null,
               }));
+              this.loras.source = data.source || "unknown";
               // Restore selected loras from groups using Map for O(1) lookup
               const loraMap = new Map(this.loras.available.map(l => [l.id, l]));
               this.loras.groupA.forEach((savedLora) => {
