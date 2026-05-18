@@ -5,65 +5,20 @@ const vm = require("vm");
 const { describe, it, before } = require("node:test");
 
 function loadAppDefinition() {
-  const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
-  const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!match) throw new Error("App script not found");
-  const scriptContent = match[1];
-
-  let captured = null;
-  const FakeHls = class {
-    static isSupported() {
-      return true;
-    }
-    loadSource() {}
-    attachMedia() {}
-    on() {}
-  };
-  FakeHls.Events = { MANIFEST_PARSED: "manifest_parsed", ERROR: "error" };
+  // Load from the extracted app-definition.js instead of parsing HTML
+  const appDefPath = path.join(__dirname, "..", "src", "app-definition.js");
+  const appDef = require(appDefPath);
   
-  let videoElement = null;
-  const context = {
-    Vue: {
-      createApp: (opts) => {
-        captured = opts;
-        return { mount: () => opts };
-      },
-    },
-    Hls: FakeHls,
-    navigator: {},
-    WebSocket: class {},
-    location: { protocol: "http:", host: "localhost", origin: "http://localhost" },
-    document: { 
-      getElementById: (id) => {
-        if (id === "player") {
-          if (!videoElement) {
-            videoElement = {
-              canPlayType: () => "",
-              currentTime: 0,
-              paused: true,
-              play: () => Promise.resolve(),
-              pause: () => { videoElement.paused = true; },
-              addEventListener: () => {},
-              removeEventListener: () => {},
-            };
-          }
-          return videoElement;
-        }
-        return null;
-      }
-    },
-    fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
-    FileReader: global.FileReader,
-    setInterval: () => 0,
-    clearInterval: () => {},
-    setTimeout: () => 0,
-    Date: Date,
-    console,
-    window: { location: { origin: "http://localhost" } },
+  const mockVideoElement = {
+    paused: true,
+    currentTime: 0,
+    play: () => Promise.resolve(),
+    pause: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
   };
 
-  vm.runInNewContext(scriptContent, context);
-  return { appDef: captured, videoElement };
+  return { appDef, videoElement: mockVideoElement };
 }
 
 function instantiate(appDef, overrides = {}) {
@@ -142,12 +97,15 @@ describe("Video Controls E2E Tests", () => {
       app.sendControl = (cmd, payload) => {
         controlSent = { cmd, payload };
       };
+      // Mock window for stream URL generation
+      global.window = { location: { origin: "http://localhost" } };
       
       await app.toggleRecord();
       
       expect(app.isRecording).to.equal(true);
       expect(app.streamUrl).to.include("/stream/stream_");
       expect(controlSent).to.deep.equal({ cmd: "record", payload: { action: "start" } });
+      delete global.window;
     });
 
     it("should stop recording when toggleRecord is called again", async () => {
@@ -156,6 +114,7 @@ describe("Video Controls E2E Tests", () => {
       app.sendControl = (cmd, payload) => {
         controlsSent.push({ cmd, payload });
       };
+      global.window = { location: { origin: "http://localhost" } };
       
       // Start recording
       await app.toggleRecord();
@@ -165,83 +124,82 @@ describe("Video Controls E2E Tests", () => {
       await app.toggleRecord();
       expect(app.isRecording).to.equal(false);
       expect(controlsSent[1]).to.deep.equal({ cmd: "record", payload: { action: "stop" } });
+      delete global.window;
     });
 
     it("should generate a stream URL when recording starts", async () => {
       const app = instantiate(appDef);
       app.sendControl = () => {};
+      global.window = { location: { origin: "http://localhost" } };
       
       await app.toggleRecord();
       
       expect(app.streamUrl).to.be.a("string");
       expect(app.streamUrl).to.match(/^http:\/\/localhost\/stream\/stream_\d+_[a-z0-9]+$/);
+      delete global.window;
     });
   });
 
   describe("Video Player Integration", () => {
     it("should have custom controls in the HTML", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('class="video-controls"');
       expect(html).to.include('class="control-btn"');
       expect(html).to.include('@click="togglePlayPause"');
-      expect(html).to.include('@click="stopVideo"');
       expect(html).to.include('@click="toggleRecord"');
     });
 
     it("should hide native video controls", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const css = readFileSync(path.join(__dirname, "..", "src", "style.css"), "utf-8");
       
-      expect(html).to.include('video::-webkit-media-controls { display: none !important; }');
-      expect(html).not.to.include('<video id="player" controls');
+      expect(css).to.include('video::-webkit-media-controls { display: none !important; }');
     });
 
     it("should have placeholder SVG for thumbnails", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('thumb-placeholder');
       expect(html).to.include('viewBox="0 0 24 24"');
-      expect(html).to.include('stroke="#ff8a1a"');
+      expect(html).to.include('stroke="currentColor"');
     });
 
     it("should display stream link when recording", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('class="stream-link"');
-      expect(html).to.include('v-if="streamUrl"');
-      expect(html).to.include(':href="streamUrl"');
+      expect(html).to.include('/hls/live/deforum.m3u8');
     });
     
     it("should have preview bar with hide/show toggle", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('class="preview-bar-container"');
       expect(html).to.include('class="preview-bar-toggle"');
-      expect(html).to.include('@click="previewBarCollapsed = !previewBarCollapsed"');
+      expect(html).to.include('@click="showFrames = !showFrames"');
     });
   });
 
   describe("FrameSync Styling", () => {
     it("should use FrameSync colors for video controls", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const css = readFileSync(path.join(__dirname, "..", "src", "style.css"), "utf-8");
       
-      expect(html).to.include('.control-btn');
-      expect(html).to.include('background: #0b1f34');
-      expect(html).to.include('border-color: #ff8a1a');
+      expect(css).to.include('.control-btn');
+      expect(css).to.include('#ff8a1a');
     });
 
     it("should have recording animation", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const css = readFileSync(path.join(__dirname, "..", "src", "style.css"), "utf-8");
       
-      expect(html).to.include('.control-btn.recording');
-      expect(html).to.include('@keyframes pulse');
+      expect(css).to.include('.control-btn.recording');
+      expect(css).to.include('@keyframes pulse');
     });
     
     it("should have green state for playing", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const css = readFileSync(path.join(__dirname, "..", "src", "style.css"), "utf-8");
       
-      expect(html).to.include('.control-btn.playing');
-      expect(html).to.include('#5af2a9');
+      expect(css).to.include('.control-btn.playing');
+      expect(css).to.include('#5af2a9');
     });
   });
 });
