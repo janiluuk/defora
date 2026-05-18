@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.7] - 2026-05-18
+
+## What's Changed
+
+- chore: update app-definition.js, test-app.html, and screenshots (9f5121f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.6...v0.3.7
+
+
 ## [0.3.6] - 2026-05-18
 
 ## What's Changed
