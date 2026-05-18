@@ -2076,6 +2076,13 @@
             { key: "rotation_y", label: "Rotate Y", min: -180, max: 180, default: 0, group: "Camera" },
             { key: "rotation_z", label: "Tilt", min: -180, max: 180, default: 0, group: "Camera" },
             { key: "fov", label: "FOV", min: 1, max: 180, default: 70, group: "Camera" },
+            { key: "cn_CN1_weight", label: "CN1 Weight", min: 0, max: 2, default: 0.4, group: "ControlNet" },
+            { key: "cn_CN2_weight", label: "CN2 Weight", min: 0, max: 2, default: 0.4, group: "ControlNet" },
+            { key: "cn_CN3_weight", label: "CN3 Weight", min: 0, max: 2, default: 0.4, group: "ControlNet" },
+            { key: "cn_CN1_start", label: "CN1 Start", min: 0, max: 1, default: 0, group: "ControlNet" },
+            { key: "cn_CN2_start", label: "CN2 Start", min: 0, max: 1, default: 0, group: "ControlNet" },
+            { key: "cn_CN1_end", label: "CN1 End", min: 0, max: 1, default: 0.9, group: "ControlNet" },
+            { key: "cn_CN2_end", label: "CN2 End", min: 0, max: 1, default: 0.9, group: "ControlNet" },
           ],
           lfoShapes: ["Sine", "Triangle", "Saw", "Square"],
           lfos: Array.from({ length: 6 }).map((_, idx) => ({
@@ -2375,7 +2382,13 @@
           return Object.entries(groups).map(([label, items]) => ({ label, items }));
         },
         sequencerParamOptions() {
-          return this.lfoTargets.map((t) => ({ key: t.key, label: t.label }));
+          const opts = this.lfoTargets.map((t) => ({ key: t.key, label: t.label }));
+          this.cn.slots.forEach((s) => {
+            opts.push({ key: `cn_${s.id}_weight`, label: `CN ${s.id} Weight`, group: "ControlNet" });
+            opts.push({ key: `cn_${s.id}_start`, label: `CN ${s.id} Start`, group: "ControlNet" });
+            opts.push({ key: `cn_${s.id}_end`, label: `CN ${s.id} End`, group: "ControlNet" });
+          });
+          return opts;
         },
         audioBandChips() {
           return Object.entries(this.audioBandPresets).map(([key, v]) => ({
@@ -2659,41 +2672,56 @@
         getNow() {
           return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
         },
-        runLfos(now = this.getNow()) {
-          if (this.audio.track) return;
-          if (this.lastLfoTick === null) {
-            this.lastLfoTick = now;
-            return;
-          }
-          const dtSec = (now - this.lastLfoTick) / 1000;
-          this.lastLfoTick = now;
-          if (dtSec <= 0) return;
+         runLfos(now = this.getNow()) {
+           if (this.audio.track) return;
+           if (this.lastLfoTick === null) {
+             this.lastLfoTick = now;
+             return;
+           }
+           const dtSec = (now - this.lastLfoTick) / 1000;
+           this.lastLfoTick = now;
+           if (dtSec <= 0) return;
 
-          const payload = {};
-          this.lfos.forEach((lfo) => {
-            if (!lfo.on || !lfo.targets.length) return;
-            const bpm = lfo.bpm || this.lfoBpm || 120;
-            const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
-            const speed = lfo.speed || 1.0;
-            const inc = dtSec * (bpm / 60) * Math.PI * 2 * speed;
-            const phase = (lfo.phase || 0) + inc;
-            lfo.phase = phase % (Math.PI * 2);
-            const wave = this.shapeValue(lfo.shape, lfo.phase);
+           const payload = {};
+           const cnUpdates = {};
+           this.lfos.forEach((lfo) => {
+             if (!lfo.on || !lfo.targets.length) return;
+             const bpm = lfo.bpm || this.lfoBpm || 120;
+             const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
+             const speed = lfo.speed || 1.0;
+             const inc = dtSec * (bpm / 60) * Math.PI * 2 * speed;
+             const phase = (lfo.phase || 0) + inc;
+             lfo.phase = phase % (Math.PI * 2);
+             const wave = this.shapeValue(lfo.shape, lfo.phase);
 
-            lfo.targets.forEach((targetKey) => {
-              const target = this.lfoTargets.find((t) => t.key === targetKey);
-              if (!target) return;
-              const base = lfo.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(lfo.base, target.min, target.max);
-              if (lfo.base === null) lfo.base = base;
-              const amp = depth * (target.max - target.min) / 2;
-              const value = this.clampVal(base + wave * amp, target.min, target.max);
-              payload[targetKey] = value;
-            });
-          });
-          if (Object.keys(payload).length) {
-            this.sendControl("liveParam", payload);
-          }
-        },
+             lfo.targets.forEach((targetKey) => {
+               const target = this.lfoTargets.find((t) => t.key === targetKey);
+               if (!target) return;
+               const base = lfo.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(lfo.base, target.min, target.max);
+               if (lfo.base === null) lfo.base = base;
+               const amp = depth * (target.max - target.min) / 2;
+               const value = this.clampVal(base + wave * amp, target.min, target.max);
+               if (targetKey.startsWith("cn_")) {
+                 const parts = targetKey.split("_");
+                 const slotId = parts[1];
+                 const field = parts[2];
+                 const slot = this.cn.slots.find(s => s.id === slotId);
+                 if (slot) {
+                   if (field === "weight") slot.weight = value;
+                   else if (field === "start") slot.start = value;
+                   else if (field === "end") slot.end = value;
+                   cnUpdates[slotId] = slot;
+                 }
+               } else {
+                 payload[targetKey] = value;
+               }
+             });
+           });
+           if (Object.keys(payload).length) {
+             this.sendControl("liveParam", payload);
+           }
+           Object.values(cnUpdates).forEach(slot => this.updateControlNet(slot));
+         },
         startLfoAnimation() {
           this.stopLfoAnimation();
           const animate = (ts) => {
@@ -2808,6 +2836,7 @@
         },
         triggerBeatMacros(now = this.getNow()) {
           const payload = {};
+          const cnUpdates = {};
           const activeMacros = this.macrosRack.filter(m => m.on);
           
           activeMacros.forEach((macro) => {
@@ -2834,12 +2863,27 @@
               value = base + (wave + offset) * depth * (target.max - target.min) / 2;
             }
             
-            payload[target.key] = this.clampVal(value, target.min, target.max);
+            const clamped = this.clampVal(value, target.min, target.max);
+            if (macro.target.startsWith("cn_")) {
+              const parts = macro.target.split("_");
+              const slotId = parts[1];
+              const field = parts[2];
+              const slot = this.cn.slots.find(s => s.id === slotId);
+              if (slot) {
+                if (field === "weight") slot.weight = clamped;
+                else if (field === "start") slot.start = clamped;
+                else if (field === "end") slot.end = clamped;
+                cnUpdates[slotId] = slot;
+              }
+            } else {
+              payload[macro.target] = clamped;
+            }
           });
           
           if (Object.keys(payload).length) {
             this.sendControl("liveParam", payload);
           }
+          Object.values(cnUpdates).forEach(slot => this.updateControlNet(slot));
         },
         shouldMacroTrigger(macro, now) {
           const bpm = Number(macro.bpm || 0);
@@ -3995,11 +4039,27 @@
         },
         applySequencerAt(tSec) {
           const payload = {};
+          const cnUpdates = {};
           for (const tr of this.sequencer.tracks) {
             const v = this.interpolateTrack(tr, tSec);
-            if (v !== null && Number.isFinite(v)) payload[tr.param] = v;
+            if (v === null || !Number.isFinite(v)) continue;
+            if (tr.param.startsWith("cn_")) {
+              const parts = tr.param.split("_");
+              const slotId = parts[1];
+              const field = parts[2];
+              const slot = this.cn.slots.find(s => s.id === slotId);
+              if (slot) {
+                if (field === "weight") slot.weight = Math.min(2, Math.max(0, v));
+                else if (field === "start") slot.start = Math.min(1, Math.max(0, v));
+                else if (field === "end") slot.end = Math.min(1, Math.max(0, v));
+                if (!cnUpdates[slotId]) cnUpdates[slotId] = slot;
+              }
+            } else {
+              payload[tr.param] = v;
+            }
           }
           if (Object.keys(payload).length) this.sendControl("liveParam", payload);
+          Object.values(cnUpdates).forEach(slot => this.updateControlNet(slot));
         },
         previewSequencerFrame() {
           this.clampSequencerPlayhead();
