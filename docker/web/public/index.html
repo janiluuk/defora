@@ -1035,6 +1035,7 @@
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='FORGE'}" @click="switchSubTab('SETTINGS','FORGE')">FORGE</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
@@ -1271,6 +1272,59 @@
             </div>
           </div>
           </div>
+          <div v-else-if="currentSubTab.SETTINGS==='BINDINGS'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🔗 Parameter <span class="framesync-accent">Bindings</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <button class="framesync-button" :class="{active: bindingLearnMode}" @click="toggleBindingLearn">{{ bindingLearnMode ? '🔴 Stop Learn' : '🎯 Learn' }}</button>
+                  <button class="framesync-button" @click="resetBindings">↺ Defaults</button>
+                </div>
+              </div>
+              <div v-if="bindingLearnMode" style="margin-top:8px; padding:8px 12px; background:#1a0a2e; border:1px solid #ff53d9; border-radius:6px; font-size:12px; color:#ff53d9;">
+                Learn mode active. Press a key or move a MIDI controller, then click a parameter to bind.
+              </div>
+              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
+                <div class="framesync-stack" v-for="group in bindingGroups" :key="group.label">
+                  <div class="framesync-subtitle">{{ group.label }}</div>
+                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; overflow:hidden;">
+                    <table style="width:100%; font-size:11px; border-collapse:collapse;">
+                      <thead><tr style="color:#5a8fb8; border-bottom:1px solid #0c3048;">
+                        <th style="text-align:left; padding:4px 8px;">Parameter</th>
+                        <th style="text-align:left; padding:4px 8px;">Key</th>
+                        <th style="text-align:left; padding:4px 8px;">MIDI CC</th>
+                        <th style="padding:4px 8px;">Actions</th>
+                      </tr></thead>
+                      <tbody>
+                        <tr v-for="t in group.items" :key="t.key" style="border-bottom:1px solid #0c3048;">
+                          <td style="padding:4px 8px; color:#cfe5f5;">{{ t.label }}</td>
+                          <td style="padding:4px 8px;">
+                            <span v-if="getKeyBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
+                              <kbd style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:#5af2a9;">{{ getKeyBinding(t.key) }}</kbd>
+                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
+                            </span>
+                            <span v-else style="color:#3a5a78;">—</span>
+                          </td>
+                          <td style="padding:4px 8px;">
+                            <span v-if="getMidiBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
+                              <span style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-size:10px; color:#fbbf24;">CC {{ getMidiBinding(t.key) }}</span>
+                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
+                            </span>
+                            <span v-else style="color:#3a5a78;">—</span>
+                          </td>
+                          <td style="padding:4px 8px; text-align:center;">
+                            <button v-if="bindingLearnMode" class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="bindingTargetKey=t.key">Bind here</button>
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
           <div v-else-if="currentSubTab.SETTINGS==='PRESETS'">
           <div class="rack">
             <div class="framesync-panel">
@@ -1317,6 +1371,33 @@
                   <div class="framesync-subtitle">Loop</div>
                   <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</label>
                 </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">BPM Sync</div>
+                  <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.bpmSync"> Sync to audio BPM</label>
+                </div>
+              </div>
+              <div v-if="sequencer.bpmSync" class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:8px; align-items:end;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">BPM</div>
+                  <input type="number" class="framesync-input" v-model.number="sequencer.bpm" min="20" max="300" step="0.1">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Bars</div>
+                  <input type="number" class="framesync-input" v-model.number="sequencer.bars" min="1" max="128" step="1">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Beats/Bar</div>
+                  <select class="framesync-select" v-model.number="sequencer.beatsPerBar">
+                    <option value="4">4/4</option>
+                    <option value="3">3/4</option>
+                    <option value="6">6/8</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Calculated</div>
+                  <div style="font-size:12px; color:#5af2a9; padding:6px 0;">{{ sequencerCalculatedDuration }}s</div>
+                </div>
+              </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Save as</div>
                   <input type="text" class="framesync-input" v-model.trim="sequencerSaveName" placeholder="my_timeline" style="font-size:12px;">
@@ -2079,6 +2160,20 @@
               { control: "LaunchControl CC23", cc: 23, key: "cfgscale" },
             ],
           },
+          keyBindings: {
+            "translation_z": "w",
+            "translation_x": "a",
+            "translation_y": "s",
+            "rotation_y": "d",
+            "rotation_z": "q",
+            "fov": "e",
+            "cfg": "z",
+            "strength": "x",
+            "noise_multiplier": "c",
+          },
+          bindingLearnMode: false,
+          bindingTargetKey: null,
+          bindingLearnTimeout: null,
           midiStatus: "Ready",
           ws: null,
           wsStatus: "disconnected",
@@ -2242,7 +2337,7 @@
           previewBarCollapsed: false,
           apiHealth: { sdForge: { available: null, lastChecked: null, pollIntervalMs: 0 } },
           apiStatusTimer: null,
-          sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [] },
+          sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [], bpmSync: false, bpm: 120, bars: 4, beatsPerBar: 4 },
           sequencerPlayhead: 0,
           sequencerPlaying: false,
           sequencerTimer: null,
@@ -2294,6 +2389,22 @@
           const raw = (this.sequencer && this.sequencer.markers) || [];
           return [...raw].sort((a, b) => a.t - b.t);
         },
+        sequencerCalculatedDuration() {
+          if (!this.sequencer.bpmSync) return "—";
+          const bpm = Math.max(1, this.sequencer.bpm || 120);
+          const beats = (this.sequencer.bars || 4) * (this.sequencer.beatsPerBar || 4);
+          const duration = (beats / bpm) * 60;
+          return duration.toFixed(2);
+        },
+        bindingGroups() {
+          const groups = {};
+          this.lfoTargets.forEach((t) => {
+            const label = t.group || "Other";
+            if (!groups[label]) groups[label] = [];
+            groups[label].push(t);
+          });
+          return Object.entries(groups).map(([label, items]) => ({ label, items }));
+        },
       },
       mounted() {
         if (typeof window !== 'undefined' && window.localStorage) {
@@ -2319,6 +2430,7 @@
         this.refreshPlugins();
         this.refreshForgeAll();
         this.loadMotionStyles();
+        this.loadBindings();
         this.setupKeyboardShortcuts();
         if (typeof fetch === "function") {
           this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
@@ -2816,54 +2928,77 @@
           });
           this.sendControl("liveParam", this.motionPresets.Static);
         },
-        setupKeyboardShortcuts() {
-          if (typeof document === "undefined") return;
-          const self = this;
-          this._keyHandler = (e) => {
-            if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-            if (e.ctrlKey || e.metaKey || e.altKey) return;
-            switch(e.key) {
-              case "1": case "2": case "3": case "4": case "5": case "6": case "7":
-                const tabs = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "AUDIO", "SETTINGS", "GENERATE"];
-                self.currentTab = tabs[parseInt(e.key) - 1];
-                e.preventDefault();
-                break;
-              case " ":
-                if (self.currentTab === "GENERATE") {
-                  self.generateImage();
-                  e.preventDefault();
-                }
-                break;
-              case "r":
-                if (self.currentTab === "LIVE") {
-                  self.resetVibeParams();
-                  self.resetCameraParams();
-                  e.preventDefault();
-                }
-                break;
-              case "m":
-                if (self.currentTab === "PROMPTS") {
-                  self.prompts.morphOn = !self.prompts.morphOn;
-                  self.setMorph(self.prompts.morphOn);
-                  e.preventDefault();
-                }
-                break;
-              case "l":
-                if (self.currentTab === "MODULATION") {
-                  self.lfoOn = !self.lfoOn;
-                  e.preventDefault();
-                }
-                break;
-              case "b":
-                if (self.currentTab === "MODULATION") {
-                  self.beatMacroOn = !self.beatMacroOn;
-                  e.preventDefault();
-                }
-                break;
-            }
-          };
-          document.addEventListener("keydown", this._keyHandler);
-        },
+         setupKeyboardShortcuts() {
+           if (typeof document === "undefined") return;
+           const self = this;
+           this._keyHandler = (e) => {
+             if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+             if (e.ctrlKey || e.metaKey || e.altKey) return;
+             if (self.bindingLearnMode && self.bindingTargetKey) {
+               const key = e.key.toLowerCase();
+               if (key.length === 1 || ["arrowup", "arrowdown", "arrowleft", "arrowright", "space", "enter", "tab"].includes(key)) {
+                 self.keyBindings[self.bindingTargetKey] = key;
+                 self.saveBindings();
+                 self.status = `Bound "${self.bindingTargetKey}" → ${key}`;
+                 self.bindingTargetKey = null;
+                 e.preventDefault();
+                 return;
+               }
+             }
+             const boundKey = Object.entries(self.keyBindings).find(([, v]) => v === e.key.toLowerCase());
+             if (boundKey) {
+               const [paramKey] = boundKey;
+               const target = self.lfoTargets.find(t => t.key === paramKey);
+               if (target) {
+                 const current = self.getParamValue(paramKey);
+                 const step = (target.max - target.min) * 0.05;
+                 self.queueLiveParam(paramKey, Math.min(target.max, Math.max(target.min, current + step)));
+                 e.preventDefault();
+                 return;
+               }
+             }
+             switch(e.key) {
+               case "1": case "2": case "3": case "4": case "5": case "6": case "7":
+                 const tabs = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "AUDIO", "SETTINGS", "GENERATE"];
+                 self.currentTab = tabs[parseInt(e.key) - 1];
+                 e.preventDefault();
+                 break;
+               case " ":
+                 if (self.currentTab === "GENERATE") {
+                   self.generateImage();
+                   e.preventDefault();
+                 }
+                 break;
+               case "r":
+                 if (self.currentTab === "LIVE") {
+                   self.resetVibeParams();
+                   self.resetCameraParams();
+                   e.preventDefault();
+                 }
+                 break;
+               case "m":
+                 if (self.currentTab === "PROMPTS") {
+                   self.prompts.morphOn = !self.prompts.morphOn;
+                   self.setMorph(self.prompts.morphOn);
+                   e.preventDefault();
+                 }
+                 break;
+               case "l":
+                 if (self.currentTab === "MODULATION") {
+                   self.lfoOn = !self.lfoOn;
+                   e.preventDefault();
+                 }
+                 break;
+               case "b":
+                 if (self.currentTab === "MODULATION") {
+                   self.beatMacroOn = !self.beatMacroOn;
+                   e.preventDefault();
+                 }
+                 break;
+             }
+           };
+           document.addEventListener("keydown", this._keyHandler);
+         },
         midiTarget(key) {
           return this.lfoTargets.find((t) => t.key === key) || null;
         },
@@ -3240,6 +3375,82 @@
         updateMidiMapping(map) {
           this.saveMidiMappings();
           return map;
+        },
+        loadBindings() {
+          try {
+            const storage = (typeof window !== 'undefined' && window.localStorage) || null;
+            if (!storage) return;
+            const saved = storage.getItem("defora_key_bindings");
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (parsed && typeof parsed === "object") {
+                this.keyBindings = { ...this.keyBindings, ...parsed };
+              }
+            }
+          } catch(_e) {}
+        },
+        saveBindings() {
+          try {
+            const storage = (typeof window !== 'undefined' && window.localStorage) || null;
+            if (!storage) return;
+            storage.setItem("defora_key_bindings", JSON.stringify(this.keyBindings));
+          } catch(_e) {}
+        },
+        toggleBindingLearn() {
+          this.bindingLearnMode = !this.bindingLearnMode;
+          this.bindingTargetKey = null;
+          if (!this.bindingLearnMode) {
+            this.status = "Learn mode disabled";
+          } else {
+            this.status = "Learn mode: press key or move MIDI CC, then click a parameter";
+          }
+        },
+        resetBindings() {
+          if (!confirm("Reset all bindings to defaults?")) return;
+          this.keyBindings = {
+            "translation_z": "w",
+            "translation_x": "a",
+            "translation_y": "s",
+            "rotation_y": "d",
+            "rotation_z": "q",
+            "fov": "e",
+            "cfg": "z",
+            "strength": "x",
+            "noise_multiplier": "c",
+          };
+          this.saveBindings();
+          this.status = "Bindings reset to defaults";
+        },
+        getKeyBinding(key) {
+          return this.keyBindings[key] || null;
+        },
+        clearKeyBinding(key) {
+          delete this.keyBindings[key];
+          this.saveBindings();
+        },
+        getMidiBinding(key) {
+          const m = this.midi.mappings.find(m => m.key === key);
+          return m ? m.cc : null;
+        },
+        clearMidiBinding(key) {
+          const idx = this.midi.mappings.findIndex(m => m.key === key);
+          if (idx >= 0) {
+            this.midi.mappings.splice(idx, 1);
+            this.saveMidiMappings();
+          }
+        },
+        getParamValue(key) {
+          const all = [...this.liveVibe, ...this.liveCam];
+          const p = all.find(p => p.key === key);
+          return p ? p.val : 0;
+        },
+        queueLiveParam(key, val) {
+          const all = [...this.liveVibe, ...this.liveCam];
+          const p = all.find(p => p.key === key);
+          if (p) {
+            p.val = val;
+            this.sendControl("liveParam", { [key]: val });
+          }
         },
         // Preset management methods
         async refreshPresets() {
