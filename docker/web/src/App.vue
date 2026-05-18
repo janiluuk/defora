@@ -94,7 +94,7 @@
 
         <div class="video-controls-panel">
           <div class="video-controls">
-            <button class="control-btn" :class="{playing: isPlaying}" @click="togglePlay">
+            <button class="control-btn" :class="{playing: isPlaying}" @click="togglePlayPause">
               {{ isPlaying ? '⏸ Pause' : '▶ Play' }}
             </button>
             <button class="control-btn" :class="{recording: isRecording}" @click="toggleRecord">
