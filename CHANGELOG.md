@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.3.5] - 2026-05-18
+
+## What's Changed
+
+- fix: A/V sync, spectrogram, and test compatibility fixes (#34) (6bcb861)
+- test: add runs filtering and new feature tests (#33) (0948401)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.4...v0.3.5
+
+
 ## [0.3.4] - 2026-05-18
 
 ## What's Changed
