@@ -1366,10 +1366,22 @@
                 <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
               </div>
               <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
-                <span v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
+                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:#031b2d; border-radius:4px;">
                   <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
+                  <select class="framesync-input" style="font-size:10px; max-width:100px; padding:2px 4px;" :value="m.action || 'jump'" @change="setMarkerAction(m, $event.target.value)">
+                    <option value="jump">↦ Jump</option>
+                    <option value="preset">🎨 Preset</option>
+                    <option value="generate">⏱ Generate</option>
+                    <option value="morph">🔄 Morph</option>
+                    <option value="param">🎛 Params</option>
+                    <option value="pause">⏸ Pause</option>
+                  </select>
+                  <input v-if="m.action && m.action !== 'jump' && m.action !== 'generate' && m.action !== 'pause'" type="text" class="framesync-input" style="font-size:10px; max-width:140px; padding:2px 4px;" :value="m.target || ''" :placeholder="markerActionPlaceholder(m.action)" @change="setMarkerTarget(m, $event.target.value)" :title="markerActionTitle(m.action)">
+                  <span v-if="m.action === 'jump'" style="font-size:9px; color:#5a8fb8;">jump to time</span>
+                  <span v-if="m.action === 'generate'" style="font-size:9px; color:#5a8fb8;">trigger generation</span>
+                  <span v-if="m.action === 'pause'" style="font-size:9px; color:#5a8fb8;">pause playback</span>
                   <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
-                </span>
+                </div>
               </div>
               <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
               <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
@@ -3660,7 +3672,7 @@
         sequencerPayload() {
           const markers = Array.isArray(this.sequencer.markers)
             ? [...this.sequencer.markers]
-                .map((m) => ({ t: Number(m.t), name: String(m.name || "").trim() }))
+                .map((m) => ({ t: Number(m.t), name: String(m.name || "").trim(), action: m.action || "jump", target: m.target || "" }))
                 .filter((m) => m.name && Number.isFinite(m.t))
                 .sort((a, b) => a.t - b.t)
             : [];
@@ -3708,7 +3720,7 @@
             return;
           }
           const t = Math.min(Math.max(0, this.sequencerPlayhead), d);
-          this.sequencer.markers.push({ t, name });
+          this.sequencer.markers.push({ t, name, action: "jump", target: "" });
           this.sequencerStatus = "";
         },
         removeSequencerMarker(sortedIdx) {
@@ -3723,6 +3735,33 @@
           const d = Number(this.sequencer.durationSec) || 0;
           this.sequencerPlayhead = Math.min(Math.max(0, m.t), d);
           this.previewSequencerFrame();
+        },
+        setMarkerAction(m, action) {
+          if (!m) return;
+          m.action = action;
+          if (action === "jump" || action === "generate" || action === "pause") {
+            m.target = "";
+          }
+        },
+        setMarkerTarget(m, target) {
+          if (!m) return;
+          m.target = target;
+        },
+        markerActionPlaceholder(action) {
+          switch (action) {
+            case "preset": return "Preset name";
+            case "morph": return "Slot #";
+            case "param": return '{"param": value}';
+            default: return "";
+          }
+        },
+        markerActionTitle(action) {
+          switch (action) {
+            case "preset": return "Name of a motion preset (e.g. Orbit, Zoom)";
+            case "morph": return "Morph slot number to toggle (1, 2, 3...)";
+            case "param": return 'JSON object of params to apply (e.g. {"zoom": 1.5})';
+            default: return "";
+          }
         },
         interpolateTrack(tr, tSec) {
           const dur = Number(this.sequencer.durationSec) || 0;
@@ -3760,6 +3799,7 @@
           const dur = Number(this.sequencer.durationSec) || 0;
           const dt = 1 / Math.max(1, Number(this.sequencer.fps) || 24);
           let next = this.sequencerPlayhead + dt;
+          const prev = this.sequencerPlayhead;
           if (next >= dur - 1e-9) {
             if (this.sequencer.loop) next = 0;
             else {
@@ -3771,6 +3811,54 @@
           }
           this.sequencerPlayhead = next;
           this.applySequencerAt(this.sequencerPlayhead);
+          const markers = (this.sequencer.markers || []);
+          for (const m of markers) {
+            if (m.t > prev && m.t <= next) {
+              this.triggerMarkerAction(m);
+            }
+          }
+        },
+        triggerMarkerAction(m) {
+          if (!m || !m.action) return;
+          switch (m.action) {
+            case "jump":
+              this.sequencerPlayhead = m.t;
+              this.previewSequencerFrame();
+              break;
+            case "preset":
+              if (m.target && this.motionPresets[m.target]) {
+                this.sendPreset(m.target);
+                this.sequencerStatus = `Marker: applied preset "${m.target}"`;
+              }
+              break;
+            case "generate":
+              this.generateStory();
+              this.sequencerStatus = `Marker: triggered generation`;
+              break;
+            case "morph":
+              if (m.target) {
+                const slotIdx = parseInt(m.target) - 1;
+                if (slotIdx >= 0 && slotIdx < this.morphSlots.length) {
+                  this.morphSlots[slotIdx].on = !this.morphSlots[slotIdx].on;
+                  this.applyPromptMorphing();
+                  this.sequencerStatus = `Marker: toggled morph slot ${m.target}`;
+                }
+              }
+              break;
+            case "param":
+              try {
+                const params = JSON.parse(m.target || "{}");
+                this.sendControl("liveParam", params);
+                this.sequencerStatus = `Marker: applied params`;
+              } catch (_e) {
+                this.sequencerStatus = `Marker: invalid param JSON`;
+              }
+              break;
+            case "pause":
+              this.stopSequencerPlayback();
+              this.sequencerStatus = `Marker: paused at "${m.name}"`;
+              break;
+          }
         },
         toggleSequencerPlayback() {
           if (this.sequencerPlaying) {
@@ -3885,7 +3973,7 @@
             this.sequencer.loop = tl.loop !== false;
             this.sequencer.markers = Array.isArray(tl.markers)
               ? tl.markers
-                  .map((m) => ({ t: Number(m.t), name: String(m.name || "").trim() }))
+                  .map((m) => ({ t: Number(m.t), name: String(m.name || "").trim(), action: m.action || "jump", target: m.target || "" }))
                   .filter((m) => m.name && Number.isFinite(m.t))
               : [];
             this.sequencer.tracks = Array.isArray(tl.tracks)
