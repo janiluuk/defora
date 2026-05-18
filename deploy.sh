@@ -5,6 +5,10 @@ REMOTE="root@192.168.2.100"
 REMOTE_DIR="/srv/defora"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+echo "=== Building web UI (Vite) ==="
+cd "${PROJECT_DIR}/docker/web" && npm run build
+
+echo ""
 echo "=== Syncing to ${REMOTE}:${REMOTE_DIR} ==="
 rsync -avz \
   --exclude 'node_modules' \

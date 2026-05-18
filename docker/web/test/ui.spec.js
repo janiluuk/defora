@@ -58,55 +58,10 @@ function loadAppDefinition() {
       }
     };
   }
-  const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
-  const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  if (!match) throw new Error("App script not found");
-  const scriptContent = match[1];
-
-  let captured = null;
-  const FakeHls = class {
-    static isSupported() {
-      return true;
-    }
-    loadSource() {}
-    attachMedia() {}
-    on() {}
-  };
-  FakeHls.Events = { MANIFEST_PARSED: "manifest_parsed", ERROR: "error" };
-  const context = {
-    Vue: {
-      createApp: (opts) => {
-        captured = opts;
-        return { mount: () => opts };
-      },
-    },
-    Hls: FakeHls,
-    navigator: {},
-    WebSocket: class {},
-    location: { protocol: "http:", host: "localhost" },
-    document:
-      typeof global.document !== "undefined" &&
-      global.document &&
-      typeof global.document.createElement === "function"
-        ? global.document
-        : { getElementById: () => ({ canPlayType: () => "", currentTime: 0, play: () => {} }) },
-    // Proxy to the outer fetch so tests can stub/intercept network calls
-    fetch: (...args) => (global.fetch ? global.fetch(...args) : Promise.reject(new Error("fetch not available"))),
-    FileReader: global.FileReader,
-    URL: global.URL,
-    Blob: global.Blob,
-    File: global.File,
-    Buffer: global.Buffer,
-    setInterval: () => 0,
-    setTimeout: global.setTimeout,
-    clearTimeout: global.clearTimeout,
-    requestAnimationFrame: (fn) => setTimeout(fn, 0),
-    cancelAnimationFrame: (id) => clearTimeout(id),
-    console,
-  };
-
-  vm.runInNewContext(scriptContent, context);
-  return captured;
+  // Load from the extracted app-definition.js instead of parsing index.html
+  const appDefPath = path.join(__dirname, "..", "src", "app-definition.js");
+  const appDef = require(appDefPath);
+  return appDef;
 }
 
 function instantiate(appDef, overrides = {}) {
@@ -139,7 +94,7 @@ describe("Deforumation Web UI", () => {
   let appVm;
 
   before(async () => {
-    const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+    const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
     dom = new JSDOM(html, { url: "http://localhost" });
     global.window = dom.window;
     global.document = dom.window.document;
@@ -149,7 +104,7 @@ describe("Deforumation Web UI", () => {
     global.HTMLElement = dom.window.HTMLElement;
     global.Element = dom.window.Element;
     global.Node = dom.window.Node;
-    ({ createApp, nextTick } = require("vue"));
+    ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
 
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
@@ -714,7 +669,7 @@ describe("Reference A/V sync mounted e2e", () => {
   let appVm;
 
   before(async () => {
-    const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+    const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
     dom = new JSDOM(html, { url: "http://localhost" });
     global.window = dom.window;
     global.document = dom.window.document;
@@ -735,7 +690,7 @@ describe("Reference A/V sync mounted e2e", () => {
         el.dispatchEvent = et.dispatchEvent.bind(el);
       }
     };
-    ({ createApp, nextTick } = require("vue"));
+    ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
     appVm = createApp(appDef).mount("#app");

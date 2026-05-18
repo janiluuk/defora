@@ -5,7 +5,7 @@ const vm = require("vm");
 const { describe, it, before } = require("node:test");
 
 function loadAppDefinition() {
-  const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+  const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
   const match = html.match(/<script>([\s\S]*?)<\/script>/);
   if (!match) throw new Error("App script not found");
   const scriptContent = match[1];
@@ -180,7 +180,7 @@ describe("Video Controls E2E Tests", () => {
 
   describe("Video Player Integration", () => {
     it("should have custom controls in the HTML", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('class="video-controls"');
       expect(html).to.include('class="control-btn"');
@@ -190,14 +190,14 @@ describe("Video Controls E2E Tests", () => {
     });
 
     it("should hide native video controls", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('video::-webkit-media-controls { display: none !important; }');
       expect(html).not.to.include('<video id="player" controls');
     });
 
     it("should have placeholder SVG for thumbnails", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('thumb-placeholder');
       expect(html).to.include('viewBox="0 0 24 24"');
@@ -205,7 +205,7 @@ describe("Video Controls E2E Tests", () => {
     });
 
     it("should display stream link when recording", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('class="stream-link"');
       expect(html).to.include('v-if="streamUrl"');
@@ -213,7 +213,7 @@ describe("Video Controls E2E Tests", () => {
     });
     
     it("should have preview bar with hide/show toggle", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('class="preview-bar-container"');
       expect(html).to.include('class="preview-bar-toggle"');
@@ -223,7 +223,7 @@ describe("Video Controls E2E Tests", () => {
 
   describe("FrameSync Styling", () => {
     it("should use FrameSync colors for video controls", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('.control-btn');
       expect(html).to.include('background: #0b1f34');
@@ -231,14 +231,14 @@ describe("Video Controls E2E Tests", () => {
     });
 
     it("should have recording animation", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('.control-btn.recording');
       expect(html).to.include('@keyframes pulse');
     });
     
     it("should have green state for playing", () => {
-      const html = readFileSync(path.join(__dirname, "..", "public", "index.html"), "utf-8");
+      const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
       expect(html).to.include('.control-btn.playing');
       expect(html).to.include('#5af2a9');

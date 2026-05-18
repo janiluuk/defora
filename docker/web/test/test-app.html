@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Defora Web Test</title>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div class="tabs">
+        <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
+          {{ tab.label }}
+        </button>
+      </div>
+      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
+        <button class="btn" @click="sendControl('transport',{action:'toggle'})">⏯</button>
+        <button class="btn ghost" @click="sendControl('transport',{action:'stop'})">⏹</button>
+        <button class="btn ghost" @click="sendControl('transport',{action:'record'})">● Rec</button>
+        <div class="pill" :class="{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}" v-if="apiHealth.sdForge" :title="apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'">
+          <span class="dot"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
+        </div>
+        <div class="pill" v-if="midi.supported">
+          <span class="dot"></span><span>MIDI</span><strong>{{ midi.selected ? 'on' : 'off' }}</strong>
+        </div>
+        <div class="pill">
+          <span class="dot"></span><span>WS</span><strong>{{ wsStatus }}</strong>
+        </div>
+        <div class="pill">
+          <span class="dot"></span><span>Session</span><strong>{{ session }}</strong>
+        </div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <!-- Left: video + mini timeline -->
+      <div class="preview">
+        <div class="video-wrap">
+          <video id="player" ref="videoEl" autoplay muted playsinline></video>
+          <div class="overlay">
+            <div>
+              <div class="timecode">{{ timecode }}</div>
+              <div style="font-size:11px; color:var(--muted);">seed {{ hud.seed }}</div>
+            </div>
+            <div style="text-align:right;">
+              <div>{{ stats.fps }} fps</div>
+              <div style="font-size:11px; color:var(--muted);">lat {{ stats.lat }}ms</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
+        <audio ref="audioEl" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
+
+        <div class="timeline" style="margin-top: 4px;">
+          <template v-if="audio.objectUrl">
+            <div class="thumbs">
+              <div class="thumb-card" v-for="f in thumbs.slice(0, 12)" :key="f.name">
+                <img class="thumb" :src="f.url" :alt="f.name" />
+                <div class="thumb-label">{{ f.name }}</div>
+              </div>
+  </div>
+</body>
+</html>
