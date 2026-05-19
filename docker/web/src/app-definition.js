@@ -874,6 +874,7 @@ module.exports = {
           <div class="sub-pills">
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='FORGE'}" @click="switchSubTab('SETTINGS','FORGE')">FORGE</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='LLM'}" @click="switchSubTab('SETTINGS','LLM')">🧠 LLM</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
@@ -922,6 +923,125 @@ module.exports = {
                   <div class="framesync-subtitle">Status</div>
                   <div style="font-size:14px; color:#5af2a9; padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
                 </div>
+              </div>
+            </div>
+          </div>
+          </div>
+          <div v-else-if="currentSubTab.SETTINGS==='LLM'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🧠 Local <span class="framesync-accent">LLM</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <div class="pill" :class="{'danger': !llm.status.connected}">
+                    <span class="dot" :style="{background: llm.status.connected ? '#5af2a9' : '#ff4d6d', boxShadow: llm.status.connected ? '0 0 8px #5af2a9' : '0 0 8px #ff4d6d'}"></span>
+                    {{ llm.status.connected ? 'Running' : 'Stopped' }}
+                  </div>
+                  <button class="framesync-button" @click="toggleLlmServer">{{ llm.status.connected ? '⏹ Stop' : '▶ Start' }}</button>
+                  <button class="framesync-button" @click="refreshLlmStatus">🔄 Refresh</button>
+                </div>
+              </div>
+
+              <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">LLM Type</div>
+                  <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ llm.type }}</div>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Loaded Model</div>
+                  <div style="font-size:13px; color:#cfe5f5; padding:6px 0;">{{ llm.loadedModel || 'None' }}</div>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Memory Usage</div>
+                  <div style="font-size:13px; color:#cfe5f5; padding:6px 0;">{{ llm.memory.used }} / {{ llm.memory.total }} GB</div>
+                  <div style="height:4px; background:#0c3048; border-radius:2px; margin-top:4px;">
+                    <div :style="{height:'100%', width: llm.memory.percent + '%', background:'linear-gradient(90deg, #5af2a9, #2de2ff)', borderRadius:'2px', transition:'width 0.3s'}"></div>
+                  </div>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Status</div>
+                  <div style="font-size:13px; color:#cfe5f5; padding:6px 0;">{{ llm.status.message }}</div>
+                </div>
+              </div>
+
+              <div style="margin-top:12px;">
+                <button class="framesync-button" @click="llm.showConfig = !llm.showConfig" style="width:100%;">
+                  {{ llm.showConfig ? '▲ Hide Configuration' : '▼ Show Configuration' }}
+                </button>
+              </div>
+
+              <div v-if="llm.showConfig" style="margin-top:12px; padding:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
+                <div class="framesync-subtitle" style="margin-bottom:8px;">LLM Configuration</div>
+                
+                <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">LLM Backend</div>
+                    <select class="framesync-select" v-model="llm.type" @change="onLlmTypeChange">
+                      <option value="llama.cpp">llama.cpp</option>
+                      <option value="ollama">Ollama</option>
+                      <option value="text-generation-webui">text-generation-webui</option>
+                      <option value="vllm">vLLM</option>
+                    </select>
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Server URL</div>
+                    <input class="framesync-input" v-model="llm.serverUrl" placeholder="http://localhost:8080">
+                  </div>
+                </div>
+
+                <div class="framesync-subtitle" style="margin-top:12px;">Model Management</div>
+                <div class="framesync-row" style="grid-template-columns: 2fr 1fr; gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Available Models</div>
+                    <select class="framesync-select" v-model="llm.selectedModel" size="4" style="min-height:120px;">
+                      <option v-for="m in llm.availableModels" :key="m.name" :value="m.name">
+                        {{ m.name }} ({{ m.size }})
+                      </option>
+                    </select>
+                  </div>
+                  <div class="framesync-stack" style="display:flex; flex-direction:column; gap:6px; justify-content:flex-start;">
+                    <button class="framesync-button" @click="loadLlmModel" :disabled="!llm.selectedModel">📥 Load Model</button>
+                    <button class="framesync-button" @click="unloadLlmModel">📤 Unload</button>
+                    <button class="framesync-button" @click="refreshLlmModels">🔄 Refresh List</button>
+                  </div>
+                </div>
+
+                <div class="framesync-subtitle" style="margin-top:12px;">Generation Parameters</div>
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Max Tokens</div>
+                    <input type="number" class="framesync-input" v-model.number="llm.params.maxTokens" min="1" max="8192">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Temperature</div>
+                    <input type="number" class="framesync-input" v-model.number="llm.params.temperature" min="0" max="2" step="0.1">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Top P</div>
+                    <input type="number" class="framesync-input" v-model.number="llm.params.topP" min="0" max="1" step="0.05">
+                  </div>
+                </div>
+
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:8px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Context Length</div>
+                    <input type="number" class="framesync-input" v-model.number="llm.params.contextLength" min="256" max="32768">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">GPU Layers</div>
+                    <input type="number" class="framesync-input" v-model.number="llm.params.gpuLayers" min="0" max="100">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Threads</div>
+                    <input type="number" class="framesync-input" v-model.number="llm.params.threads" min="1" max="32">
+                  </div>
+                </div>
+
+                <div class="framesync-footer" style="margin-top:12px;">
+                  <button class="framesync-button" @click="saveLlmConfig">💾 Save Config</button>
+                  <button class="framesync-button" @click="testLlmConnection">🔗 Test Connection</button>
+                </div>
+                <div v-if="llm.configStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center; color:#5af2a9;">{{ llm.configStatus }}</div>
               </div>
             </div>
           </div>
@@ -1465,6 +1585,25 @@ module.exports = {
         batchResults: [],
       },
       pluginsRegistry: [],
+      llm: {
+        type: "llama.cpp",
+        serverUrl: "http://localhost:8080",
+        loadedModel: "",
+        selectedModel: "",
+        availableModels: [],
+        memory: { used: 0, total: 0, percent: 0 },
+        status: { connected: false, message: "Not started" },
+        showConfig: false,
+        configStatus: "",
+        params: {
+          maxTokens: 2048,
+          temperature: 0.7,
+          topP: 0.9,
+          contextLength: 4096,
+          gpuLayers: 35,
+          threads: 8,
+        },
+      },
       morphSlots: [
         { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
         { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
@@ -2431,6 +2570,117 @@ module.exports = {
    } catch (_) {
      this.pluginsRegistry = [];
    }
+ },
+ async refreshLlmStatus() {
+   if (typeof fetch !== "function") return;
+   try {
+     const res = await fetch("/api/llm/status");
+     if (!res.ok) return;
+     const j = await res.json();
+     this.llm.status = j.status || this.llm.status;
+     this.llm.loadedModel = j.loadedModel || "";
+     this.llm.memory = j.memory || this.llm.memory;
+   } catch (_) {
+     this.llm.status = { connected: false, message: "Error checking status" };
+   }
+ },
+ async toggleLlmServer() {
+   if (typeof fetch !== "function") return;
+   try {
+     const endpoint = this.llm.status.connected ? "/api/llm/stop" : "/api/llm/start";
+     const res = await fetch(endpoint, {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ type: this.llm.type, url: this.llm.serverUrl }),
+     });
+     const j = await res.json();
+     this.llm.configStatus = j.message || "OK";
+     await this.refreshLlmStatus();
+   } catch (e) {
+     this.llm.configStatus = String(e.message || e);
+   }
+ },
+ async refreshLlmModels() {
+   if (typeof fetch !== "function") return;
+   try {
+     const res = await fetch("/api/llm/models");
+     if (!res.ok) return;
+     const j = await res.json();
+     this.llm.availableModels = j.models || [];
+   } catch (_) {
+     this.llm.availableModels = [];
+   }
+ },
+ async loadLlmModel() {
+   if (typeof fetch !== "function" || !this.llm.selectedModel) return;
+   this.llm.configStatus = "Loading model...";
+   try {
+     const res = await fetch("/api/llm/load", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ model: this.llm.selectedModel, params: this.llm.params }),
+     });
+     const j = await res.json();
+     this.llm.configStatus = j.message || "Model loaded";
+     this.llm.loadedModel = this.llm.selectedModel;
+     await this.refreshLlmStatus();
+   } catch (e) {
+     this.llm.configStatus = String(e.message || e);
+   }
+ },
+ async unloadLlmModel() {
+   if (typeof fetch !== "function") return;
+   try {
+     const res = await fetch("/api/llm/unload", { method: "POST" });
+     const j = await res.json();
+     this.llm.configStatus = j.message || "Model unloaded";
+     this.llm.loadedModel = "";
+     await this.refreshLlmStatus();
+   } catch (e) {
+     this.llm.configStatus = String(e.message || e);
+   }
+ },
+ async saveLlmConfig() {
+   if (typeof fetch !== "function") return;
+   try {
+     const res = await fetch("/api/llm/config", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         type: this.llm.type,
+         serverUrl: this.llm.serverUrl,
+         params: this.llm.params,
+       }),
+     });
+     const j = await res.json();
+     this.llm.configStatus = j.message || "Config saved";
+   } catch (e) {
+     this.llm.configStatus = String(e.message || e);
+   }
+ },
+ async testLlmConnection() {
+   if (typeof fetch !== "function") return;
+   this.llm.configStatus = "Testing connection...";
+   try {
+     const res = await fetch("/api/llm/test", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({ url: this.llm.serverUrl }),
+     });
+     const j = await res.json();
+     this.llm.configStatus = j.success ? "Connection successful" : (j.error || "Connection failed");
+   } catch (e) {
+     this.llm.configStatus = String(e.message || e);
+   }
+ },
+ onLlmTypeChange() {
+   const defaults = {
+     "llama.cpp": "http://localhost:8080",
+     "ollama": "http://localhost:11434",
+     "text-generation-webui": "http://localhost:5000",
+     "vllm": "http://localhost:8000",
+   };
+   this.llm.serverUrl = defaults[this.llm.type] || "http://localhost:8080";
  },
  async submitImg2img() {
    if (!this.img2img.dataUrl) {

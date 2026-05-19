@@ -2449,6 +2449,113 @@ print(json.dumps(summary))
     }
   });
 
+  // Local LLM API endpoints
+  let llmState = {
+    type: "llama.cpp",
+    serverUrl: "http://localhost:8080",
+    loadedModel: null,
+    running: false,
+    childProcess: null,
+    params: {
+      maxTokens: 2048,
+      temperature: 0.7,
+      topP: 0.9,
+      contextLength: 4096,
+      gpuLayers: 35,
+      threads: 8,
+    },
+  };
+
+  app.get("/api/llm/status", async (_req, res) => {
+    res.json({
+      status: {
+        connected: llmState.running,
+        message: llmState.running ? "Running" : "Stopped",
+      },
+      loadedModel: llmState.loadedModel || "",
+      memory: { used: 0, total: 0, percent: 0 },
+    });
+  });
+
+  app.post("/api/llm/start", async (req, res) => {
+    const { type, url } = req.body || {};
+    if (llmState.running) {
+      return res.json({ success: false, message: "LLM already running" });
+    }
+    llmState.type = type || llmState.type;
+    llmState.serverUrl = url || llmState.serverUrl;
+    res.json({ success: true, message: `LLM server start requested (${llmState.type})` });
+  });
+
+  app.post("/api/llm/stop", async (_req, res) => {
+    if (!llmState.running) {
+      return res.json({ success: false, message: "LLM not running" });
+    }
+    if (llmState.childProcess) {
+      llmState.childProcess.kill();
+      llmState.childProcess = null;
+    }
+    llmState.running = false;
+    res.json({ success: true, message: "LLM server stopped" });
+  });
+
+  app.get("/api/llm/models", async (_req, res) => {
+    const modelsDir = path.join(__dirname, "llm-models");
+    try {
+      if (!require('fs').existsSync(modelsDir)) {
+        return res.json({ models: [] });
+      }
+      const files = require('fs').readdirSync(modelsDir)
+        .filter(f => f.endsWith('.gguf') || f.endsWith('.bin'))
+        .map(f => {
+          const stat = require('fs').statSync(path.join(modelsDir, f));
+          return {
+            name: f,
+            size: (stat.size / (1024 * 1024 * 1024)).toFixed(2) + " GB",
+          };
+        });
+      res.json({ models: files });
+    } catch (err) {
+      res.json({ models: [] });
+    }
+  });
+
+  app.post("/api/llm/load", async (req, res) => {
+    const { model, params } = req.body || {};
+    if (!model) {
+      return res.status(400).json({ error: "model required" });
+    }
+    llmState.loadedModel = model;
+    if (params) {
+      llmState.params = { ...llmState.params, ...params };
+    }
+    res.json({ success: true, message: `Model ${model} loaded` });
+  });
+
+  app.post("/api/llm/unload", async (_req, res) => {
+    llmState.loadedModel = null;
+    res.json({ success: true, message: "Model unloaded" });
+  });
+
+  app.post("/api/llm/config", async (req, res) => {
+    const { type, serverUrl, params } = req.body || {};
+    if (type) llmState.type = type;
+    if (serverUrl) llmState.serverUrl = serverUrl;
+    if (params) llmState.params = { ...llmState.params, ...params };
+    res.json({ success: true, message: "Config saved" });
+  });
+
+  app.post("/api/llm/test", async (req, res) => {
+    const { url } = req.body || {};
+    const testUrl = url || llmState.serverUrl;
+    try {
+      const response = await fetch(testUrl, { method: "GET", signal: AbortSignal.timeout(3000) });
+      res.json({ success: response.ok, message: response.ok ? "Connection successful" : "Connection failed" });
+    } catch (err) {
+      res.json({ success: false, error: err.message });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;
