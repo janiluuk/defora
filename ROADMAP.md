@@ -297,11 +297,11 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: Medium
 - **Description**: Expand audio-reactive capabilities
 - **Features**:
-  - Multi-band audio mapping (bass, mids, highs)
-  - Audio envelope followers
-  - **Spectral visualization**: ✅ offline FFT spectrogram after Web upload (Phase 7); ✅ live `AnalyserNode` band bars on reference playback (Phase 8)
-  - MIDI clock sync for external sequencers
-  - Audio recording from system audio
+  - ✅ Multi-band audio mapping (bass, mids, highs) - `--band-layout bass_mid_high`
+  - ✅ Audio envelope followers - `--envelope-attack-sec` / `--envelope-release-sec`
+  - ✅ Spectral visualization: offline FFT spectrogram after Web upload (Phase 7); live `AnalyserNode` band bars on reference playback (Phase 8)
+  - ✅ **MIDI clock sync** for external sequencers - `--midi-clock` / `--midi-device`
+  - ✅ **Audio recording** from system audio - `--record` / `--record-duration` / `--record-output`
 
 #### ✅ Performance Optimizations (COMPLETED in v0.2.10)
 
@@ -344,11 +344,11 @@ Defora is in **active development** with a strong foundation of core features im
 #### Animation Sequencer
 - **Priority**: High
 - **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), MOTION tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
-- **Remaining (polish)**:
-  - Visual multi-track timeline strip (waveform-style lanes)
-  - Custom bezier handles between keys
-  - Marker-driven transitions (actions beyond jump/playhead) — optional
-  - Optional sync to audio BPM or frame counter from HLS
+- **Polish (v0.3.0+)**: ✅
+  - ✅ Visual multi-track timeline strip (waveform-style lanes) with canvas rendering
+  - ✅ **Custom bezier handles** — drag handles on timeline to customize curve interpolation between keyframes
+  - ✅ Marker-driven transitions (actions: jump, preset, generate, morph, param, pause)
+  - ✅ Optional sync to audio BPM or frame counter from HLS (`bpmSync` with bars/beats)
 
 #### ✅ Advanced Prompt System (COMPLETED in v0.2.9)
 
@@ -386,21 +386,21 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: Medium
 - **Description**: Richer ControlNet inputs and routing (distinct from short-term “Advanced Audio Features”)
 - **Features**:
-  - Multiple ControlNet preprocessing
-  - Live camera/video input for ControlNet
-  - Webcam integration
-  - Screen capture as ControlNet source
-  - ControlNet weight scheduling
+  - ✅ Multiple ControlNet preprocessing - weight/start/end scheduling per slot
+  - ✅ **Live camera/video input** for ControlNet - webcam integration with configurable frame rate
+  - ✅ **Screen capture** as ControlNet source - browser-based screen sharing API
+  - ✅ ControlNet weight scheduling - per-slot weight, start, end step controls
+  - ✅ Image source selection (file/webcam/screen) per slot
 
 #### Collaborative Features
 - **Priority**: Low
 - **Description**: Multi-user support
 - **Features**:
-  - Multiple simultaneous web UI clients
-  - Parameter locking (prevent conflicts)
-  - User presence indicators
-  - Shared presets and settings
-  - Session recording and replay
+  - ✅ **Multiple simultaneous web UI clients** - WebSocket-based multi-user support with unique user IDs
+  - ✅ **Parameter locking (prevent conflicts)** - Lock/unlock parameters to prevent concurrent edits
+  - ✅ **User presence indicators** - Real-time user list with connection status and locked parameters
+  - ✅ **Session recording and replay** - Record all control events and playback with timing
+  - ⏳ Shared presets and settings (future)
 
 ### 🎯 Long-Term (6-12 Months)
 
@@ -408,21 +408,23 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: High
 - **Description**: Support for image-to-image workflows
 - **Features**:
-  - Upload reference images
-  - Inpainting mask editor
-  - img2img strength control
-  - Batch img2img processing
-  - Image variations generator
+  - ✅ Upload reference images - file upload with preview
+  - ✅ **Inpainting mask editor** - canvas-based drawing/erasing with adjustable brush size
+  - ✅ img2img strength control - denoising strength, mask blur, inpainting fill mode
+  - ✅ **Batch img2img processing** - configurable batch size with seed variation for image variations
+  - ✅ Image variations generator - batch processing with randomized seeds
 
 #### Plugin System
 - **Priority**: Medium
 - **Description**: Extensible architecture for community plugins
 - **Features**:
-  - Plugin API for custom modulators
-  - Custom parameter mappings
-  - Third-party integration hooks
-  - Plugin marketplace/repository
-  - Plugin sandboxing for security
+  - ✅ **Plugin API for custom modulators** - smooth, step, random modulators with configurable parameters
+  - ✅ **Custom parameter mappings** - linear, exponential, logarithmic, sigmoid mapping curves
+  - ✅ **Plugin registry and manifest system** - JSON-based plugin discovery and registration
+  - ✅ **Third-party integration hooks** - `--modulator-plugin`, `--mapping-plugin`, `--plugin-config` CLI flags
+  - ✅ **Web API for plugins** - `/api/plugins`, `/api/plugins/:type`, `/api/plugins/execute`, `/api/plugins/modulators`, `/api/plugins/mappings`
+  - ⏳ Plugin marketplace/repository (future)
+  - ⏳ Plugin sandboxing for security (future)
 
 #### Advanced Streaming
 - **Priority**: Medium

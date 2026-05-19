@@ -497,6 +497,72 @@ async function start(opts = {}) {
     }
   });
 
+  app.get("/api/plugins/:type", async (req, res) => {
+    const pluginType = req.params.type;
+    try {
+      const manifestPath = path.join(pluginsDir, "manifest.json");
+      const raw = await fsp.readFile(manifestPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const allPlugins = Array.isArray(parsed) ? parsed : parsed.plugins || [];
+      const filtered = allPlugins.filter(p => p.plugin_type === pluginType);
+      res.json({ plugins: filtered, type: pluginType });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return res.json({ plugins: [], type: pluginType });
+      }
+      console.error("[api] plugins filter error", err);
+      res.status(500).json({ error: "could not read plugin manifest" });
+    }
+  });
+
+  app.post("/api/plugins/execute", async (req, res) => {
+    const { plugin_name, parameters, input } = req.body || {};
+    if (!plugin_name) {
+      return res.status(400).json({ error: "plugin_name required" });
+    }
+    try {
+      const manifestPath = path.join(pluginsDir, "manifest.json");
+      const raw = await fsp.readFile(manifestPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const allPlugins = Array.isArray(parsed) ? parsed : parsed.plugins || [];
+      const plugin = allPlugins.find(p => p.name === plugin_name);
+      if (!plugin) {
+        return res.status(404).json({ error: `Plugin not found: ${plugin_name}` });
+      }
+      const [modulePath, funcName] = plugin.entry_point.split(':');
+      const mod = require(modulePath);
+      const fn = mod[funcName];
+      if (typeof fn !== 'function') {
+        return res.status(500).json({ error: `Plugin entry point is not a function: ${funcName}` });
+      }
+      const mergedParams = { ...plugin.parameters, ...parameters };
+      const result = fn(input, mergedParams);
+      res.json({ success: true, plugin: plugin_name, result });
+    } catch (err) {
+      console.error(`[api] plugin execute error: ${plugin_name}`, err);
+      res.status(500).json({ error: `Plugin execution failed: ${err.message}` });
+    }
+  });
+
+  app.get("/api/plugins/modulators", async (_req, res) => {
+    const modulators = [
+      { id: "smooth", name: "Smooth", description: "Smooth parameter transitions", parameters: { smoothing: 0.5 } },
+      { id: "step", name: "Step", description: "Quantize to discrete steps", parameters: { steps: 8, min: 0, max: 1 } },
+      { id: "random", name: "Random", description: "Add controlled variance", parameters: { variance: 0.1 } },
+    ];
+    res.json({ modulators });
+  });
+
+  app.get("/api/plugins/mappings", async (_req, res) => {
+    const mappings = [
+      { id: "linear", name: "Linear", description: "Linear mapping" },
+      { id: "exponential", name: "Exponential", description: "Exponential curve mapping" },
+      { id: "logarithmic", name: "Logarithmic", description: "Logarithmic curve mapping" },
+      { id: "sigmoid", name: "Sigmoid", description: "S-curve mapping for smooth transitions" },
+    ];
+    res.json({ mappings });
+  });
+
   app.post("/api/img2img", async (req, res) => {
     const body = req.body || {};
     const init = body.init_image || body.initImage;
@@ -678,6 +744,56 @@ async function start(opts = {}) {
     if (lowerName.includes('seg') || lowerName.includes('semantic')) return 'semantic';
     return 'other';
   }
+  
+  // ControlNet image upload endpoint (for webcam/screen capture)
+  app.post("/api/controlnet/upload-image", async (req, res) => {
+    const multer = require('multer');
+    const upload = multer({ storage: multer.memoryStorage() });
+    
+    upload.single('image')(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: "Image upload failed" });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No image provided" });
+      }
+      
+      const slot = req.body.slot || "CN1";
+      const imageBuffer = req.file.buffer;
+      
+      try {
+        const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
+        const forgePort = process.env.SD_FORGE_PORT || "7860";
+        const forgeUrl = `http://${forgeHost}:${forgePort}`;
+        
+        const FormData = require('form-data');
+        const formData = new FormData();
+        formData.append('image', imageBuffer, {
+          filename: req.file.originalname,
+          contentType: req.file.mimetype,
+        });
+        formData.append('slot', slot);
+        
+        const response = await fetch(`${forgeUrl}/controlnet/upload`, {
+          method: 'POST',
+          body: formData,
+          headers: formData.getHeaders(),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`SD-Forge responded with ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log(`[controlnet] Uploaded image for slot ${slot}`);
+        res.json({ success: true, result });
+      } catch (error) {
+        console.error(`[controlnet] Upload failed: ${error.message}`);
+        res.status(500).json({ error: "Failed to upload image to SD-Forge" });
+      }
+    });
+  });
   
   // Refresh models endpoint - clears cache and forces re-fetch
   app.post("/api/models/refresh", (_req, res) => {
@@ -1917,6 +2033,78 @@ async function start(opts = {}) {
     return runs.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
   }
 
+  // Collaborative features API
+  app.get("/api/collab/users", (_req, res) => {
+    const users = Array.from(connectedUsers.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      connectedAt: u.connectedAt,
+    }));
+    res.json({ users, count: users.length });
+  });
+
+  app.get("/api/collab/locks", (_req, res) => {
+    const locks = {};
+    for (const [param, lock] of parameterLocks.entries()) {
+      locks[param] = { userId: lock.userId, userName: lock.userName };
+    }
+    res.json({ locks });
+  });
+
+  app.get("/api/collab/recordings", (_req, res) => {
+    const recordingsPath = path.join(__dirname, "recordings");
+    try {
+      if (!require('fs').existsSync(recordingsPath)) {
+        return res.json({ recordings: [] });
+      }
+      const files = require('fs').readdirSync(recordingsPath)
+        .filter(f => f.endsWith('.json'))
+        .map(f => {
+          const stat = require('fs').statSync(path.join(recordingsPath, f));
+          return {
+            filename: f,
+            size: stat.size,
+            createdAt: stat.mtime.toISOString(),
+          };
+        });
+      res.json({ recordings: files });
+    } catch (err) {
+      res.json({ recordings: [] });
+    }
+  });
+
+  app.post("/api/collab/recordings/:filename/play", async (req, res) => {
+    const { filename } = req.params;
+    const recordingsPath = path.join(__dirname, "recordings");
+    const filepath = path.join(recordingsPath, filename);
+    try {
+      const recording = JSON.parse(require('fs').readFileSync(filepath, 'utf-8'));
+      broadcast({ type: "playback", status: "started", events: recording.events.length });
+      for (const event of recording.events) {
+        setTimeout(() => {
+          if (event.type === "control") {
+            broadcast({ type: "event", msg: "playback", payload: event.payload });
+          }
+        }, event.timestamp);
+      }
+      res.json({ success: true, events: recording.events.length });
+    } catch (err) {
+      res.status(404).json({ error: "Recording not found" });
+    }
+  });
+
+  app.delete("/api/collab/recordings/:filename", async (req, res) => {
+    const { filename } = req.params;
+    const recordingsPath = path.join(__dirname, "recordings");
+    const filepath = path.join(recordingsPath, filename);
+    try {
+      require('fs').unlinkSync(filepath);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(404).json({ error: "Recording not found" });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;
@@ -2173,17 +2361,197 @@ async function start(opts = {}) {
     wsMessageBatcher.timer = null;
   }
 
+  // Collaborative features: user presence, session recording, parameter locking
+  const connectedUsers = new Map();
+  const parameterLocks = new Map();
+  let sessionRecording = null;
+  let sessionRecordingActive = false;
+
+  function startSessionRecording() {
+    sessionRecording = {
+      startTime: Date.now(),
+      events: [],
+    };
+    sessionRecordingActive = true;
+    console.log("[collab] Session recording started");
+  }
+
+  function stopSessionRecording() {
+    sessionRecordingActive = false;
+    if (sessionRecording) {
+      const recordingPath = path.join(__dirname, "recordings");
+      if (!require('fs').existsSync(recordingPath)) {
+        require('fs').mkdirSync(recordingPath, { recursive: true });
+      }
+      const filename = `session_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      const filepath = path.join(recordingPath, filename);
+      require('fs').writeFileSync(filepath, JSON.stringify(sessionRecording, null, 2));
+      console.log(`[collab] Session recording saved to ${filepath}`);
+      sessionRecording = null;
+    }
+  }
+
+  function recordEvent(event) {
+    if (sessionRecordingActive && sessionRecording) {
+      sessionRecording.events.push({
+        timestamp: Date.now() - sessionRecording.startTime,
+        ...event,
+      });
+    }
+  }
+
+  function broadcastUserPresence() {
+    const users = Array.from(connectedUsers.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      connectedAt: u.connectedAt,
+      lockedParams: Array.from(parameterLocks.entries())
+        .filter(([_, lock]) => lock.userId === u.id)
+        .map(([param, _]) => param),
+    }));
+    broadcast({ type: "presence", users });
+  }
+
   wss.on("connection", (ws) => {
-    ws.send(JSON.stringify({ type: "hello", msg: "Connected to defora web control" }));
+    const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    connectedUsers.set(userId, {
+      id: userId,
+      name: `User ${connectedUsers.size + 1}`,
+      ws,
+      connectedAt: new Date().toISOString(),
+    });
+
+    ws.send(JSON.stringify({ 
+      type: "hello", 
+      msg: "Connected to defora web control",
+      userId,
+    }));
+    
+    broadcastUserPresence();
 
     ws.on("message", async (raw) => {
       try {
         const payload = JSON.parse(raw.toString());
+        
+        // Handle collaborative messages
+        if (payload.type === "identify") {
+          const user = connectedUsers.get(userId);
+          if (user) {
+            user.name = payload.name || user.name;
+            broadcastUserPresence();
+          }
+          return;
+        }
+        
+        if (payload.type === "lock_param") {
+          const { param } = payload;
+          if (parameterLocks.has(param)) {
+            const lock = parameterLocks.get(param);
+            ws.send(JSON.stringify({ 
+              type: "error", 
+              msg: `Parameter "${param}" is locked by ${lock.userName}` 
+            }));
+            return;
+          }
+          const user = connectedUsers.get(userId);
+          parameterLocks.set(param, { userId, userName: user?.name || 'Unknown' });
+          recordEvent({ type: "lock", param, userId });
+          broadcastUserPresence();
+          return;
+        }
+        
+        if (payload.type === "unlock_param") {
+          const { param } = payload;
+          const lock = parameterLocks.get(param);
+          if (lock && lock.userId === userId) {
+            parameterLocks.delete(param);
+            recordEvent({ type: "unlock", param, userId });
+            broadcastUserPresence();
+          }
+          return;
+        }
+        
+        if (payload.type === "start_recording") {
+          startSessionRecording();
+          ws.send(JSON.stringify({ type: "recording", status: "started" }));
+          return;
+        }
+        
+        if (payload.type === "stop_recording") {
+          stopSessionRecording();
+          ws.send(JSON.stringify({ type: "recording", status: "stopped" }));
+          return;
+        }
+        
+        if (payload.type === "playback_recording") {
+          const { recordingFile } = payload;
+          const recordingsPath = path.join(__dirname, "recordings");
+          const filepath = path.join(recordingsPath, recordingFile);
+          try {
+            const recording = JSON.parse(require('fs').readFileSync(filepath, 'utf-8'));
+            ws.send(JSON.stringify({ 
+              type: "playback", 
+              status: "started",
+              events: recording.events.length,
+            }));
+            // Playback events with timing
+            for (const event of recording.events) {
+              setTimeout(() => {
+                if (event.type === "control") {
+                  broadcast({ type: "event", msg: "playback", payload: event.payload });
+                }
+              }, event.timestamp);
+            }
+          } catch (err) {
+            ws.send(JSON.stringify({ type: "error", msg: "Recording not found" }));
+          }
+          return;
+        }
+        
+        if (payload.type === "list_recordings") {
+          const recordingsPath = path.join(__dirname, "recordings");
+          try {
+            const files = require('fs').readdirSync(recordingsPath)
+              .filter(f => f.endsWith('.json'))
+              .map(f => ({
+                filename: f,
+                size: require('fs').statSync(path.join(recordingsPath, f)).size,
+              }));
+            ws.send(JSON.stringify({ type: "recordings", files }));
+          } catch (err) {
+            ws.send(JSON.stringify({ type: "recordings", files: [] }));
+          }
+          return;
+        }
+        
         if (payload.type !== "control") return;
         if (controlToken && payload.token !== controlToken) {
           ws.send(JSON.stringify({ type: "error", msg: "unauthorized" }));
           return;
         }
+        
+        // Check if any parameter in the control message is locked
+        const lockedParams = [];
+        if (payload.payload) {
+          for (const param of Object.keys(payload.payload)) {
+            if (parameterLocks.has(param)) {
+              const lock = parameterLocks.get(param);
+              if (lock.userId !== userId) {
+                lockedParams.push({ param, lockedBy: lock.userName });
+              }
+            }
+          }
+        }
+        
+        if (lockedParams.length > 0) {
+          ws.send(JSON.stringify({ 
+            type: "error", 
+            msg: "Parameters locked",
+            locked: lockedParams,
+          }));
+          return;
+        }
+        
         if (!payload.controlType || typeof payload.payload !== "object") {
           ws.send(JSON.stringify({ type: "error", msg: "invalid schema" }));
           return;
@@ -2193,9 +2561,21 @@ async function start(opts = {}) {
           channel.sendToQueue(queue, Buffer.from(JSON.stringify(msg)));
         }
         broadcast({ type: "event", msg: "control forwarded", payload: msg });
+        recordEvent({ type: "control", payload: msg, userId });
       } catch (err) {
         console.error("bad ws message", err);
       }
+    });
+
+    ws.on("close", () => {
+      // Release all locks held by this user
+      for (const [param, lock] of parameterLocks.entries()) {
+        if (lock.userId === userId) {
+          parameterLocks.delete(param);
+        }
+      }
+      connectedUsers.delete(userId);
+      broadcastUserPresence();
     });
   });
 

@@ -240,6 +240,20 @@ module.exports = {
                   <input type="file" accept="image/*" @change="onImg2imgMaskFile" class="framesync-input">
                 </div>
               </div>
+              
+              <!-- Mask Editor -->
+              <div v-if="img2img.dataUrl" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Mask Editor (draw on image, white = inpaint area)</div>
+                <div style="display:flex; gap:8px; margin-bottom:8px;">
+                  <button class="framesync-button" :class="{active: img2img.maskMode==='draw'}" @click="img2img.maskMode='draw'">✏️ Draw</button>
+                  <button class="framesync-button" :class="{active: img2img.maskMode==='erase'}" @click="img2img.maskMode='erase'">🧹 Erase</button>
+                  <button class="framesync-button" @click="clearMask">🗑️ Clear Mask</button>
+                  <input type="range" min="1" max="50" v-model.number="img2img.brushSize" style="max-width:150px;">
+                  <span style="font-size:11px;">Brush: {{ img2img.brushSize }}px</span>
+                </div>
+                <canvas ref="maskCanvas" style="width:100%; max-width:512px; border:1px solid #0c3048; border-radius:6px; cursor:crosshair;" @mousedown="startMaskDraw" @mousemove="drawMask" @mouseup="stopMaskDraw" @mouseleave="stopMaskDraw"></canvas>
+              </div>
+              
               <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Mask blur</div>
@@ -259,12 +273,42 @@ module.exports = {
                   <input type="number" class="framesync-input" v-model.number="img2img.denoisingStrength" min="0" max="1" step="0.01">
                 </div>
               </div>
+              
+              <!-- Batch Processing -->
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Batch Processing</div>
+                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
+                  <div>
+                    <div class="framesync-subtitle" style="font-size:10px;">Batch size</div>
+                    <input type="number" class="framesync-input" v-model.number="img2img.batchSize" min="1" max="20" style="font-size:11px;">
+                  </div>
+                  <div>
+                    <div class="framesync-subtitle" style="font-size:10px;">Seed variation</div>
+                    <input type="number" class="framesync-input" v-model.number="img2img.seedVariation" min="0" max="1000" style="font-size:11px;">
+                  </div>
+                  <div style="display:flex; align-items:end;">
+                    <button class="framesync-button" @click="runImg2imgBatch" :disabled="img2img.isBatchProcessing">
+                      {{ img2img.isBatchProcessing ? '⏳ Processing...' : '🚀 Run Batch' }}
+                    </button>
+                  </div>
+                </div>
+                <div v-if="img2img.batchProgress" class="framesync-subtitle" style="margin-top:6px; font-size:10px;">
+                  Progress: {{ img2img.batchProgress }}/{{ img2img.batchSize }}
+                </div>
+              </div>
+              
               <div class="framesync-footer" style="margin-top:10px;">
                 <button class="framesync-button" @click="runImg2img">🚀 Run img2img</button>
               </div>
               <div v-if="img2img.status" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ img2img.status }}</div>
               <div v-if="img2img.lastPath" class="framesync-subtitle" style="margin-top:4px; text-align:center;">
                 Output: <a :href="img2img.lastPath" target="_blank" style="color:#ff8a1a;">{{ img2img.lastPath }}</a>
+              </div>
+              <div v-if="img2img.batchResults && img2img.batchResults.length" style="margin-top:12px;">
+                <div class="framesync-subtitle">Batch Results</div>
+                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap:8px; margin-top:8px;">
+                  <img v-for="(r, i) in img2img.batchResults" :key="i" :src="r" style="width:100%; border-radius:4px; border:1px solid #0c3048;">
+                </div>
               </div>
               </div>
             </div>
@@ -415,6 +459,34 @@ module.exports = {
               <div class="framesync-footer" style="margin-top:10px;">
                 <button class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Change image</button>
                 <button class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
+              </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Image Source</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button class="framesync-button" :class="{active: activeSlot.imageSource==='file'}" @click="activeSlot.imageSource='file'">📁 File</button>
+                  <button class="framesync-button" :class="{active: activeSlot.imageSource==='webcam'}" @click="activeSlot.imageSource='webcam'">📷 Webcam</button>
+                  <button class="framesync-button" :class="{active: activeSlot.imageSource==='screen'}" @click="activeSlot.imageSource='screen'">🖥️ Screen</button>
+                </div>
+              </div>
+              <div v-if="activeSlot.imageSource==='webcam'" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Webcam Input</div>
+                <video ref="webcamVideo" autoplay playsinline style="width:100%; max-width:320px; border-radius:6px; border:1px solid #0c3048; display:none;"></video>
+                <canvas ref="webcamCanvas" style="display:none;"></canvas>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                  <button class="framesync-button" :class="{active: cn.webcamActive}" @click="toggleWebcam">{{ cn.webcamActive ? '⏹ Stop Webcam' : '▶ Start Webcam' }}</button>
+                  <select class="framesync-input" v-model="webcamCaptureRate" style="max-width:120px; font-size:11px;">
+                    <option value="1000">1 fps</option>
+                    <option value="500">2 fps</option>
+                    <option value="200">5 fps</option>
+                    <option value="100">10 fps</option>
+                  </select>
+                </div>
+                <div class="framesync-subtitle" style="margin-top:6px; font-size:10px;">Captures frames from webcam and sends to ControlNet</div>
+              </div>
+              <div v-if="activeSlot.imageSource==='screen'" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Screen Capture</div>
+                <button class="framesync-button" @click="startScreenCapture">🖥️ Start Screen Capture</button>
+                <div class="framesync-subtitle" style="margin-top:6px; font-size:10px;">Captures screen region and sends to ControlNet</div>
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -1109,7 +1181,7 @@ module.exports = {
                   <span>{{ sequencer.tracks.length }} track{{ sequencer.tracks.length > 1 ? 's' : '' }} · {{ sequencer.durationSec }}s</span>
                 </div>
                 <div style="position:relative;" ref="timelineContainer">
-                  <canvas ref="timelineCanvas" style="width:100%; display:block; cursor:pointer;" @click="seekTimeline" @mousemove="hoverTimeline"></canvas>
+                  <canvas ref="timelineCanvas" style="width:100%; display:block; cursor:pointer;" @mousedown="onTimelineMouseDown" @mousemove="onTimelineMouseMove" @mouseup="onTimelineMouseUp" @mouseleave="onTimelineMouseUp" @click="seekTimeline"></canvas>
                   <div v-if="timelineHoverTime !== null" style="position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.3); pointer-events:none; z-index:3;" :style="{ left: timelineHoverPercent + '%' }"></div>
                 </div>
               </div>
@@ -1383,6 +1455,14 @@ module.exports = {
         height: 1024,
         status: "",
         lastPath: null,
+        maskMode: "draw",
+        brushSize: 20,
+        isDrawing: false,
+        batchSize: 4,
+        seedVariation: 100,
+        isBatchProcessing: false,
+        batchProgress: 0,
+        batchResults: [],
       },
       pluginsRegistry: [],
       morphSlots: [
@@ -1506,15 +1586,20 @@ module.exports = {
       },
       cn: {
         slots: [
-          { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true },
-          { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false },
+          { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true, imageSource: "file" },
+          { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
         ],
         active: "CN2",
         availableModels: [],
         source: "unknown",
+        webcamActive: false,
+        webcamStream: null,
+        webcamVideo: null,
+        webcamCanvas: null,
+        webcamCaptureInterval: null,
       },
       midi: {
         supported: typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess,
@@ -1574,8 +1659,11 @@ module.exports = {
       sequencerKeyframeVal: 0,
       sequencerMarkerName: "Scene",
       sequencerSelectedTrackId: null,
+      webcamCaptureRate: 500,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
+      timelineDragging: null,
+      timelineDragTarget: null,
       timelineCanvasCtx: null,
       lfoTargetPick: {},
       avSyncCollapsed: true,
@@ -2309,6 +2397,7 @@ module.exports = {
    reader.onload = () => {
      this.img2img.dataUrl = reader.result;
      this.img2img.status = "Init image loaded";
+     this.$nextTick(() => this.initMaskCanvas());
    };
    reader.onerror = () => {
      this.img2img.status = "Could not read file";
@@ -2375,6 +2464,107 @@ module.exports = {
      this.img2img.status = j.path ? `OK → ${j.path}` : "OK";
    } catch (e) {
      this.img2img.status = String(e.message || e);
+   }
+ },
+ startMaskDraw(evt) {
+   this.img2img.isDrawing = true;
+   this.drawMask(evt);
+ },
+ drawMask(evt) {
+   if (!this.img2img.isDrawing) return;
+   const canvas = this.$refs.maskCanvas;
+   if (!canvas) return;
+   const ctx = canvas.getContext("2d");
+   const rect = canvas.getBoundingClientRect();
+   const x = evt.clientX - rect.left;
+   const y = evt.clientY - rect.top;
+   
+   ctx.fillStyle = this.img2img.maskMode === "draw" ? "#ffffff" : "#000000";
+   ctx.beginPath();
+   ctx.arc(x, y, this.img2img.brushSize / 2, 0, Math.PI * 2);
+   ctx.fill();
+   
+   canvas.toBlob((blob) => {
+     if (!blob) return;
+     const reader = new FileReader();
+     reader.onload = () => {
+       this.img2img.maskDataUrl = reader.result;
+     };
+     reader.readAsDataURL(blob);
+   }, "image/png");
+ },
+ stopMaskDraw() {
+   this.img2img.isDrawing = false;
+ },
+ clearMask() {
+   const canvas = this.$refs.maskCanvas;
+   if (!canvas) return;
+   const ctx = canvas.getContext("2d");
+   ctx.fillStyle = "#000000";
+   ctx.fillRect(0, 0, canvas.width, canvas.height);
+   this.img2img.maskDataUrl = null;
+   this.img2img.status = "Mask cleared";
+ },
+ initMaskCanvas() {
+   if (!this.img2img.dataUrl) return;
+   const canvas = this.$refs.maskCanvas;
+   if (!canvas) return;
+   const img = new Image();
+   img.onload = () => {
+     canvas.width = img.width;
+     canvas.height = img.height;
+     const ctx = canvas.getContext("2d");
+     ctx.drawImage(img, 0, 0);
+     ctx.fillStyle = "#000000";
+     ctx.fillRect(0, 0, canvas.width, canvas.height);
+   };
+   img.src = this.img2img.dataUrl;
+ },
+ async runImg2imgBatch() {
+   if (!this.img2img.dataUrl) {
+     this.img2img.status = "Choose an init image first";
+     return;
+   }
+   this.img2img.isBatchProcessing = true;
+   this.img2img.batchProgress = 0;
+   this.img2img.batchResults = [];
+   this.img2img.status = "Batch processing started…";
+   
+   try {
+     for (let i = 0; i < this.img2img.batchSize; i++) {
+       const seed = Math.floor(Math.random() * this.img2img.seedVariation);
+       const body = {
+         init_image: this.img2img.dataUrl,
+         prompt: this.prompts.pos,
+         negative_prompt: this.prompts.neg,
+         denoising_strength: this.img2img.denoisingStrength,
+         width: this.img2img.width,
+         height: this.img2img.height,
+         seed,
+       };
+       if (this.img2img.maskDataUrl) {
+         body.mask_image = this.img2img.maskDataUrl;
+         body.mask_blur = this.img2img.maskBlur;
+         body.inpainting_fill = this.img2img.inpaintingFill;
+         body.inpaint_full_res = this.img2img.inpaintFullRes;
+       }
+       const res = await fetch("/api/img2img", {
+         method: "POST",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify(body),
+       });
+       const j = await res.json();
+       if (!res.ok) throw new Error(j.error || j.detail || res.statusText);
+       if (j.path) {
+         this.img2img.batchResults.push(j.path);
+       }
+       this.img2img.batchProgress = i + 1;
+     }
+     this.img2img.status = `Batch complete: ${this.img2img.batchResults.length} images`;
+   } catch (e) {
+     this.img2img.status = `Batch error: ${e.message || e}`;
+   } finally {
+     this.img2img.isBatchProcessing = false;
    }
  },
  addLfo() {
@@ -3187,6 +3377,154 @@ module.exports = {
    console.log("Upload image for slot:", slot.id);
    alert("Image upload functionality not yet implemented. Use SD-Forge UI for now.");
  },
+ async toggleWebcam() {
+   if (this.cn.webcamActive) {
+     this.stopWebcam();
+   } else {
+     await this.startWebcam();
+   }
+ },
+ async startWebcam() {
+   try {
+     const stream = await navigator.mediaDevices.getUserMedia({ 
+       video: { width: 512, height: 512, facingMode: "user" } 
+     });
+     this.cn.webcamStream = stream;
+     this.cn.webcamActive = true;
+     
+     const videoEl = this.$refs.webcamVideo;
+     if (videoEl) {
+       videoEl.srcObject = stream;
+       videoEl.style.display = "block";
+       this.cn.webcamVideo = videoEl;
+     }
+     
+     const canvasEl = this.$refs.webcamCanvas;
+     if (canvasEl) {
+       this.cn.webcamCanvas = canvasEl;
+       canvasEl.width = 512;
+       canvasEl.height = 512;
+     }
+     
+     this.cn.webcamCaptureInterval = setInterval(() => {
+       this.captureWebcamFrame();
+     }, this.webcamCaptureRate);
+     
+     console.log("Webcam started");
+   } catch (err) {
+     console.error("Failed to start webcam:", err);
+     alert("Could not access webcam. Please check permissions.");
+   }
+ },
+ stopWebcam() {
+   if (this.cn.webcamCaptureInterval) {
+     clearInterval(this.cn.webcamCaptureInterval);
+     this.cn.webcamCaptureInterval = null;
+   }
+   if (this.cn.webcamStream) {
+     this.cn.webcamStream.getTracks().forEach(track => track.stop());
+     this.cn.webcamStream = null;
+   }
+   const videoEl = this.$refs.webcamVideo;
+   if (videoEl) {
+     videoEl.style.display = "none";
+     videoEl.srcObject = null;
+   }
+   this.cn.webcamActive = false;
+   console.log("Webcam stopped");
+ },
+ captureWebcamFrame() {
+   const video = this.cn.webcamVideo;
+   const canvas = this.cn.webcamCanvas;
+   if (!video || !canvas || video.readyState < 2) return;
+   
+   const ctx = canvas.getContext("2d");
+   ctx.drawImage(video, 0, 0, 512, 512);
+   
+   canvas.toBlob(async (blob) => {
+     if (!blob) return;
+     const activeSlot = this.cn.slots.find(s => s.id === this.cn.active);
+     if (!activeSlot || activeSlot.imageSource !== "webcam") return;
+     
+     try {
+       const formData = new FormData();
+       formData.append("image", blob, "webcam_frame.png");
+       formData.append("slot", this.cn.active);
+       
+       const response = await fetch("/api/controlnet/upload-image", {
+         method: "POST",
+         body: formData,
+       });
+       
+       if (!response.ok) {
+         console.error("Failed to upload webcam frame");
+       }
+     } catch (err) {
+       console.error("Webcam frame upload failed:", err);
+     }
+   }, "image/png");
+ },
+ async startScreenCapture() {
+   try {
+     const stream = await navigator.mediaDevices.getDisplayMedia({ 
+       video: { width: 512, height: 512 } 
+     });
+     
+     const video = document.createElement("video");
+     video.srcObject = stream;
+     video.autoplay = true;
+     video.playsInline = true;
+     video.style.display = "none";
+     document.body.appendChild(video);
+     
+     const canvas = document.createElement("canvas");
+     canvas.width = 512;
+     canvas.height = 512;
+     document.body.appendChild(canvas);
+     canvas.style.display = "none";
+     
+     const captureInterval = setInterval(() => {
+       if (video.readyState < 2) return;
+       const ctx = canvas.getContext("2d");
+       ctx.drawImage(video, 0, 0, 512, 512);
+       
+       canvas.toBlob(async (blob) => {
+         if (!blob) return;
+         const activeSlot = this.cn.slots.find(s => s.id === this.cn.active);
+         if (!activeSlot || activeSlot.imageSource !== "screen") return;
+         
+         try {
+           const formData = new FormData();
+           formData.append("image", blob, "screen_capture.png");
+           formData.append("slot", this.cn.active);
+           
+           const response = await fetch("/api/controlnet/upload-image", {
+             method: "POST",
+             body: formData,
+           });
+           
+           if (!response.ok) {
+             console.error("Failed to upload screen capture");
+           }
+         } catch (err) {
+           console.error("Screen capture upload failed:", err);
+         }
+       }, "image/png");
+     }, this.webcamCaptureRate);
+     
+     stream.getVideoTracks()[0].onended = () => {
+       clearInterval(captureInterval);
+       document.body.removeChild(video);
+       document.body.removeChild(canvas);
+       console.log("Screen capture stopped");
+     };
+     
+     console.log("Screen capture started");
+   } catch (err) {
+     console.error("Failed to start screen capture:", err);
+     alert("Could not start screen capture. Please check permissions.");
+   }
+ },
  handleMidi(input, msg) {
    const [status, cc, value] = msg.data;
    const isCC = (status & 0xf0) === 0xb0;
@@ -3672,32 +4010,33 @@ module.exports = {
          const hIn = next.hIn != null ? next.hIn : 0.67;
          const vOut = kf.hOutV != null ? kf.hOutV : v + (next.v - v) * 0.33;
          const vIn = next.hInV != null ? next.hInV : v + (next.v - v) * 0.67;
-         const hasHandles = kf.hIn !== undefined || kf.hOut !== undefined || next.hIn !== undefined || next.hOut !== undefined;
-         if (hasHandles) {
-           const hOutPx = (kf.t + hOut * (next.t - kf.t)) / dur * w;
-           const hOutPy = y + laneH - ((vOut - minV) / (maxV - minV)) * laneH;
-           const hInPx = (next.t - (1 - hIn) * (next.t - kf.t)) / dur * w;
-           const hInPy = y + laneH - ((vIn - minV) / (maxV - minV)) * laneH;
-           ctx.strokeStyle = color + "60";
-           ctx.lineWidth = 1;
-           ctx.setLineDash([2, 2]);
-           ctx.beginPath();
-           ctx.moveTo(px, py);
-           ctx.lineTo(hOutPx, hOutPy);
-           ctx.stroke();
-           ctx.beginPath();
-           ctx.moveTo((next.t / dur) * w, y + laneH - ((next.v - minV) / (maxV - minV)) * laneH);
-           ctx.lineTo(hInPx, hInPy);
-           ctx.stroke();
-           ctx.setLineDash([]);
-           ctx.fillStyle = "#fff";
-           ctx.beginPath();
-           ctx.arc(hOutPx, hOutPy, 3, 0, Math.PI * 2);
-           ctx.fill();
-           ctx.beginPath();
-           ctx.arc(hInPx, hInPy, 3, 0, Math.PI * 2);
-           ctx.fill();
-         }
+         const hOutPx = (kf.t + hOut * (next.t - kf.t)) / dur * w;
+         const hOutPy = y + laneH - ((vOut - minV) / (maxV - minV)) * laneH;
+         const hInPx = (next.t - (1 - hIn) * (next.t - kf.t)) / dur * w;
+         const hInPy = y + laneH - ((vIn - minV) / (maxV - minV)) * laneH;
+         ctx.strokeStyle = color + "80";
+         ctx.lineWidth = 1.5;
+         ctx.setLineDash([3, 2]);
+         ctx.beginPath();
+         ctx.moveTo(px, py);
+         ctx.lineTo(hOutPx, hOutPy);
+         ctx.stroke();
+         ctx.beginPath();
+         ctx.moveTo((next.t / dur) * w, y + laneH - ((next.v - minV) / (maxV - minV)) * laneH);
+         ctx.lineTo(hInPx, hInPy);
+         ctx.stroke();
+         ctx.setLineDash([]);
+         ctx.fillStyle = "#fff";
+         ctx.strokeStyle = color;
+         ctx.lineWidth = 2;
+         ctx.beginPath();
+         ctx.arc(hOutPx, hOutPy, 5, 0, Math.PI * 2);
+         ctx.fill();
+         ctx.stroke();
+         ctx.beginPath();
+         ctx.arc(hInPx, hInPy, 5, 0, Math.PI * 2);
+         ctx.fill();
+         ctx.stroke();
        }
        ctx.fillStyle = color;
        ctx.beginPath();
@@ -3766,6 +4105,119 @@ module.exports = {
    const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
    this.timelineHoverTime = Math.max(0, Math.min(dur, (x / rect.width) * dur));
    this.timelineHoverPercent = (x / rect.width) * 100;
+ },
+ getTimelineCanvasCoords(event) {
+   const canvas = this.$refs.timelineCanvas;
+   if (!canvas) return null;
+   const rect = canvas.getBoundingClientRect();
+   return {
+     x: event.clientX - rect.left,
+     y: event.clientY - rect.top,
+     width: rect.width,
+     height: rect.height,
+   };
+ },
+ findNearestHandle(coords) {
+   const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
+   const canvas = this.$refs.timelineCanvas;
+   if (!canvas) return null;
+   const h = Math.max(120, this.sequencer.tracks.length * 40 + 20);
+   const laneH = (h - 20) / Math.max(1, this.sequencer.tracks.length);
+   const threshold = 8;
+   for (let idx = 0; idx < this.sequencer.tracks.length; idx++) {
+     const tr = this.sequencer.tracks[idx];
+     const kfs = this.sortedKeyframes(tr);
+     if (!kfs.length) continue;
+     const y = 20 + idx * laneH;
+     let minV = Math.min(...kfs.map(k => k.v));
+     let maxV = Math.max(...kfs.map(k => k.v));
+     const range = maxV - minV || 1;
+     minV -= range * 0.15;
+     maxV += range * 0.15;
+     for (let ki = 0; ki < kfs.length; ki++) {
+       const kf = kfs[ki];
+       const next = ki < kfs.length - 1 ? kfs[ki + 1] : null;
+       if (next) {
+         const hOut = kf.hOut != null ? kf.hOut : 0.33;
+         const hIn = next.hIn != null ? next.hIn : 0.67;
+         const vOut = kf.hOutV != null ? kf.hOutV : kf.v + (next.v - kf.v) * 0.33;
+         const vIn = next.hInV != null ? next.hInV : kf.v + (next.v - kf.v) * 0.67;
+         const hasHandles = kf.hIn !== undefined || kf.hOut !== undefined || next.hIn !== undefined || next.hOut !== undefined;
+         if (hasHandles) {
+           const hOutPx = (kf.t + hOut * (next.t - kf.t)) / dur * coords.width;
+           const hOutPy = y + laneH - ((vOut - minV) / (maxV - minV)) * laneH;
+           const distOut = Math.sqrt((coords.x - hOutPx) ** 2 + (coords.y - hOutPy) ** 2);
+           if (distOut < threshold) {
+             return { type: 'hOut', track: tr, keyframe: kf, nextKeyframe: next };
+           }
+           const hInPx = (next.t - (1 - hIn) * (next.t - kf.t)) / dur * coords.width;
+           const hInPy = y + laneH - ((vIn - minV) / (maxV - minV)) * laneH;
+           const distIn = Math.sqrt((coords.x - hInPx) ** 2 + (coords.y - hInPy) ** 2);
+           if (distIn < threshold) {
+             return { type: 'hIn', track: tr, keyframe: kf, nextKeyframe: next };
+           }
+         }
+       }
+     }
+   }
+   return null;
+ },
+ onTimelineMouseDown(event) {
+   const coords = this.getTimelineCanvasCoords(event);
+   if (!coords) return;
+   const handle = this.findNearestHandle(coords);
+   if (handle) {
+     this.timelineDragging = handle;
+     this.timelineDragTarget = handle.type;
+     event.preventDefault();
+   }
+ },
+ onTimelineMouseMove(event) {
+   if (!this.timelineDragging) {
+     this.hoverTimeline(event);
+     const coords = this.getTimelineCanvasCoords(event);
+     if (coords) {
+       const handle = this.findNearestHandle(coords);
+       const canvas = this.$refs.timelineCanvas;
+       if (canvas) {
+         canvas.style.cursor = handle ? 'grab' : 'pointer';
+       }
+     }
+     return;
+   }
+   const coords = this.getTimelineCanvasCoords(event);
+   if (!coords) return;
+   const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
+   const h = Math.max(120, this.sequencer.tracks.length * 40 + 20);
+   const laneH = (h - 20) / Math.max(1, this.sequencer.tracks.length);
+   const { track, keyframe, nextKeyframe } = this.timelineDragging;
+   let minV = Math.min(...this.sortedKeyframes(track).map(k => k.v));
+   let maxV = Math.max(...this.sortedKeyframes(track).map(k => k.v));
+   const range = maxV - minV || 1;
+   minV -= range * 0.15;
+   maxV += range * 0.15;
+   const t = Math.max(0, Math.min(dur, (coords.x / coords.width) * dur));
+   const v = maxV - ((coords.y - 20) / laneH) * (maxV - minV);
+   const segmentDur = nextKeyframe.t - keyframe.t;
+   if (this.timelineDragTarget === 'hOut') {
+     const hOutT = Math.max(0, Math.min(1, (t - keyframe.t) / segmentDur));
+     const hOutV = Math.max(minV, Math.min(maxV, v));
+     keyframe.hOut = hOutT;
+     keyframe.hOutV = hOutV;
+   } else if (this.timelineDragTarget === 'hIn') {
+     const hInT = Math.max(0, Math.min(1, (nextKeyframe.t - t) / segmentDur));
+     const hInV = Math.max(minV, Math.min(maxV, v));
+     nextKeyframe.hIn = hInT;
+     nextKeyframe.hInV = hInV;
+   }
+   this.drawTimeline();
+   event.preventDefault();
+ },
+ onTimelineMouseUp() {
+   if (this.timelineDragging) {
+     this.timelineDragging = null;
+     this.timelineDragTarget = null;
+   }
  },
  xyPadMouseDown(evt) {
    this.xyPad.dragging = true;
