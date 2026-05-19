@@ -2962,6 +2962,49 @@ print(json.dumps(summary))
     }
   });
 
+  // DMX Lighting Control API endpoints
+  app.post("/api/dmx/start", async (req, res) => {
+    const { interface_type, universe, fps, broadcast_ip } = req.body || {};
+    if (!interface_type || !["artnet", "sacn", "openrgb"].includes(interface_type)) {
+      return res.status(400).json({ error: "interface_type required (artnet, sacn, or openrgb)" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.dmx_control", interface_type];
+      if (universe) cmd.push("--universe", String(universe));
+      if (fps) cmd.push("--fps", String(fps));
+      if (broadcast_ip && interface_type === "artnet") cmd.push("--ip", broadcast_ip);
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/dmx/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.dmx_control status", (error, stdout, stderr) => {
+        if (error) {
+          return res.json({ status: "stopped", error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json({ status: "running", ...status });
+        } catch (e) {
+          res.json({ status: "unknown", output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;

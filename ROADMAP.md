@@ -543,7 +543,7 @@ curl -X POST http://localhost:3000/api/distributed/configure \
 #### Advanced Synchronization
 - **Description**: Sync with external systems
 - **Features**:
-  - ⏳ DMX lighting control integration (future)
+  - ✅ **DMX lighting control integration** - Art-Net, sACN, and OpenRGB support for stage lighting
   - ✅ **OSC (Open Sound Control) support** - `defora_cli.osc_bridge` with mappings for all Defora parameters
   - ✅ **Ableton Link sync** - Tempo synchronization with Ableton Live and Link-enabled apps
   - ✅ **Timecode (LTC/MTC) sync** - Professional audio/video equipment synchronization
