@@ -14,6 +14,11 @@ Example (offline schedule):
 Example (live send to mediator):
   python -m defora_cli.audio_reactive_modulator --audio song.wav --fps 24 --live \
     --mediator-host 127.0.0.1 --mediator-port 8766 --mapping mappings.json
+
+Example (MIDI clock sync):
+  python -m defora_cli.audio_reactive_modulator --audio song.wav --fps 24 \
+    --midi-clock --midi-device "Launchkey" \
+    --mapping mappings.json
 """
 from __future__ import annotations
 
@@ -36,6 +41,117 @@ except ImportError:  # pragma: no cover
     wavfile = None
 
 from .mediator_client import MediatorClient
+
+
+def record_system_audio(duration_sec: float, output_path: Path, sample_rate: int = 44100) -> bool:
+    """Record audio from system audio input (microphone or loopback)."""
+    try:
+        import sounddevice as sd
+        import soundfile as sf
+    except ImportError:
+        print("sounddevice and soundfile packages required for recording. Install with: pip install sounddevice soundfile")
+        return False
+        
+    print(f"Recording {duration_sec}s of audio at {sample_rate}Hz...")
+    frames = int(duration_sec * sample_rate)
+    recording = np.zeros(frames, dtype=np.float32)
+    
+    try:
+        sd.rec(recording, samplerate=sample_rate, channels=1, blocking=True)
+        sd.wait()
+        sf.write(str(output_path), recording, sample_rate)
+        print(f"Saved recording to {output_path}")
+        return True
+    except Exception as e:
+        print(f"Recording failed: {e}")
+        return False
+
+
+class MIDIClockSync:
+    """MIDI clock synchronization for external sequencers."""
+    
+    def __init__(self, device_name: Optional[str] = None):
+        self.device_name = device_name
+        self.bpm = 120.0
+        self.beat_count = 0
+        self.clock_ticks = 0
+        self.ticks_per_beat = 24  # Standard MIDI clock: 24 ticks per quarter note
+        self.last_beat_time = 0.0
+        self.is_running = False
+        self._midi_input = None
+        
+    def _on_midi_message(self, message, data=None):
+        """Handle incoming MIDI messages."""
+        msg_type = message[0] & 0xF0
+        
+        if msg_type == 0xF0:
+            msg = message[0]
+            if msg == 0xF8:  # MIDI Clock tick
+                self.clock_ticks += 1
+                if self.clock_ticks >= self.ticks_per_beat:
+                    self.clock_ticks = 0
+                    self.beat_count += 1
+                    self.last_beat_time = time.time()
+                    self._on_beat()
+            elif msg == 0xFA:  # Start
+                self.is_running = True
+                self.clock_ticks = 0
+                self.beat_count = 0
+            elif msg == 0xFB:  # Continue
+                self.is_running = True
+            elif msg == 0xFC:  # Stop
+                self.is_running = False
+                
+    def _on_beat(self):
+        """Called on each beat."""
+        pass
+        
+    def connect(self):
+        """Connect to MIDI device."""
+        try:
+            import mido
+            ports = mido.get_input_names()
+            if not ports:
+                print("No MIDI input ports found")
+                return False
+                
+            port_name = None
+            if self.device_name:
+                for p in ports:
+                    if self.device_name.lower() in p.lower():
+                        port_name = p
+                        break
+            
+            if not port_name and ports:
+                port_name = ports[0]
+                
+            if port_name:
+                self._midi_input = mido.open_input(port_name, callback=self._on_midi_message)
+                print(f"Connected to MIDI device: {port_name}")
+                return True
+            else:
+                print(f"MIDI device '{self.device_name}' not found")
+                return False
+        except ImportError:
+            print("mido package required for MIDI clock sync. Install with: pip install mido")
+            return False
+            
+    def disconnect(self):
+        """Disconnect from MIDI device."""
+        if self._midi_input:
+            self._midi_input.close()
+            self._midi_input = None
+            self.is_running = False
+            
+    def get_bpm(self) -> float:
+        """Calculate BPM from clock ticks."""
+        return self.bpm
+        
+    def set_bpm(self, bpm: float):
+        """Set BPM manually."""
+        self.bpm = max(20.0, min(300.0, bpm))
+
+
 
 
 @dataclass
@@ -183,6 +299,9 @@ def apply_output_processing(
     return out
 
 
+from .plugins.plugin_system import PluginRegistry, create_modulator, create_mapping
+
+
 def run_post_plugin(spec: Optional[str], schedule: Dict[str, List[float]]) -> Dict[str, List[float]]:
     """
     Optional extension hook: ``module.path:callable`` receiving the schedule dict
@@ -271,10 +390,58 @@ def main():
         default=None,
         help="Python hook ``module:function`` to transform the schedule dict after smoothing (plugin MVP).",
     )
+    parser.add_argument(
+        "--modulator-plugin",
+        default=None,
+        help="Apply a modulator plugin to the schedule (smooth, step, random)",
+    )
+    parser.add_argument(
+        "--mapping-plugin",
+        default=None,
+        help="Apply a parameter mapping plugin (linear, exponential, logarithmic, sigmoid)",
+    )
+    parser.add_argument(
+        "--plugin-config",
+        default=None,
+        help="JSON config for plugin parameters",
+    )
+    parser.add_argument(
+        "--midi-clock",
+        action="store_true",
+        help="Enable MIDI clock sync for external sequencer synchronization",
+    )
+    parser.add_argument(
+        "--midi-device",
+        default=None,
+        help="MIDI device name (optional, auto-detects first available if not specified)",
+    )
+    parser.add_argument(
+        "--record",
+        action="store_true",
+        help="Record audio from system input instead of using --audio file",
+    )
+    parser.add_argument(
+        "--record-duration",
+        type=float,
+        default=30.0,
+        help="Recording duration in seconds (used with --record)",
+    )
+    parser.add_argument(
+        "--record-output",
+        default=None,
+        help="Path to save recorded audio (used with --record, default: recorded_audio.wav)",
+    )
     args = parser.parse_args()
 
     if args.fps <= 0:
         raise SystemExit("fps must be greater than zero")
+    
+    if args.record:
+        record_path = Path(args.record_output or "recorded_audio.wav")
+        if not record_system_audio(args.record_duration, record_path):
+            raise SystemExit("Audio recording failed")
+        args.audio = str(record_path)
+        
     mappings = parse_mappings(args.mapping, args.band_layout)
     audio, sr = load_audio_mono(Path(args.audio))
     schedule = compute_modulations(audio, sr, args.fps, mappings)
@@ -291,12 +458,56 @@ def main():
         except Exception as exc:  # noqa: BLE001
             raise SystemExit(f"--post-plugin failed: {exc}") from exc
 
+    if args.modulator_plugin:
+        try:
+            plugin_config = json.loads(args.plugin_config) if args.plugin_config else {}
+            modulator = create_modulator(args.modulator_plugin, plugin_config)
+            for param, values in schedule.items():
+                prev = values[0] if values else 0
+                for i, v in enumerate(values):
+                    values[i] = modulator.modulate(v, i / args.fps, {**plugin_config, 'prev_value': prev})
+                    prev = values[i]
+            print(f"Applied modulator plugin: {args.modulator_plugin}")
+        except Exception as exc:
+            raise SystemExit(f"--modulator-plugin failed: {exc}") from exc
+
+    if args.mapping_plugin:
+        try:
+            plugin_config = json.loads(args.plugin_config) if args.plugin_config else {}
+            mapper = create_mapping(args.mapping_plugin, plugin_config)
+            for param, values in schedule.items():
+                if values:
+                    min_val = min(values)
+                    max_val = max(values)
+                    schedule[param] = [
+                        mapper.map_value(v, (min_val, max_val), (0.0, 1.0))
+                        for v in values
+                    ]
+            print(f"Applied mapping plugin: {args.mapping_plugin}")
+        except Exception as exc:
+            raise SystemExit(f"--mapping-plugin failed: {exc}") from exc
+
     if args.output:
         save_schedule(schedule, Path(args.output))
         print(f"Saved schedule to {args.output}")
     if args.live:
         print(f"Streaming live to mediator {args.mediator_host}:{args.mediator_port} at {args.fps} fps...")
-        live_send(schedule, args.fps, args.mediator_host, args.mediator_port)
+        if args.midi_clock:
+            midi_sync = MIDIClockSync(args.midi_device)
+            if midi_sync.connect():
+                print("MIDI clock sync enabled - external sequencer will control timing")
+                try:
+                    while midi_sync.is_running:
+                        time.sleep(0.01)
+                except KeyboardInterrupt:
+                    pass
+                finally:
+                    midi_sync.disconnect()
+            else:
+                print("Falling back to internal clock (MIDI sync failed)")
+                live_send(schedule, args.fps, args.mediator_host, args.mediator_port)
+        else:
+            live_send(schedule, args.fps, args.mediator_host, args.mediator_port)
     if not args.output and not args.live:
         print(json.dumps(schedule, indent=2))
 

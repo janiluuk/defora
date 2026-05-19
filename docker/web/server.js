@@ -79,6 +79,116 @@ async function start(opts = {}) {
     }
   });
   
+  // Streaming API endpoints
+  app.post("/api/stream/start", async (req, res) => {
+    const { target, fps, resolution, protocol, overlay, transition } = req.body || {};
+    if (!target) {
+      return res.status(400).json({ error: "target URL required" });
+    }
+    try {
+      const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
+      const cmd = ["python3", "-m", "defora_cli.stream_helper", "start", 
+                   "--source", framesDir, "--target", target,
+                   "--fps", String(fps || 24)];
+      if (resolution) cmd.push("--resolution", resolution);
+      if (protocol) cmd.push("--protocol", protocol);
+      if (overlay) cmd.push("--overlay", overlay);
+      if (transition) cmd.push("--transition", transition);
+      
+      const { exec } = require('child_process');
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/stream/stop", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper stop", (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/stream/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper status", (error, stdout, stderr) => {
+        res.json({ 
+          status: error ? "stopped" : "running",
+          output: stdout,
+        });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/stream/record", async (req, res) => {
+    const { output, fps, resolution, codec, quality } = req.body || {};
+    if (!output) {
+      return res.status(400).json({ error: "output path required" });
+    }
+    try {
+      const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
+      const cmd = ["python3", "-m", "defora_cli.stream_helper", "record",
+                   "--source", framesDir, "--output", output,
+                   "--fps", String(fps || 24)];
+      if (resolution) cmd.push("--resolution", resolution);
+      if (codec) cmd.push("--codec", codec);
+      if (quality) cmd.push("--quality", quality);
+      
+      const { exec } = require('child_process');
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/stream/stop-record", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper stop-record", (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/stream/record-status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper record-status", (error, stdout, stderr) => {
+        res.json({
+          status: error ? "stopped" : "recording",
+          output: stdout,
+        });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // API status endpoint for model availability
   app.get("/api/status", (_req, res) => {
     const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
@@ -497,6 +607,72 @@ async function start(opts = {}) {
     }
   });
 
+  app.get("/api/plugins/:type", async (req, res) => {
+    const pluginType = req.params.type;
+    try {
+      const manifestPath = path.join(pluginsDir, "manifest.json");
+      const raw = await fsp.readFile(manifestPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const allPlugins = Array.isArray(parsed) ? parsed : parsed.plugins || [];
+      const filtered = allPlugins.filter(p => p.plugin_type === pluginType);
+      res.json({ plugins: filtered, type: pluginType });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        return res.json({ plugins: [], type: pluginType });
+      }
+      console.error("[api] plugins filter error", err);
+      res.status(500).json({ error: "could not read plugin manifest" });
+    }
+  });
+
+  app.post("/api/plugins/execute", async (req, res) => {
+    const { plugin_name, parameters, input } = req.body || {};
+    if (!plugin_name) {
+      return res.status(400).json({ error: "plugin_name required" });
+    }
+    try {
+      const manifestPath = path.join(pluginsDir, "manifest.json");
+      const raw = await fsp.readFile(manifestPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      const allPlugins = Array.isArray(parsed) ? parsed : parsed.plugins || [];
+      const plugin = allPlugins.find(p => p.name === plugin_name);
+      if (!plugin) {
+        return res.status(404).json({ error: `Plugin not found: ${plugin_name}` });
+      }
+      const [modulePath, funcName] = plugin.entry_point.split(':');
+      const mod = require(modulePath);
+      const fn = mod[funcName];
+      if (typeof fn !== 'function') {
+        return res.status(500).json({ error: `Plugin entry point is not a function: ${funcName}` });
+      }
+      const mergedParams = { ...plugin.parameters, ...parameters };
+      const result = fn(input, mergedParams);
+      res.json({ success: true, plugin: plugin_name, result });
+    } catch (err) {
+      console.error(`[api] plugin execute error: ${plugin_name}`, err);
+      res.status(500).json({ error: `Plugin execution failed: ${err.message}` });
+    }
+  });
+
+  app.get("/api/plugins/modulators", async (_req, res) => {
+    const modulators = [
+      { id: "smooth", name: "Smooth", description: "Smooth parameter transitions", parameters: { smoothing: 0.5 } },
+      { id: "step", name: "Step", description: "Quantize to discrete steps", parameters: { steps: 8, min: 0, max: 1 } },
+      { id: "random", name: "Random", description: "Add controlled variance", parameters: { variance: 0.1 } },
+    ];
+    res.json({ modulators });
+  });
+
+  app.get("/api/plugins/mappings", async (_req, res) => {
+    const mappings = [
+      { id: "linear", name: "Linear", description: "Linear mapping" },
+      { id: "exponential", name: "Exponential", description: "Exponential curve mapping" },
+      { id: "logarithmic", name: "Logarithmic", description: "Logarithmic curve mapping" },
+      { id: "sigmoid", name: "Sigmoid", description: "S-curve mapping for smooth transitions" },
+    ];
+    res.json({ mappings });
+  });
+
   app.post("/api/img2img", async (req, res) => {
     const body = req.body || {};
     const init = body.init_image || body.initImage;
@@ -678,6 +854,56 @@ async function start(opts = {}) {
     if (lowerName.includes('seg') || lowerName.includes('semantic')) return 'semantic';
     return 'other';
   }
+  
+  // ControlNet image upload endpoint (for webcam/screen capture)
+  app.post("/api/controlnet/upload-image", async (req, res) => {
+    const multer = require('multer');
+    const upload = multer({ storage: multer.memoryStorage() });
+    
+    upload.single('image')(req, res, async (err) => {
+      if (err) {
+        return res.status(400).json({ error: "Image upload failed" });
+      }
+      
+      if (!req.file) {
+        return res.status(400).json({ error: "No image provided" });
+      }
+      
+      const slot = req.body.slot || "CN1";
+      const imageBuffer = req.file.buffer;
+      
+      try {
+        const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
+        const forgePort = process.env.SD_FORGE_PORT || "7860";
+        const forgeUrl = `http://${forgeHost}:${forgePort}`;
+        
+        const FormData = require('form-data');
+        const formData = new FormData();
+        formData.append('image', imageBuffer, {
+          filename: req.file.originalname,
+          contentType: req.file.mimetype,
+        });
+        formData.append('slot', slot);
+        
+        const response = await fetch(`${forgeUrl}/controlnet/upload`, {
+          method: 'POST',
+          body: formData,
+          headers: formData.getHeaders(),
+        });
+        
+        if (!response.ok) {
+          throw new Error(`SD-Forge responded with ${response.status}`);
+        }
+        
+        const result = await response.json();
+        console.log(`[controlnet] Uploaded image for slot ${slot}`);
+        res.json({ success: true, result });
+      } catch (error) {
+        console.error(`[controlnet] Upload failed: ${error.message}`);
+        res.status(500).json({ error: "Failed to upload image to SD-Forge" });
+      }
+    });
+  });
   
   // Refresh models endpoint - clears cache and forces re-fetch
   app.post("/api/models/refresh", (_req, res) => {
@@ -1917,6 +2143,312 @@ async function start(opts = {}) {
     return runs.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
   }
 
+  // Collaborative features API
+  app.get("/api/collab/users", (_req, res) => {
+    const users = Array.from(connectedUsers.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      connectedAt: u.connectedAt,
+    }));
+    res.json({ users, count: users.length });
+  });
+
+  app.get("/api/collab/locks", (_req, res) => {
+    const locks = {};
+    for (const [param, lock] of parameterLocks.entries()) {
+      locks[param] = { userId: lock.userId, userName: lock.userName };
+    }
+    res.json({ locks });
+  });
+
+  app.get("/api/collab/recordings", (_req, res) => {
+    const recordingsPath = path.join(__dirname, "recordings");
+    try {
+      if (!require('fs').existsSync(recordingsPath)) {
+        return res.json({ recordings: [] });
+      }
+      const files = require('fs').readdirSync(recordingsPath)
+        .filter(f => f.endsWith('.json'))
+        .map(f => {
+          const stat = require('fs').statSync(path.join(recordingsPath, f));
+          return {
+            filename: f,
+            size: stat.size,
+            createdAt: stat.mtime.toISOString(),
+          };
+        });
+      res.json({ recordings: files });
+    } catch (err) {
+      res.json({ recordings: [] });
+    }
+  });
+
+  app.post("/api/collab/recordings/:filename/play", async (req, res) => {
+    const { filename } = req.params;
+    const recordingsPath = path.join(__dirname, "recordings");
+    const filepath = path.join(recordingsPath, filename);
+    try {
+      const recording = JSON.parse(require('fs').readFileSync(filepath, 'utf-8'));
+      broadcast({ type: "playback", status: "started", events: recording.events.length });
+      for (const event of recording.events) {
+        setTimeout(() => {
+          if (event.type === "control") {
+            broadcast({ type: "event", msg: "playback", payload: event.payload });
+          }
+        }, event.timestamp);
+      }
+      res.json({ success: true, events: recording.events.length });
+    } catch (err) {
+      res.status(404).json({ error: "Recording not found" });
+    }
+  });
+
+  app.delete("/api/collab/recordings/:filename", async (req, res) => {
+    const { filename } = req.params;
+    const recordingsPath = path.join(__dirname, "recordings");
+    const filepath = path.join(recordingsPath, filename);
+    try {
+      require('fs').unlinkSync(filepath);
+      res.json({ success: true });
+    } catch (err) {
+      res.status(404).json({ error: "Recording not found" });
+    }
+  });
+
+  // AI Assistant API endpoints
+  app.post("/api/ai/prompt-suggestions", async (req, res) => {
+    const { current_prompt, category, limit } = req.body || {};
+    if (!current_prompt) {
+      return res.status(400).json({ error: "current_prompt required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+suggestions = assistant.get_prompt_suggestions("${current_prompt}", "${category || ''}", ${limit || 5})
+print(json.dumps(suggestions))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const suggestions = JSON.parse(stdout);
+          res.json({ suggestions });
+        } catch (e) {
+          res.json({ suggestions: [] });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/improve-prompt", async (req, res) => {
+    const { current_prompt, style } = req.body || {};
+    if (!current_prompt) {
+      return res.status(400).json({ error: "current_prompt required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+improved = assistant.improve_prompt("${current_prompt}", "${style || 'enhance'}")
+print(improved)
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ improved_prompt: stdout.trim() });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/parameter-recommendations", async (req, res) => {
+    const { current_params, style } = req.body || {};
+    if (!current_params) {
+      return res.status(400).json({ error: "current_params required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+recs = assistant.get_parameter_recommendations(${paramsJson}, "${style || 'photorealistic'}")
+print(json.dumps(recs))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const recommendations = JSON.parse(stdout);
+          res.json({ recommendations });
+        } catch (e) {
+          res.json({ recommendations: [] });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/auto-tune", async (req, res) => {
+    const { current_params, feedback_score } = req.body || {};
+    if (!current_params || feedback_score === undefined) {
+      return res.status(400).json({ error: "current_params and feedback_score required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+tuned = assistant.auto_tune_parameters(${paramsJson}, ${feedback_score})
+print(json.dumps(tuned))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const tuned_params = JSON.parse(stdout);
+          res.json({ tuned_params });
+        } catch (e) {
+          res.json({ tuned_params: current_params });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/style-recommendations", async (req, res) => {
+    const { current_prompt, limit } = req.body || {};
+    if (!current_prompt) {
+      return res.status(400).json({ error: "current_prompt required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+styles = assistant.get_style_recommendations("${current_prompt}", ${limit || 3})
+print(json.dumps(styles))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const styles = JSON.parse(stdout);
+          res.json({ styles });
+        } catch (e) {
+          res.json({ styles: [] });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/apply-style", async (req, res) => {
+    const { current_prompt, current_negative, style_name } = req.body || {};
+    if (!current_prompt || !style_name) {
+      return res.status(400).json({ error: "current_prompt and style_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+result = assistant.apply_style_transfer("${current_prompt}", "${current_negative || ''}", "${style_name}")
+print(json.dumps(result))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (e) {
+          res.json({ prompt: current_prompt, negative_prompt: current_negative });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/analyze-frame", async (req, res) => {
+    const { frame_data } = req.body || {};
+    if (!frame_data) {
+      return res.status(400).json({ error: "frame_data required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const dataJson = JSON.stringify(frame_data).replace(/'/g, "\\'");
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+result = assistant.analyze_frame(${dataJson})
+print(json.dumps(result))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (e) {
+          res.json({ anomalies: [], is_ok: true });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/ai/anomaly-summary", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+summary = assistant.get_anomaly_summary()
+print(json.dumps(summary))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const summary = JSON.parse(stdout);
+          res.json(summary);
+        } catch (e) {
+          res.json({ total_frames: 0, anomalous_frames: 0, anomaly_rate: 0 });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;
@@ -2173,17 +2705,197 @@ async function start(opts = {}) {
     wsMessageBatcher.timer = null;
   }
 
+  // Collaborative features: user presence, session recording, parameter locking
+  const connectedUsers = new Map();
+  const parameterLocks = new Map();
+  let sessionRecording = null;
+  let sessionRecordingActive = false;
+
+  function startSessionRecording() {
+    sessionRecording = {
+      startTime: Date.now(),
+      events: [],
+    };
+    sessionRecordingActive = true;
+    console.log("[collab] Session recording started");
+  }
+
+  function stopSessionRecording() {
+    sessionRecordingActive = false;
+    if (sessionRecording) {
+      const recordingPath = path.join(__dirname, "recordings");
+      if (!require('fs').existsSync(recordingPath)) {
+        require('fs').mkdirSync(recordingPath, { recursive: true });
+      }
+      const filename = `session_${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+      const filepath = path.join(recordingPath, filename);
+      require('fs').writeFileSync(filepath, JSON.stringify(sessionRecording, null, 2));
+      console.log(`[collab] Session recording saved to ${filepath}`);
+      sessionRecording = null;
+    }
+  }
+
+  function recordEvent(event) {
+    if (sessionRecordingActive && sessionRecording) {
+      sessionRecording.events.push({
+        timestamp: Date.now() - sessionRecording.startTime,
+        ...event,
+      });
+    }
+  }
+
+  function broadcastUserPresence() {
+    const users = Array.from(connectedUsers.values()).map(u => ({
+      id: u.id,
+      name: u.name,
+      connectedAt: u.connectedAt,
+      lockedParams: Array.from(parameterLocks.entries())
+        .filter(([_, lock]) => lock.userId === u.id)
+        .map(([param, _]) => param),
+    }));
+    broadcast({ type: "presence", users });
+  }
+
   wss.on("connection", (ws) => {
-    ws.send(JSON.stringify({ type: "hello", msg: "Connected to defora web control" }));
+    const userId = `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    connectedUsers.set(userId, {
+      id: userId,
+      name: `User ${connectedUsers.size + 1}`,
+      ws,
+      connectedAt: new Date().toISOString(),
+    });
+
+    ws.send(JSON.stringify({ 
+      type: "hello", 
+      msg: "Connected to defora web control",
+      userId,
+    }));
+    
+    broadcastUserPresence();
 
     ws.on("message", async (raw) => {
       try {
         const payload = JSON.parse(raw.toString());
+        
+        // Handle collaborative messages
+        if (payload.type === "identify") {
+          const user = connectedUsers.get(userId);
+          if (user) {
+            user.name = payload.name || user.name;
+            broadcastUserPresence();
+          }
+          return;
+        }
+        
+        if (payload.type === "lock_param") {
+          const { param } = payload;
+          if (parameterLocks.has(param)) {
+            const lock = parameterLocks.get(param);
+            ws.send(JSON.stringify({ 
+              type: "error", 
+              msg: `Parameter "${param}" is locked by ${lock.userName}` 
+            }));
+            return;
+          }
+          const user = connectedUsers.get(userId);
+          parameterLocks.set(param, { userId, userName: user?.name || 'Unknown' });
+          recordEvent({ type: "lock", param, userId });
+          broadcastUserPresence();
+          return;
+        }
+        
+        if (payload.type === "unlock_param") {
+          const { param } = payload;
+          const lock = parameterLocks.get(param);
+          if (lock && lock.userId === userId) {
+            parameterLocks.delete(param);
+            recordEvent({ type: "unlock", param, userId });
+            broadcastUserPresence();
+          }
+          return;
+        }
+        
+        if (payload.type === "start_recording") {
+          startSessionRecording();
+          ws.send(JSON.stringify({ type: "recording", status: "started" }));
+          return;
+        }
+        
+        if (payload.type === "stop_recording") {
+          stopSessionRecording();
+          ws.send(JSON.stringify({ type: "recording", status: "stopped" }));
+          return;
+        }
+        
+        if (payload.type === "playback_recording") {
+          const { recordingFile } = payload;
+          const recordingsPath = path.join(__dirname, "recordings");
+          const filepath = path.join(recordingsPath, recordingFile);
+          try {
+            const recording = JSON.parse(require('fs').readFileSync(filepath, 'utf-8'));
+            ws.send(JSON.stringify({ 
+              type: "playback", 
+              status: "started",
+              events: recording.events.length,
+            }));
+            // Playback events with timing
+            for (const event of recording.events) {
+              setTimeout(() => {
+                if (event.type === "control") {
+                  broadcast({ type: "event", msg: "playback", payload: event.payload });
+                }
+              }, event.timestamp);
+            }
+          } catch (err) {
+            ws.send(JSON.stringify({ type: "error", msg: "Recording not found" }));
+          }
+          return;
+        }
+        
+        if (payload.type === "list_recordings") {
+          const recordingsPath = path.join(__dirname, "recordings");
+          try {
+            const files = require('fs').readdirSync(recordingsPath)
+              .filter(f => f.endsWith('.json'))
+              .map(f => ({
+                filename: f,
+                size: require('fs').statSync(path.join(recordingsPath, f)).size,
+              }));
+            ws.send(JSON.stringify({ type: "recordings", files }));
+          } catch (err) {
+            ws.send(JSON.stringify({ type: "recordings", files: [] }));
+          }
+          return;
+        }
+        
         if (payload.type !== "control") return;
         if (controlToken && payload.token !== controlToken) {
           ws.send(JSON.stringify({ type: "error", msg: "unauthorized" }));
           return;
         }
+        
+        // Check if any parameter in the control message is locked
+        const lockedParams = [];
+        if (payload.payload) {
+          for (const param of Object.keys(payload.payload)) {
+            if (parameterLocks.has(param)) {
+              const lock = parameterLocks.get(param);
+              if (lock.userId !== userId) {
+                lockedParams.push({ param, lockedBy: lock.userName });
+              }
+            }
+          }
+        }
+        
+        if (lockedParams.length > 0) {
+          ws.send(JSON.stringify({ 
+            type: "error", 
+            msg: "Parameters locked",
+            locked: lockedParams,
+          }));
+          return;
+        }
+        
         if (!payload.controlType || typeof payload.payload !== "object") {
           ws.send(JSON.stringify({ type: "error", msg: "invalid schema" }));
           return;
@@ -2193,9 +2905,21 @@ async function start(opts = {}) {
           channel.sendToQueue(queue, Buffer.from(JSON.stringify(msg)));
         }
         broadcast({ type: "event", msg: "control forwarded", payload: msg });
+        recordEvent({ type: "control", payload: msg, userId });
       } catch (err) {
         console.error("bad ws message", err);
       }
+    });
+
+    ws.on("close", () => {
+      // Release all locks held by this user
+      for (const [param, lock] of parameterLocks.entries()) {
+        if (lock.userId === userId) {
+          parameterLocks.delete(param);
+        }
+      }
+      connectedUsers.delete(userId);
+      broadcastUserPresence();
     });
   });
 

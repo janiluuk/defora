@@ -297,11 +297,11 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: Medium
 - **Description**: Expand audio-reactive capabilities
 - **Features**:
-  - Multi-band audio mapping (bass, mids, highs)
-  - Audio envelope followers
-  - **Spectral visualization**: ✅ offline FFT spectrogram after Web upload (Phase 7); ✅ live `AnalyserNode` band bars on reference playback (Phase 8)
-  - MIDI clock sync for external sequencers
-  - Audio recording from system audio
+  - ✅ Multi-band audio mapping (bass, mids, highs) - `--band-layout bass_mid_high`
+  - ✅ Audio envelope followers - `--envelope-attack-sec` / `--envelope-release-sec`
+  - ✅ Spectral visualization: offline FFT spectrogram after Web upload (Phase 7); live `AnalyserNode` band bars on reference playback (Phase 8)
+  - ✅ **MIDI clock sync** for external sequencers - `--midi-clock` / `--midi-device`
+  - ✅ **Audio recording** from system audio - `--record` / `--record-duration` / `--record-output`
 
 #### ✅ Performance Optimizations (COMPLETED in v0.2.10)
 
@@ -344,11 +344,11 @@ Defora is in **active development** with a strong foundation of core features im
 #### Animation Sequencer
 - **Priority**: High
 - **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), MOTION tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
-- **Remaining (polish)**:
-  - Visual multi-track timeline strip (waveform-style lanes)
-  - Custom bezier handles between keys
-  - Marker-driven transitions (actions beyond jump/playhead) — optional
-  - Optional sync to audio BPM or frame counter from HLS
+- **Polish (v0.3.0+)**: ✅
+  - ✅ Visual multi-track timeline strip (waveform-style lanes) with canvas rendering
+  - ✅ **Custom bezier handles** — drag handles on timeline to customize curve interpolation between keyframes
+  - ✅ Marker-driven transitions (actions: jump, preset, generate, morph, param, pause)
+  - ✅ Optional sync to audio BPM or frame counter from HLS (`bpmSync` with bars/beats)
 
 #### ✅ Advanced Prompt System (COMPLETED in v0.2.9)
 
@@ -386,21 +386,21 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: Medium
 - **Description**: Richer ControlNet inputs and routing (distinct from short-term “Advanced Audio Features”)
 - **Features**:
-  - Multiple ControlNet preprocessing
-  - Live camera/video input for ControlNet
-  - Webcam integration
-  - Screen capture as ControlNet source
-  - ControlNet weight scheduling
+  - ✅ Multiple ControlNet preprocessing - weight/start/end scheduling per slot
+  - ✅ **Live camera/video input** for ControlNet - webcam integration with configurable frame rate
+  - ✅ **Screen capture** as ControlNet source - browser-based screen sharing API
+  - ✅ ControlNet weight scheduling - per-slot weight, start, end step controls
+  - ✅ Image source selection (file/webcam/screen) per slot
 
 #### Collaborative Features
 - **Priority**: Low
 - **Description**: Multi-user support
 - **Features**:
-  - Multiple simultaneous web UI clients
-  - Parameter locking (prevent conflicts)
-  - User presence indicators
-  - Shared presets and settings
-  - Session recording and replay
+  - ✅ **Multiple simultaneous web UI clients** - WebSocket-based multi-user support with unique user IDs
+  - ✅ **Parameter locking (prevent conflicts)** - Lock/unlock parameters to prevent concurrent edits
+  - ✅ **User presence indicators** - Real-time user list with connection status and locked parameters
+  - ✅ **Session recording and replay** - Record all control events and playback with timing
+  - ⏳ Shared presets and settings (future)
 
 ### 🎯 Long-Term (6-12 Months)
 
@@ -408,41 +408,45 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: High
 - **Description**: Support for image-to-image workflows
 - **Features**:
-  - Upload reference images
-  - Inpainting mask editor
-  - img2img strength control
-  - Batch img2img processing
-  - Image variations generator
+  - ✅ Upload reference images - file upload with preview
+  - ✅ **Inpainting mask editor** - canvas-based drawing/erasing with adjustable brush size
+  - ✅ img2img strength control - denoising strength, mask blur, inpainting fill mode
+  - ✅ **Batch img2img processing** - configurable batch size with seed variation for image variations
+  - ✅ Image variations generator - batch processing with randomized seeds
 
 #### Plugin System
 - **Priority**: Medium
 - **Description**: Extensible architecture for community plugins
 - **Features**:
-  - Plugin API for custom modulators
-  - Custom parameter mappings
-  - Third-party integration hooks
-  - Plugin marketplace/repository
-  - Plugin sandboxing for security
+  - ✅ **Plugin API for custom modulators** - smooth, step, random modulators with configurable parameters
+  - ✅ **Custom parameter mappings** - linear, exponential, logarithmic, sigmoid mapping curves
+  - ✅ **Plugin registry and manifest system** - JSON-based plugin discovery and registration
+  - ✅ **Third-party integration hooks** - `--modulator-plugin`, `--mapping-plugin`, `--plugin-config` CLI flags
+  - ✅ **Web API for plugins** - `/api/plugins`, `/api/plugins/:type`, `/api/plugins/execute`, `/api/plugins/modulators`, `/api/plugins/mappings`
+  - ⏳ Plugin marketplace/repository (future)
+  - ⏳ Plugin sandboxing for security (future)
 
 #### Advanced Streaming
 - **Priority**: Medium
 - **Description**: Professional streaming features
 - **Features**:
-  - Multi-bitrate adaptive streaming
-  - WebRTC support for ultra-low latency
-  - Stream overlays and transitions
-  - Multi-camera switching
-  - Recording while streaming
+  - ⏳ Multi-bitrate adaptive streaming (future)
+  - ⏳ WebRTC support for ultra-low latency (future)
+  - ✅ **Stream overlays and transitions** - `--overlay` for PNG overlays, `--transition` for fade/wipe/dissolve effects
+  - ⏳ Multi-camera switching (future)
+  - ✅ **Recording while streaming** - `record` command with quality presets (low/medium/high/ultra), separate PID tracking
+  - ✅ **Streaming API** - `/api/stream/start`, `/api/stream/stop`, `/api/stream/status`, `/api/stream/record`, `/api/stream/stop-record`, `/api/stream/record-status`
 
 #### Mobile Support
 - **Priority**: Low
 - **Description**: Mobile-friendly interfaces
 - **Features**:
-  - Responsive web UI for tablets
-  - Touch-optimized controls
-  - Mobile app (iOS/Android)
-  - Gyroscope/accelerometer control
-  - Location-based parameter modulation
+  - ✅ **Responsive web UI for tablets** - Media queries for 768px and 480px breakpoints
+  - ✅ **Touch-optimized controls** - 44px minimum touch targets, larger sliders and buttons for touch devices
+  - ✅ **Landscape mobile support** - Optimized layout for landscape orientation
+  - ⏳ Mobile app (iOS/Android) (future)
+  - ⏳ Gyroscope/accelerometer control (future)
+  - ⏳ Location-based parameter modulation (future)
 
 ---
 
@@ -453,11 +457,12 @@ Defora is in **active development** with a strong foundation of core features im
 #### AI-Assisted Workflows
 - **Description**: Use AI to help with creative decisions
 - **Features**:
-  - Prompt suggestions based on current output
-  - Automatic parameter tuning for desired aesthetic
-  - Style transfer recommendations
-  - Anomaly detection (bad frames)
-  - Smart preset generation
+  - ✅ **Prompt suggestions based on current output** - Category-aware suggestions with confidence scoring
+  - ✅ **Automatic parameter tuning for desired aesthetic** - Style-based parameter recommendations (photorealistic, anime, cinematic, abstract)
+  - ✅ **Style transfer recommendations** - Oil painting, watercolor, cyberpunk, minimalist styles with prompt/parameter modifications
+  - ✅ **Anomaly detection (bad frames)** - Detect extreme parameter values and potential artifacts
+  - ✅ **Smart preset generation** - Auto-tune parameters based on feedback scores
+  - ✅ **AI Assistant API** - `/api/ai/prompt-suggestions`, `/api/ai/improve-prompt`, `/api/ai/parameter-recommendations`, `/api/ai/auto-tune`, `/api/ai/style-recommendations`, `/api/ai/apply-style`, `/api/ai/analyze-frame`, `/api/ai/anomaly-summary`
 
 #### VR/AR Integration
 - **Description**: Immersive performance interfaces
