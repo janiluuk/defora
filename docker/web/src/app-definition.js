@@ -223,6 +223,80 @@ module.exports = {
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
+                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <label class="framesync-checkbox">
+                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
+                  </label>
+                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
+                </div>
+              </div>
+              
+              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Duration (seconds)</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">FPS</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Tracks</div>
+                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
+                  </div>
+                </div>
+
+                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
+                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
+                  </div>
+                  
+                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Slot</div>
+                      <select class="framesync-select" v-model.number="track.slotId">
+                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
+                      </select>
+                    </div>
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Keyframes</div>
+                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:8px;">
+                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
+                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
+                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
+                      </span>
+                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Time (s)</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
+                    </div>
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Strength</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
+                    </div>
+                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
                 <div class="framesync-title">🖼 img2img <span class="framesync-accent">(Forge)</span></div>
                 <button class="framesync-button" @click="img2img.show = !img2img.show">{{ img2img.show ? '▲ Hide' : '▼ Show' }}</button>
               </div>
@@ -310,6 +384,80 @@ module.exports = {
                   <img v-for="(r, i) in img2img.batchResults" :key="i" :src="r" style="width:100%; border-radius:4px; border:1px solid #0c3048;">
                 </div>
               </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <label class="framesync-checkbox">
+                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
+                  </label>
+                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
+                </div>
+              </div>
+              
+              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Duration (seconds)</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">FPS</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Tracks</div>
+                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
+                  </div>
+                </div>
+
+                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
+                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
+                  </div>
+                  
+                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Slot</div>
+                      <select class="framesync-select" v-model.number="track.slotId">
+                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
+                      </select>
+                    </div>
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Keyframes</div>
+                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:8px;">
+                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
+                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
+                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
+                      </span>
+                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Time (s)</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
+                    </div>
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Strength</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
+                    </div>
+                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -578,6 +726,80 @@ module.exports = {
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
+                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <label class="framesync-checkbox">
+                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
+                  </label>
+                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
+                </div>
+              </div>
+              
+              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Duration (seconds)</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">FPS</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Tracks</div>
+                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
+                  </div>
+                </div>
+
+                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
+                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
+                  </div>
+                  
+                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Slot</div>
+                      <select class="framesync-select" v-model.number="track.slotId">
+                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
+                      </select>
+                    </div>
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Keyframes</div>
+                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:8px;">
+                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
+                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
+                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
+                      </span>
+                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Time (s)</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
+                    </div>
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Strength</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
+                    </div>
+                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
                 <div class="framesync-title">🥁 Beat <span class="framesync-accent">Macros</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <button class="framesync-button" :class="{active: beatMacroOn}" @click="beatMacroOn=!beatMacroOn">{{ beatMacroOn ? 'ON' : 'OFF' }}</button>
@@ -644,6 +866,80 @@ module.exports = {
                   <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
                 </div>
               </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <label class="framesync-checkbox">
+                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
+                  </label>
+                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
+                </div>
+              </div>
+              
+              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
+                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Duration (seconds)</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">FPS</div>
+                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
+                  </div>
+                  <div class="framesync-stack">
+                    <div class="framesync-subtitle">Tracks</div>
+                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
+                  </div>
+                </div>
+
+                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
+                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
+                  </div>
+                  
+                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Slot</div>
+                      <select class="framesync-select" v-model.number="track.slotId">
+                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
+                      </select>
+                    </div>
+                    <div class="framesync-stack">
+                      <div class="framesync-subtitle">Keyframes</div>
+                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
+                    </div>
+                  </div>
+
+                  <div style="margin-top:8px;">
+                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
+                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
+                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
+                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
+                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
+                      </span>
+                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
+                    </div>
+                  </div>
+
+                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Time (s)</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
+                    </div>
+                    <div class="framesync-stack" style="max-width:100px;">
+                      <div class="framesync-subtitle">Strength</div>
+                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
+                    </div>
+                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -1605,10 +1901,16 @@ module.exports = {
         },
       },
       morphSlots: [
-        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
-        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
-        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
+        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00", strength: 0.5, schedule: [] },
+        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60", strength: 0.5, schedule: [] },
+        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80", strength: 0.5, schedule: [] },
       ],
+      promptSchedule: {
+        enabled: false,
+        durationSec: 60,
+        fps: 24,
+        tracks: [],
+      },
       loras: {
         available: [],
         groupA: [],
@@ -2495,11 +2797,49 @@ module.exports = {
    if (!activeSlots.length) return;
    let morphedPrompt = this.prompts.pos || "";
    activeSlots.forEach(slot => {
-     // TODO: Add slider or auto-calculation for blend weight
-     // For now using simple concatenation approach
-     morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
+     const strength = slot.strength !== undefined ? slot.strength : 0.5;
+     morphedPrompt += `, ${slot.a} to ${slot.b} blend (${(strength * 100).toFixed(0)}%)`;
    });
    this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
+ },
+ addPromptScheduleTrack() {
+   this.promptSchedule.tracks.push({
+     slotId: this.morphSlots[0]?.id || 1,
+     keyframes: [],
+     newKeyTime: 0,
+     newKeyValue: 0.5,
+   });
+ },
+ addPromptKeyframe(track) {
+   if (!track.keyframes) track.keyframes = [];
+   const t = Math.max(0, Math.min(track.newKeyTime || 0, this.promptSchedule.durationSec));
+   const v = Math.max(0, Math.min(track.newKeyValue || 0.5, 1));
+   track.keyframes.push({ t, v });
+   track.keyframes.sort((a, b) => a.t - b.t);
+ },
+ applyPromptScheduleAt(timeSec) {
+   if (!this.promptSchedule.enabled) return;
+   for (const track of this.promptSchedule.tracks) {
+     if (!track.keyframes || track.keyframes.length === 0) continue;
+     const slot = this.morphSlots.find(s => s.id === track.slotId);
+     if (!slot) continue;
+     const kfs = track.keyframes.sort((a, b) => a.t - b.t);
+     if (timeSec <= kfs[0].t) {
+       slot.strength = kfs[0].v;
+     } else if (timeSec >= kfs[kfs.length - 1].t) {
+       slot.strength = kfs[kfs.length - 1].v;
+     } else {
+       for (let i = 0; i < kfs.length - 1; i++) {
+         if (timeSec >= kfs[i].t && timeSec < kfs[i + 1].t) {
+           const span = kfs[i + 1].t - kfs[i].t;
+           const u = span > 0 ? (timeSec - kfs[i].t) / span : 0;
+           slot.strength = kfs[i].v + u * (kfs[i + 1].v - kfs[i].v);
+           break;
+         }
+       }
+     }
+   }
+   this.applyPromptMorphing();
  },
  sendPrompts() {
    this.sendControl("prompt", { positive: this.prompts.pos, negative: this.prompts.neg });
