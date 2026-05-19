@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.4.0] - 2026-05-19
+
+## What's Changed
+
+- feat: implement roadmap items - plugins, collaboration, streaming, AI, mobile (#35) (b81791f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.3.7...v0.4.0
+
+
 ## [0.3.7] - 2026-05-18
 
 ## What's Changed
