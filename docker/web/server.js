@@ -2738,6 +2738,57 @@ print(json.dumps(summary))
     }
   });
 
+  // WebRTC streaming API endpoints
+  app.post("/api/webrtc/start", async (req, res) => {
+    const { fps, resolution, port } = req.body || {};
+    try {
+      const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
+      const cmd = ["python3", "-m", "defora_cli.stream_helper", "webrtc",
+                   "--source", framesDir,
+                   "--fps", String(fps || 24)];
+      if (resolution) cmd.push("--resolution", resolution);
+      if (port) cmd.push("--port", String(port));
+      
+      const { exec } = require('child_process');
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout, url: `http://localhost:${port || 8088}` });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/webrtc/stop", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper stop-webrtc", (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/webrtc/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper webrtc-status", (error, stdout, stderr) => {
+        res.json({
+          status: error ? "stopped" : "running",
+          output: stdout,
+        });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;
