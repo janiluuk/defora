@@ -526,6 +526,162 @@ async function start(opts = {}) {
     }
   });
 
+  // Shared presets for collaborative features
+  const sharedPresetsDir = path.join(__dirname, "shared-presets");
+  if (!require('fs').existsSync(sharedPresetsDir)) {
+    require('fs').mkdirSync(sharedPresetsDir, { recursive: true });
+  }
+
+  app.get("/api/shared-presets", async (_req, res) => {
+    try {
+      const files = await fsp.readdir(sharedPresetsDir);
+      const presets = await Promise.all(
+        files
+          .filter((f) => f.endsWith(".json"))
+          .map(async (f) => {
+            const data = await fsp.readFile(path.join(sharedPresetsDir, f), "utf-8");
+            const preset = JSON.parse(data);
+            return {
+              name: f.replace(/\.json$/, ""),
+              sharedBy: preset.sharedBy || "unknown",
+              sharedAt: preset.sharedAt || "",
+              description: preset.description || "",
+              tags: preset.tags || [],
+            };
+          })
+      );
+      res.json({ presets });
+    } catch (err) {
+      console.error("[api] shared presets list error", err);
+      res.status(500).json({ error: "could not list shared presets" });
+    }
+  });
+
+  app.post("/api/shared-presets", async (req, res) => {
+    const { name, preset, sharedBy, description, tags } = req.body || {};
+    if (!name || !preset) {
+      return res.status(400).json({ error: "name and preset data required" });
+    }
+    try {
+      const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!sanitizedName) return res.status(400).json({ error: "invalid preset name" });
+      
+      const presetData = {
+        ...preset,
+        sharedBy: sharedBy || "anonymous",
+        sharedAt: new Date().toISOString(),
+        description: description || "",
+        tags: tags || [],
+      };
+      
+      const filePath = path.join(sharedPresetsDir, `${sanitizedName}.json`);
+      await fsp.writeFile(filePath, JSON.stringify(presetData, null, 2), "utf-8");
+      
+      // Broadcast to all connected clients
+      broadcast({
+        type: "shared_preset",
+        action: "created",
+        name: sanitizedName,
+        sharedBy: presetData.sharedBy,
+      });
+      
+      res.json({ ok: true, name: sanitizedName });
+    } catch (err) {
+      console.error("[api] shared preset save error", err);
+      res.status(500).json({ error: "could not save shared preset" });
+    }
+  });
+
+  app.get("/api/shared-presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const filePath = path.join(sharedPresetsDir, `${name}.json`);
+      const data = await fsp.readFile(filePath, "utf-8");
+      const preset = JSON.parse(data);
+      res.json({ name, preset });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "shared preset not found" });
+      } else {
+        console.error("[api] shared preset load error", err);
+        res.status(500).json({ error: "could not load shared preset" });
+      }
+    }
+  });
+
+  app.delete("/api/shared-presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const filePath = path.join(sharedPresetsDir, `${name}.json`);
+      await fsp.unlink(filePath);
+      
+      broadcast({
+        type: "shared_preset",
+        action: "deleted",
+        name,
+      });
+      
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "shared preset not found" });
+      } else {
+        console.error("[api] shared preset delete error", err);
+        res.status(500).json({ error: "could not delete shared preset" });
+      }
+    }
+  });
+
+  // Shared settings for collaborative features
+  const sharedSettingsFile = path.join(__dirname, "shared-settings.json");
+
+  app.get("/api/shared-settings", async (_req, res) => {
+    try {
+      if (!require('fs').existsSync(sharedSettingsFile)) {
+        return res.json({ settings: {} });
+      }
+      const data = await fsp.readFile(sharedSettingsFile, "utf-8");
+      const settings = JSON.parse(data);
+      res.json({ settings });
+    } catch (err) {
+      res.json({ settings: {} });
+    }
+  });
+
+  app.post("/api/shared-settings", async (req, res) => {
+    const { settings, updatedBy } = req.body || {};
+    if (!settings) {
+      return res.status(400).json({ error: "settings required" });
+    }
+    try {
+      const currentSettings = require('fs').existsSync(sharedSettingsFile)
+        ? JSON.parse(await fsp.readFile(sharedSettingsFile, "utf-8"))
+        : {};
+      
+      const newSettings = {
+        ...currentSettings,
+        ...settings,
+        lastUpdatedBy: updatedBy || "anonymous",
+        lastUpdatedAt: new Date().toISOString(),
+      };
+      
+      await fsp.writeFile(sharedSettingsFile, JSON.stringify(newSettings, null, 2), "utf-8");
+      
+      broadcast({
+        type: "shared_settings",
+        action: "updated",
+        updatedBy: newSettings.lastUpdatedBy,
+      });
+      
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[api] shared settings save error", err);
+      res.status(500).json({ error: "could not save shared settings" });
+    }
+  });
+
   // Animation sequencer timelines (JSON on disk)
   app.get("/api/sequencer", async (_req, res) => {
     try {
