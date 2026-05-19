@@ -2789,6 +2789,179 @@ print(json.dumps(summary))
     }
   });
 
+  // Advanced Synchronization API endpoints
+  app.post("/api/sync/ableton-link", async (req, res) => {
+    const { bpm, mediator_host, mediator_port, fps } = req.body || {};
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.ableton_link", "sync",
+                   "--bpm", String(bpm || 120)];
+      if (mediator_host) cmd.push("--mediator-host", mediator_host);
+      if (mediator_port) cmd.push("--mediator-port", mediator_port);
+      if (fps) cmd.push("--fps", String(fps));
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/sync/ableton-link/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.ableton_link status", (error, stdout, stderr) => {
+        if (error) {
+          return res.json({ status: "stopped", error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json({ status: "running", ...status });
+        } catch (e) {
+          res.json({ status: "unknown", output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/sync/timecode", async (req, res) => {
+    const { mode, fps, midi_device, mediator_host, mediator_port } = req.body || {};
+    if (!mode || !["ltc", "mtc"].includes(mode)) {
+      return res.status(400).json({ error: "mode required (ltc or mtc)" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.timecode_sync", mode,
+                   "--fps", String(fps || 24)];
+      if (midi_device) cmd.push("--midi-device", midi_device);
+      if (mediator_host) cmd.push("--mediator-host", mediator_host);
+      if (mediator_port) cmd.push("--mediator-port", mediator_port);
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/sync/timecode/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.timecode_sync status", (error, stdout, stderr) => {
+        if (error) {
+          return res.json({ status: "stopped", error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json({ status: "running", ...status });
+        } catch (e) {
+          res.json({ status: "unknown", output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Cloud GPU API endpoints
+  app.post("/api/cloud-gpu/provision", async (req, res) => {
+    const { provider, gpu_type, pool_name, count, max_cost } = req.body || {};
+    if (!provider || !gpu_type || !pool_name) {
+      return res.status(400).json({ error: "provider, gpu_type, and pool_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.cloud_gpu", "provision",
+                   "--provider", provider,
+                   "--gpu-type", gpu_type,
+                   "--pool-name", pool_name];
+      if (count) cmd.push("--count", String(count));
+      if (max_cost) cmd.push("--max-cost", String(max_cost));
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/cloud-gpu/status", async (req, res) => {
+    const { pool_name } = req.query || {};
+    if (!pool_name) {
+      return res.status(400).json({ error: "pool_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      exec(`python3 -m defora_cli.cloud_gpu status --pool-name ${pool_name}`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json(status);
+        } catch (e) {
+          res.json({ output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/cloud-gpu/stop", async (req, res) => {
+    const { pool_name } = req.body || {};
+    if (!pool_name) {
+      return res.status(400).json({ error: "pool_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      exec(`python3 -m defora_cli.cloud_gpu stop --pool-name ${pool_name}`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/cloud-gpu/cost-estimate", async (req, res) => {
+    const { provider, gpu_type, hours } = req.query || {};
+    if (!provider || !gpu_type) {
+      return res.status(400).json({ error: "provider and gpu_type required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.cloud_gpu", "cost-estimate",
+                   "--provider", provider,
+                   "--gpu-type", gpu_type,
+                   "--hours", String(hours || 8)];
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ estimate: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;

@@ -467,11 +467,11 @@ Defora is in **active development** with a strong foundation of core features im
 #### VR/AR Integration
 - **Description**: Immersive performance interfaces
 - **Features**:
-  - VR control room
-  - 3D parameter manipulation
-  - Spatial audio integration
-  - Hand tracking controls
-  - AR overlay on real-world objects
+  - ✅ **VR control room** - WebXR-based VR interface at `/vr.html` with Three.js
+  - ✅ **3D parameter manipulation** - Visual 3D controls for translation, rotation, FOV
+  - ⏳ Spatial audio integration (future)
+  - ✅ **Hand tracking controls** - VR controller support for parameter manipulation
+  - ⏳ AR overlay on real-world objects (future)
 
 #### ✅ Distributed Generation (COMPLETED in v0.2.11)
 
@@ -535,19 +535,19 @@ curl -X POST http://localhost:3000/api/distributed/configure \
 ```
 
 **Remaining Enhancements** (moved to long-term):
-- Cloud GPU integration (RunPod, Vast.ai)
-- Frame interpolation across machines
-- Cost optimization algorithms
+- ✅ **Cloud GPU integration (RunPod, Vast.ai)** - `defora_cli.cloud_gpu` with provisioning, monitoring, cost estimation
+- ⏳ Frame interpolation across machines (future)
+- ⏳ Cost optimization algorithms (future)
 - Render farm support
 
 #### Advanced Synchronization
 - **Description**: Sync with external systems
 - **Features**:
-  - DMX lighting control integration
-  - OSC (Open Sound Control) support
-  - Ableton Link sync
-  - Timecode (LTC/MTC) sync
-  - Show control systems integration
+  - ⏳ DMX lighting control integration (future)
+  - ✅ **OSC (Open Sound Control) support** - `defora_cli.osc_bridge` with mappings for all Defora parameters
+  - ✅ **Ableton Link sync** - Tempo synchronization with Ableton Live and Link-enabled apps
+  - ✅ **Timecode (LTC/MTC) sync** - Professional audio/video equipment synchronization
+  - ⏳ Show control systems integration (future)
 
 ---
 
