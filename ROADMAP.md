@@ -430,21 +430,23 @@ Defora is in **active development** with a strong foundation of core features im
 - **Priority**: Medium
 - **Description**: Professional streaming features
 - **Features**:
-  - Multi-bitrate adaptive streaming
-  - WebRTC support for ultra-low latency
-  - Stream overlays and transitions
-  - Multi-camera switching
-  - Recording while streaming
+  - ⏳ Multi-bitrate adaptive streaming (future)
+  - ⏳ WebRTC support for ultra-low latency (future)
+  - ✅ **Stream overlays and transitions** - `--overlay` for PNG overlays, `--transition` for fade/wipe/dissolve effects
+  - ⏳ Multi-camera switching (future)
+  - ✅ **Recording while streaming** - `record` command with quality presets (low/medium/high/ultra), separate PID tracking
+  - ✅ **Streaming API** - `/api/stream/start`, `/api/stream/stop`, `/api/stream/status`, `/api/stream/record`, `/api/stream/stop-record`, `/api/stream/record-status`
 
 #### Mobile Support
 - **Priority**: Low
 - **Description**: Mobile-friendly interfaces
 - **Features**:
-  - Responsive web UI for tablets
-  - Touch-optimized controls
-  - Mobile app (iOS/Android)
-  - Gyroscope/accelerometer control
-  - Location-based parameter modulation
+  - ✅ **Responsive web UI for tablets** - Media queries for 768px and 480px breakpoints
+  - ✅ **Touch-optimized controls** - 44px minimum touch targets, larger sliders and buttons for touch devices
+  - ✅ **Landscape mobile support** - Optimized layout for landscape orientation
+  - ⏳ Mobile app (iOS/Android) (future)
+  - ⏳ Gyroscope/accelerometer control (future)
+  - ⏳ Location-based parameter modulation (future)
 
 ---
 
@@ -455,11 +457,12 @@ Defora is in **active development** with a strong foundation of core features im
 #### AI-Assisted Workflows
 - **Description**: Use AI to help with creative decisions
 - **Features**:
-  - Prompt suggestions based on current output
-  - Automatic parameter tuning for desired aesthetic
-  - Style transfer recommendations
-  - Anomaly detection (bad frames)
-  - Smart preset generation
+  - ✅ **Prompt suggestions based on current output** - Category-aware suggestions with confidence scoring
+  - ✅ **Automatic parameter tuning for desired aesthetic** - Style-based parameter recommendations (photorealistic, anime, cinematic, abstract)
+  - ✅ **Style transfer recommendations** - Oil painting, watercolor, cyberpunk, minimalist styles with prompt/parameter modifications
+  - ✅ **Anomaly detection (bad frames)** - Detect extreme parameter values and potential artifacts
+  - ✅ **Smart preset generation** - Auto-tune parameters based on feedback scores
+  - ✅ **AI Assistant API** - `/api/ai/prompt-suggestions`, `/api/ai/improve-prompt`, `/api/ai/parameter-recommendations`, `/api/ai/auto-tune`, `/api/ai/style-recommendations`, `/api/ai/apply-style`, `/api/ai/analyze-frame`, `/api/ai/anomaly-summary`
 
 #### VR/AR Integration
 - **Description**: Immersive performance interfaces

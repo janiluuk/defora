@@ -79,6 +79,116 @@ async function start(opts = {}) {
     }
   });
   
+  // Streaming API endpoints
+  app.post("/api/stream/start", async (req, res) => {
+    const { target, fps, resolution, protocol, overlay, transition } = req.body || {};
+    if (!target) {
+      return res.status(400).json({ error: "target URL required" });
+    }
+    try {
+      const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
+      const cmd = ["python3", "-m", "defora_cli.stream_helper", "start", 
+                   "--source", framesDir, "--target", target,
+                   "--fps", String(fps || 24)];
+      if (resolution) cmd.push("--resolution", resolution);
+      if (protocol) cmd.push("--protocol", protocol);
+      if (overlay) cmd.push("--overlay", overlay);
+      if (transition) cmd.push("--transition", transition);
+      
+      const { exec } = require('child_process');
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/stream/stop", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper stop", (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/stream/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper status", (error, stdout, stderr) => {
+        res.json({ 
+          status: error ? "stopped" : "running",
+          output: stdout,
+        });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/stream/record", async (req, res) => {
+    const { output, fps, resolution, codec, quality } = req.body || {};
+    if (!output) {
+      return res.status(400).json({ error: "output path required" });
+    }
+    try {
+      const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
+      const cmd = ["python3", "-m", "defora_cli.stream_helper", "record",
+                   "--source", framesDir, "--output", output,
+                   "--fps", String(fps || 24)];
+      if (resolution) cmd.push("--resolution", resolution);
+      if (codec) cmd.push("--codec", codec);
+      if (quality) cmd.push("--quality", quality);
+      
+      const { exec } = require('child_process');
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/stream/stop-record", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper stop-record", (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/stream/record-status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper record-status", (error, stdout, stderr) => {
+        res.json({
+          status: error ? "stopped" : "recording",
+          output: stdout,
+        });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   // API status endpoint for model availability
   app.get("/api/status", (_req, res) => {
     const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
@@ -2102,6 +2212,240 @@ async function start(opts = {}) {
       res.json({ success: true });
     } catch (err) {
       res.status(404).json({ error: "Recording not found" });
+    }
+  });
+
+  // AI Assistant API endpoints
+  app.post("/api/ai/prompt-suggestions", async (req, res) => {
+    const { current_prompt, category, limit } = req.body || {};
+    if (!current_prompt) {
+      return res.status(400).json({ error: "current_prompt required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+suggestions = assistant.get_prompt_suggestions("${current_prompt}", "${category || ''}", ${limit || 5})
+print(json.dumps(suggestions))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const suggestions = JSON.parse(stdout);
+          res.json({ suggestions });
+        } catch (e) {
+          res.json({ suggestions: [] });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/improve-prompt", async (req, res) => {
+    const { current_prompt, style } = req.body || {};
+    if (!current_prompt) {
+      return res.status(400).json({ error: "current_prompt required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+improved = assistant.improve_prompt("${current_prompt}", "${style || 'enhance'}")
+print(improved)
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ improved_prompt: stdout.trim() });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/parameter-recommendations", async (req, res) => {
+    const { current_params, style } = req.body || {};
+    if (!current_params) {
+      return res.status(400).json({ error: "current_params required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+recs = assistant.get_parameter_recommendations(${paramsJson}, "${style || 'photorealistic'}")
+print(json.dumps(recs))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const recommendations = JSON.parse(stdout);
+          res.json({ recommendations });
+        } catch (e) {
+          res.json({ recommendations: [] });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/auto-tune", async (req, res) => {
+    const { current_params, feedback_score } = req.body || {};
+    if (!current_params || feedback_score === undefined) {
+      return res.status(400).json({ error: "current_params and feedback_score required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+tuned = assistant.auto_tune_parameters(${paramsJson}, ${feedback_score})
+print(json.dumps(tuned))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const tuned_params = JSON.parse(stdout);
+          res.json({ tuned_params });
+        } catch (e) {
+          res.json({ tuned_params: current_params });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/style-recommendations", async (req, res) => {
+    const { current_prompt, limit } = req.body || {};
+    if (!current_prompt) {
+      return res.status(400).json({ error: "current_prompt required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+styles = assistant.get_style_recommendations("${current_prompt}", ${limit || 3})
+print(json.dumps(styles))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const styles = JSON.parse(stdout);
+          res.json({ styles });
+        } catch (e) {
+          res.json({ styles: [] });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/apply-style", async (req, res) => {
+    const { current_prompt, current_negative, style_name } = req.body || {};
+    if (!current_prompt || !style_name) {
+      return res.status(400).json({ error: "current_prompt and style_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+result = assistant.apply_style_transfer("${current_prompt}", "${current_negative || ''}", "${style_name}")
+print(json.dumps(result))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (e) {
+          res.json({ prompt: current_prompt, negative_prompt: current_negative });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/ai/analyze-frame", async (req, res) => {
+    const { frame_data } = req.body || {};
+    if (!frame_data) {
+      return res.status(400).json({ error: "frame_data required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const dataJson = JSON.stringify(frame_data).replace(/'/g, "\\'");
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+result = assistant.analyze_frame(${dataJson})
+print(json.dumps(result))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const result = JSON.parse(stdout);
+          res.json(result);
+        } catch (e) {
+          res.json({ anomalies: [], is_ok: true });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/ai/anomaly-summary", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      const script = `
+import json
+from defora_cli.ai_assistant import DeforaAIAssistant
+assistant = DeforaAIAssistant()
+summary = assistant.get_anomaly_summary()
+print(json.dumps(summary))
+`;
+      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const summary = JSON.parse(stdout);
+          res.json(summary);
+        } catch (e) {
+          res.json({ total_frames: 0, anomalous_frames: 0, anomaly_rate: 0 });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 
