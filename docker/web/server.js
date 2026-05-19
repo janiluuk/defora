@@ -2556,6 +2556,32 @@ print(json.dumps(summary))
     }
   });
 
+  // Frame interpolation API endpoints
+  app.post("/api/interpolate", async (req, res) => {
+    const { input_dir, output_dir, factor, method } = req.body || {};
+    if (!input_dir || !output_dir) {
+      return res.status(400).json({ error: "input_dir and output_dir required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = [
+        "python3", "-m", "defora_cli.frame_interpolator", "interpolate",
+        "--input-dir", input_dir,
+        "--output-dir", output_dir,
+        "--factor", String(factor || 2),
+        "--method", method || "blend",
+      ];
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
   app.get("/api/runs", (req, res) => {
     const runs = listRuns();
     const { status, tag, model, search, sort, order } = req.query;
