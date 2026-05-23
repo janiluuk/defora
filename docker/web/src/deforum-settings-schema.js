@@ -3,7 +3,7 @@
  * Full JSON is persisted; only grouped fields are shown in the minimal editor.
  */
 
-export const DEFORUM_DEFAULT_SETTINGS = {
+const DEFORUM_DEFAULT_SETTINGS = {
   W: 1920,
   H: 540,
   show_info_on_ui: false,
@@ -61,7 +61,7 @@ export const DEFORUM_DEFAULT_SETTINGS = {
 };
 
 /** @type {{ id: string, label: string, fields: Array<{ key: string, label: string, type?: string, min?: number, max?: number, step?: number, rows?: number, options?: string[] }> }>[]} */
-export const DEFORUM_FIELD_GROUPS = [
+const DEFORUM_FIELD_GROUPS = [
   {
     id: 'canvas',
     label: 'Canvas',
@@ -135,7 +135,7 @@ export const DEFORUM_FIELD_GROUPS = [
   },
 ];
 
-export function getNestedValue(obj, keyPath) {
+function getNestedValue(obj, keyPath) {
   if (!keyPath || !obj) return undefined;
   const parts = String(keyPath).split('.');
   let cur = obj;
@@ -146,7 +146,7 @@ export function getNestedValue(obj, keyPath) {
   return cur;
 }
 
-export function setNestedValue(obj, keyPath, value) {
+function setNestedValue(obj, keyPath, value) {
   const parts = String(keyPath).split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
@@ -157,7 +157,7 @@ export function setNestedValue(obj, keyPath, value) {
   cur[parts[parts.length - 1]] = value;
 }
 
-export function patchFromKeyPath(keyPath, value) {
+function patchFromKeyPath(keyPath, value) {
   const parts = String(keyPath).split('.');
   if (parts.length === 1) return { [parts[0]]: value };
   const root = parts[0];
@@ -171,10 +171,19 @@ export function patchFromKeyPath(keyPath, value) {
   return { [root]: inner };
 }
 
-export function mergeDeforumSettings(base, patch) {
+function mergeDeforumSettings(base, patch) {
   const out = { ...base, ...patch };
   if (patch.prompts && typeof patch.prompts === 'object') {
     out.prompts = { ...(base.prompts || {}), ...patch.prompts };
   }
   return out;
 }
+
+module.exports = {
+  DEFORUM_DEFAULT_SETTINGS,
+  DEFORUM_FIELD_GROUPS,
+  getNestedValue,
+  setNestedValue,
+  patchFromKeyPath,
+  mergeDeforumSettings,
+};
