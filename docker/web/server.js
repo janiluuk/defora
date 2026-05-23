@@ -14,9 +14,15 @@ async function start(opts = {}) {
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
-  const framesDir = opts.framesDir || process.env.FRAMES_DIR || "/data/frames";
+  const framesDir =
+    opts.framesDir ||
+    process.env.FRAMES_DIR ||
+    path.join(__dirname, "frames");
   const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
-  const hlsDir = opts.hlsDir || process.env.HLS_DIR || "/var/www/hls";
+  const hlsDir =
+    opts.hlsDir ||
+    process.env.HLS_DIR ||
+    path.join(__dirname, "hls");
   const enableMq = opts.enableMq ?? (process.env.DISABLE_MQ ? false : true);
    const spawner = opts.spawner || spawn;
 

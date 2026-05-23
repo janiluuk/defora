@@ -50,10 +50,14 @@ jobs:
         run: npm run build
       - name: Install Playwright Chromium
         working-directory: docker/web
-        run: npx playwright install chromium
+        run: npx playwright@1.58.0 install chromium
       - name: Playwright UI smoke (audit A-27)
         working-directory: docker/web
+        env:
+          FRAMES_DIR: /tmp/defora-frames
+          HLS_DIR: /tmp/defora-hls
         run: |
+          mkdir -p /tmp/defora-frames /tmp/defora-hls
           PORT=3999 DISABLE_MQ=1 node server.js &
           echo $! > /tmp/defora-web.pid
           sleep 2
