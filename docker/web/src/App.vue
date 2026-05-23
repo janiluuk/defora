@@ -1058,9 +1058,13 @@
 
           <!-- Comparison view -->
           <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
               <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
-              <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+              <div style="display:flex; gap:6px;">
+                <button class="framesync-button" style="padding:4px 10px; font-size:10px;" @click="exportRunComparison('json')">📥 JSON</button>
+                <button class="framesync-button" style="padding:4px 10px; font-size:10px;" @click="exportRunComparison('csv')">📥 CSV</button>
+                <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+              </div>
             </div>
             <div style="overflow-x:auto;">
               <table style="width:100%; border-collapse:collapse; font-size:10px;">
@@ -1071,7 +1075,7 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="prop in ['status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag']" :key="prop" style="border-bottom:1px solid #0c3048;">
+                  <tr v-for="prop in runsCompareFields" :key="prop" style="border-bottom:1px solid #0c3048;">
                     <td style="padding:4px; color:#7fb3d6;">{{ prop }}</td>
                     <td v-for="runId in runsSelected" :key="runId" style="padding:4px; font-family:monospace;">
                       {{ getRunProp(runId, prop) }}
@@ -2161,6 +2165,10 @@ export default {
        runsFilter: { search: "", status: "", tag: "", model: "" },
        runsSort: { field: "started_at", order: "desc" },
        runsSelected: [],
+       runsCompareFields: [
+         'status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag',
+         'prompt_positive', 'prompt_negative', 'notes',
+       ],
        runsDetailView: null,
        runsStatus: "",
        genData: {
@@ -2465,7 +2473,51 @@ export default {
   },
   getRunProp(runId, prop) {
     const run = this.runsAll.find(r => r.run_id === runId);
-    return run ? (run[prop] !== undefined ? run[prop] : '-') : '-';
+    if (!run) return '-';
+    const val = run[prop];
+    if (val === undefined || val === null || val === '') return '-';
+    if ((prop === 'prompt_positive' || prop === 'prompt_negative') && String(val).length > 80) {
+      return String(val).slice(0, 80) + '…';
+    }
+    return val;
+  },
+  async exportRunComparison(format) {
+    if (this.runsSelected.length < 2) {
+      this.runsStatus = 'Select at least 2 runs to compare';
+      return;
+    }
+    try {
+      const res = await fetch('/api/runs/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_ids: this.runsSelected, format }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      if (format === 'csv') {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'runs_comparison.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data.comparison, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'runs_comparison.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      this.runsStatus = `Exported comparison (${this.runsSelected.length} runs)`;
+    } catch (err) {
+      this.runsStatus = err.message || 'Compare export failed';
+    }
   },
   formatDate(dateStr) {
     if (!dateStr) return '-';

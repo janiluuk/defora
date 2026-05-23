@@ -1353,11 +1353,10 @@ async function start(opts = {}) {
   });
 
   // SD Models (Checkpoints) API endpoints
-  app.get("/api/sd-models", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+  app.get("/api/sd-models", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    try {
     // Fallback placeholder models
     const placeholderModels = [
       {
@@ -1435,14 +1434,15 @@ async function start(opts = {}) {
     }
     
     res.json({ models: placeholderModels, source: 'placeholder', cached: false });
+    } finally {
+      target.release();
+    }
   });
 
   // Get current SD model
-  app.get("/api/sd-models/current", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+  app.get("/api/sd-models/current", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') {
         throw new Error('fetch not available');
@@ -1468,24 +1468,23 @@ async function start(opts = {}) {
         console.log(`[sd-models] Current model: ${currentModel.model_name}`);
         return res.json({ model: currentModel, source: 'sd-forge' });
       }
+      return res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
     } catch (err) {
       console.log(`[sd-models] Failed to get current model: ${err.message}`);
       
-      // Return cached current model if available
       if (apiStatus.currentModel) {
         return res.json({ model: apiStatus.currentModel, source: 'cache' });
       }
+      return res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
+    } finally {
+      target.release();
     }
-    
-    res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
   });
 
   // Switch SD model
   app.post("/api/sd-models/switch", async (req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     const { model_name } = req.body;
     
     if (!model_name) {
@@ -1531,6 +1530,8 @@ async function start(opts = {}) {
         error: "Failed to switch model", 
         message: err.message 
       });
+    } finally {
+      target.release();
     }
   });
 
@@ -1578,11 +1579,10 @@ async function start(opts = {}) {
   }
 
   // LoRA API endpoints
-  app.get("/api/loras", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+  app.get("/api/loras", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    try {
     // Fallback placeholder LoRAs for development/demo
     const placeholderLoras = [
       {
@@ -1669,12 +1669,16 @@ async function start(opts = {}) {
     }
     
     res.json({ loras: placeholderLoras, source: 'placeholder' });
+    } finally {
+      target.release();
+    }
   });
 
   // Forge Settings API
 
-  app.get("/api/forge/options", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/options", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1691,11 +1695,14 @@ async function start(opts = {}) {
     } catch (err) {
       apiStatus.sdForgeAvailable = false;
       return res.json({ options: {}, available: false, error: err.message });
+    } finally {
+      target.release();
     }
   });
 
   app.post("/api/forge/options", async (req, res) => {
-    const forgeUrl = forgeBaseUrl();
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     const updates = req.body;
     if (!updates || typeof updates !== 'object') {
       return res.status(400).json({ error: "Invalid options" });
@@ -1718,11 +1725,14 @@ async function start(opts = {}) {
       return res.json({ success: true });
     } catch (err) {
       return res.status(502).json({ error: "Failed to update options", message: err.message });
+    } finally {
+      target.release();
     }
   });
 
-  app.get("/api/forge/samplers", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/samplers", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1737,11 +1747,14 @@ async function start(opts = {}) {
       return res.json({ samplers });
     } catch (err) {
       return res.json({ samplers: [], error: err.message });
+    } finally {
+      target.release();
     }
   });
 
-  app.get("/api/forge/schedulers", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/schedulers", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1756,11 +1769,14 @@ async function start(opts = {}) {
       return res.json({ schedulers });
     } catch (err) {
       return res.json({ schedulers: [], error: err.message });
+    } finally {
+      target.release();
     }
   });
 
-  app.get("/api/forge/vae", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/vae", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1775,6 +1791,8 @@ async function start(opts = {}) {
       return res.json({ vae: vaeList });
     } catch (err) {
       return res.json({ vae: [], error: err.message });
+    } finally {
+      target.release();
     }
   });
 
@@ -2926,12 +2944,61 @@ async function start(opts = {}) {
     }
   });
 
+  const RUN_COMPARE_FIELDS = [
+    "status", "model", "frame_count", "seed", "steps", "strength", "cfg", "tag", "notes",
+    "prompt_positive", "prompt_negative", "started_at",
+  ];
+
+  function buildRunComparison(runIds, runs) {
+    const selected = runIds
+      .map((id) => runs.find((r) => r.run_id === id))
+      .filter(Boolean);
+    const matrix = {};
+    for (const field of RUN_COMPARE_FIELDS) {
+      matrix[field] = {};
+      for (const run of selected) {
+        matrix[field][run.run_id] = run[field] != null ? run[field] : null;
+      }
+    }
+    return { run_ids: selected.map((r) => r.run_id), fields: RUN_COMPARE_FIELDS, matrix, runs: selected };
+  }
+
+  app.post("/api/runs/compare", async (req, res) => {
+    const { run_ids: runIds, format } = req.body || {};
+    if (!Array.isArray(runIds) || runIds.length < 2) {
+      return res.status(400).json({ error: "run_ids array with at least 2 ids required" });
+    }
+    if (runIds.length > 8) {
+      return res.status(400).json({ error: "maximum 8 runs per comparison" });
+    }
+    const runs = await listRuns();
+    const comparison = buildRunComparison(runIds, runs);
+    if (comparison.runs.length < 2) {
+      return res.status(404).json({ error: "fewer than 2 valid run ids" });
+    }
+    if (format === "csv") {
+      const header = ["field", ...comparison.run_ids];
+      const rows = [header.join(",")];
+      for (const field of comparison.fields) {
+        const row = [field, ...comparison.run_ids.map((id) => {
+          const val = comparison.matrix[field][id];
+          return `"${String(val != null ? val : "").replace(/"/g, '""')}"`;
+        })];
+        rows.push(row.join(","));
+      }
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=runs_comparison.csv");
+      return res.send(rows.join("\n"));
+    }
+    res.json({ comparison });
+  });
+
   app.get("/api/runs/export", async (req, res) => {
     const runs = await listRuns();
     const format = req.query.format || "json";
     
     if (format === "csv") {
-      const headers = ["run_id", "status", "started_at", "model", "frame_count", "tag", "seed", "steps", "strength", "cfg", "notes"];
+      const headers = ["run_id", "status", "started_at", "model", "frame_count", "tag", "seed", "steps", "strength", "cfg", "notes", "prompt_positive", "prompt_negative"];
       const csvRows = [headers.join(",")];
       for (const run of runs) {
         const row = headers.map(h => {

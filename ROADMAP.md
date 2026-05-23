@@ -88,6 +88,10 @@ Full codebase audit: inconsistencies, performance killers, incomplete items, and
 8. **Shared presets** — Web UI in SETTINGS → PRESETS (`/api/shared-presets` list / share / load / delete).
 9. **Collaborative UI** — SETTINGS → COLLAB: user presence, parameter locks, session record / playback via WebSocket.
 10. **Doc hygiene** — Align incomplete / test sections with Phases 10–15 completion.
+11. **GPU pool** — Multi-instance load balancing; SETTINGS → GPUS panel; ComfyUI + SD-Forge stats.
+12. **Runs comparison export** — `POST /api/runs/compare` + RUNS tab CSV/JSON export for selected runs.
+13. **Forge API load balance** — sd-models, loras, forge options routed through GPU pool when enabled.
+14. **Nightly Docker E2E** — Scheduled workflow with `SKIP_DOCKER_E2E=0`.
 
 ---
 
@@ -128,6 +132,10 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **14** | **Audit: server performance** | `ai_invoke.py`, frames cache, async runs, polling backoff, stream fade | **Done** (A-11–A-13, A-23, A-25, A-32) |
 | **15** | **Audit: doc/code hygiene** | CLI/TUI headers; dual manifest note; timecode docs; morph blend | **Done** (A-17, A-18, A-24, A-26, A-28, A-29) |
 | **16** | **Post-audit polish** | `api-utils.js`; model source pill; shared presets UI; COLLAB tab (presence, locks, session record) | **Done** (recommended items 7–9) |
+| **17** | **GPU pool** | Load balancing; SETTINGS → GPUS; SD-Forge + ComfyUI instances; edit-when-disabled | **Done** (item 11) |
+| **18** | **Runs compare export** | `POST /api/runs/compare`; prompt fields in UI; CSV/JSON download | **Done** (item 12) |
+| **19** | **Forge routes + GPU pool** | sd-models, loras, forge options use pool target | **Done** (item 13) |
+| **20** | **Nightly Docker E2E** | `.github/workflows/nightly-docker-e2e.yml` | **Done** (item 14) |
 
 ---
 
@@ -290,9 +298,9 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
   - Easy parameter difference identification
 
 **Remaining Enhancements** (moved to future roadmap):
-- Advanced filtering and search
-- Export comparison reports
-- Visual diff for prompts
+- Advanced filtering and search (basic search/filter exists in RUNS tab)
+- ✅ Export comparison reports — `POST /api/runs/compare` + RUNS compare export buttons
+- Visual diff for prompts (side-by-side text diff)
 
 ### ✅ API Fallback Systems (COMPLETED in v0.2.7)
 
@@ -350,7 +358,7 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 **Remaining Enhancements**:
 - Integration tests with real SD-Forge GPU generation
 - Extended load testing with WebSocket stress tests
-- Full `docker compose up` E2E in CI (opt-in via `SKIP_DOCKER_E2E=0`)
+- ✅ Full `docker compose up` E2E — nightly workflow (`nightly-docker-e2e.yml`, `SKIP_DOCKER_E2E=0`); PR CI uses compose config smoke only
 
 **Next Steps**:
 1. Add tests with actual SD-Forge GPU generation (requires GPU)

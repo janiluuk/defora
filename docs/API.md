@@ -572,6 +572,17 @@ Manage multiple **SD-Forge** (A1111 API) or **ComfyUI** instances. When load bal
 
 Legacy aliases: `/api/distributed/*` (same pool). Config persisted in `docker/web/gpu-pool.json`.
 
+### POST /api/runs/compare
+
+Compare 2–8 runs side-by-side (matrix of fields including `prompt_positive` / `prompt_negative`).
+
+**Body**:
+```json
+{ "run_ids": ["run_a", "run_b"], "format": "csv" }
+```
+
+`format` optional: omit for JSON; `"csv"` returns downloadable comparison table.
+
 ---
 
 ## Rate Limiting & Security

@@ -69,7 +69,18 @@ LoRA and ControlNet live under **PROMPTS** sub-tabs (not separate top-level tabs
 
 ---
 
-### 6. GENERATE Tab — Animation sequencer
+### 6. SETTINGS → GPUS sub-tab
+**Purpose**: Multi-GPU / multi-host pool for SD-Forge and ComfyUI
+
+**Features**:
+- Enable **load balancing** (round robin, least busy, priority, random)
+- Add instances (disabled by default); **disable** to edit URL/backend/name or remove
+- Per-node: status, loaded model, VRAM used/total, GPU utilization %, active jobs
+- **Refresh stats** runs health checks against `/docs` (SD-Forge) or `/system_stats` (ComfyUI)
+
+---
+
+### 7. GENERATE Tab — Animation sequencer
 **Purpose**: Keyframed timeline (not on MOTION tab)
 
 **Features**:

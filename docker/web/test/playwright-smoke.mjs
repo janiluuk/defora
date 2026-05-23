@@ -34,7 +34,15 @@ try {
   if ((await morphBlend.count()) === 0) {
     throw new Error('Prompt morph blend slider not found on PROMPTS tab');
   }
-  console.log(`OK: ${trimmed.length} tabs, morph blend control present`);
+  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  await page.waitForTimeout(300);
+  await page.getByRole('button', { name: '🖥️ GPUS' }).click();
+  await page.waitForTimeout(400);
+  const gpuPanel = page.locator('[data-testid="gpu-pool-panel"]');
+  if ((await gpuPanel.count()) === 0) {
+    throw new Error('GPU pool panel not found under SETTINGS → GPUS');
+  }
+  console.log(`OK: ${trimmed.length} tabs, morph blend, GPU pool panel present`);
 } finally {
   await browser.close();
 }
