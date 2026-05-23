@@ -274,6 +274,16 @@ See [ROADMAP.md](ROADMAP.md) for:
 - Planned features and timeline
 - Long-term vision and goals
 
+## Deploy (production)
+
+Same pattern as Sparkki: rsync + remote Docker Compose via jumphost `pi@sparkki.dudeisland.eu:4322` → `root@192.168.2.100:/srv/defora`.
+
+```bash
+./scripts/production-deploy.sh
+```
+
+GitHub Actions: [`.github/workflows/deploy-production.yml`](.github/workflows/deploy-production.yml) (after green CI on `main`, or manual dispatch). Requires secret `DEPLOY_SSH_PRIVATE_KEY`. See [`docs/deploy.md`](docs/deploy.md).
+
 ## Layout
 - CLI/package code: `defora_cli/`
 - Executable wrappers: `./forge_cli`, `./deforumation_request_dispatcher`, `./deforumation_runs_cli`, `./deforumation_cli_panel`, `./deforumation_dashboard`, `./defora_tui`, `./monitor_cli`, `./stream_helper`, `./audio_reactive_modulator`
