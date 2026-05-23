@@ -1,1812 +1,57 @@
-// Auto-generated from App.vue for test compatibility
+// Auto-generated from App.vue — run: npm run sync-app-definition (audit A-01)
 
+const { CROSSFADE_SLOT_TYPES, morphSlotValue, smoothstep } = require('./morph-utils.js');
+const { DEFORUM_DEFAULT_SETTINGS, DEFORUM_FIELD_GROUPS, getNestedValue, setNestedValue, patchFromKeyPath, mergeDeforumSettings } = require('./deforum-settings-schema.js');
 
 module.exports = {
-  template: `  <div id="app">
-    <header>
-      <div class="tabs">
-        <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
-          {{ tab.label }}
-        </button>
-      </div>
-      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
-        <button class="btn" @click="sendControl('transport',{action:'toggle'})">⏯</button>
-        <button class="btn ghost" @click="sendControl('transport',{action:'stop'})">⏹</button>
-        <button class="btn ghost" @click="sendControl('transport',{action:'record'})">● Rec</button>
-        <div class="pill" :class="{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}" v-if="apiHealth.sdForge" :title="apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'">
-          <span class="dot"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
-        </div>
-        <div class="pill" v-if="midi.supported">
-          <span class="dot"></span><span>MIDI</span><strong>{{ midi.selected ? 'on' : 'off' }}</strong>
-        </div>
-        <div class="pill">
-          <span class="dot"></span><span>WS</span><strong>{{ wsStatus }}</strong>
-        </div>
-        <div class="pill">
-          <span class="dot"></span><span>Session</span><strong>{{ session }}</strong>
-        </div>
-      </div>
-    </header>
-
-    <div class="layout">
-      <!-- Left: video + mini timeline -->
-      <div class="preview">
-        <div class="video-wrap">
-          <video id="player" ref="videoEl" autoplay muted playsinline></video>
-          <div class="overlay">
-            <div>
-              <div class="timecode">{{ timecode }}</div>
-              <div style="font-size:11px; color:var(--muted);">Seed {{ hud.seed }}</div>
-            </div>
-            <div style="text-align:right;">
-              <div>{{ stats.fps }} fps</div>
-              <div style="font-size:11px; color:var(--muted);">lat {{ stats.lat }}ms</div>
-            </div>
-          </div>
-        </div>
-
-        <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
-        <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
-
-        <div class="timeline" style="margin-top: 4px;">
-          <template v-if="audio.objectUrl">
-            <div class="thumbs">
-              <div class="thumb-card" v-for="f in thumbs.slice(0, 12)" :key="f.name">
-                <img class="thumb" :src="f.url" :alt="f.name" />
-                <div class="thumb-label">{{ f.name }}</div>
-              </div>
-            </div>
-          </template>
-          <template v-else>
-            <div class="thumbs">
-              <div class="thumb-card" v-for="i in 6" :key="i">
-                <div class="thumb-placeholder">
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
-                    <circle cx="8" cy="8" r="2" fill="currentColor"/>
-                    <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
-                  </svg>
-                </div>
-              </div>
-            </div>
-          </template>
-        </div>
-
-        <!-- Custom video controls -->
-        <div class="preview-bar-container">
-          <div class="preview-bar-header">
-            <span class="preview-bar-title">Frames</span>
-            <button class="preview-bar-toggle" @click="showFrames = !showFrames">{{ showFrames ? '▲' : '▼' }}</button>
-          </div>
-          <div class="preview-bar" :class="{collapsed: !showFrames}">
-            <div class="thumb-card" v-for="f in thumbs" :key="'bar-'+f.name">
-              <img class="thumb" :src="f.url" :alt="f.name" />
-              <div class="thumb-label">{{ f.name }}</div>
-            </div>
-            <div v-if="!thumbs.length" class="thumb-card">
-              <div class="thumb-placeholder">
-                <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
-                  <circle cx="8" cy="8" r="2" fill="currentColor"/>
-                  <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="video-controls-panel">
-          <div class="video-controls">
-            <button class="control-btn" :class="{playing: isPlaying}" @click="togglePlayPause">
-              {{ isPlaying ? '⏸ Pause' : '▶ Play' }}
-            </button>
-            <button class="control-btn" :class="{recording: isRecording}" @click="toggleRecord">
-              {{ isRecording ? '⏹ Stop Rec' : '● Record' }}
-            </button>
-          </div>
-          <div class="stream-link">
-            <a href="/hls/live/deforum.m3u8" target="_blank">📡 HLS Stream</a>
-            <span style="color:#5a8fb8;">|</span>
-            <a href="rtmp://localhost:1935/live/deforum" target="_blank">📡 RTMP</a>
-          </div>
-        </div>
-      </div>
-
-      <!-- Right: control rack per tab -->
-      <div>
-        <div v-if="currentTab==='LIVE'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🎨 Vibe & <span class="framesync-accent">Style</span></div>
-                <button class="framesync-button" @click="resetVibeParams">↺ Reset</button>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="p in liveVibe" :key="p.key">
-                  <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
-                  <div class="framesync-footer" style="gap:4px;">
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📹 <span class="framesync-accent">Camera</span></div>
-                <button class="framesync-button" @click="resetCameraParams">↺ Reset</button>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="p in liveCam" :key="p.key">
-                  <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
-                  <div class="framesync-footer" style="gap:4px;" v-if="p.sourceable">
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='PROMPTS'">
-          <div class="sub-pills">
-            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='PROMPTS'}" @click="switchSubTab('PROMPTS','PROMPTS')">PROMPTS</button>
-            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='LORA'}" @click="switchSubTab('PROMPTS','LORA')">LORA</button>
-            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CONTROLNET'}" @click="switchSubTab('PROMPTS','CONTROLNET')">CONTROLNET</button>
-          </div>
-          <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">✍️ Prompt <span class="framesync-accent">Morphing</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">☑ Enabled</button>
-                  <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">☐ Disabled</button>
-                  <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? '▼ Show' : '▲ Hide' }}</button>
-                  <button class="framesync-button" @click="applyLoras" style="padding:6px 16px;">✓ Apply All</button>
-                </div>
-              </div>
-
-              <div v-if="!morphCollapsed">
-              <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">A Group</div>
-                  <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;">
-                    <div style="font-size:12px; color:#cfe5f5; font-weight:600;">{{ lora.name }}</div>
-                    <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input" style="margin-top:4px;">
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
-                  </div>
-                  <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
-                    No LoRAs in A group
-                  </div>
-                  <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
-                    +{{ loras.groupA.length - 3 }} more
-                  </div>
-                </div>
-
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Crossfader</div>
-                  <div class="framesync-gradient-bar"></div>
-                  <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="prompts.crossfaderValue=parseFloat($event.target.value)" class="framesync-input" style="margin-top:8px;">
-                  <div style="display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;">
-                    <span>A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
-                    <span>B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
-                  </div>
-                </div>
-
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">B Group</div>
-                  <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;">
-                    <div style="font-size:12px; color:#cfe5f5; font-weight:600;">{{ lora.name }}</div>
-                    <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input" style="margin-top:4px;">
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
-                  </div>
-                  <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
-                    No LoRAs in B group
-                  </div>
-                  <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
-                    +{{ loras.groupB.length - 3 }} more
-                  </div>
-                </div>
-              </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <label class="framesync-checkbox">
-                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
-                  </label>
-                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
-                </div>
-              </div>
-              
-              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
-                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Duration (seconds)</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">FPS</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Tracks</div>
-                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
-                  </div>
-                </div>
-
-                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
-                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
-                  </div>
-                  
-                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Slot</div>
-                      <select class="framesync-select" v-model.number="track.slotId">
-                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
-                      </select>
-                    </div>
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Keyframes</div>
-                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
-                    </div>
-                  </div>
-
-                  <div style="margin-top:8px;">
-                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
-                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
-                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
-                      </span>
-                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
-                    </div>
-                  </div>
-
-                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Time (s)</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
-                    </div>
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Strength</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
-                    </div>
-                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🖼 img2img <span class="framesync-accent">(Forge)</span></div>
-                <button class="framesync-button" @click="img2img.show = !img2img.show">{{ img2img.show ? '▲ Hide' : '▼ Show' }}</button>
-              </div>
-              <div v-if="img2img.show">
-              <div class="framesync-subtitle" style="margin-top:8px;">
-                Reference image → <code>/api/img2img</code> (SD-Forge). Optional <strong>mask</strong> enables inpainting (white = repaint, black = keep). Output under <code>/uploads/</code>.
-              </div>
-              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Reference image</div>
-                  <input type="file" accept="image/*" @change="onImg2imgFile" class="framesync-input">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Mask image (optional)</div>
-                  <input type="file" accept="image/*" @change="onImg2imgMaskFile" class="framesync-input">
-                </div>
-              </div>
-              
-              <!-- Mask Editor -->
-              <div v-if="img2img.dataUrl" class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Mask Editor (draw on image, white = inpaint area)</div>
-                <div style="display:flex; gap:8px; margin-bottom:8px;">
-                  <button class="framesync-button" :class="{active: img2img.maskMode==='draw'}" @click="img2img.maskMode='draw'">✏️ Draw</button>
-                  <button class="framesync-button" :class="{active: img2img.maskMode==='erase'}" @click="img2img.maskMode='erase'">🧹 Erase</button>
-                  <button class="framesync-button" @click="clearMask">🗑️ Clear Mask</button>
-                  <input type="range" min="1" max="50" v-model.number="img2img.brushSize" style="max-width:150px;">
-                  <span style="font-size:11px;">Brush: {{ img2img.brushSize }}px</span>
-                </div>
-                <canvas ref="maskCanvas" style="width:100%; max-width:512px; border:1px solid #0c3048; border-radius:6px; cursor:crosshair;" @mousedown="startMaskDraw" @mousemove="drawMask" @mouseup="stopMaskDraw" @mouseleave="stopMaskDraw"></canvas>
-              </div>
-              
-              <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Mask blur</div>
-                  <input type="number" class="framesync-input" v-model.number="img2img.maskBlur" min="0" max="64">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Inpainting fill</div>
-                  <select class="framesync-select" v-model.number="img2img.inpaintingFill">
-                    <option value="0">Fill</option>
-                    <option value="1">Original</option>
-                    <option value="2">Latent noise</option>
-                    <option value="3">Latent nothing</option>
-                  </select>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Denoising strength</div>
-                  <input type="number" class="framesync-input" v-model.number="img2img.denoisingStrength" min="0" max="1" step="0.01">
-                </div>
-              </div>
-              
-              <!-- Batch Processing -->
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Batch Processing</div>
-                <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:8px;">
-                  <div>
-                    <div class="framesync-subtitle" style="font-size:10px;">Batch size</div>
-                    <input type="number" class="framesync-input" v-model.number="img2img.batchSize" min="1" max="20" style="font-size:11px;">
-                  </div>
-                  <div>
-                    <div class="framesync-subtitle" style="font-size:10px;">Seed variation</div>
-                    <input type="number" class="framesync-input" v-model.number="img2img.seedVariation" min="0" max="1000" style="font-size:11px;">
-                  </div>
-                  <div style="display:flex; align-items:end;">
-                    <button class="framesync-button" @click="runImg2imgBatch" :disabled="img2img.isBatchProcessing">
-                      {{ img2img.isBatchProcessing ? '⏳ Processing...' : '🚀 Run Batch' }}
-                    </button>
-                  </div>
-                </div>
-                <div v-if="img2img.batchProgress" class="framesync-subtitle" style="margin-top:6px; font-size:10px;">
-                  Progress: {{ img2img.batchProgress }}/{{ img2img.batchSize }}
-                </div>
-              </div>
-              
-              <div class="framesync-footer" style="margin-top:10px;">
-                <button class="framesync-button" @click="runImg2img">🚀 Run img2img</button>
-              </div>
-              <div v-if="img2img.status" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ img2img.status }}</div>
-              <div v-if="img2img.lastPath" class="framesync-subtitle" style="margin-top:4px; text-align:center;">
-                Output: <a :href="img2img.lastPath" target="_blank" style="color:#ff8a1a;">{{ img2img.lastPath }}</a>
-              </div>
-              <div v-if="img2img.batchResults && img2img.batchResults.length" style="margin-top:12px;">
-                <div class="framesync-subtitle">Batch Results</div>
-                <div style="display:grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap:8px; margin-top:8px;">
-                  <img v-for="(r, i) in img2img.batchResults" :key="i" :src="r" style="width:100%; border-radius:4px; border:1px solid #0c3048;">
-                </div>
-              </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <label class="framesync-checkbox">
-                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
-                  </label>
-                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
-                </div>
-              </div>
-              
-              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
-                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Duration (seconds)</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">FPS</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Tracks</div>
-                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
-                  </div>
-                </div>
-
-                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
-                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
-                  </div>
-                  
-                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Slot</div>
-                      <select class="framesync-select" v-model.number="track.slotId">
-                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
-                      </select>
-                    </div>
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Keyframes</div>
-                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
-                    </div>
-                  </div>
-
-                  <div style="margin-top:8px;">
-                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
-                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
-                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
-                      </span>
-                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
-                    </div>
-                  </div>
-
-                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Time (s)</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
-                    </div>
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Strength</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
-                    </div>
-                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📚 Plugins <span class="framesync-accent">Registry</span></div>
-                <button class="framesync-button" @click="refreshPlugins">🔄 Refresh</button>
-              </div>
-              <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
-                <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
-              </ul>
-            </div>
-          </div>
-          </div>
-
-          <div v-else-if="currentSubTab.PROMPTS==='LORA'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📚 LoRA <span class="framesync-accent">Browser</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <span class="source" v-if="loras.source" style="font-size:10px;">
-                    <span v-if="loras.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
-                    <span v-else-if="loras.source==='cache'" style="color:#fbbf24;">● Cache</span>
-                    <span v-else-if="loras.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
-                    <span v-else style="color:#7fb3d6;">● {{ loras.source }}</span>
-                  </span>
-                  <button class="framesync-button" @click="refreshLoras">🔄 Refresh</button>
-                </div>
-              </div>
-              <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; max-height:400px; overflow-y:auto;">
-                <div v-for="lora in loras.available" :key="lora.id"
-                     style="background:#0b1526; border:1px solid #13233d; border-radius:10px; overflow:hidden; cursor:pointer;"
-                     @click="toggleLoraSelection(lora)">
-                  <div style="position:relative; width:100%; height:180px; background:#031b2d;">
-                    <img v-if="lora.thumbnail" :src="lora.thumbnail" style="width:100%; height:100%; object-fit:cover;" :alt="lora.name" />
-                    <div v-else style="display:flex; align-items:center; justify-content:center; height:100%; color:#7fb3d6;">
-                      <svg viewBox="0 0 24 24" style="width:48px; height:48px; opacity:0.3;" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
-                        <circle cx="8" cy="8" r="2" fill="currentColor"/>
-                        <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
-                      </svg>
-                    </div>
-                    <div v-if="lora.selected" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid #ff8a1a; border-radius:4px; padding:4px 8px; font-size:10px; color:#ff8a1a; font-weight:700;">
-                      ✓ {{ lora.group }}
-                    </div>
-                  </div>
-                  <div style="padding:10px;">
-                    <div style="font-size:13px; color:#cfe5f5; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                      {{ lora.name }}
-                    </div>
-                    <div style="font-size:10px; color:#7fb3d6; margin-bottom:8px;">
-                      {{ lora.path }}
-                    </div>
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Strength</div>
-                      <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input">
-                      <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
-                    </div>
-                    <div class="framesync-footer" style="margin-top:8px;">
-                      <button class="framesync-button" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora,'A')">A</button>
-                      <button class="framesync-button" :class="{active: lora.group==='B'}" @click.stop="assignLoraToGroup(lora,'B')">B</button>
-                      <button class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">✕</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:#7fb3d6; font-size:12px;">
-                No LoRA models found. Refresh or check SD-Forge connection.
-              </div>
-            </div>
-          </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🎛 Active <span class="framesync-accent">LoRAs</span></div>
-              </div>
-              <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
-                <div>
-                  <div style="font-size:12px; color:#5af2a9; margin-bottom:8px; font-weight:600;">A GROUP ({{ loras.groupA.length }})</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;">
-                    <div v-for="lora in loras.groupA" :key="lora.id"
-                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;">
-                      <span style="font-size:12px; color:#cfe5f5;">{{ lora.name }}</span>
-                      <span style="font-size:10px; color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
-                    </div>
-                    <div v-if="loras.groupA.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
-                      No LoRAs in A group
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <div style="font-size:12px; color:#2de2ff; margin-bottom:8px; font-weight:600;">B GROUP ({{ loras.groupB.length }})</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;">
-                    <div v-for="lora in loras.groupB" :key="lora.id"
-                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;">
-                      <span style="font-size:12px; color:#cfe5f5;">{{ lora.name }}</span>
-                      <span style="font-size:10px; color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
-                    </div>
-                    <div v-if="loras.groupB.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
-                      No LoRAs in B group
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" @click="applyLoras">✓ Apply LoRAs</button>
-                <button class="framesync-button" @click="exportLoraPreset">💾 Export preset</button>
-              </div>
-            </div>
-          </div>
-          </div>
-
-          <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🎯 ControlNet <span class="framesync-accent">Slots</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <span class="source" v-if="cn.source" style="font-size:10px;">
-                    <span v-if="cn.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
-                    <span v-else-if="cn.source==='cache'" style="color:#fbbf24;">● Cache</span>
-                    <span v-else-if="cn.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
-                    <span v-else style="color:#7fb3d6;">● {{ cn.source }}</span>
-                  </span>
-                  <button class="framesync-button" @click="loadControlNetModels">🔄 Refresh</button>
-                </div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</button>
-              </div>
-            </div>
-          </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⚙️ <span class="framesync-accent">{{ activeSlot.label }}</span> Settings</div>
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Model</div>
-                <select class="framesync-select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
-                  <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
-                </select>
-              </div>
-              <div class="framesync-footer" style="margin-top:10px;">
-                <button class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Change image</button>
-                <button class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Image Source</div>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <button class="framesync-button" :class="{active: activeSlot.imageSource==='file'}" @click="activeSlot.imageSource='file'">📁 File</button>
-                  <button class="framesync-button" :class="{active: activeSlot.imageSource==='webcam'}" @click="activeSlot.imageSource='webcam'">📷 Webcam</button>
-                  <button class="framesync-button" :class="{active: activeSlot.imageSource==='screen'}" @click="activeSlot.imageSource='screen'">🖥️ Screen</button>
-                </div>
-              </div>
-              <div v-if="activeSlot.imageSource==='webcam'" class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Webcam Input</div>
-                <video ref="webcamVideo" autoplay playsinline style="width:100%; max-width:320px; border-radius:6px; border:1px solid #0c3048; display:none;"></video>
-                <canvas ref="webcamCanvas" style="display:none;"></canvas>
-                <div style="display:flex; gap:8px; margin-top:8px;">
-                  <button class="framesync-button" :class="{active: cn.webcamActive}" @click="toggleWebcam">{{ cn.webcamActive ? '⏹ Stop Webcam' : '▶ Start Webcam' }}</button>
-                  <select class="framesync-input" v-model="webcamCaptureRate" style="max-width:120px; font-size:11px;">
-                    <option value="1000">1 fps</option>
-                    <option value="500">2 fps</option>
-                    <option value="200">5 fps</option>
-                    <option value="100">10 fps</option>
-                  </select>
-                </div>
-                <div class="framesync-subtitle" style="margin-top:6px; font-size:10px;">Captures frames from webcam and sends to ControlNet</div>
-              </div>
-              <div v-if="activeSlot.imageSource==='screen'" class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Screen Capture</div>
-                <button class="framesync-button" @click="startScreenCapture">🖥️ Start Screen Capture</button>
-                <div class="framesync-subtitle" style="margin-top:6px; font-size:10px;">Captures screen region and sends to ControlNet</div>
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <div class="framesync-subtitle">Weight</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
-                </div>
-                <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input">
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <div class="framesync-subtitle">Start step</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
-                </div>
-                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)" class="framesync-input">
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div style="display:flex; justify-content:space-between; align-items:center;">
-                  <div class="framesync-subtitle">End step</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
-                </div>
-                <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)" class="framesync-input">
-              </div>
-            </div>
-          </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='MOTION'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📐 Motion <span class="framesync-accent">Presets</span></div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='MODULATION'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🌊 LFO <span class="framesync-accent">Modulators</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="framesync-button" :class="{active: lfoOn}" @click="lfoOn=!lfoOn">{{ lfoOn ? 'ON' : 'OFF' }}</button>
-                  <button class="framesync-button" @click="resetLfos">↺ Reset</button>
-                </div>
-              </div>
-              <div class="lfo-grid" style="margin-top:12px;">
-                <div class="lfo-card" v-for="lfo in lfos" :key="'lfo-'+lfo.id">
-                  <h4>
-                    <label class="switch"><input type="checkbox" v-model="lfo.on"> LFO {{ lfo.id }}</label>
-                    <canvas :ref="el => lfoCanvasRefs[lfo.id] = el" width="200" height="60" style="width:100%; height:60px; border-radius:4px; background:#031b2d;"></canvas>
-                  </h4>
-                  <div class="meta">Targets: {{ lfo.targets.join(', ') || 'none' }}</div>
-                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
-                    <div>
-                      <div class="framesync-subtitle">Shape</div>
-                      <select class="framesync-select" v-model="lfo.shape">
-                        <option v-for="s in lfoShapes" :key="s" :value="s">{{ s }}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div class="framesync-subtitle">BPM</div>
-                      <input type="number" class="framesync-input" v-model.number="lfo.bpm" min="20" max="300">
-                    </div>
-                    <div>
-                      <div class="framesync-subtitle">Speed</div>
-                      <input type="number" class="framesync-input" v-model.number="lfo.speed" min="0.1" max="10" step="0.1">
-                    </div>
-                    <div>
-                      <div class="framesync-subtitle">Depth</div>
-                      <input type="number" class="framesync-input" v-model.number="lfo.depth" min="0" max="1" step="0.01">
-                    </div>
-                  </div>
-                  <div style="margin-top:8px;">
-                    <div class="framesync-subtitle">Targets</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                      <button class="framesync-button" v-for="t in lfoTargets" :key="'lt-'+t.key" :class="{active: lfo.targets.includes(t.key)}" @click="toggleLfoTarget(lfo, t.key)" style="padding:2px 6px; font-size:9px;">{{ t.label }}</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <label class="framesync-checkbox">
-                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
-                  </label>
-                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
-                </div>
-              </div>
-              
-              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
-                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Duration (seconds)</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">FPS</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Tracks</div>
-                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
-                  </div>
-                </div>
-
-                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
-                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
-                  </div>
-                  
-                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Slot</div>
-                      <select class="framesync-select" v-model.number="track.slotId">
-                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
-                      </select>
-                    </div>
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Keyframes</div>
-                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
-                    </div>
-                  </div>
-
-                  <div style="margin-top:8px;">
-                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
-                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
-                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
-                      </span>
-                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
-                    </div>
-                  </div>
-
-                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Time (s)</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
-                    </div>
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Strength</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
-                    </div>
-                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🥁 Beat <span class="framesync-accent">Macros</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="framesync-button" :class="{active: beatMacroOn}" @click="beatMacroOn=!beatMacroOn">{{ beatMacroOn ? 'ON' : 'OFF' }}</button>
-                </div>
-              </div>
-              <div class="lfo-grid" style="margin-top:12px;">
-                <div class="lfo-card" v-for="(m, idx) in macrosRack" :key="'mac'+idx">
-                  <h4>
-                    <label class="switch"><input type="checkbox" v-model="m.on"> Macro {{ idx+1 }}</label>
-                  </h4>
-                  <div class="meta">Target: {{ m.target || 'none' }} · {{ m.shape }}</div>
-                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
-                    <div>
-                      <div class="framesync-subtitle">Target</div>
-                      <select class="framesync-select" v-model="m.target">
-                        <option value="">None</option>
-                        <option v-for="t in lfoTargets" :key="'mac'+t.key" :value="t.key">{{ t.label }}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div class="framesync-subtitle">Shape</div>
-                      <select class="framesync-select" v-model="m.shape">
-                        <option v-for="s in [...lfoShapes, 'Noise']" :key="s" :value="s">{{ s }}</option>
-                      </select>
-                    </div>
-                    <div>
-                      <div class="framesync-subtitle">BPM</div>
-                      <input type="number" class="framesync-input" v-model.number="m.bpm" min="20" max="300" style="font-size:11px; padding:4px;">
-                    </div>
-                    <div>
-                      <div class="framesync-subtitle">Depth</div>
-                      <input type="number" class="framesync-input" v-model.number="m.depth" min="0" max="1" step="0.01" style="font-size:11px; padding:4px;">
-                    </div>
-                  </div>
-                </div>
-                <button class="framesync-button" @click="addMacro" v-if="macrosRack.length<6">➕ Add Macro</button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='AUDIO'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🔊 Reference <span class="framesync-accent">A/V sync</span></div>
-                <button class="framesync-button" @click="avSyncCollapsed = !avSyncCollapsed">{{ avSyncCollapsed ? '▼ Show' : '▲ Hide' }}</button>
-              </div>
-              <div v-if="!avSyncCollapsed">
-              <div class="framesync-subtitle" style="margin-top:8px;">
-                Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.
-              </div>
-              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Upload track</div>
-                  <input type="file" accept="audio/*" ref="audioFileInput" @change="onAudioUpload" class="framesync-input">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Video lead (sec)</div>
-                  <label class="framesync-checkbox" style="margin-top:6px;">
-                    <input type="checkbox" data-testid="av-sync-enable" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
-                  </label>
-                  <input type="number" data-testid="av-sync-lead" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
-                  <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
-                </div>
-              </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⏱️ Prompt <span class="framesync-accent">Strength Schedule</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <label class="framesync-checkbox">
-                    <input type="checkbox" v-model="promptSchedule.enabled"> Enable scheduling
-                  </label>
-                  <button class="framesync-button" @click="addPromptScheduleTrack">+ Add Track</button>
-                </div>
-              </div>
-              
-              <div v-if="promptSchedule.enabled" style="margin-top:12px;">
-                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Duration (seconds)</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.durationSec" min="1" max="600">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">FPS</div>
-                    <input type="number" class="framesync-input" v-model.number="promptSchedule.fps" min="1" max="60">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Tracks</div>
-                    <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ promptSchedule.tracks.length }}</div>
-                  </div>
-                </div>
-
-                <div v-for="(track, idx) in promptSchedule.tracks" :key="'ps-'+idx" style="margin-top:12px; padding:10px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <strong style="color:#ff8a1a; font-size:13px;">Track {{ idx + 1 }}</strong>
-                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="promptSchedule.tracks.splice(idx, 1)">✕ Remove</button>
-                  </div>
-                  
-                  <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Slot</div>
-                      <select class="framesync-select" v-model.number="track.slotId">
-                        <option v-for="slot in morphSlots" :key="'slot-'+slot.id" :value="slot.id">{{ slot.name }}</option>
-                      </select>
-                    </div>
-                    <div class="framesync-stack">
-                      <div class="framesync-subtitle">Keyframes</div>
-                      <div style="font-size:11px; color:#7fb3d6;">{{ track.keyframes ? track.keyframes.length : 0 }} keyframes</div>
-                    </div>
-                  </div>
-
-                  <div style="margin-top:8px;">
-                    <div class="framesync-subtitle">Keyframes (time → strength)</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;">
-                      <span v-for="(kf, ki) in (track.keyframes || []).sort((a,b) => a.t - b.t)" :key="'kf-'+ki" style="display:inline-flex; align-items:center; gap:4px; background:#0b1526; border:1px solid #13233d; border-radius:4px; padding:4px 8px; font-size:10px;">
-                        t={{ kf.t.toFixed(1) }}s → {{ kf.v.toFixed(2) }}
-                        <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="track.keyframes.splice(track.keyframes.indexOf(kf), 1)">✕</button>
-                      </span>
-                      <span v-if="!track.keyframes || track.keyframes.length === 0" style="color:#3a5a78; font-size:10px;">No keyframes</span>
-                    </div>
-                  </div>
-
-                  <div style="display:flex; gap:6px; margin-top:8px; align-items:end;">
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Time (s)</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyTime" min="0" :max="promptSchedule.durationSec" step="0.1" style="font-size:11px;">
-                    </div>
-                    <div class="framesync-stack" style="max-width:100px;">
-                      <div class="framesync-subtitle">Strength</div>
-                      <input type="number" class="framesync-input" v-model.number="track.newKeyValue" min="0" max="1" step="0.01" style="font-size:11px;">
-                    </div>
-                    <button class="framesync-button" style="padding:6px 12px; font-size:11px;" @click="addPromptKeyframe(track)">+ Add</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🎵 Audio <span class="framesync-accent">Reactive</span></div>
-                <button class="framesync-button" @click="startAudioStream">{{ audioStatus === 'Streaming' ? '⏹ Stop' : '▶ Start' }}</button>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:8px;">
-                Map frequency bands to parameters. Live audio from mic/system → frequency analysis → parameter modulation.
-              </div>
-              <div class="audio-map-grid" style="margin-top:12px;">
-                <div class="audio-map-card" v-for="(m, idx) in audioMappings" :key="'amap-'+idx">
-                  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
-                    <div class="framesync-subtitle" style="margin:0;">{{ m.param || 'unassigned' }}</div>
-                    <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="audioMappings.splice(idx,1)">✕</button>
-                  </div>
-                  <div style="display:grid; gap:6px;">
-                    <div class="framesync-subtitle">Freq range</div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-                      <input type="number" class="framesync-input" v-model.number="m.freq_min" min="20" max="20000" style="font-size:10px; padding:4px;">
-                      <input type="number" class="framesync-input" v-model.number="m.freq_max" min="20" max="20000" style="font-size:10px; padding:4px;">
-                    </div>
-                    <div class="framesync-subtitle">Output range</div>
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px;">
-                      <input type="number" class="framesync-input" v-model.number="m.out_min" step="any" style="font-size:10px; padding:4px;">
-                      <input type="number" class="framesync-input" v-model.number="m.out_max" step="any" style="font-size:10px; padding:4px;">
-                    </div>
-                  </div>
-                </div>
-                <button class="framesync-button" @click="audioMappings.push({param:'',freq_min:20,freq_max:200,out_min:0,out_max:1})">+ Add mapping</button>
-              </div>
-              <div class="framesync-footer" style="margin-top:10px;">
-                <div class="framesync-subtitle">Quick band presets</div>
-                <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                  <button class="framesync-button" v-for="chip in audioBandChips" :key="chip.key" @click="applyAudioBandPreset(chip)" style="padding:2px 6px; font-size:9px;">{{ chip.label }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='RUNS'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📁 Runs <span class="framesync-accent">Browser</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <span style="font-size:11px; color:#7fb3d6;">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
-                  <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
-                </div>
-              </div>
-
-              <!-- Filters -->
-              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;">
-                <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
-                <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
-                  <option value="">All Status</option>
-                  <option value="completed">Completed</option>
-                  <option value="failed">Failed</option>
-                  <option value="running">Running</option>
-                  <option value="queued">Queued</option>
-                </select>
-                <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
-                <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
-              </div>
-
-              <!-- Sort controls -->
-              <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                <span style="font-size:11px; color:#7fb3d6;">Sort:</span>
-                <select class="framesync-select" v-model="runsSort.field" @change="applyRunsFilters" style="max-width:140px;">
-                  <option value="started_at">Date</option>
-                  <option value="run_id">Run ID</option>
-                  <option value="model">Model</option>
-                  <option value="frame_count">Frames</option>
-                  <option value="status">Status</option>
-                  <option value="tag">Tag</option>
-                </select>
-                <button class="framesync-button" @click="runsSort.order = runsSort.order === 'desc' ? 'asc' : 'desc'; applyRunsFilters();" style="padding:4px 10px;">
-                  {{ runsSort.order === 'desc' ? '↓ Desc' : '↑ Asc' }}
-                </button>
-                <div style="flex:1;"></div>
-                <button class="framesync-button" @click="exportRuns('json')" style="padding:4px 10px;">📥 JSON</button>
-                <button class="framesync-button" @click="exportRuns('csv')" style="padding:4px 10px;">📥 CSV</button>
-              </div>
-
-              <!-- Runs table -->
-              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid #0c3048; border-radius:8px;">
-                <table style="width:100%; border-collapse:collapse; font-size:11px;">
-                  <thead style="position:sticky; top:0; background:#0b1526; z-index:1;">
-                    <tr style="border-bottom:1px solid #13233d;">
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Thumb</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Run ID</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Status</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Model</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Frames</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Seed</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Tag</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Date</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid #0c3048;" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
-                      <td style="padding:6px;">
-                        <img v-if="run.has_thumbnail" :src="\`/api/runs/\${run.run_id}/thumb\`" style="width:48px; height:48px; object-fit:cover; border-radius:4px;" alt="">
-                        <div v-else style="width:48px; height:48px; background:#0c3048; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:10px;">No img</div>
-                      </td>
-                      <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.run_id }}</td>
-                      <td style="padding:6px;">
-                        <span class="status-chip" :class="'status-' + run.status">{{ run.status }}</span>
-                      </td>
-                      <td style="padding:6px; font-size:10px;">{{ run.model || '-' }}</td>
-                      <td style="padding:6px; font-size:10px;">{{ run.frame_count || run.length_frames || '-' }}</td>
-                      <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.seed || '-' }}</td>
-                      <td style="padding:6px; font-size:10px;">{{ run.tag || '-' }}</td>
-                      <td style="padding:6px; font-size:10px; color:#7fb3d6;">{{ formatDate(run.started_at) }}</td>
-                      <td style="padding:6px;">
-                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="showRunDetails(run)" title="Details">👁</button>
-                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="rerunRun(run)" title="Rerun">🔄</button>
-                        <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="deleteRun(run)" title="Delete">🗑</button>
-                      </td>
-                    </tr>
-                    <tr v-if="runsFiltered.length === 0">
-                      <td colspan="9" style="padding:20px; text-align:center; color:#7fb3d6; font-size:12px;">
-                        No runs found. Adjust filters or refresh.
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-
-          <!-- Run details modal -->
-          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <div class="framesync-title">📋 Run Details: <span style="font-family:monospace; font-size:12px;">{{ runsDetailView.run_id }}</span></div>
-              <button class="framesync-button" @click="runsDetailView = null">✕ Close</button>
-            </div>
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; font-size:11px;">
-              <div>
-                <div class="framesync-subtitle">Status</div>
-                <span class="status-chip" :class="'status-' + runsDetailView.status">{{ runsDetailView.status }}</span>
-              </div>
-              <div>
-                <div class="framesync-subtitle">Model</div>
-                <div>{{ runsDetailView.model || '-' }}</div>
-              </div>
-              <div>
-                <div class="framesync-subtitle">Frames</div>
-                <div>{{ runsDetailView.frame_count || runsDetailView.length_frames || '-' }}</div>
-              </div>
-              <div>
-                <div class="framesync-subtitle">Seed</div>
-                <div style="font-family:monospace;">{{ runsDetailView.seed || '-' }}</div>
-              </div>
-              <div>
-                <div class="framesync-subtitle">Steps</div>
-                <div>{{ runsDetailView.steps || '-' }}</div>
-              </div>
-              <div>
-                <div class="framesync-subtitle">Strength</div>
-                <div>{{ runsDetailView.strength || '-' }}</div>
-              </div>
-              <div>
-                <div class="framesync-subtitle">CFG</div>
-                <div>{{ runsDetailView.cfg || '-' }}</div>
-              </div>
-              <div>
-                <div class="framesync-subtitle">Tag</div>
-                <div>{{ runsDetailView.tag || '-' }}</div>
-              </div>
-              <div style="grid-column: span 2;">
-                <div class="framesync-subtitle">Positive Prompt</div>
-                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_positive || '-' }}</div>
-              </div>
-              <div style="grid-column: span 2;">
-                <div class="framesync-subtitle">Negative Prompt</div>
-                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_negative || '-' }}</div>
-              </div>
-              <div style="grid-column: span 2;">
-                <div class="framesync-subtitle">Notes</div>
-                <textarea class="framesync-input" v-model="runsDetailView.notes" style="min-height:60px; font-size:10px;" placeholder="Add notes..."></textarea>
-                <button class="framesync-button" style="margin-top:6px; padding:4px 12px;" @click="saveRunNotes(runsDetailView)">💾 Save Notes</button>
-              </div>
-            </div>
-
-            <!-- Frame thumbnails -->
-            <div v-if="runsDetailView.frames && runsDetailView.frames.length" style="margin-top:12px;">
-              <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
-              <div style="display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto;">
-                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="\`/api/runs/\${runsDetailView.run_id}/frames/\${f}\`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid #0c3048;" :alt="f">
-              </div>
-            </div>
-          </div>
-
-          <!-- Comparison view -->
-          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
-              <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
-            </div>
-            <div style="overflow-x:auto;">
-              <table style="width:100%; border-collapse:collapse; font-size:10px;">
-                <thead>
-                  <tr style="border-bottom:1px solid #13233d;">
-                    <th style="padding:6px; text-align:left; color:#7fb3d6;">Property</th>
-                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:#7fb3d6; font-family:monospace;">{{ runId }}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="prop in ['status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag']" :key="prop" style="border-bottom:1px solid #0c3048;">
-                    <td style="padding:4px; color:#7fb3d6;">{{ prop }}</td>
-                    <td v-for="runId in runsSelected" :key="runId" style="padding:4px; font-family:monospace;">
-                      {{ getRunProp(runId, prop) }}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='SETTINGS'">
-          <div class="sub-pills">
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='FORGE'}" @click="switchSubTab('SETTINGS','FORGE')">FORGE</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='LLM'}" @click="switchSubTab('SETTINGS','LLM')">🧠 LLM</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
-          </div>
-          <div v-if="currentSubTab.SETTINGS==='ENGINE'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⚙️ <span class="framesync-accent">Engine</span></div>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Resolution</div>
-                  <select class="framesync-select"><option>1024x576</option><option>1280x720</option></select>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">FPS</div>
-                  <select class="framesync-select"><option>24</option><option selected>30</option><option>60</option></select>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Steps</div>
-                  <select class="framesync-select"><option>24</option><option>30</option><option>40</option></select>
-                </div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button">Seed: 42490527</button>
-                <button class="framesync-button">Sampler: DPM++ 2M Karras</button>
-              </div>
-            </div>
-          </div>
-          </div>
-          <div v-else-if="currentSubTab.SETTINGS==='FORGE'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🔌 <span class="framesync-accent">Connection</span></div>
-                <button class="framesync-button" @click="refreshApiHealth">🔄 Refresh</button>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">SD-Forge Host</div>
-                  <input class="framesync-input" :value="forgeHost" readonly>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Status</div>
-                  <div style="font-size:14px; color:#5af2a9; padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
-          <div v-else-if="currentSubTab.SETTINGS==='LLM'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🧠 Local <span class="framesync-accent">LLM</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <div class="pill" :class="{'danger': !llm.status.connected}">
-                    <span class="dot" :style="{background: llm.status.connected ? '#5af2a9' : '#ff4d6d', boxShadow: llm.status.connected ? '0 0 8px #5af2a9' : '0 0 8px #ff4d6d'}"></span>
-                    {{ llm.status.connected ? 'Running' : 'Stopped' }}
-                  </div>
-                  <button class="framesync-button" @click="toggleLlmServer">{{ llm.status.connected ? '⏹ Stop' : '▶ Start' }}</button>
-                  <button class="framesync-button" @click="refreshLlmStatus">🔄 Refresh</button>
-                </div>
-              </div>
-
-              <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">LLM Type</div>
-                  <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ llm.type }}</div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Loaded Model</div>
-                  <div style="font-size:13px; color:#cfe5f5; padding:6px 0;">{{ llm.loadedModel || 'None' }}</div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Memory Usage</div>
-                  <div style="font-size:13px; color:#cfe5f5; padding:6px 0;">{{ llm.memory.used }} / {{ llm.memory.total }} GB</div>
-                  <div style="height:4px; background:#0c3048; border-radius:2px; margin-top:4px;">
-                    <div :style="{height:'100%', width: llm.memory.percent + '%', background:'linear-gradient(90deg, #5af2a9, #2de2ff)', borderRadius:'2px', transition:'width 0.3s'}"></div>
-                  </div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Status</div>
-                  <div style="font-size:13px; color:#cfe5f5; padding:6px 0;">{{ llm.status.message }}</div>
-                </div>
-              </div>
-
-              <div style="margin-top:12px;">
-                <button class="framesync-button" @click="llm.showConfig = !llm.showConfig" style="width:100%;">
-                  {{ llm.showConfig ? '▲ Hide Configuration' : '▼ Show Configuration' }}
-                </button>
-              </div>
-
-              <div v-if="llm.showConfig" style="margin-top:12px; padding:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px;">
-                <div class="framesync-subtitle" style="margin-bottom:8px;">LLM Configuration</div>
-                
-                <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">LLM Backend</div>
-                    <select class="framesync-select" v-model="llm.type" @change="onLlmTypeChange">
-                      <option value="llama.cpp">llama.cpp</option>
-                      <option value="ollama">Ollama</option>
-                      <option value="text-generation-webui">text-generation-webui</option>
-                      <option value="vllm">vLLM</option>
-                    </select>
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Server URL</div>
-                    <input class="framesync-input" v-model="llm.serverUrl" placeholder="http://localhost:8080">
-                  </div>
-                </div>
-
-                <div class="framesync-subtitle" style="margin-top:12px;">Model Management</div>
-                <div class="framesync-row" style="grid-template-columns: 2fr 1fr; gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Available Models</div>
-                    <select class="framesync-select" v-model="llm.selectedModel" size="4" style="min-height:120px;">
-                      <option v-for="m in llm.availableModels" :key="m.name" :value="m.name">
-                        {{ m.name }} ({{ m.size }})
-                      </option>
-                    </select>
-                  </div>
-                  <div class="framesync-stack" style="display:flex; flex-direction:column; gap:6px; justify-content:flex-start;">
-                    <button class="framesync-button" @click="loadLlmModel" :disabled="!llm.selectedModel">📥 Load Model</button>
-                    <button class="framesync-button" @click="unloadLlmModel">📤 Unload</button>
-                    <button class="framesync-button" @click="refreshLlmModels">🔄 Refresh List</button>
-                  </div>
-                </div>
-
-                <div class="framesync-subtitle" style="margin-top:12px;">Generation Parameters</div>
-                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Max Tokens</div>
-                    <input type="number" class="framesync-input" v-model.number="llm.params.maxTokens" min="1" max="8192">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Temperature</div>
-                    <input type="number" class="framesync-input" v-model.number="llm.params.temperature" min="0" max="2" step="0.1">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Top P</div>
-                    <input type="number" class="framesync-input" v-model.number="llm.params.topP" min="0" max="1" step="0.05">
-                  </div>
-                </div>
-
-                <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:8px;">
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Context Length</div>
-                    <input type="number" class="framesync-input" v-model.number="llm.params.contextLength" min="256" max="32768">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">GPU Layers</div>
-                    <input type="number" class="framesync-input" v-model.number="llm.params.gpuLayers" min="0" max="100">
-                  </div>
-                  <div class="framesync-stack">
-                    <div class="framesync-subtitle">Threads</div>
-                    <input type="number" class="framesync-input" v-model.number="llm.params.threads" min="1" max="32">
-                  </div>
-                </div>
-
-                <div class="framesync-footer" style="margin-top:12px;">
-                  <button class="framesync-button" @click="saveLlmConfig">💾 Save Config</button>
-                  <button class="framesync-button" @click="testLlmConnection">🔗 Test Connection</button>
-                </div>
-                <div v-if="llm.configStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center; color:#5af2a9;">{{ llm.configStatus }}</div>
-              </div>
-            </div>
-          </div>
-          </div>
-          <div v-else-if="currentSubTab.SETTINGS==='MIDI'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🎹 Controllers <span class="framesync-accent">(WebMIDI)</span></div>
-              </div>
-              <div v-if="!midi.supported" style="color:#9bc4e2; margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
-              <div v-else>
-                <div class="framesync-footer" style="margin-top:12px;">
-                  <button class="framesync-button" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</button>
-                  <button class="framesync-button" @click="scanMidi()">Rescan</button>
-                </div>
-                <div class="framesync-footer" style="margin-top:8px;">
-                  <button class="framesync-button">Learn mode</button>
-                  <button class="framesync-button" @click="addMidiMapping">+ Add Mapping</button>
-                  <button class="framesync-button">Status: {{ midiStatus }}</button>
-                </div>
-                <div style="margin-top:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px; overflow:hidden;">
-                  <table class="table">
-                    <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
-                    <tbody>
-                      <tr v-for="(m, idx) in midi.mappings" :key="'midi'+idx">
-                        <td><input class="framesync-input" v-model="m.control" @change="saveMidiMappings" style="width:100px; padding:4px;"></td>
-                        <td><input class="framesync-input" type="number" v-model.number="m.cc" @change="saveMidiMappings" style="width:60px; padding:4px;"></td>
-                        <td>
-                          <select class="framesync-select" v-model="m.key" @change="saveMidiMappings" style="width:120px; padding:4px;">
-                            <option value="">None</option>
-                            <option v-for="t in lfoTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
-                          </select>
-                        </td>
-                        <td><button class="framesync-button" @click="deleteMidiMapping(idx)" style="padding:4px 8px; cursor:pointer;">Delete</button></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
-          <div v-else-if="currentSubTab.SETTINGS==='BINDINGS'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🔗 Parameter <span class="framesync-accent">Bindings</span></div>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <button class="framesync-button" :class="{active: bindingLearnMode}" @click="toggleBindingLearn">{{ bindingLearnMode ? '🔴 Stop Learn' : '🎯 Learn' }}</button>
-                  <button class="framesync-button" @click="resetBindings">↺ Defaults</button>
-                </div>
-              </div>
-              <div v-if="bindingLearnMode" style="margin-top:8px; padding:8px 12px; background:#1a0a2e; border:1px solid #ff53d9; border-radius:6px; font-size:12px; color:#ff53d9;">
-                Learn mode active. Press a key or move a MIDI controller, then click a parameter to bind.
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="group in bindingGroups" :key="group.label">
-                  <div class="framesync-subtitle">{{ group.label }}</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; overflow:hidden;">
-                    <table style="width:100%; font-size:11px; border-collapse:collapse;">
-                      <thead><tr style="color:#5a8fb8; border-bottom:1px solid #0c3048;">
-                        <th style="text-align:left; padding:4px 8px;">Parameter</th>
-                        <th style="text-align:left; padding:4px 8px;">Key</th>
-                        <th style="text-align:left; padding:4px 8px;">MIDI CC</th>
-                        <th style="padding:4px 8px;">Actions</th>
-                      </tr></thead>
-                      <tbody>
-                        <tr v-for="t in group.items" :key="t.key" style="border-bottom:1px solid #0c3048;">
-                          <td style="padding:4px 8px; color:#cfe5f5;">{{ t.label }}</td>
-                          <td style="padding:4px 8px;">
-                            <span v-if="getKeyBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
-                              <kbd style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:#5af2a9;">{{ getKeyBinding(t.key) }}</kbd>
-                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
-                            </span>
-                            <span v-else style="color:#3a5a78;">—</span>
-                          </td>
-                          <td style="padding:4px 8px;">
-                            <span v-if="getMidiBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
-                              <span style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-size:10px; color:#fbbf24;">CC {{ getMidiBinding(t.key) }}</span>
-                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
-                            </span>
-                            <span v-else style="color:#3a5a78;">—</span>
-                          </td>
-                          <td style="padding:4px 8px; text-align:center;">
-                            <button v-if="bindingLearnMode" class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="bindingTargetKey=t.key">Bind here</button>
-                          </td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
-          <div v-else-if="currentSubTab.SETTINGS==='PRESETS'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">💾 Preset <span class="framesync-accent">Management</span></div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" v-for="p in availablePresets" :key="p" :class="{active: currentPreset===p}" @click="loadPreset(p)">{{ p }}</button>
-                <button class="framesync-button" @click="refreshPresets">🔄 Refresh</button>
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">New preset name</div>
-                <input class="framesync-input" v-model="newPresetName" placeholder="my-preset">
-              </div>
-              <div class="framesync-footer" style="margin-top:10px;">
-                <button class="framesync-button" @click="saveCurrentPreset">💾 Save current as preset</button>
-                <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:#ff4d6d; color:#ff4d6d;">🗑 Delete {{ currentPreset }}</button>
-              </div>
-              <div v-if="presetStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ presetStatus }}</div>
-            </div>
-          </div>
-          </div>
-          <div v-else-if="currentSubTab.SETTINGS==='KEYS'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⌨️ <span class="framesync-accent">Keyboard Shortcuts</span></div>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Navigation</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
-                    <div><kbd>1</kbd>–<kbd>7</kbd> Switch tabs (LIVE→GENERATE)</div>
-                  </div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">LIVE Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
-                    <div><kbd>Space</kbd> Generate image</div>
-                    <div><kbd>R</kbd> Reset Vibe & Camera params</div>
-                  </div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">PROMPTS Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
-                    <div><kbd>M</kbd> Toggle prompt morphing</div>
-                  </div>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">MODULATION Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
-                    <div><kbd>L</kbd> Toggle LFO</div>
-                    <div><kbd>B</kbd> Toggle Beat Macro</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
-        </div>
-
-        <div v-else-if="currentTab==='GENERATE'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">⏱ Animation <span class="framesync-accent">Sequencer</span></div>
-                <div class="pill" :class="{'danger': sequencerPlaying}">
-                  <span class="dot"></span>{{ sequencerPlaying ? 'Playing' : 'Stopped' }}
-                </div>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; align-items:end;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Duration (s)</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.durationSec" min="0.5" max="600" step="0.5" @change="clampSequencerPlayhead">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">FPS</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Loop</div>
-                  <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</label>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">BPM Sync</div>
-                  <label class="framesync-list" style="display:flex; align-items:center; gap:8px; margin-top:6px;"><input type="checkbox" v-model="sequencer.bpmSync"> Sync to audio BPM</label>
-                </div>
-              </div>
-              <div v-if="sequencer.bpmSync" class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:8px; align-items:end;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">BPM</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.bpm" min="20" max="300" step="0.1">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Bars</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.bars" min="1" max="128" step="1">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Beats/Bar</div>
-                  <select class="framesync-select" v-model.number="sequencer.beatsPerBar">
-                    <option value="4">4/4</option>
-                    <option value="3">3/4</option>
-                    <option value="6">6/8</option>
-                  </select>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Calculated</div>
-                  <div style="font-size:12px; color:#5af2a9; padding:6px 0;">{{ sequencerCalculatedDuration }}s</div>
-                </div>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
-              <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
-              <div v-if="Number(sequencer.durationSec) > 0" style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;" title="Scene markers (click to jump)">
-                <div style="position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;"></div>
-                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mk-'+mi+'-'+(m.t || 0)" style="position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;" :style="{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }">
-                  <button type="button" class="framesync-button" style="padding:2px 6px; font-size:9px; white-space:nowrap;" @click="jumpToSequencerMarker(m)">{{ m.name }}</button>
-                </div>
-                <div v-if="sortedSequencerMarkers.length === 0" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:11px;">
-                  No markers yet
-                </div>
-                <div style="position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:3; pointer-events:none;" :style="{ left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }"></div>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:12px;">Scene markers</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px;">
-                <input type="text" class="framesync-input" style="max-width:160px; font-size:11px;" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
-                <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
-              </div>
-              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
-                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:#031b2d; border-radius:4px;">
-                  <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
-                  <select class="framesync-input" style="font-size:10px; max-width:100px; padding:2px 4px;" :value="m.action || 'jump'" @change="setMarkerAction(m, $event.target.value)">
-                    <option value="jump">↦ Jump</option>
-                    <option value="preset">🎨 Preset</option>
-                    <option value="generate">⏱ Generate</option>
-                    <option value="morph">🔄 Morph</option>
-                    <option value="param">🎛 Params</option>
-                    <option value="pause">⏸ Pause</option>
-                  </select>
-                  <input v-if="m.action && m.action !== 'jump' && m.action !== 'generate' && m.action !== 'pause'" type="text" class="framesync-input" style="font-size:10px; max-width:140px; padding:2px 4px;" :value="m.target || ''" :placeholder="markerActionPlaceholder(m.action)" @change="setMarkerTarget(m, $event.target.value)" :title="markerActionTitle(m.action)">
-                  <span v-if="m.action === 'jump'" style="font-size:9px; color:#5a8fb8;">jump to time</span>
-                  <span v-if="m.action === 'generate'" style="font-size:9px; color:#5a8fb8;">trigger generation</span>
-                  <span v-if="m.action === 'pause'" style="font-size:9px; color:#5a8fb8;">pause playback</span>
-                  <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
-                </div>
-              </div>
-              <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">
-                <button type="button" class="framesync-button" @click="toggleSequencerPlayback">{{ sequencerPlaying ? '⏹ Stop' : '▶ Play' }}</button>
-                <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
-                <button type="button" class="framesync-button" @click="saveSequencerTimeline">💾 Save</button>
-                <button type="button" class="framesync-button" @click="exportSequencerDownload">⬇ Export JSON</button>
-                <select class="framesync-input" style="max-width:160px; font-size:11px;" v-model="sequencerLoadPick" @change="loadSequencerTimeline">
-                  <option value="">Load saved…</option>
-                  <option v-for="n in sequencerList" :key="'seq-'+n" :value="n">{{ n }}</option>
-                </select>
-              </div>
-              <div class="framesync-subtitle" style="margin-top:14px;">Tracks</div>
-              <div v-if="sequencer.tracks.length" style="margin-top:8px; border:1px solid #0c3048; border-radius:8px; background:#031b2d; overflow:hidden;">
-                <div style="padding:6px 10px; font-size:10px; color:#5a8fb8; border-bottom:1px solid #0c3048; display:flex; justify-content:space-between; align-items:center;">
-                  <span>TIMELINE</span>
-                  <span>{{ sequencer.tracks.length }} track{{ sequencer.tracks.length > 1 ? 's' : '' }} · {{ sequencer.durationSec }}s</span>
-                </div>
-                <div style="position:relative;" ref="timelineContainer">
-                  <canvas ref="timelineCanvas" style="width:100%; display:block; cursor:pointer;" @mousedown="onTimelineMouseDown" @mousemove="onTimelineMouseMove" @mouseup="onTimelineMouseUp" @mouseleave="onTimelineMouseUp" @click="seekTimeline"></canvas>
-                  <div v-if="timelineHoverTime !== null" style="position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.3); pointer-events:none; z-index:3;" :style="{ left: timelineHoverPercent + '%' }"></div>
-                </div>
-              </div>
-              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;">
-                <select class="framesync-input" style="min-width:140px; font-size:11px;" v-model="sequencerNewParam">
-                  <option v-for="opt in sequencerParamOptions" :key="'sp-'+opt.key" :value="opt.key">{{ opt.label }}</option>
-                </select>
-                <button type="button" class="framesync-button" @click="addSequencerTrack">+ Track</button>
-                <span class="framesync-list" style="font-size:11px;">Keyframe value</span>
-                <input type="number" class="framesync-input" style="width:100px; font-size:11px;" v-model.number="sequencerKeyframeVal" step="any">
-                <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
-              </div>
-              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;">
-                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="color:#ff8a1a; font-size:13px;">{{ tr.param }}</strong>
-                  <label style="font-size:11px; color:#9bc4e2;">
-                    <input type="radio" :value="tr.id" v-model="sequencerSelectedTrackId"> edit
-                  </label>
-                  <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
-                </div>
-                <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
-                  <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
-                    t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
-                    <select class="framesync-input" style="font-size:10px; max-width:110px; padding:2px 4px;" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
-                      <option value="linear">linear</option>
-                      <option value="easeIn">easeIn</option>
-                      <option value="easeOut">easeOut</option>
-                      <option value="easeInOut">easeInOut</option>
-                    </select>
-                    <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
-                  </span>
-                  <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
-                </div>
-              </div>
-              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:#5af2a9;">{{ sequencerStatus }}</div>
-            </div>
-          </div>
-
-          <!-- Generator Settings -->
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">✨ Story <span class="framesync-accent">Generator</span></div>
-                <button class="framesync-button" :disabled="generator.isGenerating" @click="generateStory" style="min-width:120px;">
-                  {{ generator.isGenerating ? '⏳ Generating…' : '▶ Generate' }}
-                </button>
-              </div>
-              <div class="framesync-stack" style="margin-top:12px;">
-                <div class="framesync-subtitle">Theme / Story concept</div>
-                <input class="framesync-input" v-model="generator.theme" placeholder="e.g. A Space Traveler, Ancient Forest, Cyberpunk City…" style="width:100%;">
-              </div>
-              <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Style preset</div>
-                  <select class="framesync-select" v-model="generator.stylePreset">
-                    <option value="Masterpiece, Realistic">Masterpiece Realistic</option>
-                    <option value="Masterpiece, Cinematic">Cinematic</option>
-                    <option value="Masterpiece, best quality, anime">Anime</option>
-                    <option value="oil painting, impressionism">Oil Painting</option>
-                    <option value="digital art, concept art, surrealistic">Surrealist</option>
-                    <option value="watercolor, illustration">Watercolor</option>
-                    <option value="custom">Custom…</option>
-                  </select>
-                </div>
-                <div class="framesync-stack" v-if="generator.stylePreset === 'custom'">
-                  <div class="framesync-subtitle">Custom style</div>
-                  <input class="framesync-input" v-model="generator.customStyle" placeholder="your style keywords">
-                </div>
-              </div>
-              <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button" @click="generateStory">▶ Generate Story</button>
-                <button class="framesync-button" @click="generateImage">🖼 Generate Image</button>
-              </div>
-              <div v-if="generator.status" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ generator.status }}</div>
-              <div v-if="generator.lastPath" :style="storyResultCollapsed ? '' : 'margin-top:12px;'">
-                <div class="framesync-header" style="margin-bottom:8px;">
-                  <div class="framesync-subtitle" style="margin:0;">Result</div>
-                  <button class="framesync-button" @click="storyResultCollapsed = !storyResultCollapsed">{{ storyResultCollapsed ? '▼ Show' : '▲ Hide' }}</button>
-                </div>
-                <div v-if="!storyResultCollapsed">
-                  <img v-if="generator.lastPath" :src="generator.lastPath" style="width:100%; border-radius:8px; border:1px solid #0c3048;">
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom context panel -->
-    <div class="context">
-      <div v-if="currentTab==='LIVE'">
-        <h4>Beat & MIDI status</h4>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <div style="min-width:240px;">
-            <strong>Beat macros ({{ macrosRack.length }})</strong>
-            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--muted);">
-              • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
-            </div>
-          </div>
-          <div style="min-width:240px;">
-            <strong>MIDI mappings</strong>
-            <div style="font-size:12px; color:var(--muted);">
-              • LaunchControl CC21 → Vibe<br/>
-              • LaunchControl CC22 → Strength<br/>
-              • LaunchControl CC23 → Zoom
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='PROMPTS'">
-        <h4>Prompts & Parameters</h4>
-        <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
-          <table class="table">
-            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
-            <tbody>
-              <tr v-for="slot in morphSlots" :key="slot.id">
-                <td>{{ slot.id }}</td>
-                <td>{{ slot.on ? '●' : '○' }}</td>
-                <td>{{ slot.name }}</td>
-                <td>{{ slot.a }}</td>
-                <td>{{ slot.b }}</td>
-                <td>{{ slot.range }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='LORA'">
-          <div class="chips">
-            <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
-            <span class="chip">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>
-          </div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
-          <div class="chips">
-            <span class="chip">ControlNet: {{ cn.active }}</span>
-            <span class="chip">Slots: {{ cn.slots.length }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MOTION'">
-        <h4>Sequencer status</h4>
-        <div class="chips">
-          <span class="chip" v-for="(s, name) in motionStylesSaved" :key="'ctx-saved-'+name">💾 {{ name }}</span>
-          <span class="chip">Tracks: {{ sequencer.tracks.length }}</span>
-          <span class="chip">Markers: {{ sequencer.markers?.length || 0 }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MODULATION'">
-        <h4>Modulation</h4>
-        <div class="chips">
-          <span class="chip" v-for="(m, idx) in macrosRack.filter(x => x.on)" :key="'ctx-mac'+idx">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>
-          <span class="chip">LFOs: {{ lfos.filter(l => l.on).length }}/{{ lfos.length }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='AUDIO'">
-        <h4>Audio</h4>
-        <div v-if="audio.uploadedFile" style="margin-top:8px;">
-          <div class="chips">
-            <span class="chip">File: {{ audio.uploadedFile }}</span>
-            <span class="chip">BPM: {{ audio.bpm }}</span>
-          </div>
-          <div style="margin-top:8px;">
-            <img v-if="audioSpectrogramDataUrl" :src="audioSpectrogramDataUrl" class="spectral-preview" alt="Spectrogram">
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='SETTINGS'">
-        <h4>Settings</h4>
-        <div v-if="currentSubTab.SETTINGS==='MIDI'">
-          <table class="table">
-            <thead><tr><th>Control</th><th>CC</th><th>Target</th></tr></thead>
-            <tbody>
-              <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
-                <td>{{ m.control }}</td>
-                <td>{{ m.cc }}</td>
-                <td>
-                  <select class="select" v-model="m.key" @change="updateMidiMapping(m)">
-                    <option value="">None</option>
-                    <option v-for="t in lfoTargets" :key="'map'+t.key" :value="t.key">{{ t.label }}</option>
-                  </select>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='GENERATE'">
-        <h4>Generator</h4>
-        <div class="chips">
-          <span class="chip">Theme: {{ generator.theme || '—' }}</span>
-          <span class="chip">Style: {{ generator.stylePreset }}</span>
-        </div>
-      </div>
-    </div>
-  </div>`,
-
+  template: "<div id=\"app\">\n    <header>\n      <div class=\"tabs\">\n        <button class=\"tab\" v-for=\"tab in tabs\" :key=\"tab.id\" :class=\"{active: currentTab===tab.id}\" @click=\"switchTab(tab.id)\">\n          {{ tab.label }}\n        </button>\n      </div>\n      <div style=\"display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;\">\n        <button class=\"btn\" :class=\"{playing: deforumPlaying}\" @click=\"toggleDeforumPlay\" :title=\"deforumPlaying ? 'Pause Deforum' : 'Play Deforum animation'\">\n          {{ deforumPlaying ? '⏸ Anim' : '▶ Anim' }}\n        </button>\n        <button class=\"btn ghost\" @click=\"stopDeforumPlay\" title=\"Stop animation\">⏹</button>\n        <button class=\"btn ghost\" :class=\"{recording: isRecording}\" @click=\"toggleStreamRecord\">{{ isRecording ? '⏹ Rec' : '● Rec' }}</button>\n        <div class=\"pill\" :class=\"{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}\" v-if=\"apiHealth.sdForge\" :title=\"apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'\">\n          <span class=\"dot\"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>\n        </div>\n        <div class=\"pill\" v-if=\"midi.supported\">\n          <span class=\"dot\"></span><span>MIDI</span><strong>{{ midi.selected ? 'on' : 'off' }}</strong>\n        </div>\n        <div class=\"pill\">\n          <span class=\"dot\"></span><span>WS</span><strong>{{ wsStatus }}</strong>\n        </div>\n        <div class=\"pill\">\n          <span class=\"dot\"></span><span>Session</span><strong>{{ session }}</strong>\n        </div>\n      </div>\n    </header>\n\n    <div class=\"layout\">\n      <!-- Left: video + mini timeline -->\n      <div class=\"preview\">\n        <div class=\"video-wrap\">\n          <video id=\"player\" ref=\"videoEl\" autoplay muted playsinline></video>\n          <div class=\"overlay\">\n            <div>\n              <div class=\"timecode\">{{ timecode }}</div>\n              <div style=\"font-size:11px; color:var(--muted);\">Seed {{ hud.seed }}</div>\n            </div>\n            <div style=\"text-align:right;\">\n              <div>{{ stats.fps }} fps</div>\n              <div style=\"font-size:11px; color:var(--muted);\">lat {{ stats.lat }}ms</div>\n            </div>\n          </div>\n        </div>\n\n        <!-- Local blob URL only; used to align reference audio with HLS video timeline -->\n        <audio ref=\"avSyncAudio\" data-testid=\"av-sync-audio\" :src=\"audio.objectUrl || undefined\" preload=\"auto\" style=\"display:none;\"></audio>\n\n        <div class=\"timeline\" style=\"margin-top: 4px;\">\n          <template v-if=\"audio.objectUrl\">\n            <div class=\"thumbs\">\n              <div class=\"thumb-card\" v-for=\"f in thumbs.slice(0, 12)\" :key=\"f.name\">\n                <img class=\"thumb\" :src=\"f.url\" :alt=\"f.name\" />\n                <div class=\"thumb-label\">{{ f.name }}</div>\n              </div>\n            </div>\n          </template>\n          <template v-else>\n            <div class=\"thumbs\">\n              <div class=\"thumb-card\" v-for=\"i in 6\" :key=\"i\">\n                <div class=\"thumb-placeholder\">\n                  <svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n                    <rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" stroke=\"currentColor\" stroke-width=\"2\" rx=\"2\"/>\n                    <circle cx=\"8\" cy=\"8\" r=\"2\" fill=\"currentColor\"/>\n                    <path d=\"M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z\" fill=\"currentColor\" opacity=\"0.5\"/>\n                  </svg>\n                </div>\n              </div>\n            </div>\n          </template>\n        </div>\n\n        <!-- Custom video controls -->\n        <div class=\"preview-bar-container\">\n          <div class=\"preview-bar-header\">\n            <span class=\"preview-bar-title\">Frames</span>\n            <button class=\"preview-bar-toggle\" @click=\"showFrames = !showFrames\">{{ showFrames ? '▲' : '▼' }}</button>\n          </div>\n          <div class=\"preview-bar\" :class=\"{collapsed: !showFrames}\">\n            <div class=\"thumb-card\" v-for=\"f in thumbs\" :key=\"'bar-'+f.name\">\n              <img class=\"thumb\" :src=\"f.url\" :alt=\"f.name\" />\n              <div class=\"thumb-label\">{{ f.name }}</div>\n            </div>\n            <div v-if=\"!thumbs.length\" class=\"thumb-card\">\n              <div class=\"thumb-placeholder\">\n                <svg viewBox=\"0 0 24 24\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n                  <rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" stroke=\"currentColor\" stroke-width=\"2\" rx=\"2\"/>\n                  <circle cx=\"8\" cy=\"8\" r=\"2\" fill=\"currentColor\"/>\n                  <path d=\"M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z\" fill=\"currentColor\" opacity=\"0.5\"/>\n                </svg>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <div class=\"video-controls-panel\">\n          <div class=\"video-controls\">\n            <button class=\"control-btn\" :class=\"{playing: deforumPlaying}\" @click=\"toggleDeforumPlay\" data-testid=\"deforum-play\">\n              {{ deforumPlaying ? '⏸ Pause' : '▶ Play' }}\n            </button>\n            <button class=\"control-btn\" @click=\"generatePreviewFrame\" :disabled=\"previewGenerating || deforumPlaying\" data-testid=\"preview-frame\">\n              {{ previewGenerating ? '⏳ Frame…' : '🖼 Frame' }}\n            </button>\n            <button class=\"control-btn\" :class=\"{recording: isRecording}\" @click=\"toggleStreamRecord\" data-testid=\"stream-record\">\n              {{ isRecording ? '⏹ Stop Rec' : '● Record' }}\n            </button>\n            <span class=\"perf-mode-badge\" :class=\"deforumPlaying ? 'mode-animate' : 'mode-preview'\">\n              {{ deforumPlaying ? 'Animating' : 'Preview' }}\n            </span>\n          </div>\n          <div class=\"stream-link\">\n            <a href=\"/hls/live/deforum.m3u8\" target=\"_blank\">📡 HLS Stream</a>\n            <span style=\"color:#5a8fb8;\">|</span>\n            <a href=\"rtmp://localhost:1935/live/deforum\" target=\"_blank\">📡 RTMP</a>\n          </div>\n        </div>\n      </div>\n\n      <!-- Right: control rack per tab -->\n      <div>\n        <div v-if=\"currentTab==='LIVE'\">\n          <div class=\"rack performance-deck\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🎛 <span class=\"framesync-accent\">Performance</span></div>\n                <span class=\"perf-mode-badge\" :class=\"deforumPlaying ? 'mode-animate' : 'mode-preview'\">\n                  {{ deforumPlaying ? 'Deforum playing' : 'Single-frame preview' }}\n                </span>\n              </div>\n\n              <div class=\"framesync-stack\" style=\"margin-top:10px;\">\n                <div class=\"framesync-subtitle\">Generic prompt</div>\n                <textarea class=\"framesync-input\" v-model=\"performance.genericPrompt\" rows=\"2\" placeholder=\"Base prompt for this session…\" @input=\"onPerformanceInput\"></textarea>\n              </div>\n\n              <div class=\"crossfade-deck\" style=\"margin-top:14px;\">\n                <div class=\"crossfade-deck-head\">\n                  <span class=\"framesync-subtitle\" style=\"margin:0;\">Morph slots</span>\n                  <select class=\"framesync-select\" style=\"max-width:140px;\" v-model=\"performance.newSlotType\">\n                    <option v-for=\"st in crossfadeSlotTypes\" :key=\"st.id\" :value=\"st.id\">{{ st.label }}</option>\n                  </select>\n                  <button type=\"button\" class=\"framesync-button\" @click=\"addCrossfadeSlot\">+ Add</button>\n                </div>\n\n                <div v-if=\"!performance.slots.length\" class=\"crossfade-empty\">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>\n\n                <div v-for=\"slot in performance.slots\" :key=\"slot.id\" class=\"crossfade-slot-row\">\n                  <div class=\"crossfade-side crossfade-side-a\">\n                    <span class=\"crossfade-side-label\">A</span>\n                    <template v-if=\"slot.type === 'prompt'\">\n                      <input class=\"framesync-input\" v-model=\"slot.valueA\" placeholder=\"Prompt A (optional)\" @input=\"onPerformanceInput\">\n                    </template>\n                    <template v-else-if=\"slot.type === 'param'\">\n                      <select class=\"framesync-select\" v-model=\"slot.paramKey\" @change=\"onPerformanceInput\">\n                        <option v-for=\"t in lfoTargets\" :key=\"'a-'+slot.id+t.key\" :value=\"t.key\">{{ t.label }}</option>\n                      </select>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" step=\"any\" placeholder=\"Value A\" @input=\"onPerformanceInput\">\n                    </template>\n                    <template v-else-if=\"slot.type === 'lora'\">\n                      <select class=\"framesync-select\" v-model=\"slot.valueA\" @change=\"onPerformanceInput\">\n                        <option :value=\"null\">— none —</option>\n                        <option v-for=\"l in loras.available\" :key=\"'la-'+slot.id+l.id\" :value=\"l.name\">{{ l.name }}</option>\n                      </select>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.loraStrengthA\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Str A\" @input=\"onPerformanceInput\">\n                    </template>\n                    <template v-else-if=\"slot.type === 'controlnet'\">\n                      <select class=\"framesync-select\" v-model=\"slot.cnSlotId\" @change=\"onPerformanceInput\">\n                        <option v-for=\"s in cn.slots\" :key=\"'cna-'+slot.id+s.id\" :value=\"s.id\">{{ s.label }}</option>\n                      </select>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Weight A\" @input=\"onPerformanceInput\">\n                    </template>\n                  </div>\n\n                  <div class=\"crossfade-slot-meta\">\n                    <span class=\"crossfade-type-pill\">{{ slotTypeLabel(slot.type) }}</span>\n                    <button type=\"button\" class=\"framesync-button\" style=\"padding:2px 6px;\" @click=\"removeCrossfadeSlot(slot.id)\">✕</button>\n                  </div>\n\n                  <div class=\"crossfade-side crossfade-side-b\">\n                    <span class=\"crossfade-side-label\">B</span>\n                    <template v-if=\"slot.type === 'prompt'\">\n                      <input class=\"framesync-input\" v-model=\"slot.valueB\" placeholder=\"Prompt B (optional)\" @input=\"onPerformanceInput\">\n                    </template>\n                    <template v-else-if=\"slot.type === 'param'\">\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" step=\"any\" placeholder=\"Value B\" @input=\"onPerformanceInput\">\n                    </template>\n                    <template v-else-if=\"slot.type === 'lora'\">\n                      <select class=\"framesync-select\" v-model=\"slot.valueB\" @change=\"onPerformanceInput\">\n                        <option :value=\"null\">— none —</option>\n                        <option v-for=\"l in loras.available\" :key=\"'lb-'+slot.id+l.id\" :value=\"l.name\">{{ l.name }}</option>\n                      </select>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.loraStrengthB\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Str B\" @input=\"onPerformanceInput\">\n                    </template>\n                    <template v-else-if=\"slot.type === 'controlnet'\">\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Weight B\" @input=\"onPerformanceInput\">\n                    </template>\n                  </div>\n\n                  <div class=\"crossfade-morphed\" v-if=\"slotMorphedPreview(slot) !== null\">\n                    <span class=\"framesync-subtitle\" style=\"margin:0;font-size:9px;\">→</span>\n                    <code class=\"crossfade-morphed-val\">{{ formatMorphedPreview(slot) }}</code>\n                  </div>\n                </div>\n\n                <div class=\"crossfade-center\" style=\"margin-top:16px;\">\n                  <div class=\"framesync-subtitle\" style=\"text-align:center;\">Crossfader</div>\n                  <div class=\"framesync-gradient-bar\"></div>\n                  <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"performance.crossfader\" class=\"framesync-input\" data-testid=\"performance-crossfader\" @input=\"onCrossfaderInput\">\n                  <div class=\"crossfade-labels\">\n                    <span>A {{ ((1 - performance.crossfader) * 100).toFixed(0) }}%</span>\n                    <span>B {{ (performance.crossfader * 100).toFixed(0) }}%</span>\n                  </div>\n                </div>\n              </div>\n\n              <div v-if=\"performance.status\" class=\"framesync-subtitle\" style=\"margin-top:10px;text-align:center;color:#5af2a9;\">{{ performance.status }}</div>\n              <div v-if=\"performance.lastPreviewPath\" style=\"margin-top:8px;\">\n                <img :src=\"performance.lastPreviewPath\" alt=\"Last preview frame\" class=\"preview-frame-thumb\">\n              </div>\n            </div>\n          </div>\n\n          <div class=\"rack param-drawer\">\n            <button type=\"button\" class=\"param-drawer-toggle\" @click=\"paramPanelOpen = !paramPanelOpen; saveSessionState()\">\n              <span>⚙️ Parameters</span>\n              <span class=\"model-status-pill\" :class=\"'model-' + modelStatusKind\" :title=\"modelStatusLabel\">\n                <span class=\"model-status-dot\"></span>\n                {{ modelStatusLabel }}\n              </span>\n              <span>{{ paramPanelOpen ? '▲' : '▼' }}</span>\n            </button>\n            <div v-show=\"paramPanelOpen\" class=\"param-drawer-body\">\n              <div class=\"model-bar\">\n                <label class=\"framesync-subtitle\">Checkpoint</label>\n                <select class=\"framesync-select\" v-model=\"forge.selectedModel\" :disabled=\"forge.switching || modelStatusKind === 'offline'\" @change=\"onModelSelectChange\">\n                  <option value=\"\">— select model —</option>\n                  <option v-for=\"m in forge.models\" :key=\"m.model_name || m.title\" :value=\"m.model_name || m.title\">{{ m.title || m.model_name }}</option>\n                </select>\n                <span v-if=\"forge.switching\" class=\"model-loading\">Loading model…</span>\n                <span v-else-if=\"forge.lastModel\" class=\"model-last\">Last: {{ forge.lastModel }}</span>\n              </div>\n\n              <div v-for=\"group in paramPanelGroups\" :key=\"group.label\" class=\"param-group\">\n                <div class=\"framesync-subtitle\">{{ group.label }}</div>\n                <div class=\"param-group-grid\">\n                  <div class=\"framesync-stack\" v-for=\"p in group.items\" :key=\"p.key\">\n                    <div class=\"framesync-subtitle\" style=\"font-size:10px;\">{{ p.label }}</div>\n                    <input type=\"range\" :min=\"p.min\" :max=\"p.max\" :step=\"p.step\" :value=\"p.val\" @input=\"updateParam(p,$event)\" class=\"framesync-input\">\n                  </div>\n                </div>\n              </div>\n\n              <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n                <button class=\"framesync-button\" @click=\"resetVibeParams\">↺ Reset vibe</button>\n                <button class=\"framesync-button\" @click=\"resetCameraParams\">↺ Reset camera</button>\n              </div>\n            </div>\n          </div>\n\n          <div class=\"rack param-drawer deforum-settings-drawer\" data-testid=\"deforum-settings-panel\">\n            <button type=\"button\" class=\"param-drawer-toggle\" @click=\"deforumPanelOpen = !deforumPanelOpen; saveSessionState()\">\n              <span>🎬 Deforum settings</span>\n              <span class=\"deforum-settings-hint\">{{ deforumSettingsStatus || 'Hidden panel' }}</span>\n              <span>{{ deforumPanelOpen ? '▲' : '▼' }}</span>\n            </button>\n            <div v-show=\"deforumPanelOpen\" class=\"param-drawer-body deforum-settings-body\">\n              <div class=\"deforum-settings-toolbar\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"loadDeforumSettings\">↻ Reload</button>\n                <button type=\"button\" class=\"framesync-button\" @click=\"saveDeforumSettings\">💾 Save</button>\n                <button type=\"button\" class=\"framesync-button\" :disabled=\"previewGenerating\" @click=\"generateDeforumPreviewFrame\">🖼 Regenerate frame</button>\n                <label class=\"deforum-advanced-toggle\">\n                  <input type=\"checkbox\" v-model=\"deforumAdvancedOpen\"> JSON\n                </label>\n              </div>\n\n              <div v-if=\"deforumAdvancedOpen\" class=\"deforum-advanced-json\">\n                <textarea\n                  class=\"framesync-input deforum-json-editor\"\n                  v-model=\"deforumSettingsJson\"\n                  rows=\"12\"\n                  spellcheck=\"false\"\n                  @blur=\"applyDeforumSettingsJson\"\n                ></textarea>\n                <p v-if=\"deforumSettingsJsonError\" class=\"deforum-json-error\">{{ deforumSettingsJsonError }}</p>\n              </div>\n\n              <div v-else class=\"deforum-settings-groups\">\n                <details\n                  v-for=\"group in deforumFieldGroups\"\n                  :key=\"group.id\"\n                  class=\"deforum-settings-group\"\n                  :open=\"deforumSectionOpen[group.id] !== false\"\n                  @toggle=\"onDeforumSectionToggle(group.id, $event)\"\n                >\n                  <summary class=\"deforum-settings-group-title\">{{ group.label }}</summary>\n                  <div class=\"deforum-settings-grid\">\n                    <label\n                      v-for=\"field in group.fields\"\n                      :key=\"field.key\"\n                      class=\"deforum-field\"\n                      :class=\"'deforum-field-' + (field.type || 'text')\"\n                    >\n                      <span class=\"deforum-field-label\">{{ field.label }}</span>\n                      <input\n                        v-if=\"field.type === 'number'\"\n                        type=\"number\"\n                        class=\"framesync-input\"\n                        :min=\"field.min\"\n                        :max=\"field.max\"\n                        :step=\"field.step || 1\"\n                        :value=\"getDeforumField(field.key)\"\n                        @input=\"onDeforumFieldInput(field.key, $event.target.value, 'number')\"\n                      />\n                      <input\n                        v-else-if=\"field.type === 'bool'\"\n                        type=\"checkbox\"\n                        :checked=\"!!getDeforumField(field.key)\"\n                        @change=\"onDeforumFieldInput(field.key, $event.target.checked, 'bool')\"\n                      />\n                      <textarea\n                        v-else-if=\"field.type === 'textarea'\"\n                        class=\"framesync-input\"\n                        :rows=\"field.rows || 3\"\n                        :value=\"getDeforumField(field.key) ?? ''\"\n                        @input=\"onDeforumFieldInput(field.key, $event.target.value, 'text')\"\n                      />\n                      <input\n                        v-else\n                        type=\"text\"\n                        class=\"framesync-input\"\n                        :value=\"getDeforumField(field.key) ?? ''\"\n                        @input=\"onDeforumFieldInput(field.key, $event.target.value, 'text')\"\n                      />\n                    </label>\n                  </div>\n                </details>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='PROMPTS'\">\n          <div class=\"sub-pills\">\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='PROMPTS'}\" @click=\"switchSubTab('PROMPTS','PROMPTS')\">PROMPTS</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='LORA'}\" @click=\"switchSubTab('PROMPTS','LORA')\">LORA</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='CONTROLNET'}\" @click=\"switchSubTab('PROMPTS','CONTROLNET')\">CONTROLNET</button>\n          </div>\n          <div v-if=\"currentSubTab.PROMPTS==='PROMPTS'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">✍️ Prompt <span class=\"framesync-accent\">Morphing</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <button class=\"framesync-button\" :class=\"{active: prompts.morphOn}\" @click=\"setMorph(true)\">☑ Enabled</button>\n                  <button class=\"framesync-button\" :class=\"{active: !prompts.morphOn}\" @click=\"setMorph(false)\">☐ Disabled</button>\n                  <button class=\"framesync-button\" @click=\"morphCollapsed = !morphCollapsed\">{{ morphCollapsed ? '▼ Show' : '▲ Hide' }}</button>\n                  <button class=\"framesync-button\" @click=\"applyLoras\" style=\"padding:6px 16px;\">✓ Apply All</button>\n                </div>\n              </div>\n\n              <div v-if=\"!morphCollapsed\">\n              <div style=\"margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">A Group</div>\n                  <div v-for=\"lora in loras.groupA.slice(0, 3)\" :key=\"'a-'+lora.id\" style=\"background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;\">\n                    <div style=\"font-size:12px; color:#cfe5f5; font-weight:600;\">{{ lora.name }}</div>\n                    <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength=parseFloat($event.target.value)\" class=\"framesync-input\" style=\"margin-top:4px;\">\n                    <div style=\"font-size:10px; color:#7fb3d6; margin-top:2px;\">{{ lora.strength.toFixed(2) }}</div>\n                  </div>\n                  <div v-if=\"loras.groupA.length === 0\" style=\"flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;\">\n                    No LoRAs in A group\n                  </div>\n                  <div v-else-if=\"loras.groupA.length > 3\" style=\"font-size:10px; color:#9bc4e2; text-align:center; padding:4px;\">\n                    +{{ loras.groupA.length - 3 }} more\n                  </div>\n                </div>\n\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Crossfader</div>\n                  <div class=\"framesync-gradient-bar\"></div>\n                  <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" :value=\"prompts.crossfaderValue\" @input=\"prompts.crossfaderValue=parseFloat($event.target.value)\" class=\"framesync-input\" style=\"margin-top:8px;\">\n                  <div style=\"display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;\">\n                    <span>A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>\n                    <span>B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>\n                  </div>\n                </div>\n\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">B Group</div>\n                  <div v-for=\"lora in loras.groupB.slice(0, 3)\" :key=\"'b-'+lora.id\" style=\"background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;\">\n                    <div style=\"font-size:12px; color:#cfe5f5; font-weight:600;\">{{ lora.name }}</div>\n                    <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength=parseFloat($event.target.value)\" class=\"framesync-input\" style=\"margin-top:4px;\">\n                    <div style=\"font-size:10px; color:#7fb3d6; margin-top:2px;\">{{ lora.strength.toFixed(2) }}</div>\n                  </div>\n                  <div v-if=\"loras.groupB.length === 0\" style=\"flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;\">\n                    No LoRAs in B group\n                  </div>\n                  <div v-else-if=\"loras.groupB.length > 3\" style=\"font-size:10px; color:#9bc4e2; text-align:center; padding:4px;\">\n                    +{{ loras.groupB.length - 3 }} more\n                  </div>\n                </div>\n              </div>\n              </div>\n            </div>\n          </div>\n\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🖼 img2img <span class=\"framesync-accent\">(Forge)</span></div>\n                <button class=\"framesync-button\" @click=\"img2img.show = !img2img.show\">{{ img2img.show ? '▲ Hide' : '▼ Show' }}</button>\n              </div>\n              <div v-if=\"img2img.show\">\n              <div class=\"framesync-subtitle\" style=\"margin-top:8px;\">\n                Reference image → <code>/api/img2img</code> (SD-Forge). Optional <strong>mask</strong> enables inpainting (white = repaint, black = keep). Output under <code>/uploads/</code>.\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Reference image</div>\n                  <input type=\"file\" accept=\"image/*\" @change=\"onImg2imgFile\" class=\"framesync-input\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Mask image (optional)</div>\n                  <input type=\"file\" accept=\"image/*\" @change=\"onImg2imgMaskFile\" class=\"framesync-input\">\n                </div>\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Mask blur</div>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"img2img.maskBlur\" min=\"0\" max=\"64\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Inpainting fill</div>\n                  <select class=\"framesync-select\" v-model.number=\"img2img.inpaintingFill\">\n                    <option value=\"0\">Fill</option>\n                    <option value=\"1\">Original</option>\n                    <option value=\"2\">Latent noise</option>\n                    <option value=\"3\">Latent nothing</option>\n                  </select>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Denoising strength</div>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"img2img.denoisingStrength\" min=\"0\" max=\"1\" step=\"0.01\">\n                </div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n                <button class=\"framesync-button\" @click=\"runImg2img\">🚀 Run img2img</button>\n              </div>\n              <div v-if=\"img2img.status\" class=\"framesync-subtitle\" style=\"margin-top:8px; text-align:center;\">{{ img2img.status }}</div>\n              <div v-if=\"img2img.lastPath\" class=\"framesync-subtitle\" style=\"margin-top:4px; text-align:center;\">\n                Output: <a :href=\"img2img.lastPath\" target=\"_blank\" style=\"color:#ff8a1a;\">{{ img2img.lastPath }}</a>\n              </div>\n              </div>\n            </div>\n          </div>\n\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">📚 Plugins <span class=\"framesync-accent\">Registry</span></div>\n                <button class=\"framesync-button\" @click=\"refreshPlugins\">🔄 Refresh</button>\n              </div>\n              <ul v-if=\"pluginsRegistry.length\" class=\"framesync-list\" style=\"margin-top:4px; font-size:11px; padding-left:16px;\">\n                <li v-for=\"p in pluginsRegistry\" :key=\"p.id || p.name\">{{ p.name || p.id }}<span v-if=\"p.description\"> — {{ p.description }}</span></li>\n              </ul>\n            </div>\n          </div>\n          </div>\n\n          <div v-else-if=\"currentSubTab.PROMPTS==='LORA'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">📚 LoRA <span class=\"framesync-accent\">Browser</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <span class=\"source\" v-if=\"loras.source\" style=\"font-size:10px;\">\n                    <span v-if=\"loras.source==='sd-forge'\" style=\"color:#5af2a9;\">● Forge</span>\n                    <span v-else-if=\"loras.source==='cache'\" style=\"color:#fbbf24;\">● Cache</span>\n                    <span v-else-if=\"loras.source==='placeholder'\" style=\"color:#ff4d6d;\">● Placeholder</span>\n                    <span v-else style=\"color:#7fb3d6;\">● {{ loras.source }}</span>\n                  </span>\n                  <button class=\"framesync-button\" @click=\"refreshLoras\">🔄 Refresh</button>\n                </div>\n              </div>\n              <div style=\"margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; max-height:400px; overflow-y:auto;\">\n                <div v-for=\"lora in loras.available\" :key=\"lora.id\"\n                     style=\"background:#0b1526; border:1px solid #13233d; border-radius:10px; overflow:hidden; cursor:pointer;\"\n                     @click=\"toggleLoraSelection(lora)\">\n                  <div style=\"position:relative; width:100%; height:180px; background:#031b2d;\">\n                    <img v-if=\"lora.thumbnail\" :src=\"lora.thumbnail\" style=\"width:100%; height:100%; object-fit:cover;\" :alt=\"lora.name\" />\n                    <div v-else style=\"display:flex; align-items:center; justify-content:center; height:100%; color:#7fb3d6;\">\n                      <svg viewBox=\"0 0 24 24\" style=\"width:48px; height:48px; opacity:0.3;\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\n                        <rect x=\"3\" y=\"3\" width=\"18\" height=\"18\" stroke=\"currentColor\" stroke-width=\"2\" rx=\"2\"/>\n                        <circle cx=\"8\" cy=\"8\" r=\"2\" fill=\"currentColor\"/>\n                        <path d=\"M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z\" fill=\"currentColor\" opacity=\"0.5\"/>\n                      </svg>\n                    </div>\n                    <div v-if=\"lora.selected\" style=\"position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid #ff8a1a; border-radius:4px; padding:4px 8px; font-size:10px; color:#ff8a1a; font-weight:700;\">\n                      ✓ {{ lora.group }}\n                    </div>\n                  </div>\n                  <div style=\"padding:10px;\">\n                    <div style=\"font-size:13px; color:#cfe5f5; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;\">\n                      {{ lora.name }}\n                    </div>\n                    <div style=\"font-size:10px; color:#7fb3d6; margin-bottom:8px;\">\n                      {{ lora.path }}\n                    </div>\n                    <div class=\"framesync-stack\">\n                      <div class=\"framesync-subtitle\">Strength</div>\n                      <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength=parseFloat($event.target.value)\" class=\"framesync-input\">\n                      <div style=\"font-size:10px; color:#7fb3d6; margin-top:2px;\">{{ lora.strength.toFixed(2) }}</div>\n                    </div>\n                    <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n                      <button class=\"framesync-button\" :class=\"{active: lora.group==='A'}\" @click.stop=\"assignLoraToGroup(lora,'A')\">A</button>\n                      <button class=\"framesync-button\" :class=\"{active: lora.group==='B'}\" @click.stop=\"assignLoraToGroup(lora,'B')\">B</button>\n                      <button class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">✕</button>\n                    </div>\n                  </div>\n                </div>\n              </div>\n              <div v-if=\"loras.available.length === 0\" style=\"margin-top:20px; text-align:center; color:#7fb3d6; font-size:12px;\">\n                No LoRA models found. Refresh or check SD-Forge connection.\n              </div>\n            </div>\n          </div>\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🎛 Active <span class=\"framesync-accent\">LoRAs</span></div>\n              </div>\n              <div style=\"display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;\">\n                <div>\n                  <div style=\"font-size:12px; color:#5af2a9; margin-bottom:8px; font-weight:600;\">A GROUP ({{ loras.groupA.length }})</div>\n                  <div style=\"background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;\">\n                    <div v-for=\"lora in loras.groupA\" :key=\"lora.id\"\n                         style=\"display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;\">\n                      <span style=\"font-size:12px; color:#cfe5f5;\">{{ lora.name }}</span>\n                      <span style=\"font-size:10px; color:#7fb3d6;\">{{ lora.strength.toFixed(2) }}</span>\n                    </div>\n                    <div v-if=\"loras.groupA.length === 0\" style=\"font-size:11px; color:#7fb3d6; padding:8px; text-align:center;\">\n                      No LoRAs in A group\n                    </div>\n                  </div>\n                </div>\n                <div>\n                  <div style=\"font-size:12px; color:#2de2ff; margin-bottom:8px; font-weight:600;\">B GROUP ({{ loras.groupB.length }})</div>\n                  <div style=\"background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;\">\n                    <div v-for=\"lora in loras.groupB\" :key=\"lora.id\"\n                         style=\"display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;\">\n                      <span style=\"font-size:12px; color:#cfe5f5;\">{{ lora.name }}</span>\n                      <span style=\"font-size:10px; color:#7fb3d6;\">{{ lora.strength.toFixed(2) }}</span>\n                    </div>\n                    <div v-if=\"loras.groupB.length === 0\" style=\"font-size:11px; color:#7fb3d6; padding:8px; text-align:center;\">\n                      No LoRAs in B group\n                    </div>\n                  </div>\n                </div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                <button class=\"framesync-button\" @click=\"applyLoras\">✓ Apply LoRAs</button>\n                <button class=\"framesync-button\" @click=\"exportLoraPreset\">💾 Export preset</button>\n              </div>\n            </div>\n          </div>\n          </div>\n\n          <div v-else-if=\"currentSubTab.PROMPTS==='CONTROLNET'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🎯 ControlNet <span class=\"framesync-accent\">Slots</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <span class=\"source\" v-if=\"cn.source\" style=\"font-size:10px;\">\n                    <span v-if=\"cn.source==='sd-forge'\" style=\"color:#5af2a9;\">● Forge</span>\n                    <span v-else-if=\"cn.source==='cache'\" style=\"color:#fbbf24;\">● Cache</span>\n                    <span v-else-if=\"cn.source==='placeholder'\" style=\"color:#ff4d6d;\">● Placeholder</span>\n                    <span v-else style=\"color:#7fb3d6;\">● {{ cn.source }}</span>\n                  </span>\n                  <button class=\"framesync-button\" @click=\"loadControlNetModels\">🔄 Refresh</button>\n                </div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                <button class=\"framesync-button\" v-for=\"slot in cn.slots\" :key=\"slot.id\" :class=\"{active: cn.active===slot.id}\" @click=\"cn.active=slot.id\">{{ slot.label }}</button>\n              </div>\n            </div>\n          </div>\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">⚙️ <span class=\"framesync-accent\">{{ activeSlot.label }}</span> Settings</div>\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div class=\"framesync-subtitle\">Model</div>\n                <select class=\"framesync-select\" v-model=\"activeSlot.model\" @change=\"updateControlNet(activeSlot)\">\n                  <option v-for=\"m in cn.availableModels\" :key=\"m.id\" :value=\"m.name\">{{ m.name }}</option>\n                </select>\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div class=\"framesync-subtitle\">Image source</div>\n                <div style=\"display:flex; gap:8px; flex-wrap:wrap;\">\n                  <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.imageSource==='file'}\" @click=\"activeSlot.imageSource='file'\">📁 File</button>\n                  <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.imageSource==='webcam'}\" @click=\"activeSlot.imageSource='webcam'\">📷 Webcam</button>\n                  <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.imageSource==='screen'}\" @click=\"activeSlot.imageSource='screen'\">🖥️ Screen</button>\n                </div>\n                <input ref=\"cnImageInput\" type=\"file\" accept=\"image/*\" style=\"display:none;\" @change=\"onControlNetFileSelected\">\n              </div>\n              <div v-if=\"activeSlot.imageSource==='webcam'\" class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div class=\"framesync-subtitle\">Webcam input</div>\n                <video ref=\"webcamVideo\" autoplay playsinline style=\"width:100%; max-width:320px; border-radius:6px; border:1px solid #0c3048; display:none;\"></video>\n                <canvas ref=\"webcamCanvas\" style=\"display:none;\"></canvas>\n                <div style=\"display:flex; gap:8px; margin-top:8px;\">\n                  <button type=\"button\" class=\"framesync-button\" :class=\"{active: cn.webcamActive}\" @click=\"toggleWebcam\">{{ cn.webcamActive ? '⏹ Stop' : '▶ Start' }} Webcam</button>\n                  <select class=\"framesync-input\" v-model.number=\"webcamCaptureRate\" style=\"max-width:120px; font-size:11px;\">\n                    <option :value=\"1000\">1 fps</option>\n                    <option :value=\"500\">2 fps</option>\n                    <option :value=\"200\">5 fps</option>\n                    <option :value=\"100\">10 fps</option>\n                  </select>\n                </div>\n              </div>\n              <div v-if=\"activeSlot.imageSource==='screen'\" class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div class=\"framesync-subtitle\">Screen capture</div>\n                <button type=\"button\" class=\"framesync-button\" @click=\"startScreenCapture\">🖥️ Start screen capture</button>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"uploadControlNetImage(activeSlot)\">📁 Upload image</button>\n                <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.enabled}\" @click=\"activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)\">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div style=\"display:flex; justify-content:space-between; align-items:center;\">\n                  <div class=\"framesync-subtitle\">Weight</div>\n                  <span style=\"color:#cfe5f5; font-size:12px;\">{{ activeSlot.weight.toFixed(2) }}</span>\n                </div>\n                <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" v-model.number=\"activeSlot.weight\" @input=\"updateControlNet(activeSlot)\" class=\"framesync-input\">\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div style=\"display:flex; justify-content:space-between; align-items:center;\">\n                  <div class=\"framesync-subtitle\">Start step</div>\n                  <span style=\"color:#cfe5f5; font-size:12px;\">{{ activeSlot.start.toFixed(2) }}</span>\n                </div>\n                <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"activeSlot.start\" @input=\"updateControlNet(activeSlot)\" class=\"framesync-input\">\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div style=\"display:flex; justify-content:space-between; align-items:center;\">\n                  <div class=\"framesync-subtitle\">End step</div>\n                  <span style=\"color:#cfe5f5; font-size:12px;\">{{ activeSlot.end.toFixed(2) }}</span>\n                </div>\n                <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"activeSlot.end\" @input=\"updateControlNet(activeSlot)\" class=\"framesync-input\">\n              </div>\n            </div>\n          </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='MOTION'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">📐 Motion <span class=\"framesync-accent\">Presets</span></div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                <button class=\"framesync-button\" v-for=\"p in Object.keys(motionPresets)\" :key=\"p\" @click=\"sendPreset(p)\">{{ p }}</button>\n              </div>\n            </div>\n          </div>\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🎮 XY <span class=\"framesync-accent\">Pad</span></div>\n                <span style=\"font-size:10px; color:#7fb3d6;\">Pan X / Pan Y</span>\n              </div>\n              <div\n                class=\"xy-pad\"\n                :style=\"{ width: xyPad.padSize + 'px', height: xyPad.padSize + 'px' }\"\n                @mousedown=\"xyPadMouseDown\"\n                @mousemove=\"xyPadMouseMove\"\n                @mouseup=\"xyPadMouseUp\"\n                @mouseleave=\"xyPadMouseUp\"\n                @touchstart.prevent=\"xyPadMouseDown\"\n                @touchmove.prevent=\"xyPadMouseMove\"\n                @touchend.prevent=\"xyPadMouseUp\"\n              >\n                <div\n                  class=\"xy-dot framesync\"\n                  :style=\"{ left: (xyPad.x - 6) + 'px', top: (xyPad.y - 6) + 'px' }\"\n                ></div>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='MODULATION'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🌊 LFO <span class=\"framesync-accent\">Modulators</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <button class=\"framesync-button\" :class=\"{active: lfoOn}\" @click=\"lfoOn=!lfoOn\">{{ lfoOn ? 'ON' : 'OFF' }}</button>\n                  <button class=\"framesync-button\" @click=\"resetLfos\">↺ Reset</button>\n                </div>\n              </div>\n              <div class=\"lfo-grid\" style=\"margin-top:12px;\">\n                <div class=\"lfo-card\" v-for=\"lfo in lfos\" :key=\"'lfo-'+lfo.id\">\n                  <h4>\n                    <label class=\"switch\"><input type=\"checkbox\" v-model=\"lfo.on\"> LFO {{ lfo.id }}</label>\n                    <canvas :ref=\"el => lfoCanvasRefs[lfo.id] = el\" width=\"200\" height=\"60\" style=\"width:100%; height:60px; border-radius:4px; background:#031b2d;\"></canvas>\n                  </h4>\n                  <div class=\"meta\">Targets: {{ lfo.targets.join(', ') || 'none' }}</div>\n                  <div style=\"display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;\">\n                    <div>\n                      <div class=\"framesync-subtitle\">Shape</div>\n                      <select class=\"framesync-select\" v-model=\"lfo.shape\">\n                        <option v-for=\"s in lfoShapes\" :key=\"s\" :value=\"s\">{{ s }}</option>\n                      </select>\n                    </div>\n                    <div>\n                      <div class=\"framesync-subtitle\">BPM</div>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"lfo.bpm\" min=\"20\" max=\"300\">\n                    </div>\n                    <div>\n                      <div class=\"framesync-subtitle\">Speed</div>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"lfo.speed\" min=\"0.1\" max=\"10\" step=\"0.1\">\n                    </div>\n                    <div>\n                      <div class=\"framesync-subtitle\">Depth</div>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"lfo.depth\" min=\"0\" max=\"1\" step=\"0.01\">\n                    </div>\n                  </div>\n                  <div style=\"margin-top:8px;\">\n                    <div class=\"framesync-subtitle\">Targets</div>\n                    <div style=\"display:flex; flex-wrap:wrap; gap:4px;\">\n                      <button class=\"framesync-button\" v-for=\"t in lfoTargets\" :key=\"'lt-'+t.key\" :class=\"{active: lfo.targets.includes(t.key)}\" @click=\"toggleLfoTarget(lfo, t.key)\" style=\"padding:2px 6px; font-size:9px;\">{{ t.label }}</button>\n                    </div>\n                  </div>\n                </div>\n              </div>\n            </div>\n          </div>\n\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🥁 Beat <span class=\"framesync-accent\">Macros</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <button class=\"framesync-button\" :class=\"{active: beatMacroOn}\" @click=\"beatMacroOn=!beatMacroOn\">{{ beatMacroOn ? 'ON' : 'OFF' }}</button>\n                </div>\n              </div>\n              <div class=\"lfo-grid\" style=\"margin-top:12px;\">\n                <div class=\"lfo-card\" v-for=\"(m, idx) in macrosRack\" :key=\"'mac'+idx\">\n                  <h4>\n                    <label class=\"switch\"><input type=\"checkbox\" v-model=\"m.on\"> Macro {{ idx+1 }}</label>\n                  </h4>\n                  <div class=\"meta\">Target: {{ m.target || 'none' }} · {{ m.shape }}</div>\n                  <div style=\"display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;\">\n                    <div>\n                      <div class=\"framesync-subtitle\">Target</div>\n                      <select class=\"framesync-select\" v-model=\"m.target\">\n                        <option value=\"\">None</option>\n                        <option v-for=\"t in lfoTargets\" :key=\"'mac'+t.key\" :value=\"t.key\">{{ t.label }}</option>\n                      </select>\n                    </div>\n                    <div>\n                      <div class=\"framesync-subtitle\">Shape</div>\n                      <select class=\"framesync-select\" v-model=\"m.shape\">\n                        <option v-for=\"s in [...lfoShapes, 'Noise']\" :key=\"s\" :value=\"s\">{{ s }}</option>\n                      </select>\n                    </div>\n                    <div>\n                      <div class=\"framesync-subtitle\">BPM</div>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"m.bpm\" min=\"20\" max=\"300\" style=\"font-size:11px; padding:4px;\">\n                    </div>\n                    <div>\n                      <div class=\"framesync-subtitle\">Depth</div>\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"m.depth\" min=\"0\" max=\"1\" step=\"0.01\" style=\"font-size:11px; padding:4px;\">\n                    </div>\n                  </div>\n                </div>\n                <button class=\"framesync-button\" @click=\"addMacro\" v-if=\"macrosRack.length<6\">➕ Add Macro</button>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='AUDIO'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🔊 Reference <span class=\"framesync-accent\">A/V sync</span></div>\n                <button class=\"framesync-button\" @click=\"avSyncCollapsed = !avSyncCollapsed\">{{ avSyncCollapsed ? '▼ Show' : '▲ Hide' }}</button>\n              </div>\n              <div v-if=\"!avSyncCollapsed\">\n              <div class=\"framesync-subtitle\" style=\"margin-top:8px;\">\n                Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Upload track</div>\n                  <input type=\"file\" accept=\"audio/*\" ref=\"audioFileInput\" @change=\"onAudioUpload\" class=\"framesync-input\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Video lead (sec)</div>\n                  <label class=\"framesync-checkbox\" style=\"margin-top:6px;\">\n                    <input type=\"checkbox\" data-testid=\"av-sync-enable\" v-model=\"avSyncEnabled\" :disabled=\"!audio.objectUrl\"> Enable sync (needs uploaded audio)\n                  </label>\n                  <input type=\"number\" data-testid=\"av-sync-lead\" class=\"framesync-input\" v-model.number=\"avSyncLeadSec\" min=\"0\" max=\"120\" step=\"0.25\" style=\"max-width:120px;\">\n                  <div class=\"framesync-subtitle\" style=\"margin-top:4px; font-size:10px;\">≈ encoder buffer + HLS fragments (often 2–10s).</div>\n                </div>\n              </div>\n              </div>\n            </div>\n          </div>\n\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🎵 Audio <span class=\"framesync-accent\">Reactive</span></div>\n                <button class=\"framesync-button\" @click=\"startAudioStream\">{{ audioStatus === 'Streaming' ? '⏹ Stop' : '▶ Start' }}</button>\n              </div>\n              <div class=\"framesync-subtitle\" style=\"margin-top:8px;\">\n                Map frequency bands to parameters. Live audio from mic/system → frequency analysis → parameter modulation.\n              </div>\n              <div class=\"audio-map-grid\" style=\"margin-top:12px;\">\n                <div class=\"audio-map-card\" v-for=\"(m, idx) in audioMappings\" :key=\"'amap-'+idx\">\n                  <div style=\"display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;\">\n                    <div class=\"framesync-subtitle\" style=\"margin:0;\">{{ m.param || 'unassigned' }}</div>\n                    <button class=\"framesync-button\" style=\"padding:2px 6px; font-size:9px;\" @click=\"audioMappings.splice(idx,1)\">✕</button>\n                  </div>\n                  <div style=\"display:grid; gap:6px;\">\n                    <div class=\"framesync-subtitle\">Freq range</div>\n                    <div style=\"display:grid; grid-template-columns: 1fr 1fr; gap:6px;\">\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"m.freq_min\" min=\"20\" max=\"20000\" style=\"font-size:10px; padding:4px;\">\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"m.freq_max\" min=\"20\" max=\"20000\" style=\"font-size:10px; padding:4px;\">\n                    </div>\n                    <div class=\"framesync-subtitle\">Output range</div>\n                    <div style=\"display:grid; grid-template-columns: 1fr 1fr; gap:6px;\">\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"m.out_min\" step=\"any\" style=\"font-size:10px; padding:4px;\">\n                      <input type=\"number\" class=\"framesync-input\" v-model.number=\"m.out_max\" step=\"any\" style=\"font-size:10px; padding:4px;\">\n                    </div>\n                  </div>\n                </div>\n                <button class=\"framesync-button\" @click=\"audioMappings.push({param:'',freq_min:20,freq_max:200,out_min:0,out_max:1})\">+ Add mapping</button>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n                <div class=\"framesync-subtitle\">Quick band presets</div>\n                <div style=\"display:flex; flex-wrap:wrap; gap:4px;\">\n                  <button class=\"framesync-button\" v-for=\"chip in audioBandChips\" :key=\"chip.key\" @click=\"applyAudioBandPreset(chip)\" style=\"padding:2px 6px; font-size:9px;\">{{ chip.label }}</button>\n                </div>\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='RUNS'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">📁 Runs <span class=\"framesync-accent\">Browser</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <span style=\"font-size:11px; color:#7fb3d6;\">{{ runsFiltered.length }} / {{ runsAll.length }}</span>\n                  <button class=\"framesync-button\" @click=\"refreshRuns\">🔄 Refresh</button>\n                </div>\n              </div>\n\n              <!-- Filters -->\n              <div style=\"margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;\">\n                <input type=\"text\" class=\"framesync-input\" v-model.trim=\"runsFilter.search\" placeholder=\"Search (id, tag, model, prompt, notes)\" @input=\"applyRunsFilters\">\n                <select class=\"framesync-select\" v-model=\"runsFilter.status\" @change=\"applyRunsFilters\">\n                  <option value=\"\">All Status</option>\n                  <option value=\"completed\">Completed</option>\n                  <option value=\"failed\">Failed</option>\n                  <option value=\"running\">Running</option>\n                  <option value=\"queued\">Queued</option>\n                </select>\n                <input type=\"text\" class=\"framesync-input\" v-model.trim=\"runsFilter.tag\" placeholder=\"Filter by tag\" @input=\"applyRunsFilters\">\n                <input type=\"text\" class=\"framesync-input\" v-model.trim=\"runsFilter.model\" placeholder=\"Filter by model\" @input=\"applyRunsFilters\">\n              </div>\n\n              <!-- Sort controls -->\n              <div style=\"margin-top:8px; display:flex; gap:8px; align-items:center;\">\n                <span style=\"font-size:11px; color:#7fb3d6;\">Sort:</span>\n                <select class=\"framesync-select\" v-model=\"runsSort.field\" @change=\"applyRunsFilters\" style=\"max-width:140px;\">\n                  <option value=\"started_at\">Date</option>\n                  <option value=\"run_id\">Run ID</option>\n                  <option value=\"model\">Model</option>\n                  <option value=\"frame_count\">Frames</option>\n                  <option value=\"status\">Status</option>\n                  <option value=\"tag\">Tag</option>\n                </select>\n                <button class=\"framesync-button\" @click=\"runsSort.order = runsSort.order === 'desc' ? 'asc' : 'desc'; applyRunsFilters();\" style=\"padding:4px 10px;\">\n                  {{ runsSort.order === 'desc' ? '↓ Desc' : '↑ Asc' }}\n                </button>\n                <div style=\"flex:1;\"></div>\n                <button class=\"framesync-button\" @click=\"exportRuns('json')\" style=\"padding:4px 10px;\">📥 JSON</button>\n                <button class=\"framesync-button\" @click=\"exportRuns('csv')\" style=\"padding:4px 10px;\">📥 CSV</button>\n              </div>\n\n              <!-- Runs table -->\n              <div style=\"margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid #0c3048; border-radius:8px;\">\n                <table style=\"width:100%; border-collapse:collapse; font-size:11px;\">\n                  <thead style=\"position:sticky; top:0; background:#0b1526; z-index:1;\">\n                    <tr style=\"border-bottom:1px solid #13233d;\">\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Thumb</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Run ID</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Status</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Model</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Frames</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Seed</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Tag</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Date</th>\n                      <th style=\"padding:8px; text-align:left; color:#7fb3d6; font-weight:600;\">Actions</th>\n                    </tr>\n                  </thead>\n                  <tbody>\n                    <tr v-for=\"run in runsFiltered\" :key=\"run.run_id\" style=\"border-bottom:1px solid #0c3048;\" :class=\"{'runs-row-selected': runsSelected.includes(run.run_id)}\" @click=\"toggleRunSelect(run.run_id)\">\n                      <td style=\"padding:6px;\">\n                        <img v-if=\"run.has_thumbnail\" :src=\"`/api/runs/${run.run_id}/thumb`\" style=\"width:48px; height:48px; object-fit:cover; border-radius:4px;\" alt=\"\">\n                        <div v-else style=\"width:48px; height:48px; background:#0c3048; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:10px;\">No img</div>\n                      </td>\n                      <td style=\"padding:6px; font-family:monospace; font-size:10px;\">{{ run.run_id }}</td>\n                      <td style=\"padding:6px;\">\n                        <span class=\"status-chip\" :class=\"'status-' + run.status\">{{ run.status }}</span>\n                      </td>\n                      <td style=\"padding:6px; font-size:10px;\">{{ run.model || '-' }}</td>\n                      <td style=\"padding:6px; font-size:10px;\">{{ run.frame_count || run.length_frames || '-' }}</td>\n                      <td style=\"padding:6px; font-family:monospace; font-size:10px;\">{{ run.seed || '-' }}</td>\n                      <td style=\"padding:6px; font-size:10px;\">{{ run.tag || '-' }}</td>\n                      <td style=\"padding:6px; font-size:10px; color:#7fb3d6;\">{{ formatDate(run.started_at) }}</td>\n                      <td style=\"padding:6px;\">\n                        <button class=\"framesync-button\" style=\"padding:2px 6px; font-size:9px;\" @click.stop=\"showRunDetails(run)\" title=\"Details\">👁</button>\n                        <button class=\"framesync-button\" style=\"padding:2px 6px; font-size:9px;\" @click.stop=\"rerunRun(run)\" title=\"Rerun\">🔄</button>\n                        <button class=\"framesync-button\" style=\"padding:2px 6px; font-size:9px;\" @click.stop=\"deleteRun(run)\" title=\"Delete\">🗑</button>\n                      </td>\n                    </tr>\n                    <tr v-if=\"runsFiltered.length === 0\">\n                      <td colspan=\"9\" style=\"padding:20px; text-align:center; color:#7fb3d6; font-size:12px;\">\n                        No runs found. Adjust filters or refresh.\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </div>\n            </div>\n          </div>\n\n          <!-- Run details modal -->\n          <div v-if=\"runsDetailView\" style=\"margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;\">\n            <div style=\"display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;\">\n              <div class=\"framesync-title\">📋 Run Details: <span style=\"font-family:monospace; font-size:12px;\">{{ runsDetailView.run_id }}</span></div>\n              <button class=\"framesync-button\" @click=\"runsDetailView = null\">✕ Close</button>\n            </div>\n            <div style=\"display:grid; grid-template-columns: 1fr 1fr; gap:12px; font-size:11px;\">\n              <div>\n                <div class=\"framesync-subtitle\">Status</div>\n                <span class=\"status-chip\" :class=\"'status-' + runsDetailView.status\">{{ runsDetailView.status }}</span>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">Model</div>\n                <div>{{ runsDetailView.model || '-' }}</div>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">Frames</div>\n                <div>{{ runsDetailView.frame_count || runsDetailView.length_frames || '-' }}</div>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">Seed</div>\n                <div style=\"font-family:monospace;\">{{ runsDetailView.seed || '-' }}</div>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">Steps</div>\n                <div>{{ runsDetailView.steps || '-' }}</div>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">Strength</div>\n                <div>{{ runsDetailView.strength || '-' }}</div>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">CFG</div>\n                <div>{{ runsDetailView.cfg || '-' }}</div>\n              </div>\n              <div>\n                <div class=\"framesync-subtitle\">Tag</div>\n                <div>{{ runsDetailView.tag || '-' }}</div>\n              </div>\n              <div style=\"grid-column: span 2;\">\n                <div class=\"framesync-subtitle\">Positive Prompt</div>\n                <div style=\"max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;\">{{ runsDetailView.prompt_positive || '-' }}</div>\n              </div>\n              <div style=\"grid-column: span 2;\">\n                <div class=\"framesync-subtitle\">Negative Prompt</div>\n                <div style=\"max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;\">{{ runsDetailView.prompt_negative || '-' }}</div>\n              </div>\n              <div style=\"grid-column: span 2;\">\n                <div class=\"framesync-subtitle\">Notes</div>\n                <textarea class=\"framesync-input\" v-model=\"runsDetailView.notes\" style=\"min-height:60px; font-size:10px;\" placeholder=\"Add notes...\"></textarea>\n                <button class=\"framesync-button\" style=\"margin-top:6px; padding:4px 12px;\" @click=\"saveRunNotes(runsDetailView)\">💾 Save Notes</button>\n              </div>\n            </div>\n\n            <!-- Frame thumbnails -->\n            <div v-if=\"runsDetailView.frames && runsDetailView.frames.length\" style=\"margin-top:12px;\">\n              <div class=\"framesync-subtitle\">Frames ({{ runsDetailView.frames.length }})</div>\n              <div style=\"display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto;\">\n                <img v-for=\"f in runsDetailView.frames.slice(0, 50)\" :key=\"f\" :src=\"`/api/runs/${runsDetailView.run_id}/frames/${f}`\" style=\"width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid #0c3048;\" :alt=\"f\">\n              </div>\n            </div>\n          </div>\n\n          <!-- Comparison view -->\n          <div v-if=\"runsSelected.length >= 2\" style=\"margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;\">\n            <div style=\"display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;\">\n              <div class=\"framesync-title\">⚖️ Compare Runs ({{ runsSelected.length }})</div>\n              <button class=\"framesync-button\" @click=\"runsSelected = []\">✕ Clear</button>\n            </div>\n            <div style=\"overflow-x:auto;\">\n              <table style=\"width:100%; border-collapse:collapse; font-size:10px;\">\n                <thead>\n                  <tr style=\"border-bottom:1px solid #13233d;\">\n                    <th style=\"padding:6px; text-align:left; color:#7fb3d6;\">Property</th>\n                    <th v-for=\"runId in runsSelected\" :key=\"runId\" style=\"padding:6px; text-align:left; color:#7fb3d6; font-family:monospace;\">{{ runId }}</th>\n                  </tr>\n                </thead>\n                <tbody>\n                  <tr v-for=\"prop in ['status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag']\" :key=\"prop\" style=\"border-bottom:1px solid #0c3048;\">\n                    <td style=\"padding:4px; color:#7fb3d6;\">{{ prop }}</td>\n                    <td v-for=\"runId in runsSelected\" :key=\"runId\" style=\"padding:4px; font-family:monospace;\">\n                      {{ getRunProp(runId, prop) }}\n                    </td>\n                  </tr>\n                </tbody>\n              </table>\n            </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='SETTINGS'\">\n          <div class=\"sub-pills\">\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='ENGINE'}\" @click=\"switchSubTab('SETTINGS','ENGINE')\">ENGINE</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='FORGE'}\" @click=\"switchSubTab('SETTINGS','FORGE')\">FORGE</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='MIDI'}\" @click=\"switchSubTab('SETTINGS','MIDI')\">MIDI</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='BINDINGS'}\" @click=\"switchSubTab('SETTINGS','BINDINGS')\">🔗 BINDINGS</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='PRESETS'}\" @click=\"switchSubTab('SETTINGS','PRESETS')\">PRESETS</button>\n            <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='KEYS'}\" @click=\"switchSubTab('SETTINGS','KEYS')\">⌨️ KEYS</button>\n          </div>\n          <div v-if=\"currentSubTab.SETTINGS==='ENGINE'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">⚙️ <span class=\"framesync-accent\">Engine</span></div>\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Resolution</div>\n                  <select class=\"framesync-select\"><option>1024x576</option><option>1280x720</option></select>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">FPS</div>\n                  <select class=\"framesync-select\"><option>24</option><option selected>30</option><option>60</option></select>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Steps</div>\n                  <select class=\"framesync-select\"><option>24</option><option>30</option><option>40</option></select>\n                </div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                <button class=\"framesync-button\">Seed: 42490527</button>\n                <button class=\"framesync-button\">Sampler: DPM++ 2M Karras</button>\n              </div>\n            </div>\n          </div>\n          </div>\n          <div v-else-if=\"currentSubTab.SETTINGS==='FORGE'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🔌 <span class=\"framesync-accent\">Connection</span></div>\n                <button class=\"framesync-button\" @click=\"refreshApiHealth\">🔄 Refresh</button>\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">SD-Forge Host</div>\n                  <input class=\"framesync-input\" :value=\"forgeHost\" readonly>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Status</div>\n                  <div style=\"font-size:14px; color:#5af2a9; padding:6px 0;\">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>\n                </div>\n              </div>\n            </div>\n          </div>\n          </div>\n          <div v-else-if=\"currentSubTab.SETTINGS==='MIDI'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🎹 Controllers <span class=\"framesync-accent\">(WebMIDI)</span></div>\n              </div>\n              <div v-if=\"!midi.supported\" style=\"color:#9bc4e2; margin-top:12px; font-size:12px;\">WebMIDI not supported or not enabled.</div>\n              <div v-else>\n                <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                  <button class=\"framesync-button\" v-for=\"d in midi.devices\" :key=\"d.id\" :class=\"{active: midi.selected===d.id}\" @click=\"midi.selected=d.id\">{{ d.name }}</button>\n                  <button class=\"framesync-button\" @click=\"scanMidi()\">Rescan</button>\n                </div>\n                <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n                  <button class=\"framesync-button\">Learn mode</button>\n                  <button class=\"framesync-button\" @click=\"addMidiMapping\">+ Add Mapping</button>\n                  <button class=\"framesync-button\">Status: {{ midiStatus }}</button>\n                </div>\n                <div style=\"margin-top:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px; overflow:hidden;\">\n                  <table class=\"table\">\n                    <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>\n                    <tbody>\n                      <tr v-for=\"(m, idx) in midi.mappings\" :key=\"'midi'+idx\">\n                        <td><input class=\"framesync-input\" v-model=\"m.control\" @change=\"saveMidiMappings\" style=\"width:100px; padding:4px;\"></td>\n                        <td><input class=\"framesync-input\" type=\"number\" v-model.number=\"m.cc\" @change=\"saveMidiMappings\" style=\"width:60px; padding:4px;\"></td>\n                        <td>\n                          <select class=\"framesync-select\" v-model=\"m.key\" @change=\"saveMidiMappings\" style=\"width:120px; padding:4px;\">\n                            <option value=\"\">None</option>\n                            <option v-for=\"t in lfoTargets\" :key=\"'mopt'+t.key\" :value=\"t.key\">{{ t.label }}</option>\n                          </select>\n                        </td>\n                        <td><button class=\"framesync-button\" @click=\"deleteMidiMapping(idx)\" style=\"padding:4px 8px; cursor:pointer;\">Delete</button></td>\n                      </tr>\n                    </tbody>\n                  </table>\n                </div>\n              </div>\n            </div>\n          </div>\n          </div>\n          <div v-else-if=\"currentSubTab.SETTINGS==='BINDINGS'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">🔗 Parameter <span class=\"framesync-accent\">Bindings</span></div>\n                <div style=\"display:flex; gap:8px; align-items:center;\">\n                  <button class=\"framesync-button\" :class=\"{active: bindingLearnMode}\" @click=\"toggleBindingLearn\">{{ bindingLearnMode ? '🔴 Stop Learn' : '🎯 Learn' }}</button>\n                  <button class=\"framesync-button\" @click=\"resetBindings\">↺ Defaults</button>\n                </div>\n              </div>\n              <div v-if=\"bindingLearnMode\" style=\"margin-top:8px; padding:8px 12px; background:#1a0a2e; border:1px solid #ff53d9; border-radius:6px; font-size:12px; color:#ff53d9;\">\n                Learn mode active. Press a key or move a MIDI controller, then click a parameter to bind.\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;\">\n                <div class=\"framesync-stack\" v-for=\"group in bindingGroups\" :key=\"group.label\">\n                  <div class=\"framesync-subtitle\">{{ group.label }}</div>\n                  <div style=\"background:#031b2d; border:1px solid #0c3048; border-radius:6px; overflow:hidden;\">\n                    <table style=\"width:100%; font-size:11px; border-collapse:collapse;\">\n                      <thead><tr style=\"color:#5a8fb8; border-bottom:1px solid #0c3048;\">\n                        <th style=\"text-align:left; padding:4px 8px;\">Parameter</th>\n                        <th style=\"text-align:left; padding:4px 8px;\">Key</th>\n                        <th style=\"text-align:left; padding:4px 8px;\">MIDI CC</th>\n                        <th style=\"padding:4px 8px;\">Actions</th>\n                      </tr></thead>\n                      <tbody>\n                        <tr v-for=\"t in group.items\" :key=\"t.key\" style=\"border-bottom:1px solid #0c3048;\">\n                          <td style=\"padding:4px 8px; color:#cfe5f5;\">{{ t.label }}</td>\n                          <td style=\"padding:4px 8px;\">\n                            <span v-if=\"getKeyBinding(t.key)\" style=\"display:inline-flex; align-items:center; gap:4px;\">\n                              <kbd style=\"background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:#5af2a9;\">{{ getKeyBinding(t.key) }}</kbd>\n                              <button style=\"border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;\" @click=\"clearKeyBinding(t.key)\">✕</button>\n                            </span>\n                            <span v-else style=\"color:#3a5a78;\">—</span>\n                          </td>\n                          <td style=\"padding:4px 8px;\">\n                            <span v-if=\"getMidiBinding(t.key)\" style=\"display:inline-flex; align-items:center; gap:4px;\">\n                              <span style=\"background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-size:10px; color:#fbbf24;\">CC {{ getMidiBinding(t.key) }}</span>\n                              <button style=\"border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;\" @click=\"clearMidiBinding(t.key)\">✕</button>\n                            </span>\n                            <span v-else style=\"color:#3a5a78;\">—</span>\n                          </td>\n                          <td style=\"padding:4px 8px; text-align:center;\">\n                            <button v-if=\"bindingLearnMode\" class=\"framesync-button\" style=\"padding:2px 6px; font-size:9px;\" @click=\"bindingTargetKey=t.key\">Bind here</button>\n                          </td>\n                        </tr>\n                      </tbody>\n                    </table>\n                  </div>\n                </div>\n              </div>\n            </div>\n          </div>\n          </div>\n          <div v-else-if=\"currentSubTab.SETTINGS==='PRESETS'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">💾 Preset <span class=\"framesync-accent\">Management</span></div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                <button class=\"framesync-button\" v-for=\"p in availablePresets\" :key=\"p\" :class=\"{active: currentPreset===p}\" @click=\"loadPreset(p)\">{{ p }}</button>\n                <button class=\"framesync-button\" @click=\"refreshPresets\">🔄 Refresh</button>\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div class=\"framesync-subtitle\">New preset name</div>\n                <input class=\"framesync-input\" v-model=\"newPresetName\" placeholder=\"my-preset\">\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n                <button class=\"framesync-button\" @click=\"saveCurrentPreset\">💾 Save current as preset</button>\n                <button class=\"framesync-button\" v-if=\"currentPreset\" @click=\"deletePreset(currentPreset)\" style=\"border-color:#ff4d6d; color:#ff4d6d;\">🗑 Delete {{ currentPreset }}</button>\n              </div>\n              <div v-if=\"presetStatus\" class=\"framesync-subtitle\" style=\"margin-top:8px; text-align:center;\">{{ presetStatus }}</div>\n            </div>\n          </div>\n          </div>\n          <div v-else-if=\"currentSubTab.SETTINGS==='KEYS'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">⌨️ <span class=\"framesync-accent\">Keyboard Shortcuts</span></div>\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Navigation</div>\n                  <div style=\"font-size:12px; color:var(--muted); line-height:1.8;\">\n                    <div><kbd>1</kbd>–<kbd>7</kbd> Switch tabs (LIVE→GENERATE)</div>\n                  </div>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">LIVE Tab</div>\n                  <div style=\"font-size:12px; color:var(--muted); line-height:1.8;\">\n                    <div><kbd>Space</kbd> Generate image</div>\n                    <div><kbd>R</kbd> Reset Vibe & Camera params</div>\n                  </div>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">PROMPTS Tab</div>\n                  <div style=\"font-size:12px; color:var(--muted); line-height:1.8;\">\n                    <div><kbd>M</kbd> Toggle prompt morphing</div>\n                  </div>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">MODULATION Tab</div>\n                  <div style=\"font-size:12px; color:var(--muted); line-height:1.8;\">\n                    <div><kbd>L</kbd> Toggle LFO</div>\n                    <div><kbd>B</kbd> Toggle Beat Macro</div>\n                  </div>\n                </div>\n              </div>\n            </div>\n          </div>\n          </div>\n        </div>\n\n        <div v-else-if=\"currentTab==='GENERATE'\">\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">⏱ Animation <span class=\"framesync-accent\">Sequencer</span></div>\n                <div class=\"pill\" :class=\"{'danger': sequencerPlaying}\">\n                  <span class=\"dot\"></span>{{ sequencerPlaying ? 'Playing' : 'Stopped' }}\n                </div>\n              </div>\n              <div class=\"framesync-row\" style=\"grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px; align-items:end;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Duration (s)</div>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"sequencer.durationSec\" min=\"0.5\" max=\"600\" step=\"0.5\" @change=\"clampSequencerPlayhead\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">FPS</div>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"sequencer.fps\" min=\"1\" max=\"60\" step=\"1\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Loop</div>\n                  <label class=\"framesync-list\" style=\"display:flex; align-items:center; gap:8px; margin-top:6px;\"><input type=\"checkbox\" v-model=\"sequencer.loop\"> Repeat timeline</label>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">BPM Sync</div>\n                  <label class=\"framesync-list\" style=\"display:flex; align-items:center; gap:8px; margin-top:6px;\"><input type=\"checkbox\" v-model=\"sequencer.bpmSync\"> Sync to audio BPM</label>\n                </div>\n              </div>\n              <div v-if=\"sequencer.bpmSync\" class=\"framesync-row\" style=\"grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:8px; align-items:end;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">BPM</div>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"sequencer.bpm\" min=\"20\" max=\"300\" step=\"0.1\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Bars</div>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"sequencer.bars\" min=\"1\" max=\"128\" step=\"1\">\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Beats/Bar</div>\n                  <select class=\"framesync-select\" v-model.number=\"sequencer.beatsPerBar\">\n                    <option value=\"4\">4/4</option>\n                    <option value=\"3\">3/4</option>\n                    <option value=\"6\">6/8</option>\n                  </select>\n                </div>\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Calculated</div>\n                  <div style=\"font-size:12px; color:#5af2a9; padding:6px 0;\">{{ sequencerCalculatedDuration }}s</div>\n                </div>\n              </div>\n              <div class=\"framesync-subtitle\" style=\"margin-top:12px;\">Playhead (s)</div>\n              <input type=\"range\" class=\"framesync-input\" style=\"width:100%;\" min=\"0\" :max=\"Math.max(0.01, sequencer.durationSec)\" step=\"0.01\" v-model.number=\"sequencerPlayhead\" @input=\"previewSequencerFrame\">\n              <div v-if=\"Number(sequencer.durationSec) > 0\" style=\"position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;\" title=\"Scene markers (click to jump)\">\n                <div style=\"position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;\"></div>\n                <div v-for=\"(m, mi) in sortedSequencerMarkers\" :key=\"'mk-'+mi+'-'+(m.t || 0)\" style=\"position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;\" :style=\"{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }\">\n                  <button type=\"button\" class=\"framesync-button\" style=\"padding:2px 6px; font-size:9px; white-space:nowrap;\" @click=\"jumpToSequencerMarker(m)\">{{ m.name }}</button>\n                </div>\n                <div v-if=\"sortedSequencerMarkers.length === 0\" style=\"position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:11px;\">\n                  No markers yet\n                </div>\n                <div style=\"position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:3; pointer-events:none;\" :style=\"{ left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }\"></div>\n              </div>\n              <div class=\"framesync-subtitle\" style=\"margin-top:12px;\">Scene markers</div>\n              <div style=\"display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:6px;\">\n                <input type=\"text\" class=\"framesync-input\" style=\"max-width:160px; font-size:11px;\" v-model.trim=\"sequencerMarkerName\" maxlength=\"48\" placeholder=\"Label\" title=\"1–48 chars: letters, digits, space, _ - .\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"addSequencerMarker\">+ Marker @ playhead</button>\n              </div>\n              <div v-if=\"sortedSequencerMarkers.length\" style=\"font-size:11px; color:#7fb3d6;\">\n                <div v-for=\"(m, mi) in sortedSequencerMarkers\" :key=\"'mrow-'+mi+'-'+(m.t||0)\" style=\"display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:#031b2d; border-radius:4px;\">\n                  <button type=\"button\" class=\"framesync-button\" style=\"font-size:10px; padding:2px 6px;\" @click=\"jumpToSequencerMarker(m)\">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>\n                  <select class=\"framesync-input\" style=\"font-size:10px; max-width:100px; padding:2px 4px;\" :value=\"m.action || 'jump'\" @change=\"setMarkerAction(m, $event.target.value)\">\n                    <option value=\"jump\">↦ Jump</option>\n                    <option value=\"preset\">🎨 Preset</option>\n                    <option value=\"generate\">⏱ Generate</option>\n                    <option value=\"morph\">🔄 Morph</option>\n                    <option value=\"param\">🎛 Params</option>\n                    <option value=\"pause\">⏸ Pause</option>\n                  </select>\n                  <input v-if=\"m.action && m.action !== 'jump' && m.action !== 'generate' && m.action !== 'pause'\" type=\"text\" class=\"framesync-input\" style=\"font-size:10px; max-width:140px; padding:2px 4px;\" :value=\"m.target || ''\" :placeholder=\"markerActionPlaceholder(m.action)\" @change=\"setMarkerTarget(m, $event.target.value)\" :title=\"markerActionTitle(m.action)\">\n                  <span v-if=\"m.action === 'jump'\" style=\"font-size:9px; color:#5a8fb8;\">jump to time</span>\n                  <span v-if=\"m.action === 'generate'\" style=\"font-size:9px; color:#5a8fb8;\">trigger generation</span>\n                  <span v-if=\"m.action === 'pause'\" style=\"font-size:9px; color:#5a8fb8;\">pause playback</span>\n                  <button type=\"button\" style=\"border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;\" title=\"Remove\" @click=\"removeSequencerMarker(mi)\">✕</button>\n                </div>\n              </div>\n              <div v-else class=\"framesync-list\" style=\"font-size:11px; font-style:italic;\">No markers yet</div>\n              <div style=\"display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"toggleSequencerPlayback\">{{ sequencerPlaying ? '⏹ Stop' : '▶ Play' }}</button>\n                <button type=\"button\" class=\"framesync-button\" @click=\"previewSequencerFrame\">Preview frame</button>\n                <button type=\"button\" class=\"framesync-button\" @click=\"saveSequencerTimeline\">💾 Save</button>\n                <button type=\"button\" class=\"framesync-button\" @click=\"exportSequencerDownload\">⬇ Export JSON</button>\n                <select class=\"framesync-input\" style=\"max-width:160px; font-size:11px;\" v-model=\"sequencerLoadPick\" @change=\"loadSequencerTimeline\">\n                  <option value=\"\">Load saved…</option>\n                  <option v-for=\"n in sequencerList\" :key=\"'seq-'+n\" :value=\"n\">{{ n }}</option>\n                </select>\n              </div>\n              <div class=\"framesync-subtitle\" style=\"margin-top:14px;\">Tracks</div>\n              <div v-if=\"sequencer.tracks.length\" style=\"margin-top:8px; border:1px solid #0c3048; border-radius:8px; background:#031b2d; overflow:hidden;\">\n                <div style=\"padding:6px 10px; font-size:10px; color:#5a8fb8; border-bottom:1px solid #0c3048; display:flex; justify-content:space-between; align-items:center;\">\n                  <span>TIMELINE</span>\n                  <span>{{ sequencer.tracks.length }} track{{ sequencer.tracks.length > 1 ? 's' : '' }} · {{ sequencer.durationSec }}s</span>\n                </div>\n                <div style=\"position:relative;\" ref=\"timelineContainer\">\n                  <canvas ref=\"timelineCanvas\" style=\"width:100%; display:block; cursor:pointer;\" @click=\"seekTimeline\" @mousemove=\"hoverTimeline\"></canvas>\n                  <div v-if=\"timelineHoverTime !== null\" style=\"position:absolute; top:0; bottom:0; width:1px; background:rgba(255,255,255,0.3); pointer-events:none; z-index:3;\" :style=\"{ left: timelineHoverPercent + '%' }\"></div>\n                </div>\n              </div>\n              <div style=\"display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:8px;\">\n                <select class=\"framesync-input\" style=\"min-width:140px; font-size:11px;\" v-model=\"sequencerNewParam\">\n                  <option v-for=\"opt in sequencerParamOptions\" :key=\"'sp-'+opt.key\" :value=\"opt.key\">{{ opt.label }}</option>\n                </select>\n                <button type=\"button\" class=\"framesync-button\" @click=\"addSequencerTrack\">+ Track</button>\n                <span class=\"framesync-list\" style=\"font-size:11px;\">Keyframe value</span>\n                <input type=\"number\" class=\"framesync-input\" style=\"width:100px; font-size:11px;\" v-model.number=\"sequencerKeyframeVal\" step=\"any\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"addSequencerKeyframe\">+ Keyframe @ playhead</button>\n              </div>\n              <div v-for=\"tr in sequencer.tracks\" :key=\"tr.id\" style=\"border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;\">\n                <div style=\"display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;\">\n                  <strong style=\"color:#ff8a1a; font-size:13px;\">{{ tr.param }}</strong>\n                  <label style=\"font-size:11px; color:#9bc4e2;\">\n                    <input type=\"radio\" :value=\"tr.id\" v-model=\"sequencerSelectedTrackId\"> edit\n                  </label>\n                  <button type=\"button\" class=\"framesync-button\" style=\"padding:4px 8px; font-size:10px;\" @click=\"removeSequencerTrack(tr.id)\">Remove track</button>\n                </div>\n                <div style=\"font-size:11px; color:#7fb3d6; margin-top:6px;\">\n                  <span v-for=\"(kf, ki) in sortedKeyframes(tr)\" :key=\"tr.id+'-'+ki+'-'+(kf.t||0)\" style=\"display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;\">\n                    t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}\n                    <select class=\"framesync-input\" style=\"font-size:10px; max-width:110px; padding:2px 4px;\" :value=\"kf.easing || 'linear'\" title=\"Easing to next keyframe\" @change=\"setKeyframeEasing(kf, $event.target.value)\">\n                      <option value=\"linear\">linear</option>\n                      <option value=\"easeIn\">easeIn</option>\n                      <option value=\"easeOut\">easeOut</option>\n                      <option value=\"easeInOut\">easeInOut</option>\n                    </select>\n                    <button type=\"button\" style=\"border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;\" title=\"Remove\" @click=\"removeSequencerKeyframe(tr.id, ki)\">✕</button>\n                  </span>\n                  <span v-if=\"!tr.keyframes.length\" style=\"font-style:italic;\">No keyframes</span>\n                </div>\n              </div>\n              <div v-if=\"sequencerStatus\" class=\"framesync-list\" style=\"margin-top:8px; color:#5af2a9;\">{{ sequencerStatus }}</div>\n            </div>\n          </div>\n\n          <!-- Generator Settings -->\n          <div class=\"rack\">\n            <div class=\"framesync-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">✨ Story <span class=\"framesync-accent\">Generator</span></div>\n                <button class=\"framesync-button\" :disabled=\"generator.isGenerating\" @click=\"generateStory\" style=\"min-width:120px;\">\n                  {{ generator.isGenerating ? '⏳ Generating…' : '▶ Generate' }}\n                </button>\n              </div>\n              <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n                <div class=\"framesync-subtitle\">Theme / Story concept</div>\n                <input class=\"framesync-input\" v-model=\"generator.theme\" placeholder=\"e.g. A Space Traveler, Ancient Forest, Cyberpunk City…\" style=\"width:100%;\">\n              </div>\n              <div style=\"display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">Style preset</div>\n                  <select class=\"framesync-select\" v-model=\"generator.stylePreset\">\n                    <option value=\"Masterpiece, Realistic\">Masterpiece Realistic</option>\n                    <option value=\"Masterpiece, Cinematic\">Cinematic</option>\n                    <option value=\"Masterpiece, best quality, anime\">Anime</option>\n                    <option value=\"oil painting, impressionism\">Oil Painting</option>\n                    <option value=\"digital art, concept art, surrealistic\">Surrealist</option>\n                    <option value=\"watercolor, illustration\">Watercolor</option>\n                    <option value=\"custom\">Custom…</option>\n                  </select>\n                </div>\n                <div class=\"framesync-stack\" v-if=\"generator.stylePreset === 'custom'\">\n                  <div class=\"framesync-subtitle\">Custom style</div>\n                  <input class=\"framesync-input\" v-model=\"generator.customStyle\" placeholder=\"your style keywords\">\n                </div>\n              </div>\n              <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n                <button class=\"framesync-button\" @click=\"generateStory\">▶ Generate Story</button>\n                <button class=\"framesync-button\" @click=\"generateImage\">🖼 Generate Image</button>\n              </div>\n              <div v-if=\"generator.status\" class=\"framesync-subtitle\" style=\"margin-top:8px; text-align:center;\">{{ generator.status }}</div>\n              <div v-if=\"generator.lastPath\" :style=\"storyResultCollapsed ? '' : 'margin-top:12px;'\">\n                <div class=\"framesync-header\" style=\"margin-bottom:8px;\">\n                  <div class=\"framesync-subtitle\" style=\"margin:0;\">Result</div>\n                  <button class=\"framesync-button\" @click=\"storyResultCollapsed = !storyResultCollapsed\">{{ storyResultCollapsed ? '▼ Show' : '▲ Hide' }}</button>\n                </div>\n                <div v-if=\"!storyResultCollapsed\">\n                  <img v-if=\"generator.lastPath\" :src=\"generator.lastPath\" style=\"width:100%; border-radius:8px; border:1px solid #0c3048;\">\n                </div>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n    </div>\n\n    <!-- Bottom context panel -->\n    <div class=\"context\">\n      <div v-if=\"currentTab==='LIVE'\">\n        <h4>Performance</h4>\n        <div class=\"chips\">\n          <span class=\"chip\">Crossfader: {{ performance.crossfader.toFixed(2) }}</span>\n          <span class=\"chip\">Slots: {{ performance.slots.length }}</span>\n          <span class=\"chip\">Model: {{ modelStatusLabel }}</span>\n        </div>\n        <h4 style=\"margin-top:12px;\">Beat & MIDI status</h4>\n        <div style=\"display:flex; gap:12px; flex-wrap:wrap;\">\n          <div style=\"min-width:240px;\">\n            <strong>Beat macros ({{ macrosRack.length }})</strong>\n            <div v-for=\"m in macrosRack\" :key=\"m.target\" style=\"font-size:12px; color:var(--muted);\">\n              • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%\n            </div>\n          </div>\n          <div style=\"min-width:240px;\">\n            <strong>MIDI mappings</strong>\n            <div style=\"font-size:12px; color:var(--muted);\">\n              • LaunchControl CC21 → Vibe<br/>\n              • LaunchControl CC22 → Strength<br/>\n              • LaunchControl CC23 → Zoom\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <div v-else-if=\"currentTab==='PROMPTS'\">\n        <h4>Prompts & Parameters</h4>\n        <div v-if=\"currentSubTab.PROMPTS==='PROMPTS'\">\n          <table class=\"table\">\n            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>\n            <tbody>\n              <tr v-for=\"slot in morphSlots\" :key=\"slot.id\">\n                <td>{{ slot.id }}</td>\n                <td>{{ slot.on ? '●' : '○' }}</td>\n                <td>{{ slot.name }}</td>\n                <td>{{ slot.a }}</td>\n                <td>{{ slot.b }}</td>\n                <td>{{ slot.range }}</td>\n              </tr>\n            </tbody>\n          </table>\n          <div class=\"chips\"><span class=\"chip\">+ Add morph</span><span class=\"chip\">Copy from preset</span></div>\n        </div>\n        <div v-else-if=\"currentSubTab.PROMPTS==='LORA'\">\n          <div class=\"chips\">\n            <span class=\"chip\">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>\n            <span class=\"chip\">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>\n          </div>\n        </div>\n        <div v-else-if=\"currentSubTab.PROMPTS==='CONTROLNET'\">\n          <div class=\"chips\">\n            <span class=\"chip\">ControlNet: {{ cn.active }}</span>\n            <span class=\"chip\">Slots: {{ cn.slots.length }}</span>\n          </div>\n        </div>\n      </div>\n\n      <div v-else-if=\"currentTab==='MOTION'\">\n        <h4>Sequencer status</h4>\n        <div class=\"chips\">\n          <span class=\"chip\" v-for=\"(s, name) in motionStylesSaved\" :key=\"'ctx-saved-'+name\">💾 {{ name }}</span>\n          <span class=\"chip\">Tracks: {{ sequencer.tracks.length }}</span>\n          <span class=\"chip\">Markers: {{ sequencer.markers?.length || 0 }}</span>\n        </div>\n      </div>\n\n      <div v-else-if=\"currentTab==='MODULATION'\">\n        <h4>Modulation</h4>\n        <div class=\"chips\">\n          <span class=\"chip\" v-for=\"(m, idx) in macrosRack.filter(x => x.on)\" :key=\"'ctx-mac'+idx\">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>\n          <span class=\"chip\">LFOs: {{ lfos.filter(l => l.on).length }}/{{ lfos.length }}</span>\n        </div>\n      </div>\n\n      <div v-else-if=\"currentTab==='AUDIO'\">\n        <h4>Audio</h4>\n        <div v-if=\"audio.uploadedFile\" style=\"margin-top:8px;\">\n          <div class=\"chips\">\n            <span class=\"chip\">File: {{ audio.uploadedFile }}</span>\n            <span class=\"chip\">BPM: {{ audio.bpm }}</span>\n          </div>\n          <div style=\"margin-top:8px;\">\n            <img v-if=\"audioSpectrogramDataUrl\" :src=\"audioSpectrogramDataUrl\" class=\"spectral-preview\" alt=\"Spectrogram\">\n          </div>\n        </div>\n      </div>\n\n      <div v-else-if=\"currentTab==='SETTINGS'\">\n        <h4>Settings</h4>\n        <div v-if=\"currentSubTab.SETTINGS==='MIDI'\">\n          <table class=\"table\">\n            <thead><tr><th>Control</th><th>CC</th><th>Target</th></tr></thead>\n            <tbody>\n              <tr v-for=\"m in midi.mappings\" :key=\"m.control+'ctx'\">\n                <td>{{ m.control }}</td>\n                <td>{{ m.cc }}</td>\n                <td>\n                  <select class=\"select\" v-model=\"m.key\" @change=\"updateMidiMapping(m)\">\n                    <option value=\"\">None</option>\n                    <option v-for=\"t in lfoTargets\" :key=\"'map'+t.key\" :value=\"t.key\">{{ t.label }}</option>\n                  </select>\n                </td>\n              </tr>\n            </tbody>\n          </table>\n        </div>\n      </div>\n\n      <div v-else-if=\"currentTab==='GENERATE'\">\n        <h4>Generator</h4>\n        <div class=\"chips\">\n          <span class=\"chip\">Theme: {{ generator.theme || '—' }}</span>\n          <span class=\"chip\">Style: {{ generator.stylePreset }}</span>\n        </div>\n      </div>\n    </div>\n  </div>",
+  name: 'App',
   data() {
     return {
        showFrames: true,
        isPlaying: false,
        isRecording: false,
+       deforumPlaying: false,
+       previewGenerating: false,
+       previewDebounceTimer: null,
+       framesRefreshBackoffMs: 5000,
+       apiHealthBackoffMs: 15000,
+       paramPanelOpen: false,
+       deforumPanelOpen: false,
+       deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
+       deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+       deforumSectionOpen: {},
+       deforumAdvancedOpen: false,
+       deforumSettingsJson: '',
+       deforumSettingsJsonError: '',
+       deforumSettingsStatus: '',
+       deforumSaveTimer: null,
+       deforumPreviewTimer: null,
+       crossfadeSlotTypes: CROSSFADE_SLOT_TYPES,
+       performance: {
+         genericPrompt: '',
+         crossfader: 0.5,
+         newSlotType: 'prompt',
+         slots: [],
+         status: '',
+         lastPreviewPath: null,
+       },
+       forge: {
+         host: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_HOST ? process.env.SD_FORGE_HOST : '192.168.2.102',
+         port: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_PORT ? process.env.SD_FORGE_PORT : '7860',
+         available: false,
+         loading: false,
+         switching: false,
+         models: [],
+         currentModel: '',
+         selectedModel: '',
+         lastModel: '',
+         modelInfo: null,
+         samplers: [],
+         schedulers: [],
+         vaeList: [],
+         options: {},
+       },
        streamUrl: "",
        lfoOn: true,
       beatMacroOn: true,
@@ -1831,6 +76,7 @@ module.exports = {
         { id: "MOTION", label: "MOTION" },
         { id: "MODULATION", label: "MODULATION" },
         { id: "AUDIO", label: "AUDIO" },
+        { id: "RUNS", label: "RUNS" },
         { id: "SETTINGS", label: "SETTINGS" },
         { id: "GENERATE", label: "GENERATE" },
       ],
@@ -1871,46 +117,13 @@ module.exports = {
         height: 1024,
         status: "",
         lastPath: null,
-        maskMode: "draw",
-        brushSize: 20,
-        isDrawing: false,
-        batchSize: 4,
-        seedVariation: 100,
-        isBatchProcessing: false,
-        batchProgress: 0,
-        batchResults: [],
       },
       pluginsRegistry: [],
-      llm: {
-        type: "llama.cpp",
-        serverUrl: "http://localhost:8080",
-        loadedModel: "",
-        selectedModel: "",
-        availableModels: [],
-        memory: { used: 0, total: 0, percent: 0 },
-        status: { connected: false, message: "Not started" },
-        showConfig: false,
-        configStatus: "",
-        params: {
-          maxTokens: 2048,
-          temperature: 0.7,
-          topP: 0.9,
-          contextLength: 4096,
-          gpuLayers: 35,
-          threads: 8,
-        },
-      },
       morphSlots: [
-        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00", strength: 0.5, schedule: [] },
-        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60", strength: 0.5, schedule: [] },
-        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80", strength: 0.5, schedule: [] },
+        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
+        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
+        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
       ],
-      promptSchedule: {
-        enabled: false,
-        durationSec: 60,
-        fps: 24,
-        tracks: [],
-      },
       loras: {
         available: [],
         groupA: [],
@@ -2042,6 +255,7 @@ module.exports = {
         webcamCanvas: null,
         webcamCaptureInterval: null,
       },
+      webcamCaptureRate: 500,
       midi: {
         supported: typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess,
         devices: [],
@@ -2100,22 +314,53 @@ module.exports = {
       sequencerKeyframeVal: 0,
       sequencerMarkerName: "Scene",
       sequencerSelectedTrackId: null,
-      webcamCaptureRate: 500,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
-      timelineDragging: null,
-      timelineDragTarget: null,
       timelineCanvasCtx: null,
       lfoTargetPick: {},
       avSyncCollapsed: true,
       morphCollapsed: true,
       forgeAdvancedCollapsed: true,
       storyResultCollapsed: false,
-      lfoCanvasRefs: {},
-      _lfoAnimFrame: null,
-    };
+       lfoCanvasRefs: {},
+       _lfoAnimFrame: null,
+       runsAll: [],
+       runsFiltered: [],
+       runsFilter: { search: "", status: "", tag: "", model: "" },
+       runsSort: { field: "started_at", order: "desc" },
+       runsSelected: [],
+       runsDetailView: null,
+       runsStatus: "",
+       genData: {
+         defaultThemes: ['A journey through light', 'Neon cathedral', 'Ocean depths'],
+         sceneDescriptors: { opening: ['ethereal', 'quiet'], buildup: ['rising', 'vivid'], climax: ['intense', 'surreal'], closing: ['soft', 'fading'] },
+         environments: [['forest', 'meadow'], ['city', 'alley'], ['space', 'nebula']],
+         lighting: ['golden hour', 'neon rim light', 'moonlit'],
+         quality: ['masterpiece', 'best quality'],
+         techSpecs: ['8k', 'sharp focus'],
+         artists: { default: ['artgerm', 'greg rutkowski'], 'Masterpiece, Realistic': ['photorealistic'] },
+         negatives: ['blurry', 'low quality'],
+         cameraBehaviors: ['STATIC', 'ORBIT', 'TUNNEL'],
+       },
+     };
   },
   computed: {
+    modelStatusKind() {
+      if (this.forge.switching || this.forge.loading) return 'loading';
+      if (this.forge.available || (this.apiHealth.sdForge && this.apiHealth.sdForge.available)) return 'ready';
+      return 'offline';
+    },
+    modelStatusLabel() {
+      if (this.modelStatusKind === 'loading') return 'Loading';
+      if (this.modelStatusKind === 'ready') return 'Ready';
+      return 'Offline';
+    },
+    paramPanelGroups() {
+      return [
+        { label: 'Style', items: this.liveVibe },
+        { label: 'Camera', items: this.liveCam },
+      ];
+    },
     activeSlot() {
       return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
     },
@@ -2176,27 +421,52 @@ module.exports = {
     sequencerPlayhead() {
       this.$nextTick(() => this.drawTimeline());
     },
+    'performance.crossfader'() {
+      this.applyCrossfadeMorph();
+      this.saveSessionState();
+    },
+    session() {
+      this.saveSessionState();
+    },
   },
   mounted() {
+    this.loadSessionState();
+    this.applyCrossfadeMorph();
     this.loadMotionStyles();
     this.loadBindings();
     this.refreshPresets();
     this.refreshLoras();
     this.loadControlNetModels();
     this.refreshPlugins();
-    this.refreshForgeAll();
+    this.syncDeforumSettingsJson();
+    this.loadDeforumSettings();
+    this.refreshForgeAll().then(() => {
+      this.restoreLastModel();
+      if (!this.deforumPlaying) this.schedulePreviewFrame();
+    });
     this.scanMidi();
     this.connectWebSocket();
     this.initHls();
     if (typeof fetch === "function") {
-      this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
-      this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
+      const scheduleFramesPoll = () => {
+        this.refreshFrames().finally(() => {
+          this.framesTimer = setTimeout(scheduleFramesPoll, this.framesRefreshBackoffMs || 5000);
+        });
+      };
+      scheduleFramesPoll();
+      const scheduleHealthPoll = () => {
+        this.refreshApiHealth().finally(() => {
+          this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
+        });
+      };
+      scheduleHealthPoll();
     }
     this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
     this.lfoTimer = setInterval(() => this.runLfos(), 120);
     this.beatTimer = setInterval(() => this.processBeat(), 50);
     this.startLfoAnimation();
     this.setupKeyboardShortcuts();
+    this.refreshRuns();
     this.$nextTick(() => {
       this.refreshSequencerList();
       setTimeout(() => this.drawTimeline(), 200);
@@ -2205,11 +475,12 @@ module.exports = {
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
     this.stopSequencerPlayback();
-    if (this.framesTimer) clearInterval(this.framesTimer);
-    if (this.apiStatusTimer) clearInterval(this.apiStatusTimer);
+    if (this.framesTimer) clearTimeout(this.framesTimer);
+    if (this.apiStatusTimer) clearTimeout(this.apiStatusTimer);
     if (this.playbackTimer) clearInterval(this.playbackTimer);
     if (this.lfoTimer) clearInterval(this.lfoTimer);
     if (this.beatTimer) clearInterval(this.beatTimer);
+    if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
     this.stopLfoAnimation();
     if (this.playerEl && this.timeHandler) {
       this.playerEl.removeEventListener("timeupdate", this.timeHandler);
@@ -2223,19 +494,154 @@ module.exports = {
   },
   methods: {
 
- async refreshApiHealth() {
-   if (typeof fetch !== "function") return;
-   try {
-     const res = await fetch("/api/status");
-     if (!res.ok) return;
-     const j = await res.json();
-     if (j && j.sdForge) {
-       this.apiHealth = { sdForge: { ...j.sdForge } };
-     }
-   } catch (_e) {
-     /* ignore */
-   }
- },
+  async refreshApiHealth() {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch("/api/status");
+      if (!res.ok) {
+        this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
+        return;
+      }
+      const j = await res.json();
+      if (j && j.sdForge) {
+        this.apiHealth = { sdForge: { ...j.sdForge } };
+        this.forge.available = !!j.sdForge.available;
+      }
+      this.apiHealthBackoffMs = 15000;
+    } catch (_e) {
+      this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
+    }
+  },
+  async refreshRuns() {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch("/api/runs");
+      if (!res.ok) return;
+      const data = await res.json();
+      this.runsAll = data.runs || [];
+      this.applyRunsFilters();
+    } catch (_e) {
+      this.runsStatus = "Failed to load runs";
+    }
+  },
+  applyRunsFilters() {
+    let filtered = [...this.runsAll];
+    const { search, status, tag, model } = this.runsFilter;
+    if (status) filtered = filtered.filter(r => r.status === status);
+    if (tag) filtered = filtered.filter(r => (r.tag || "").toLowerCase().includes(tag.toLowerCase()));
+    if (model) filtered = filtered.filter(r => (r.model || "").toLowerCase().includes(model.toLowerCase()));
+    if (search) {
+      const s = search.toLowerCase();
+      filtered = filtered.filter(r =>
+        (r.run_id || "").toLowerCase().includes(s) ||
+        (r.tag || "").toLowerCase().includes(s) ||
+        (r.model || "").toLowerCase().includes(s) ||
+        (r.prompt_positive || "").toLowerCase().includes(s) ||
+        (r.notes || "").toLowerCase().includes(s)
+      );
+    }
+    const { field, order } = this.runsSort;
+    filtered.sort((a, b) => {
+      let va = a[field] || "";
+      let vb = b[field] || "";
+      if (typeof va === "number" && typeof vb === "number") {
+        return order === "desc" ? vb - va : va - vb;
+      }
+      va = String(va).toLowerCase();
+      vb = String(vb).toLowerCase();
+      return order === "desc" ? vb.localeCompare(va) : va.localeCompare(vb);
+    });
+    this.runsFiltered = filtered;
+  },
+  toggleRunSelect(runId) {
+    const idx = this.runsSelected.indexOf(runId);
+    if (idx >= 0) this.runsSelected.splice(idx, 1);
+    else this.runsSelected.push(runId);
+  },
+  async showRunDetails(run) {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`);
+      if (!res.ok) return;
+      this.runsDetailView = await res.json();
+    } catch (_e) {
+      this.runsStatus = "Failed to load run details";
+    }
+  },
+  async rerunRun(run) {
+    if (typeof fetch !== "function") return;
+    if (!confirm(`Rerun ${run.run_id}?`)) return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}/rerun`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ overrides: {} }),
+      });
+      const data = await res.json();
+      this.runsStatus = data.success ? `Rerun request saved for ${run.run_id}` : data.error;
+    } catch (_e) {
+      this.runsStatus = "Failed to submit rerun";
+    }
+  },
+  async deleteRun(run) {
+    if (typeof fetch !== "function") return;
+    if (!confirm(`Delete ${run.run_id}? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`, { method: "DELETE" });
+      const data = await res.json();
+      if (data.success) {
+        await this.refreshRuns();
+        this.runsStatus = `Deleted ${run.run_id}`;
+      } else {
+        this.runsStatus = data.error;
+      }
+    } catch (_e) {
+      this.runsStatus = "Failed to delete run";
+    }
+  },
+  async saveRunNotes(run) {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: run.notes }),
+      });
+      const data = await res.json();
+      this.runsStatus = data.success ? "Notes saved" : data.error;
+    } catch (_e) {
+      this.runsStatus = "Failed to save notes";
+    }
+  },
+  async exportRuns(format) {
+    if (typeof fetch !== "function") return;
+    try {
+      const res = await fetch(`/api/runs/export?format=${format}`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `runs_export.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (_e) {
+      this.runsStatus = "Failed to export";
+    }
+  },
+  getRunProp(runId, prop) {
+    const run = this.runsAll.find(r => r.run_id === runId);
+    return run ? (run[prop] !== undefined ? run[prop] : '-') : '-';
+  },
+  formatDate(dateStr) {
+    if (!dateStr) return '-';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return dateStr;
+    }
+  },
  switchTab(id) {
    this.currentTab = id;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
@@ -2245,42 +651,73 @@ module.exports = {
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
  },
  togglePlayPause() {
-   const video = this.playerEl || document.getElementById("player");
-   if (!video) return;
-   if (video.paused) {
-     video.play()
-       .then(() => { this.isPlaying = true; })
-       .catch(e => {
-         console.error("Play failed:", e);
-         this.isPlaying = false;
-       });
-   } else {
-     video.pause();
-     this.isPlaying = false;
-   }
+   this.toggleDeforumPlay();
  },
  stopVideo() {
-   const video = this.playerEl || document.getElementById("player");
-   if (!video) return;
-   video.pause();
-   video.currentTime = 0;
+   this.stopDeforumPlay();
+ },
+ toggleDeforumPlay() {
+   if (this.deforumPlaying) {
+     this.pauseDeforumAnimation();
+   } else {
+     this.startDeforumAnimation();
+   }
+ },
+ startDeforumAnimation() {
+   this.applyCrossfadeMorph();
+   const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
+   this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
+   this.deforumPlaying = true;
+   this.performance.status = 'Deforum animation playing';
+   this.isPlaying = true;
+ },
+ pauseDeforumAnimation() {
+   this.sendControl('liveParam', { is_paused_rendering: 1 });
+   this.deforumPlaying = false;
+   this.performance.status = 'Animation paused — parameter changes update preview';
    this.isPlaying = false;
  },
- async toggleRecord() {
-   if (this.isRecording) {
-     // Stop recording
-     this.isRecording = false;
-     this.sendControl('record', { action: 'stop' });
-   } else {
-     // Start recording
-     this.isRecording = true;
-     this.sendControl('record', { action: 'start' });
-     // Generate unique stream URL with timestamp and random component
-     const streamId = 'stream_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-     this.streamUrl = window.location.origin + '/stream/' + streamId;
-     // In production, you would get this from the server response
-     console.log('Recording started. Stream URL:', this.streamUrl);
+ stopDeforumPlay() {
+   this.sendControl('liveParam', { is_paused_rendering: 1, should_resume: 0 });
+   this.deforumPlaying = false;
+   this.performance.status = '';
+   this.isPlaying = false;
+   const video = this.playerEl || document.getElementById("player");
+   if (video) {
+     video.pause();
+     video.currentTime = 0;
    }
+ },
+ async toggleStreamRecord() {
+   if (this.isRecording) {
+     this.isRecording = false;
+     try {
+       const res = await fetch('/api/stream/stop-record', { method: 'POST' });
+       const data = await res.json();
+       this.performance.status = data.success ? 'Recording stopped' : (data.error || 'Stop failed');
+     } catch (e) {
+       this.performance.status = 'Stop record failed';
+     }
+   } else {
+     this.isRecording = true;
+     const output = `/tmp/defora_rec_${Date.now()}.mp4`;
+     try {
+       const res = await fetch('/api/stream/record', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ output, fps: 24 }),
+       });
+       const data = await res.json();
+       this.performance.status = data.success ? `Recording → ${output}` : (data.error || 'Record failed');
+       if (!data.success) this.isRecording = false;
+     } catch (e) {
+       this.isRecording = false;
+       this.performance.status = 'Record failed';
+     }
+   }
+ },
+ async toggleRecord() {
+   return this.toggleStreamRecord();
  },
  attachPlayer() {
    const video = document.getElementById("player");
@@ -2670,6 +1107,7 @@ module.exports = {
    const val = parseFloat(evt.target.value);
    p.val = val;
    this.queueLiveParam(p.key, val);
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  setSource(key, source) {
    this.paramSources[key] = source;
@@ -2742,8 +1180,11 @@ module.exports = {
           e.preventDefault();
           break;
         case " ":
-          if (self.currentTab === "GENERATE") {
-            self.generateImage();
+          if (self.currentTab === "LIVE") {
+            self.generatePreviewFrame();
+            e.preventDefault();
+          } else if (self.currentTab === "GENERATE") {
+            self.generatePreviewFrame();
             e.preventDefault();
           }
           break;
@@ -2797,49 +1238,11 @@ module.exports = {
    if (!activeSlots.length) return;
    let morphedPrompt = this.prompts.pos || "";
    activeSlots.forEach(slot => {
-     const strength = slot.strength !== undefined ? slot.strength : 0.5;
-     morphedPrompt += `, ${slot.a} to ${slot.b} blend (${(strength * 100).toFixed(0)}%)`;
+     // TODO: Add slider or auto-calculation for blend weight
+     // For now using simple concatenation approach
+     morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
    });
    this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
- },
- addPromptScheduleTrack() {
-   this.promptSchedule.tracks.push({
-     slotId: this.morphSlots[0]?.id || 1,
-     keyframes: [],
-     newKeyTime: 0,
-     newKeyValue: 0.5,
-   });
- },
- addPromptKeyframe(track) {
-   if (!track.keyframes) track.keyframes = [];
-   const t = Math.max(0, Math.min(track.newKeyTime || 0, this.promptSchedule.durationSec));
-   const v = Math.max(0, Math.min(track.newKeyValue || 0.5, 1));
-   track.keyframes.push({ t, v });
-   track.keyframes.sort((a, b) => a.t - b.t);
- },
- applyPromptScheduleAt(timeSec) {
-   if (!this.promptSchedule.enabled) return;
-   for (const track of this.promptSchedule.tracks) {
-     if (!track.keyframes || track.keyframes.length === 0) continue;
-     const slot = this.morphSlots.find(s => s.id === track.slotId);
-     if (!slot) continue;
-     const kfs = track.keyframes.sort((a, b) => a.t - b.t);
-     if (timeSec <= kfs[0].t) {
-       slot.strength = kfs[0].v;
-     } else if (timeSec >= kfs[kfs.length - 1].t) {
-       slot.strength = kfs[kfs.length - 1].v;
-     } else {
-       for (let i = 0; i < kfs.length - 1; i++) {
-         if (timeSec >= kfs[i].t && timeSec < kfs[i + 1].t) {
-           const span = kfs[i + 1].t - kfs[i].t;
-           const u = span > 0 ? (timeSec - kfs[i].t) / span : 0;
-           slot.strength = kfs[i].v + u * (kfs[i + 1].v - kfs[i].v);
-           break;
-         }
-       }
-     }
-   }
-   this.applyPromptMorphing();
  },
  sendPrompts() {
    this.sendControl("prompt", { positive: this.prompts.pos, negative: this.prompts.neg });
@@ -2876,7 +1279,6 @@ module.exports = {
    reader.onload = () => {
      this.img2img.dataUrl = reader.result;
      this.img2img.status = "Init image loaded";
-     this.$nextTick(() => this.initMaskCanvas());
    };
    reader.onerror = () => {
      this.img2img.status = "Could not read file";
@@ -2911,117 +1313,6 @@ module.exports = {
      this.pluginsRegistry = [];
    }
  },
- async refreshLlmStatus() {
-   if (typeof fetch !== "function") return;
-   try {
-     const res = await fetch("/api/llm/status");
-     if (!res.ok) return;
-     const j = await res.json();
-     this.llm.status = j.status || this.llm.status;
-     this.llm.loadedModel = j.loadedModel || "";
-     this.llm.memory = j.memory || this.llm.memory;
-   } catch (_) {
-     this.llm.status = { connected: false, message: "Error checking status" };
-   }
- },
- async toggleLlmServer() {
-   if (typeof fetch !== "function") return;
-   try {
-     const endpoint = this.llm.status.connected ? "/api/llm/stop" : "/api/llm/start";
-     const res = await fetch(endpoint, {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ type: this.llm.type, url: this.llm.serverUrl }),
-     });
-     const j = await res.json();
-     this.llm.configStatus = j.message || "OK";
-     await this.refreshLlmStatus();
-   } catch (e) {
-     this.llm.configStatus = String(e.message || e);
-   }
- },
- async refreshLlmModels() {
-   if (typeof fetch !== "function") return;
-   try {
-     const res = await fetch("/api/llm/models");
-     if (!res.ok) return;
-     const j = await res.json();
-     this.llm.availableModels = j.models || [];
-   } catch (_) {
-     this.llm.availableModels = [];
-   }
- },
- async loadLlmModel() {
-   if (typeof fetch !== "function" || !this.llm.selectedModel) return;
-   this.llm.configStatus = "Loading model...";
-   try {
-     const res = await fetch("/api/llm/load", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ model: this.llm.selectedModel, params: this.llm.params }),
-     });
-     const j = await res.json();
-     this.llm.configStatus = j.message || "Model loaded";
-     this.llm.loadedModel = this.llm.selectedModel;
-     await this.refreshLlmStatus();
-   } catch (e) {
-     this.llm.configStatus = String(e.message || e);
-   }
- },
- async unloadLlmModel() {
-   if (typeof fetch !== "function") return;
-   try {
-     const res = await fetch("/api/llm/unload", { method: "POST" });
-     const j = await res.json();
-     this.llm.configStatus = j.message || "Model unloaded";
-     this.llm.loadedModel = "";
-     await this.refreshLlmStatus();
-   } catch (e) {
-     this.llm.configStatus = String(e.message || e);
-   }
- },
- async saveLlmConfig() {
-   if (typeof fetch !== "function") return;
-   try {
-     const res = await fetch("/api/llm/config", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({
-         type: this.llm.type,
-         serverUrl: this.llm.serverUrl,
-         params: this.llm.params,
-       }),
-     });
-     const j = await res.json();
-     this.llm.configStatus = j.message || "Config saved";
-   } catch (e) {
-     this.llm.configStatus = String(e.message || e);
-   }
- },
- async testLlmConnection() {
-   if (typeof fetch !== "function") return;
-   this.llm.configStatus = "Testing connection...";
-   try {
-     const res = await fetch("/api/llm/test", {
-       method: "POST",
-       headers: { "Content-Type": "application/json" },
-       body: JSON.stringify({ url: this.llm.serverUrl }),
-     });
-     const j = await res.json();
-     this.llm.configStatus = j.success ? "Connection successful" : (j.error || "Connection failed");
-   } catch (e) {
-     this.llm.configStatus = String(e.message || e);
-   }
- },
- onLlmTypeChange() {
-   const defaults = {
-     "llama.cpp": "http://localhost:8080",
-     "ollama": "http://localhost:11434",
-     "text-generation-webui": "http://localhost:5000",
-     "vllm": "http://localhost:8000",
-   };
-   this.llm.serverUrl = defaults[this.llm.type] || "http://localhost:8080";
- },
  async submitImg2img() {
    if (!this.img2img.dataUrl) {
      this.img2img.status = "Choose an init image first";
@@ -3054,107 +1345,6 @@ module.exports = {
      this.img2img.status = j.path ? `OK → ${j.path}` : "OK";
    } catch (e) {
      this.img2img.status = String(e.message || e);
-   }
- },
- startMaskDraw(evt) {
-   this.img2img.isDrawing = true;
-   this.drawMask(evt);
- },
- drawMask(evt) {
-   if (!this.img2img.isDrawing) return;
-   const canvas = this.$refs.maskCanvas;
-   if (!canvas) return;
-   const ctx = canvas.getContext("2d");
-   const rect = canvas.getBoundingClientRect();
-   const x = evt.clientX - rect.left;
-   const y = evt.clientY - rect.top;
-   
-   ctx.fillStyle = this.img2img.maskMode === "draw" ? "#ffffff" : "#000000";
-   ctx.beginPath();
-   ctx.arc(x, y, this.img2img.brushSize / 2, 0, Math.PI * 2);
-   ctx.fill();
-   
-   canvas.toBlob((blob) => {
-     if (!blob) return;
-     const reader = new FileReader();
-     reader.onload = () => {
-       this.img2img.maskDataUrl = reader.result;
-     };
-     reader.readAsDataURL(blob);
-   }, "image/png");
- },
- stopMaskDraw() {
-   this.img2img.isDrawing = false;
- },
- clearMask() {
-   const canvas = this.$refs.maskCanvas;
-   if (!canvas) return;
-   const ctx = canvas.getContext("2d");
-   ctx.fillStyle = "#000000";
-   ctx.fillRect(0, 0, canvas.width, canvas.height);
-   this.img2img.maskDataUrl = null;
-   this.img2img.status = "Mask cleared";
- },
- initMaskCanvas() {
-   if (!this.img2img.dataUrl) return;
-   const canvas = this.$refs.maskCanvas;
-   if (!canvas) return;
-   const img = new Image();
-   img.onload = () => {
-     canvas.width = img.width;
-     canvas.height = img.height;
-     const ctx = canvas.getContext("2d");
-     ctx.drawImage(img, 0, 0);
-     ctx.fillStyle = "#000000";
-     ctx.fillRect(0, 0, canvas.width, canvas.height);
-   };
-   img.src = this.img2img.dataUrl;
- },
- async runImg2imgBatch() {
-   if (!this.img2img.dataUrl) {
-     this.img2img.status = "Choose an init image first";
-     return;
-   }
-   this.img2img.isBatchProcessing = true;
-   this.img2img.batchProgress = 0;
-   this.img2img.batchResults = [];
-   this.img2img.status = "Batch processing started…";
-   
-   try {
-     for (let i = 0; i < this.img2img.batchSize; i++) {
-       const seed = Math.floor(Math.random() * this.img2img.seedVariation);
-       const body = {
-         init_image: this.img2img.dataUrl,
-         prompt: this.prompts.pos,
-         negative_prompt: this.prompts.neg,
-         denoising_strength: this.img2img.denoisingStrength,
-         width: this.img2img.width,
-         height: this.img2img.height,
-         seed,
-       };
-       if (this.img2img.maskDataUrl) {
-         body.mask_image = this.img2img.maskDataUrl;
-         body.mask_blur = this.img2img.maskBlur;
-         body.inpainting_fill = this.img2img.inpaintingFill;
-         body.inpaint_full_res = this.img2img.inpaintFullRes;
-       }
-       const res = await fetch("/api/img2img", {
-         method: "POST",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify(body),
-       });
-       const j = await res.json();
-       if (!res.ok) throw new Error(j.error || j.detail || res.statusText);
-       if (j.path) {
-         this.img2img.batchResults.push(j.path);
-       }
-       this.img2img.batchProgress = i + 1;
-     }
-     this.img2img.status = `Batch complete: ${this.img2img.batchResults.length} images`;
-   } catch (e) {
-     this.img2img.status = `Batch error: ${e.message || e}`;
-   } finally {
-     this.img2img.isBatchProcessing = false;
    }
  },
  addLfo() {
@@ -3277,7 +1467,10 @@ module.exports = {
    if (typeof fetch !== "function") return;
    try {
      const res = await fetch("/api/frames?limit=10", { cache: "no-store" });
-     if (!res.ok) return;
+     if (!res.ok) {
+       this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
+       return;
+     }
      const json = await res.json();
      if (Array.isArray(json.items)) {
        this.thumbs = json.items.map((item) => {
@@ -3290,8 +1483,10 @@ module.exports = {
          return { src, name, frame };
        });
      }
+     this.framesRefreshBackoffMs = 5000;
    } catch (e) {
      console.warn("frames fetch failed", e);
+     this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
    }
  },
  parseFrameNumber(name) {
@@ -3697,7 +1892,7 @@ module.exports = {
        this.audioSpectrogramStatus = "";
        return;
      }
-     const dataUrl = spectrogramRgbaToDataUrl(rgba);
+      const dataUrl = this.spectrogramRgbaToDataUrl(rgba);
      if (expectedGen !== this._spectrogramGen) return;
      this.audioSpectrogramDataUrl = dataUrl;
      this.audioSpectrogramStatus = dataUrl ? "" : "";
@@ -3962,48 +2157,51 @@ module.exports = {
    console.log("Updated ControlNet slot:", slot.id, payload);
  },
  uploadControlNetImage(slot) {
-   // Placeholder for image upload functionality
-   // In a real implementation, this would open a file picker and upload the image
-   console.log("Upload image for slot:", slot.id);
-   alert("Image upload functionality not yet implemented. Use SD-Forge UI for now.");
+   this.cn.active = slot.id;
+   const input = this.$refs.cnImageInput;
+   if (input) input.click();
+ },
+ onControlNetFileSelected(evt) {
+   const file = evt.target.files && evt.target.files[0];
+   if (!file) return;
+   const formData = new FormData();
+   formData.append("image", file);
+   formData.append("slot", this.cn.active);
+   fetch("/api/controlnet/upload-image", { method: "POST", body: formData })
+     .then((r) => r.json())
+     .then((data) => {
+       if (data.error) console.error("ControlNet upload:", data.error);
+     })
+     .catch((err) => console.error("ControlNet upload failed", err));
+   evt.target.value = "";
  },
  async toggleWebcam() {
-   if (this.cn.webcamActive) {
-     this.stopWebcam();
-   } else {
-     await this.startWebcam();
-   }
+   if (this.cn.webcamActive) this.stopWebcam();
+   else await this.startWebcam();
  },
  async startWebcam() {
    try {
-     const stream = await navigator.mediaDevices.getUserMedia({ 
-       video: { width: 512, height: 512, facingMode: "user" } 
+     const stream = await navigator.mediaDevices.getUserMedia({
+       video: { width: 512, height: 512, facingMode: "user" },
      });
      this.cn.webcamStream = stream;
      this.cn.webcamActive = true;
-     
      const videoEl = this.$refs.webcamVideo;
      if (videoEl) {
        videoEl.srcObject = stream;
        videoEl.style.display = "block";
        this.cn.webcamVideo = videoEl;
      }
-     
      const canvasEl = this.$refs.webcamCanvas;
      if (canvasEl) {
        this.cn.webcamCanvas = canvasEl;
        canvasEl.width = 512;
        canvasEl.height = 512;
      }
-     
-     this.cn.webcamCaptureInterval = setInterval(() => {
-       this.captureWebcamFrame();
-     }, this.webcamCaptureRate);
-     
-     console.log("Webcam started");
+     this.cn.webcamCaptureInterval = setInterval(() => this.captureWebcamFrame(), this.webcamCaptureRate);
    } catch (err) {
      console.error("Failed to start webcam:", err);
-     alert("Could not access webcam. Please check permissions.");
+     alert("Could not access webcam. Check browser permissions.");
    }
  },
  stopWebcam() {
@@ -4012,7 +2210,7 @@ module.exports = {
      this.cn.webcamCaptureInterval = null;
    }
    if (this.cn.webcamStream) {
-     this.cn.webcamStream.getTracks().forEach(track => track.stop());
+     this.cn.webcamStream.getTracks().forEach((t) => t.stop());
      this.cn.webcamStream = null;
    }
    const videoEl = this.$refs.webcamVideo;
@@ -4021,34 +2219,22 @@ module.exports = {
      videoEl.srcObject = null;
    }
    this.cn.webcamActive = false;
-   console.log("Webcam stopped");
  },
  captureWebcamFrame() {
    const video = this.cn.webcamVideo;
    const canvas = this.cn.webcamCanvas;
    if (!video || !canvas || video.readyState < 2) return;
-   
    const ctx = canvas.getContext("2d");
    ctx.drawImage(video, 0, 0, 512, 512);
-   
    canvas.toBlob(async (blob) => {
      if (!blob) return;
-     const activeSlot = this.cn.slots.find(s => s.id === this.cn.active);
+     const activeSlot = this.cn.slots.find((s) => s.id === this.cn.active);
      if (!activeSlot || activeSlot.imageSource !== "webcam") return;
-     
+     const formData = new FormData();
+     formData.append("image", blob, "webcam_frame.png");
+     formData.append("slot", this.cn.active);
      try {
-       const formData = new FormData();
-       formData.append("image", blob, "webcam_frame.png");
-       formData.append("slot", this.cn.active);
-       
-       const response = await fetch("/api/controlnet/upload-image", {
-         method: "POST",
-         body: formData,
-       });
-       
-       if (!response.ok) {
-         console.error("Failed to upload webcam frame");
-       }
+       await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
      } catch (err) {
        console.error("Webcam frame upload failed:", err);
      }
@@ -4056,63 +2242,35 @@ module.exports = {
  },
  async startScreenCapture() {
    try {
-     const stream = await navigator.mediaDevices.getDisplayMedia({ 
-       video: { width: 512, height: 512 } 
-     });
-     
+     const stream = await navigator.mediaDevices.getDisplayMedia({ video: { width: 512, height: 512 } });
      const video = document.createElement("video");
      video.srcObject = stream;
      video.autoplay = true;
      video.playsInline = true;
-     video.style.display = "none";
-     document.body.appendChild(video);
-     
      const canvas = document.createElement("canvas");
      canvas.width = 512;
      canvas.height = 512;
-     document.body.appendChild(canvas);
-     canvas.style.display = "none";
-     
      const captureInterval = setInterval(() => {
        if (video.readyState < 2) return;
-       const ctx = canvas.getContext("2d");
-       ctx.drawImage(video, 0, 0, 512, 512);
-       
+       canvas.getContext("2d").drawImage(video, 0, 0, 512, 512);
        canvas.toBlob(async (blob) => {
          if (!blob) return;
-         const activeSlot = this.cn.slots.find(s => s.id === this.cn.active);
+         const activeSlot = this.cn.slots.find((s) => s.id === this.cn.active);
          if (!activeSlot || activeSlot.imageSource !== "screen") return;
-         
+         const formData = new FormData();
+         formData.append("image", blob, "screen_capture.png");
+         formData.append("slot", this.cn.active);
          try {
-           const formData = new FormData();
-           formData.append("image", blob, "screen_capture.png");
-           formData.append("slot", this.cn.active);
-           
-           const response = await fetch("/api/controlnet/upload-image", {
-             method: "POST",
-             body: formData,
-           });
-           
-           if (!response.ok) {
-             console.error("Failed to upload screen capture");
-           }
+           await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
          } catch (err) {
            console.error("Screen capture upload failed:", err);
          }
        }, "image/png");
      }, this.webcamCaptureRate);
-     
-     stream.getVideoTracks()[0].onended = () => {
-       clearInterval(captureInterval);
-       document.body.removeChild(video);
-       document.body.removeChild(canvas);
-       console.log("Screen capture stopped");
-     };
-     
-     console.log("Screen capture started");
+     stream.getVideoTracks()[0].onended = () => clearInterval(captureInterval);
    } catch (err) {
      console.error("Failed to start screen capture:", err);
-     alert("Could not start screen capture. Please check permissions.");
+     alert("Could not start screen capture. Check browser permissions.");
    }
  },
  handleMidi(input, msg) {
@@ -4600,33 +2758,32 @@ module.exports = {
          const hIn = next.hIn != null ? next.hIn : 0.67;
          const vOut = kf.hOutV != null ? kf.hOutV : v + (next.v - v) * 0.33;
          const vIn = next.hInV != null ? next.hInV : v + (next.v - v) * 0.67;
-         const hOutPx = (kf.t + hOut * (next.t - kf.t)) / dur * w;
-         const hOutPy = y + laneH - ((vOut - minV) / (maxV - minV)) * laneH;
-         const hInPx = (next.t - (1 - hIn) * (next.t - kf.t)) / dur * w;
-         const hInPy = y + laneH - ((vIn - minV) / (maxV - minV)) * laneH;
-         ctx.strokeStyle = color + "80";
-         ctx.lineWidth = 1.5;
-         ctx.setLineDash([3, 2]);
-         ctx.beginPath();
-         ctx.moveTo(px, py);
-         ctx.lineTo(hOutPx, hOutPy);
-         ctx.stroke();
-         ctx.beginPath();
-         ctx.moveTo((next.t / dur) * w, y + laneH - ((next.v - minV) / (maxV - minV)) * laneH);
-         ctx.lineTo(hInPx, hInPy);
-         ctx.stroke();
-         ctx.setLineDash([]);
-         ctx.fillStyle = "#fff";
-         ctx.strokeStyle = color;
-         ctx.lineWidth = 2;
-         ctx.beginPath();
-         ctx.arc(hOutPx, hOutPy, 5, 0, Math.PI * 2);
-         ctx.fill();
-         ctx.stroke();
-         ctx.beginPath();
-         ctx.arc(hInPx, hInPy, 5, 0, Math.PI * 2);
-         ctx.fill();
-         ctx.stroke();
+         const hasHandles = kf.hIn !== undefined || kf.hOut !== undefined || next.hIn !== undefined || next.hOut !== undefined;
+         if (hasHandles) {
+           const hOutPx = (kf.t + hOut * (next.t - kf.t)) / dur * w;
+           const hOutPy = y + laneH - ((vOut - minV) / (maxV - minV)) * laneH;
+           const hInPx = (next.t - (1 - hIn) * (next.t - kf.t)) / dur * w;
+           const hInPy = y + laneH - ((vIn - minV) / (maxV - minV)) * laneH;
+           ctx.strokeStyle = color + "60";
+           ctx.lineWidth = 1;
+           ctx.setLineDash([2, 2]);
+           ctx.beginPath();
+           ctx.moveTo(px, py);
+           ctx.lineTo(hOutPx, hOutPy);
+           ctx.stroke();
+           ctx.beginPath();
+           ctx.moveTo((next.t / dur) * w, y + laneH - ((next.v - minV) / (maxV - minV)) * laneH);
+           ctx.lineTo(hInPx, hInPy);
+           ctx.stroke();
+           ctx.setLineDash([]);
+           ctx.fillStyle = "#fff";
+           ctx.beginPath();
+           ctx.arc(hOutPx, hOutPy, 3, 0, Math.PI * 2);
+           ctx.fill();
+           ctx.beginPath();
+           ctx.arc(hInPx, hInPy, 3, 0, Math.PI * 2);
+           ctx.fill();
+         }
        }
        ctx.fillStyle = color;
        ctx.beginPath();
@@ -4696,119 +2853,6 @@ module.exports = {
    this.timelineHoverTime = Math.max(0, Math.min(dur, (x / rect.width) * dur));
    this.timelineHoverPercent = (x / rect.width) * 100;
  },
- getTimelineCanvasCoords(event) {
-   const canvas = this.$refs.timelineCanvas;
-   if (!canvas) return null;
-   const rect = canvas.getBoundingClientRect();
-   return {
-     x: event.clientX - rect.left,
-     y: event.clientY - rect.top,
-     width: rect.width,
-     height: rect.height,
-   };
- },
- findNearestHandle(coords) {
-   const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
-   const canvas = this.$refs.timelineCanvas;
-   if (!canvas) return null;
-   const h = Math.max(120, this.sequencer.tracks.length * 40 + 20);
-   const laneH = (h - 20) / Math.max(1, this.sequencer.tracks.length);
-   const threshold = 8;
-   for (let idx = 0; idx < this.sequencer.tracks.length; idx++) {
-     const tr = this.sequencer.tracks[idx];
-     const kfs = this.sortedKeyframes(tr);
-     if (!kfs.length) continue;
-     const y = 20 + idx * laneH;
-     let minV = Math.min(...kfs.map(k => k.v));
-     let maxV = Math.max(...kfs.map(k => k.v));
-     const range = maxV - minV || 1;
-     minV -= range * 0.15;
-     maxV += range * 0.15;
-     for (let ki = 0; ki < kfs.length; ki++) {
-       const kf = kfs[ki];
-       const next = ki < kfs.length - 1 ? kfs[ki + 1] : null;
-       if (next) {
-         const hOut = kf.hOut != null ? kf.hOut : 0.33;
-         const hIn = next.hIn != null ? next.hIn : 0.67;
-         const vOut = kf.hOutV != null ? kf.hOutV : kf.v + (next.v - kf.v) * 0.33;
-         const vIn = next.hInV != null ? next.hInV : kf.v + (next.v - kf.v) * 0.67;
-         const hasHandles = kf.hIn !== undefined || kf.hOut !== undefined || next.hIn !== undefined || next.hOut !== undefined;
-         if (hasHandles) {
-           const hOutPx = (kf.t + hOut * (next.t - kf.t)) / dur * coords.width;
-           const hOutPy = y + laneH - ((vOut - minV) / (maxV - minV)) * laneH;
-           const distOut = Math.sqrt((coords.x - hOutPx) ** 2 + (coords.y - hOutPy) ** 2);
-           if (distOut < threshold) {
-             return { type: 'hOut', track: tr, keyframe: kf, nextKeyframe: next };
-           }
-           const hInPx = (next.t - (1 - hIn) * (next.t - kf.t)) / dur * coords.width;
-           const hInPy = y + laneH - ((vIn - minV) / (maxV - minV)) * laneH;
-           const distIn = Math.sqrt((coords.x - hInPx) ** 2 + (coords.y - hInPy) ** 2);
-           if (distIn < threshold) {
-             return { type: 'hIn', track: tr, keyframe: kf, nextKeyframe: next };
-           }
-         }
-       }
-     }
-   }
-   return null;
- },
- onTimelineMouseDown(event) {
-   const coords = this.getTimelineCanvasCoords(event);
-   if (!coords) return;
-   const handle = this.findNearestHandle(coords);
-   if (handle) {
-     this.timelineDragging = handle;
-     this.timelineDragTarget = handle.type;
-     event.preventDefault();
-   }
- },
- onTimelineMouseMove(event) {
-   if (!this.timelineDragging) {
-     this.hoverTimeline(event);
-     const coords = this.getTimelineCanvasCoords(event);
-     if (coords) {
-       const handle = this.findNearestHandle(coords);
-       const canvas = this.$refs.timelineCanvas;
-       if (canvas) {
-         canvas.style.cursor = handle ? 'grab' : 'pointer';
-       }
-     }
-     return;
-   }
-   const coords = this.getTimelineCanvasCoords(event);
-   if (!coords) return;
-   const dur = Math.max(0.01, Number(this.sequencer.durationSec) || 8);
-   const h = Math.max(120, this.sequencer.tracks.length * 40 + 20);
-   const laneH = (h - 20) / Math.max(1, this.sequencer.tracks.length);
-   const { track, keyframe, nextKeyframe } = this.timelineDragging;
-   let minV = Math.min(...this.sortedKeyframes(track).map(k => k.v));
-   let maxV = Math.max(...this.sortedKeyframes(track).map(k => k.v));
-   const range = maxV - minV || 1;
-   minV -= range * 0.15;
-   maxV += range * 0.15;
-   const t = Math.max(0, Math.min(dur, (coords.x / coords.width) * dur));
-   const v = maxV - ((coords.y - 20) / laneH) * (maxV - minV);
-   const segmentDur = nextKeyframe.t - keyframe.t;
-   if (this.timelineDragTarget === 'hOut') {
-     const hOutT = Math.max(0, Math.min(1, (t - keyframe.t) / segmentDur));
-     const hOutV = Math.max(minV, Math.min(maxV, v));
-     keyframe.hOut = hOutT;
-     keyframe.hOutV = hOutV;
-   } else if (this.timelineDragTarget === 'hIn') {
-     const hInT = Math.max(0, Math.min(1, (nextKeyframe.t - t) / segmentDur));
-     const hInV = Math.max(minV, Math.min(maxV, v));
-     nextKeyframe.hIn = hInT;
-     nextKeyframe.hInV = hInV;
-   }
-   this.drawTimeline();
-   event.preventDefault();
- },
- onTimelineMouseUp() {
-   if (this.timelineDragging) {
-     this.timelineDragging = null;
-     this.timelineDragTarget = null;
-   }
- },
  xyPadMouseDown(evt) {
    this.xyPad.dragging = true;
    this.updateXyPad(evt);
@@ -4845,6 +2889,7 @@ module.exports = {
    const translation_y = normY * TRANSLATION_RANGE;
    this.queueLiveParam("translation_x", translation_x);
    this.queueLiveParam("translation_y", translation_y);
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
  async refreshLoras() {
@@ -5166,6 +3211,393 @@ module.exports = {
    }
  },
 
+ // ─── Performance deck (crossfader, preview, session) ─────────────────
+ sessionStorageKey() {
+   return `defora_session_${this.session || 'default'}`;
+ },
+ loadSessionState() {
+   try {
+     const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
+     if (!raw) return;
+     const s = JSON.parse(raw);
+     if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
+     if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
+     if (Array.isArray(s.slots)) this.performance.slots = s.slots;
+     if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
+     if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
+     if (s.deforumSettings && typeof s.deforumSettings === 'object') {
+       this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
+       this.syncDeforumSettingsJson();
+     }
+     if (s.lastModel) {
+       this.forge.lastModel = s.lastModel;
+       this.forge.selectedModel = s.lastModel;
+     }
+     if (s.prompts) Object.assign(this.prompts, s.prompts);
+   } catch (_e) { /* ignore */ }
+ },
+ saveSessionState() {
+   try {
+     if (!window.localStorage) return;
+     const blob = {
+       crossfader: this.performance.crossfader,
+       genericPrompt: this.performance.genericPrompt,
+       slots: this.performance.slots,
+       paramPanelOpen: this.paramPanelOpen,
+       deforumPanelOpen: this.deforumPanelOpen,
+       deforumSettings: this.deforumSettings,
+       lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
+       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+     };
+     window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
+   } catch (_e) { /* ignore */ }
+ },
+ restoreLastModel() {
+   const name = this.forge.lastModel || this.forge.selectedModel;
+   if (!name || this.forge.switching) return;
+   if (this.forge.currentModel && this.forge.currentModel === name) return;
+   this.forge.selectedModel = name;
+   this.switchForgeModel();
+ },
+ async onModelSelectChange() {
+   await this.switchForgeModel();
+   this.saveSessionState();
+ },
+ slotTypeLabel(type) {
+   const t = this.crossfadeSlotTypes.find((x) => x.id === type);
+   return t ? t.label : type;
+ },
+ newSlotId() {
+   return `slot_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+ },
+ addCrossfadeSlot() {
+   const type = this.performance.newSlotType || 'prompt';
+   const slot = {
+     id: this.newSlotId(),
+     type,
+     valueA: type === 'param' ? 0 : (type === 'prompt' ? '' : null),
+     valueB: type === 'param' ? 0 : (type === 'prompt' ? '' : null),
+     paramKey: 'cfg',
+     loraStrengthA: 1,
+     loraStrengthB: 1,
+     cnSlotId: this.cn.active || 'CN1',
+   };
+   this.performance.slots.push(slot);
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+ },
+ removeCrossfadeSlot(id) {
+   this.performance.slots = this.performance.slots.filter((s) => s.id !== id);
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+ },
+ slotMorphedPreview(slot) {
+   return morphSlotValue(this.normalizeSlotForMorph(slot), this.performance.crossfader);
+ },
+ formatMorphedPreview(slot) {
+   const v = this.slotMorphedPreview(slot);
+   if (v == null) return '—';
+   if (typeof v === 'object') return JSON.stringify(v);
+   if (typeof v === 'number') return Number(v).toFixed(3);
+   const s = String(v);
+   return s.length > 48 ? s.slice(0, 48) + '…' : s;
+ },
+ normalizeSlotForMorph(slot) {
+   if (slot.type === 'lora') {
+     const pack = (name, str) => (name ? { name, strength: Number(str) || 1 } : null);
+     return {
+       ...slot,
+       valueA: pack(slot.valueA, slot.loraStrengthA),
+       valueB: pack(slot.valueB, slot.loraStrengthB),
+     };
+   }
+   if (slot.type === 'controlnet') {
+     const pack = (weight) => ({
+       slotId: slot.cnSlotId,
+       weight: Number(weight),
+       start: 0,
+       end: 0.9,
+       enabled: true,
+     });
+     return {
+       ...slot,
+       valueA: slot.valueA != null && slot.valueA !== '' ? pack(slot.valueA) : null,
+       valueB: slot.valueB != null && slot.valueB !== '' ? pack(slot.valueB) : null,
+     };
+   }
+   if (slot.type === 'param') {
+     return { ...slot, valueA: slot.valueA, valueB: slot.valueB };
+   }
+   return slot;
+ },
+ buildMorphedPrompt() {
+   const parts = [];
+   const base = (this.performance.genericPrompt || '').trim();
+   if (base) parts.push(base);
+   for (const slot of this.performance.slots) {
+     if (slot.type !== 'prompt') continue;
+     const m = morphSlotValue(this.normalizeSlotForMorph(slot), this.performance.crossfader);
+     if (m) parts.push(String(m));
+   }
+   const merged = parts.join(', ').trim();
+   if (merged) return merged;
+   return (this.prompts.pos || '').trim();
+ },
+ applyCrossfadeMorph() {
+   const t = this.performance.crossfader;
+   const live = {};
+   const loraA = [];
+   const loraB = [];
+   for (const slot of this.performance.slots) {
+     const norm = this.normalizeSlotForMorph(slot);
+     const v = morphSlotValue(norm, t);
+     if (v == null) continue;
+     if (slot.type === 'prompt') continue;
+     if (slot.type === 'param' && slot.paramKey) {
+       live[slot.paramKey] = v;
+       const p = this.liveVibe.find((x) => x.key === slot.paramKey) || this.liveCam.find((x) => x.key === slot.paramKey);
+       if (p) p.val = v;
+     } else if (slot.type === 'lora' && v && v.name) {
+       const entry = { name: v.name, path: v.name, strength: v.strength ?? 1 };
+       if (smoothstep(t) < 0.5) loraA.push(entry);
+       else loraB.push(entry);
+     } else if (slot.type === 'controlnet' && v) {
+       const cnSlot = this.cn.slots.find((s) => s.id === v.slotId);
+       if (cnSlot) {
+         cnSlot.weight = v.weight;
+         cnSlot.start = v.start;
+         cnSlot.end = v.end;
+         cnSlot.enabled = v.enabled;
+         this.updateControlNet(cnSlot);
+       }
+     }
+   }
+   const positive = this.buildMorphedPrompt();
+   const negative = (this.prompts.neg || '').trim();
+   this.prompts.pos = positive;
+   this.sendControl('prompt', { positive, negative });
+   if (Object.keys(live).length) this.sendControl('liveParam', live);
+   if (loraA.length || loraB.length) {
+     this.sendControl('loras', {
+       groupA: loraA,
+       groupB: loraB,
+       crossfaderValue: t,
+     });
+   }
+   this.prompts.crossfaderValue = t;
+ },
+ onCrossfaderInput() {
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ onPerformanceInput() {
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ schedulePreviewFrame() {
+   if (this.deforumPlaying) return;
+   clearTimeout(this.previewDebounceTimer);
+   this.previewDebounceTimer = setTimeout(() => this.generatePreviewFrame(), 900);
+ },
+ scheduleDeforumPreview() {
+   if (this.deforumPlaying) return;
+   clearTimeout(this.deforumPreviewTimer);
+   this.deforumPreviewTimer = setTimeout(() => this.generateDeforumPreviewFrame(), 1200);
+ },
+ getDeforumField(keyPath) {
+   return getNestedValue(this.deforumSettings, keyPath);
+ },
+ onDeforumSectionToggle(groupId, evt) {
+   this.deforumSectionOpen[groupId] = evt.target.open;
+ },
+ onDeforumFieldInput(keyPath, raw, kind) {
+   let value = raw;
+   if (kind === 'number') {
+     const n = parseFloat(raw);
+     value = Number.isFinite(n) ? n : 0;
+   } else if (kind === 'bool') {
+     value = !!raw;
+   } else if (keyPath === 'init_image' && raw === '') {
+     value = null;
+   }
+   setNestedValue(this.deforumSettings, keyPath, value);
+   if (keyPath === 'prompts.0') {
+     const p0 = String(value || '');
+     const negSplit = p0.split(/\s+--neg\s+/i);
+     if (negSplit.length > 1) {
+       this.prompts.pos = negSplit[0].trim();
+       this.prompts.neg = negSplit.slice(1).join(' --neg ').trim();
+     } else {
+       this.prompts.pos = p0.trim();
+     }
+   }
+   if (keyPath === 'negative_prompts') {
+     this.prompts.neg = String(value || '');
+   }
+   if (keyPath === 'seed' && Number.isFinite(value)) {
+     this.hud.seed = value;
+   }
+   this.syncDeforumSettingsJson();
+   this.pushDeforumLivePatch(keyPath, value);
+   this.queueDeforumSettingsSave();
+   if (!this.deforumPlaying) this.scheduleDeforumPreview();
+ },
+ pushDeforumLivePatch(keyPath, value) {
+   const patch = patchFromKeyPath(keyPath, value);
+   this.sendControl('liveParam', patch);
+ },
+ syncDeforumSettingsJson() {
+   try {
+     this.deforumSettingsJson = JSON.stringify(this.deforumSettings, null, 2);
+     this.deforumSettingsJsonError = '';
+   } catch (e) {
+     this.deforumSettingsJsonError = String(e.message || e);
+   }
+ },
+ applyDeforumSettingsJson() {
+   try {
+     const parsed = JSON.parse(this.deforumSettingsJson);
+     if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
+     this.deforumSettings = parsed;
+     this.deforumSettingsJsonError = '';
+     this.queueDeforumSettingsSave();
+     if (!this.deforumPlaying) this.scheduleDeforumPreview();
+   } catch (e) {
+     this.deforumSettingsJsonError = String(e.message || e);
+   }
+ },
+ async loadDeforumSettings() {
+   try {
+     const res = await fetch('/api/deforum/settings');
+     const data = await res.json();
+     if (data.settings && typeof data.settings === 'object') {
+       this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
+     }
+     this.syncDeforumSettingsJson();
+     this.deforumSettingsStatus = 'Loaded';
+   } catch (e) {
+     this.deforumSettingsStatus = 'Load failed';
+     console.error('loadDeforumSettings', e);
+   }
+ },
+ queueDeforumSettingsSave() {
+   clearTimeout(this.deforumSaveTimer);
+   this.deforumSaveTimer = setTimeout(() => this.saveDeforumSettings(), 800);
+ },
+ async saveDeforumSettings() {
+   try {
+     const res = await fetch('/api/deforum/settings', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ settings: this.deforumSettings }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.deforumSettingsStatus = data.error || 'Save failed';
+       return;
+     }
+     this.deforumSettingsStatus = 'Saved';
+   } catch (e) {
+     this.deforumSettingsStatus = 'Save failed';
+   }
+ },
+ async generateDeforumPreviewFrame() {
+   if (this.deforumPlaying) {
+     this.performance.status = 'Stop animation to preview single frames';
+     return false;
+   }
+   if (this.previewGenerating) return false;
+   this.applyCrossfadeMorph();
+   this.previewGenerating = true;
+   this.performance.status = 'Rendering Deforum frame…';
+   this.deforumSettingsStatus = 'Rendering…';
+   try {
+     const res = await fetch('/api/deforum/preview', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ settings: this.deforumSettings }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.performance.status = data.error || 'Deforum preview failed';
+       this.deforumSettingsStatus = 'Preview failed';
+       return false;
+     }
+     this.performance.lastPreviewPath = data.path;
+     this.generator.lastPath = data.path;
+     this.performance.status = 'Deforum frame ready';
+     this.deforumSettingsStatus = 'Frame ready';
+     this.refreshFrames();
+     return true;
+   } catch (err) {
+     this.performance.status = String(err.message || err);
+     this.deforumSettingsStatus = 'Preview failed';
+     return false;
+   } finally {
+     this.previewGenerating = false;
+   }
+ },
+ async generatePreviewFrame() {
+   if (this.deforumPanelOpen) {
+     const ok = await this.generateDeforumPreviewFrame();
+     if (!ok) await this.generateImage();
+   } else {
+     await this.generateImage();
+   }
+ },
+ async generateImage() {
+   if (this.deforumPlaying) {
+     this.performance.status = 'Stop animation to preview single frames';
+     return;
+   }
+   if (this.previewGenerating) return;
+   this.applyCrossfadeMorph();
+   this.previewGenerating = true;
+   this.performance.status = 'Generating preview frame…';
+   const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
+   const strength = this.liveVibe.find((p) => p.key === 'strength');
+   const w = this.deforumSettings.W || 1024;
+   const h = this.deforumSettings.H || 576;
+   const steps = this.deforumSettings.steps || 12;
+   const seed = this.deforumSettings.seed != null ? this.deforumSettings.seed : this.hud.seed;
+   const sampler = this.deforumSettings.sampler || 'Euler a';
+   const neg = this.deforumSettings.negative_prompts || this.prompts.neg || '';
+   const prompt =
+     getNestedValue(this.deforumSettings, 'prompts.0') ||
+     this.buildMorphedPrompt();
+   try {
+     const res = await fetch('/api/txt2img', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({
+         prompt,
+         negative_prompt: neg,
+         steps,
+         cfg_scale: cfg ? cfg.val : 7,
+         width: w,
+         height: h,
+         seed,
+         sampler_name: sampler,
+       }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.performance.status = data.error || 'Preview failed';
+       return;
+     }
+     this.performance.lastPreviewPath = data.path;
+     this.generator.lastPath = data.path;
+     this.performance.status = 'Preview frame ready';
+     this.refreshFrames();
+   } catch (err) {
+     this.performance.status = String(err.message || err);
+   } finally {
+     this.previewGenerating = false;
+   }
+ },
+
  // Forge settings methods
  forgeUrl() {
    return `http://${this.forge.host}:${this.forge.port}`;
@@ -5220,9 +3652,12 @@ module.exports = {
      const data = await res.json();
      if (data.success) {
        this.forge.currentModel = this.forge.selectedModel;
+       this.forge.lastModel = this.forge.selectedModel;
        if (data.model && data.model.metadata) {
          this.forge.modelInfo = data.model.metadata;
        }
+       this.saveSessionState();
+       if (!this.deforumPlaying) this.schedulePreviewFrame();
      }
    } catch (err) {
      console.error('Failed to switch model', err);
@@ -5291,4 +3726,4 @@ module.exports = {
  },
 
   },
-}
+};

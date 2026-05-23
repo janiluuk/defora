@@ -7,7 +7,8 @@ export default defineConfig({
   root: 'src',
   build: {
     outDir: resolve(__dirname, 'public'),
-    emptyOutDir: true,
+    // Keep vr.html and other non-Vite assets in public/
+    emptyOutDir: false,
     rollupOptions: {
       output: {
         entryFileNames: 'assets/[name].[hash].js',

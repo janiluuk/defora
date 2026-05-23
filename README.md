@@ -250,7 +250,8 @@ Minimal control panel with hotkey bindings:
 - Docker users: `docker-compose up --build mediator sd-forge` will start the mediator (ports 8765/8766) and a Forge container with the Deforumation-patched Deforum extension pre-installed (UI on port 7860).
 
 ## Environment knobs
-- `FORGE_API_BASE` — target Forge server (e.g., `http://192.168.2.101:7860`).
+- `FORGE_API_BASE` — Python CLI target Forge server (e.g., `http://192.168.2.101:7860`).
+- `SD_FORGE_HOST` / `SD_FORGE_PORT` — **web stack** Forge hostname and port (Docker Compose defaults to `sd-forge:7860`).
 - `FORGE_OUT_DIR` — output directory for `forge_cli`.
 - `DEFORUMATION_FORGE_CLI` — path override for Forge CLI when auto-dispatching.
 - `DEFORUMATION_AUTO_DISPATCH=1` — have `deforumation_runs_cli` immediately dispatch requests.
@@ -262,7 +263,7 @@ Minimal control panel with hotkey bindings:
 - `SD_FORGE_POLL_MS` — if set to a positive value (milliseconds) on the **web** stack, the API periodically probes SD-Forge so `/api/status` and the Web UI Forge indicator stay current without opening model list endpoints.
 - `SEQUENCER_DIR` — directory for saved animation sequencer timelines (Web UI MOTION tab); default is `docker/web/sequencers` next to the Node server.
 - `DEFORA_TUI_LORA_STATE` — optional path for `defora_tui` LoRA tab save/load (JSON); default `~/.config/defora/tui_lora.json`.
-- `PLUGINS_DIR` — optional directory for `docker/web/plugins/manifest.json` (Web `GET /api/plugins`).
+- `PLUGINS_DIR` — optional directory for `docker/web/plugins/manifest.json` (Web `GET /api/plugins`). CLI post-plugins use a separate registry: `defora_cli/plugins/manifest.json` (see `defora_cli.plugins`).
 - Web MIDI: enable in your browser and map controls in the **Settings** tab (Controllers / WebMIDI) to live parameters.
 
 ## Project Status & Roadmap

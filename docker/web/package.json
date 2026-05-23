@@ -7,6 +7,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node server.js",
+    "sync-app-definition": "node scripts/sync-app-definition.mjs",
+    "pretest": "node scripts/sync-app-definition.mjs",
     "test": "node --test test/*.spec.js",
     "capture-ui-shots": "node scripts/capture-web-ui.mjs"
   },

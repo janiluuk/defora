@@ -8,7 +8,7 @@ Designed for large terminals (~170 cols / 45 rows) to feel like a playable instr
 - Macro/MIDI status surfaced inline.
 - Tab-specific panels mirror the design docs.
 
-This is a UI skeleton; hook up real mediator/param logic as needed.
+Full mediator integration: live params, LoRA tab (F3), batch compare, ASCII preview optional.
 """
 from __future__ import annotations
 

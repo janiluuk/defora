@@ -25,11 +25,82 @@ async function start(opts = {}) {
   const apiStatus = {
     sdForgeAvailable: false,
     lastChecked: null,
+    forgeCacheValidUntil: 0,
     controlNetModels: null,
     loraModels: null,
     sdModels: null,
     currentModel: null,
   };
+
+  const repoRoot = path.resolve(__dirname, "..", "..");
+  const aiInvokeScript = path.join(__dirname, "scripts", "ai_invoke.py");
+
+  function invokeAi(op, payload) {
+    return new Promise((resolve, reject) => {
+      const req = JSON.stringify({ op, ...payload });
+      const child = spawner("python3", [aiInvokeScript], {
+        cwd: repoRoot,
+        env: { ...process.env, PYTHONPATH: repoRoot },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => { stdout += d; });
+      child.stderr.on("data", (d) => { stderr += d; });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code !== 0) {
+          return reject(new Error(stderr || stdout || `ai_invoke exit ${code}`));
+        }
+        try {
+          resolve(stdout.trim() ? JSON.parse(stdout) : null);
+        } catch (e) {
+          reject(new Error(`ai_invoke invalid JSON: ${stdout.slice(0, 200)}`));
+        }
+      });
+      child.stdin.write(req);
+      child.stdin.end();
+    });
+  }
+
+  let framesIndexCache = { items: [], builtAt: 0, dirMtime: 0 };
+  const FRAMES_INDEX_TTL_MS = 2000;
+
+  async function buildFramesIndex(limit = 50) {
+    const now = Date.now();
+    let dirMtime = 0;
+    try {
+      const st = await fsp.stat(framesDir);
+      dirMtime = st.mtimeMs;
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw e;
+    }
+    if (
+      framesIndexCache.builtAt &&
+      now - framesIndexCache.builtAt < FRAMES_INDEX_TTL_MS &&
+      framesIndexCache.dirMtime === dirMtime
+    ) {
+      return framesIndexCache.items.slice(0, limit);
+    }
+    const entries = await fsp.readdir(framesDir, { withFileTypes: true });
+    const names = entries
+      .filter((e) => e.isFile() && /\.(png|jpg|jpeg|webp)$/i.test(e.name))
+      .map((e) => e.name);
+    const stats = await Promise.all(
+      names.map(async (name) => {
+        const stat = await fsp.stat(path.join(framesDir, name));
+        return { name, mtime: stat.mtimeMs };
+      })
+    );
+    stats.sort((a, b) => b.mtime - a.mtime);
+    const items = stats.slice(0, Math.max(limit, 50)).map((f) => {
+      const match = f.name.match(/(\d{3,})/);
+      const frame = match ? parseInt(match.pop(), 10) : null;
+      return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
+    });
+    framesIndexCache = { items, builtAt: now, dirMtime };
+    return items.slice(0, limit);
+  }
 
   function forgeBaseUrl() {
     const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
@@ -208,23 +279,7 @@ async function start(opts = {}) {
   app.get("/api/frames", async (req, res) => {
     try {
       const limit = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 12));
-      const entries = await fsp.readdir(framesDir, { withFileTypes: true });
-      const files = entries
-        .filter((e) => e.isFile())
-        .map((e) => e.name)
-        .filter((name) => /\.(png|jpg|jpeg|webp)$/i.test(name));
-      const stats = await Promise.all(
-        files.map(async (name) => {
-          const stat = await fsp.stat(path.join(framesDir, name));
-          return { name, mtime: stat.mtimeMs };
-        })
-      );
-      stats.sort((a, b) => b.mtime - a.mtime);
-      const items = stats.slice(0, limit).map((f) => {
-        const match = f.name.match(/(\d{3,})/);
-        const frame = match ? parseInt(match.pop(), 10) : null;
-        return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
-      });
+      const items = await buildFramesIndex(limit);
       res.json({ items });
     } catch (err) {
       if (err.code === "ENOENT") {
@@ -634,6 +689,127 @@ async function start(opts = {}) {
     }
   });
 
+  // Deforum animation settings (full JSON preset for hidden LIVE panel)
+  const deforumSettingsFile = path.join(__dirname, "deforum-settings.json");
+
+  app.get("/api/deforum/settings", async (_req, res) => {
+    try {
+      if (!fs.existsSync(deforumSettingsFile)) {
+        return res.json({ settings: null });
+      }
+      const data = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8"));
+      res.json({ settings: data });
+    } catch (err) {
+      console.error("[api] deforum settings read error", err);
+      res.status(500).json({ error: "could not read deforum settings" });
+    }
+  });
+
+  app.post("/api/deforum/settings", async (req, res) => {
+    const { settings } = req.body || {};
+    if (!settings || typeof settings !== "object") {
+      return res.status(400).json({ error: "settings object required" });
+    }
+    try {
+      await fsp.writeFile(deforumSettingsFile, JSON.stringify(settings, null, 2), "utf-8");
+      broadcast({ type: "deforum_settings", action: "updated" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[api] deforum settings save error", err);
+      res.status(500).json({ error: "could not save deforum settings" });
+    }
+  });
+
+  /** Render a single Deforum frame via Forge /deforum_api/batches (max_frames=1). */
+  app.post("/api/deforum/preview", async (req, res) => {
+    const body = req.body || {};
+    const settings = body.settings && typeof body.settings === "object" ? body.settings : null;
+    if (!settings) {
+      return res.status(400).json({ error: "settings object required" });
+    }
+    const forgeUrl = forgeBaseUrl();
+    const previewSettings = {
+      ...settings,
+      max_frames: 1,
+      motion_preview_mode: true,
+      skip_video_creation: true,
+    };
+    const payload = { deforum_settings: previewSettings, options_overrides: body.options_overrides || {} };
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    async function latestFramePath() {
+      framesIndexCache.builtAt = 0;
+      const items = await buildFramesIndex(1);
+      if (!items.length) return null;
+      const top = items[0];
+      return top.src || `/frames/${top.name}`;
+    }
+
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available in this Node build" });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000);
+      const response = await fetch(`${forgeUrl}/deforum_api/batches`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (response.status !== 202 && !response.ok) {
+        const text = await response.text();
+        return res.status(502).json({
+          error: "Deforum batch submit failed",
+          status: response.status,
+          detail: text.slice(0, 500),
+        });
+      }
+      const data = await response.json();
+      const batchId = data.batch_id;
+      if (!batchId) {
+        const framePath = await latestFramePath();
+        if (framePath) return res.json({ ok: true, path: framePath, batch: data });
+        return res.status(502).json({ error: "Deforum returned no batch_id", raw: data });
+      }
+
+      let status = "pending";
+      for (let i = 0; i < 90; i++) {
+        await sleep(2000);
+        const pollCtrl = new AbortController();
+        const pollTimeout = setTimeout(() => pollCtrl.abort(), 30000);
+        let sresp;
+        try {
+          sresp = await fetch(`${forgeUrl}/deforum_api/batches/${batchId}`, {
+            signal: pollCtrl.signal,
+          });
+        } finally {
+          clearTimeout(pollTimeout);
+        }
+        if (!sresp.ok) continue;
+        const sdata = await sresp.json();
+        status = sdata.status || sdata.state || status;
+        if (["completed", "failed", "cancelled", "canceled", "done"].includes(String(status).toLowerCase())) {
+          if (String(status).toLowerCase() === "failed") {
+            return res.status(502).json({ error: "Deforum preview failed", batch: sdata });
+          }
+          break;
+        }
+      }
+
+      const framePath = await latestFramePath();
+      if (!framePath) {
+        return res.status(502).json({ error: "Deforum finished but no frame found in frames dir", batchId, status });
+      }
+      res.json({ ok: true, path: framePath, batchId, status });
+    } catch (err) {
+      console.error("[api] deforum preview error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    }
+  });
+
   // Shared settings for collaborative features
   const sharedSettingsFile = path.join(__dirname, "shared-settings.json");
 
@@ -922,6 +1098,67 @@ async function start(opts = {}) {
     }
   });
 
+  /** Single-frame txt2img preview (performance deck / parameter react mode). */
+  app.post("/api/txt2img", async (req, res) => {
+    const body = req.body || {};
+    const forgeUrl = forgeBaseUrl();
+    const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 12));
+    const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 576));
+    const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
+    const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
+
+    const payload = {
+      prompt: String(body.prompt || body.positive || ""),
+      negative_prompt: String(body.negative_prompt || body.negativePrompt || ""),
+      steps,
+      cfg_scale: cfg,
+      width: w,
+      height: h,
+      sampler_name: sampler,
+      batch_size: 1,
+      n_iter: 1,
+      seed: Number.isFinite(seed) ? seed : -1,
+    };
+
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available in this Node build" });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 600000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/txt2img`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: "Forge txt2img failed", status: response.status, detail: text.slice(0, 500) });
+      }
+      const data = await response.json();
+      const images = data.images || [];
+      if (!images.length) {
+        return res.status(502).json({ error: "Forge returned no images", raw: data });
+      }
+      const outName = `preview_${Date.now()}.png`;
+      const outPath = path.join(uploadsDir, outName);
+      let imgB64 = images[0];
+      if (typeof imgB64 === "string" && imgB64.includes(",")) {
+        imgB64 = imgB64.split(",", 2)[1];
+      }
+      const buf = Buffer.from(imgB64, "base64");
+      await fsp.writeFile(outPath, buf);
+      res.json({ ok: true, path: `/uploads/${outName}`, info: data.info || null });
+    } catch (err) {
+      console.error("[api] txt2img error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    }
+  });
+
   // ControlNet models API
   app.get("/api/controlnet/models", async (_req, res) => {
     const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
@@ -1137,24 +1374,20 @@ async function start(opts = {}) {
         // Update API status
         apiStatus.sdForgeAvailable = true;
         apiStatus.lastChecked = new Date().toISOString();
+        apiStatus.forgeCacheValidUntil = Date.now() + 5 * 60 * 1000;
         apiStatus.sdModels = enrichedModels;
         
         console.log(`[sd-models] Fetched ${enrichedModels.length} models from SD-Forge`);
         return res.json({ models: enrichedModels, source: 'sd-forge', cached: false });
       }
     } catch (err) {
-      // API unavailable - use cache or placeholder
       apiStatus.sdForgeAvailable = false;
       apiStatus.lastChecked = new Date().toISOString();
       console.log(`[sd-models] SD-Forge API unavailable, using ${apiStatus.sdModels ? 'cached' : 'placeholder'} models: ${err.message}`);
       
-      // Return cached models if available (with 5 minute cache validity)
-      if (apiStatus.sdModels && apiStatus.lastChecked) {
-        const cacheAge = new Date() - new Date(apiStatus.lastChecked);
-        const fiveMinutes = 5 * 60 * 1000;
-        if (cacheAge < fiveMinutes) {
-          return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge: Math.floor(cacheAge / 1000) });
-        }
+      if (apiStatus.sdModels && apiStatus.forgeCacheValidUntil > Date.now()) {
+        const cacheAge = Math.floor((apiStatus.forgeCacheValidUntil - Date.now()) / 1000);
+        return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge });
       }
     }
     
@@ -2206,26 +2439,27 @@ async function start(opts = {}) {
       try {
         const startTime = Date.now();
         
-        // Try to fetch system stats (ComfyUI endpoint)
+        // SD-Forge health: GET /docs (audit A-04)
         if (typeof fetch !== 'undefined') {
           const controller = new AbortController();
           const timeout = setTimeout(() => controller.abort(), 5000);
-          
-          const response = await fetch(`${node.url}/system_stats`, {
-            signal: controller.signal
+          const base = String(node.url).replace(/\/$/, "");
+          const response = await fetch(`${base}/docs`, {
+            signal: controller.signal,
+            headers: { Accept: "text/html" },
           });
           clearTimeout(timeout);
-          
+
           const responseTime = Date.now() - startTime;
-          
+
           if (response.ok) {
             node.status = 'healthy';
             node.lastHealthCheck = new Date().toISOString();
             node.responseTime = responseTime;
-            results.push({ url: node.url, healthy: true, responseTime });
+            results.push({ url: node.url, healthy: true, responseTime, probe: '/docs' });
           } else {
             node.status = 'unhealthy';
-            results.push({ url: node.url, healthy: false, reason: `HTTP ${response.status}` });
+            results.push({ url: node.url, healthy: false, reason: `HTTP ${response.status}`, probe: '/docs' });
           }
         } else {
           node.status = 'unknown';
@@ -2274,29 +2508,40 @@ async function start(opts = {}) {
     }
   }
 
-  function listRuns() {
-    if (!fs.existsSync(runsDir)) return [];
-    const runs = [];
-    const entries = fs.readdirSync(runsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const runPath = path.join(runsDir, entry.name);
-        const manifest = loadRunManifest(runPath);
-        if (manifest) {
-          // Look for thumbnail
-          const thumbPath = path.join(runPath, "thumb.png");
-          if (fs.existsSync(thumbPath)) {
-            manifest.has_thumbnail = true;
-          }
-          // Look for last frame
-          if (manifest.last_frame && fs.existsSync(manifest.last_frame)) {
-            manifest.last_frame_exists = true;
-          }
-          runs.push(manifest);
-        }
-      }
+  async function listRuns() {
+    try {
+      await fsp.access(runsDir);
+    } catch {
+      return [];
     }
-    return runs.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
+    const entries = await fsp.readdir(runsDir, { withFileTypes: true });
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    const runs = await Promise.all(
+      dirs.map(async (name) => {
+        const runPath = path.join(runsDir, name);
+        const manifestPath = path.join(runPath, "run.json");
+        try {
+          const raw = await fsp.readFile(manifestPath, "utf-8");
+          const data = JSON.parse(raw);
+          const manifest = { ...data, run_id: name, manifest_path: manifestPath };
+          const thumbPath = path.join(runPath, "thumb.png");
+          try {
+            await fsp.access(thumbPath);
+            manifest.has_thumbnail = true;
+          } catch { /* no thumb */ }
+          if (manifest.last_frame) {
+            try {
+              await fsp.access(manifest.last_frame);
+              manifest.last_frame_exists = true;
+            } catch { /* missing */ }
+          }
+          return manifest;
+        } catch {
+          return null;
+        }
+      })
+    );
+    return runs.filter(Boolean).sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
   }
 
   // Collaborative features API
@@ -2371,32 +2616,13 @@ async function start(opts = {}) {
     }
   });
 
-  // AI Assistant API endpoints
+  // AI Assistant API endpoints (stdin JSON bridge — audit A-11)
   app.post("/api/ai/prompt-suggestions", async (req, res) => {
     const { current_prompt, category, limit } = req.body || {};
-    if (!current_prompt) {
-      return res.status(400).json({ error: "current_prompt required" });
-    }
+    if (!current_prompt) return res.status(400).json({ error: "current_prompt required" });
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-suggestions = assistant.get_prompt_suggestions("${current_prompt}", "${category || ''}", ${limit || 5})
-print(json.dumps(suggestions))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const suggestions = JSON.parse(stdout);
-          res.json({ suggestions });
-        } catch (e) {
-          res.json({ suggestions: [] });
-        }
-      });
+      const suggestions = await invokeAi("prompt_suggestions", { current_prompt, category, limit });
+      res.json({ suggestions: suggestions || [] });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2404,23 +2630,10 @@ print(json.dumps(suggestions))
 
   app.post("/api/ai/improve-prompt", async (req, res) => {
     const { current_prompt, style } = req.body || {};
-    if (!current_prompt) {
-      return res.status(400).json({ error: "current_prompt required" });
-    }
+    if (!current_prompt) return res.status(400).json({ error: "current_prompt required" });
     try {
-      const { exec } = require('child_process');
-      const script = `
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-improved = assistant.improve_prompt("${current_prompt}", "${style || 'enhance'}")
-print(improved)
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        res.json({ improved_prompt: stdout.trim() });
-      });
+      const improved = await invokeAi("improve_prompt", { current_prompt, style });
+      res.json({ improved_prompt: typeof improved === "string" ? improved : String(improved || "") });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2428,30 +2641,10 @@ print(improved)
 
   app.post("/api/ai/parameter-recommendations", async (req, res) => {
     const { current_params, style } = req.body || {};
-    if (!current_params) {
-      return res.status(400).json({ error: "current_params required" });
-    }
+    if (!current_params) return res.status(400).json({ error: "current_params required" });
     try {
-      const { exec } = require('child_process');
-      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-recs = assistant.get_parameter_recommendations(${paramsJson}, "${style || 'photorealistic'}")
-print(json.dumps(recs))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const recommendations = JSON.parse(stdout);
-          res.json({ recommendations });
-        } catch (e) {
-          res.json({ recommendations: [] });
-        }
-      });
+      const recommendations = await invokeAi("parameter_recommendations", { current_params, style });
+      res.json({ recommendations: recommendations || [] });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2463,26 +2656,8 @@ print(json.dumps(recs))
       return res.status(400).json({ error: "current_params and feedback_score required" });
     }
     try {
-      const { exec } = require('child_process');
-      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-tuned = assistant.auto_tune_parameters(${paramsJson}, ${feedback_score})
-print(json.dumps(tuned))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const tuned_params = JSON.parse(stdout);
-          res.json({ tuned_params });
-        } catch (e) {
-          res.json({ tuned_params: current_params });
-        }
-      });
+      const tuned_params = await invokeAi("auto_tune", { current_params, feedback_score });
+      res.json({ tuned_params: tuned_params || current_params });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2490,29 +2665,10 @@ print(json.dumps(tuned))
 
   app.post("/api/ai/style-recommendations", async (req, res) => {
     const { current_prompt, limit } = req.body || {};
-    if (!current_prompt) {
-      return res.status(400).json({ error: "current_prompt required" });
-    }
+    if (!current_prompt) return res.status(400).json({ error: "current_prompt required" });
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-styles = assistant.get_style_recommendations("${current_prompt}", ${limit || 3})
-print(json.dumps(styles))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const styles = JSON.parse(stdout);
-          res.json({ styles });
-        } catch (e) {
-          res.json({ styles: [] });
-        }
-      });
+      const styles = await invokeAi("style_recommendations", { current_prompt, limit });
+      res.json({ styles: styles || [] });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2524,25 +2680,8 @@ print(json.dumps(styles))
       return res.status(400).json({ error: "current_prompt and style_name required" });
     }
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-result = assistant.apply_style_transfer("${current_prompt}", "${current_negative || ''}", "${style_name}")
-print(json.dumps(result))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const result = JSON.parse(stdout);
-          res.json(result);
-        } catch (e) {
-          res.json({ prompt: current_prompt, negative_prompt: current_negative });
-        }
-      });
+      const result = await invokeAi("apply_style", { current_prompt, current_negative, style_name });
+      res.json(result || { prompt: current_prompt, negative_prompt: current_negative });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2550,30 +2689,10 @@ print(json.dumps(result))
 
   app.post("/api/ai/analyze-frame", async (req, res) => {
     const { frame_data } = req.body || {};
-    if (!frame_data) {
-      return res.status(400).json({ error: "frame_data required" });
-    }
+    if (!frame_data) return res.status(400).json({ error: "frame_data required" });
     try {
-      const { exec } = require('child_process');
-      const dataJson = JSON.stringify(frame_data).replace(/'/g, "\\'");
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-result = assistant.analyze_frame(${dataJson})
-print(json.dumps(result))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const result = JSON.parse(stdout);
-          res.json(result);
-        } catch (e) {
-          res.json({ anomalies: [], is_ok: true });
-        }
-      });
+      const result = await invokeAi("analyze_frame", { frame_data });
+      res.json(result || { anomalies: [], is_ok: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2581,25 +2700,8 @@ print(json.dumps(result))
 
   app.get("/api/ai/anomaly-summary", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-summary = assistant.get_anomaly_summary()
-print(json.dumps(summary))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const summary = JSON.parse(stdout);
-          res.json(summary);
-        } catch (e) {
-          res.json({ total_frames: 0, anomalous_frames: 0, anomaly_rate: 0 });
-        }
-      });
+      const summary = await invokeAi("anomaly_summary", {});
+      res.json(summary || { total_frames: 0, anomalous_frames: 0, anomaly_rate: 0 });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -3005,8 +3107,8 @@ print(json.dumps(summary))
     }
   });
 
-  app.get("/api/runs", (req, res) => {
-    const runs = listRuns();
+  app.get("/api/runs", async (req, res) => {
+    const runs = await listRuns();
     const { status, tag, model, search, sort, order } = req.query;
     
     let filtered = runs;
@@ -3127,8 +3229,8 @@ print(json.dumps(summary))
     }
   });
 
-  app.get("/api/runs/export", (req, res) => {
-    const runs = listRuns();
+  app.get("/api/runs/export", async (req, res) => {
+    const runs = await listRuns();
     const format = req.query.format || "json";
     
     if (format === "csv") {

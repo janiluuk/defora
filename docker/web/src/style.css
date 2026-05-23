@@ -69,6 +69,150 @@
     .context h4 { margin: 0 0 6px 0; }
     .table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text); }
     .table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
+    .performance-deck .crossfade-deck-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }
+    .crossfade-empty { font-size: 11px; color: var(--muted); padding: 12px; text-align: center; border: 1px dashed var(--border); border-radius: 8px; }
+    .crossfade-slot-row {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 8px;
+      align-items: start;
+      padding: 8px;
+      margin-bottom: 8px;
+      background: #0b1526;
+      border: 1px solid #13233d;
+      border-radius: 8px;
+    }
+    .crossfade-side { display: grid; gap: 4px; min-width: 0; }
+    .crossfade-side-label { font-size: 10px; font-weight: 700; color: var(--glow2); }
+    .crossfade-side-b .crossfade-side-label { color: var(--glow1); }
+    .crossfade-slot-meta { display: flex; flex-direction: column; align-items: center; gap: 4px; padding-top: 18px; }
+    .crossfade-type-pill { font-size: 9px; padding: 2px 6px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); }
+    .crossfade-morphed { grid-column: 1 / -1; font-size: 10px; color: #5a8fb8; display: flex; gap: 6px; align-items: baseline; }
+    .crossfade-morphed-val { font-family: monospace; color: #9bc4e2; word-break: break-all; }
+    .crossfade-center { padding: 0 4px; }
+    .crossfade-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 4px; }
+    .perf-mode-badge {
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .perf-mode-badge.mode-preview { border-color: var(--glow2); color: var(--glow2); }
+    .perf-mode-badge.mode-animate { border-color: var(--glow1); color: var(--glow1); }
+    .preview-frame-thumb { width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
+    .param-drawer { padding: 0; overflow: hidden; }
+    .param-drawer-toggle {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--panel-2);
+      border: none;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .param-drawer-body { padding: 12px; }
+    .deforum-settings-drawer { margin-top: 8px; }
+    .deforum-settings-hint {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 400;
+      flex: 1;
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 140px;
+    }
+    .deforum-settings-body { max-height: min(70vh, 520px); overflow-y: auto; }
+    .deforum-settings-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .deforum-advanced-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      margin-left: auto;
+    }
+    .deforum-json-editor {
+      font-family: ui-monospace, "Cascadia Code", monospace;
+      font-size: 11px;
+      line-height: 1.4;
+      min-height: 200px;
+    }
+    .deforum-json-error { font-size: 11px; color: var(--danger); margin: 6px 0 0; }
+    .deforum-settings-group {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      margin-bottom: 8px;
+      background: rgba(3, 27, 45, 0.35);
+    }
+    .deforum-settings-group-title {
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+      list-style: none;
+    }
+    .deforum-settings-group-title::-webkit-details-marker { display: none; }
+    .deforum-settings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 10px;
+      padding: 0 10px 10px;
+    }
+    @media (max-width: 900px) {
+      .deforum-settings-grid { grid-template-columns: 1fr; }
+    }
+    .deforum-field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+    .deforum-field.deforum-field-textarea { grid-column: 1 / -1; }
+    .deforum-field-label {
+      font-size: 10px;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .deforum-field input[type="checkbox"] { align-self: flex-start; margin-top: 4px; }
+    .model-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+    }
+    .model-status-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .model-offline .model-status-dot { background: var(--danger); box-shadow: 0 0 6px var(--danger); }
+    .model-offline { color: var(--danger); }
+    .model-loading .model-status-dot { background: #fbbf24; box-shadow: 0 0 6px #fbbf24; animation: pulse-dot 1s ease infinite; }
+    .model-loading { color: #fbbf24; }
+    .model-ready .model-status-dot { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .model-ready { color: var(--success); }
+    @keyframes pulse-dot { 50% { opacity: 0.4; } }
+    .model-bar { display: grid; gap: 6px; margin-bottom: 14px; }
+    .model-loading { font-size: 11px; color: #fbbf24; }
+    .model-last { font-size: 10px; color: var(--muted); }
+    .param-group { margin-bottom: 12px; }
+    .param-group-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .xy-pad { width: 140px; height: 140px; border-radius: 12px; border: 1px solid var(--border); background: #0f172a; position: relative; cursor: crosshair; user-select: none; }
     .xy-dot { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--glow2); box-shadow: 0 0 10px var(--glow2); }
     .lfo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }

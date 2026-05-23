@@ -1,17 +1,11 @@
 #!/usr/bin/env python3
 """
-Skeleton TUI for browsing Deforumation runs and prepping re-run/continue actions.
+TUI for browsing Deforumation runs: list manifests, edit overrides/tags/notes, batch rerun/delete, compare view.
 
-Current scope:
-  - Lists run manifests found under ./runs/<run_id>/run.json (or shows demo data)
-  - Shows basic details for the selected run
-  - Provides stub hotkeys for re-run/continue/edit/tag (no-op placeholders)
-
-Planned next steps (phaseable):
-  - Wire "re-run" and "continue" to the mediator/deforum CLI
-  - Add override editing and prompt/seed tweaks before dispatch
-  - Persist tags/notes into the manifest/index
-  - Add thumbnail/ASCII preview of last frame
+Features:
+  - Lists run manifests under ./runs/<run_id>/run.json
+  - Re-run / continue request files for deforumation_request_dispatcher
+  - Notes, tags, batch operations, run comparison (up to 4 runs)
 """
 from __future__ import annotations
 

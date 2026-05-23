@@ -3,7 +3,7 @@ WORKDIR /app
 COPY docker/web/package*.json ./
 RUN npm install --quiet
 COPY docker/web/ .
-RUN npm run build || true
+RUN npm run build
 
 FROM alfg/nginx-rtmp:latest
 COPY --from=builder /usr/local/bin/node /usr/local/bin/node

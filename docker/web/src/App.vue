@@ -7,9 +7,11 @@
         </button>
       </div>
       <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
-        <button class="btn" @click="sendControl('transport',{action:'toggle'})">⏯</button>
-        <button class="btn ghost" @click="sendControl('transport',{action:'stop'})">⏹</button>
-        <button class="btn ghost" @click="sendControl('transport',{action:'record'})">● Rec</button>
+        <button class="btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" :title="deforumPlaying ? 'Pause Deforum' : 'Play Deforum animation'">
+          {{ deforumPlaying ? '⏸ Anim' : '▶ Anim' }}
+        </button>
+        <button class="btn ghost" @click="stopDeforumPlay" title="Stop animation">⏹</button>
+        <button class="btn ghost" :class="{recording: isRecording}" @click="toggleStreamRecord">{{ isRecording ? '⏹ Rec' : '● Rec' }}</button>
         <div class="pill" :class="{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}" v-if="apiHealth.sdForge" :title="apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'">
           <span class="dot"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
         </div>
@@ -94,12 +96,18 @@
 
         <div class="video-controls-panel">
           <div class="video-controls">
-            <button class="control-btn" :class="{playing: isPlaying}" @click="togglePlayPause">
-              {{ isPlaying ? '⏸ Pause' : '▶ Play' }}
+            <button class="control-btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
+              {{ deforumPlaying ? '⏸ Pause' : '▶ Play' }}
             </button>
-            <button class="control-btn" :class="{recording: isRecording}" @click="toggleRecord">
+            <button class="control-btn" @click="generatePreviewFrame" :disabled="previewGenerating || deforumPlaying" data-testid="preview-frame">
+              {{ previewGenerating ? '⏳ Frame…' : '🖼 Frame' }}
+            </button>
+            <button class="control-btn" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
               {{ isRecording ? '⏹ Stop Rec' : '● Record' }}
             </button>
+            <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
+              {{ deforumPlaying ? 'Animating' : 'Preview' }}
+            </span>
           </div>
           <div class="stream-link">
             <a href="/hls/live/deforum.m3u8" target="_blank">📡 HLS Stream</a>
@@ -112,41 +120,221 @@
       <!-- Right: control rack per tab -->
       <div>
         <div v-if="currentTab==='LIVE'">
-          <div class="rack">
+          <div class="rack performance-deck">
             <div class="framesync-panel">
               <div class="framesync-header">
-                <div class="framesync-title">🎨 Vibe & <span class="framesync-accent">Style</span></div>
-                <button class="framesync-button" @click="resetVibeParams">↺ Reset</button>
+                <div class="framesync-title">🎛 <span class="framesync-accent">Performance</span></div>
+                <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
+                  {{ deforumPlaying ? 'Deforum playing' : 'Single-frame preview' }}
+                </span>
               </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="p in liveVibe" :key="p.key">
-                  <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
-                  <div class="framesync-footer" style="gap:4px;">
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
+
+              <div class="framesync-stack" style="margin-top:10px;">
+                <div class="framesync-subtitle">Generic prompt</div>
+                <textarea class="framesync-input" v-model="performance.genericPrompt" rows="2" placeholder="Base prompt for this session…" @input="onPerformanceInput"></textarea>
+              </div>
+
+              <div class="crossfade-deck" style="margin-top:14px;">
+                <div class="crossfade-deck-head">
+                  <span class="framesync-subtitle" style="margin:0;">Morph slots</span>
+                  <select class="framesync-select" style="max-width:140px;" v-model="performance.newSlotType">
+                    <option v-for="st in crossfadeSlotTypes" :key="st.id" :value="st.id">{{ st.label }}</option>
+                  </select>
+                  <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add</button>
+                </div>
+
+                <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
+
+                <div v-for="slot in performance.slots" :key="slot.id" class="crossfade-slot-row">
+                  <div class="crossfade-side crossfade-side-a">
+                    <span class="crossfade-side-label">A</span>
+                    <template v-if="slot.type === 'prompt'">
+                      <input class="framesync-input" v-model="slot.valueA" placeholder="Prompt A (optional)" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'param'">
+                      <select class="framesync-select" v-model="slot.paramKey" @change="onPerformanceInput">
+                        <option v-for="t in lfoTargets" :key="'a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'lora'">
+                      <select class="framesync-select" v-model="slot.valueA" @change="onPerformanceInput">
+                        <option :value="null">— none —</option>
+                        <option v-for="l in loras.available" :key="'la-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.loraStrengthA" min="0" max="2" step="0.01" placeholder="Str A" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'controlnet'">
+                      <select class="framesync-select" v-model="slot.cnSlotId" @change="onPerformanceInput">
+                        <option v-for="s in cn.slots" :key="'cna-'+slot.id+s.id" :value="s.id">{{ s.label }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.valueA" min="0" max="2" step="0.01" placeholder="Weight A" @input="onPerformanceInput">
+                    </template>
+                  </div>
+
+                  <div class="crossfade-slot-meta">
+                    <span class="crossfade-type-pill">{{ slotTypeLabel(slot.type) }}</span>
+                    <button type="button" class="framesync-button" style="padding:2px 6px;" @click="removeCrossfadeSlot(slot.id)">✕</button>
+                  </div>
+
+                  <div class="crossfade-side crossfade-side-b">
+                    <span class="crossfade-side-label">B</span>
+                    <template v-if="slot.type === 'prompt'">
+                      <input class="framesync-input" v-model="slot.valueB" placeholder="Prompt B (optional)" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'param'">
+                      <input type="number" class="framesync-input" v-model.number="slot.valueB" step="any" placeholder="Value B" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'lora'">
+                      <select class="framesync-select" v-model="slot.valueB" @change="onPerformanceInput">
+                        <option :value="null">— none —</option>
+                        <option v-for="l in loras.available" :key="'lb-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.loraStrengthB" min="0" max="2" step="0.01" placeholder="Str B" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'controlnet'">
+                      <input type="number" class="framesync-input" v-model.number="slot.valueB" min="0" max="2" step="0.01" placeholder="Weight B" @input="onPerformanceInput">
+                    </template>
+                  </div>
+
+                  <div class="crossfade-morphed" v-if="slotMorphedPreview(slot) !== null">
+                    <span class="framesync-subtitle" style="margin:0;font-size:9px;">→</span>
+                    <code class="crossfade-morphed-val">{{ formatMorphedPreview(slot) }}</code>
                   </div>
                 </div>
+
+                <div class="crossfade-center" style="margin-top:16px;">
+                  <div class="framesync-subtitle" style="text-align:center;">Crossfader</div>
+                  <div class="framesync-gradient-bar"></div>
+                  <input type="range" min="0" max="1" step="0.01" v-model.number="performance.crossfader" class="framesync-input" data-testid="performance-crossfader" @input="onCrossfaderInput">
+                  <div class="crossfade-labels">
+                    <span>A {{ ((1 - performance.crossfader) * 100).toFixed(0) }}%</span>
+                    <span>B {{ (performance.crossfader * 100).toFixed(0) }}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:#5af2a9;">{{ performance.status }}</div>
+              <div v-if="performance.lastPreviewPath" style="margin-top:8px;">
+                <img :src="performance.lastPreviewPath" alt="Last preview frame" class="preview-frame-thumb">
               </div>
             </div>
           </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📹 <span class="framesync-accent">Camera</span></div>
-                <button class="framesync-button" @click="resetCameraParams">↺ Reset</button>
+
+          <div class="rack param-drawer">
+            <button type="button" class="param-drawer-toggle" @click="paramPanelOpen = !paramPanelOpen; saveSessionState()">
+              <span>⚙️ Parameters</span>
+              <span class="model-status-pill" :class="'model-' + modelStatusKind" :title="modelStatusLabel">
+                <span class="model-status-dot"></span>
+                {{ modelStatusLabel }}
+              </span>
+              <span>{{ paramPanelOpen ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="paramPanelOpen" class="param-drawer-body">
+              <div class="model-bar">
+                <label class="framesync-subtitle">Checkpoint</label>
+                <select class="framesync-select" v-model="forge.selectedModel" :disabled="forge.switching || modelStatusKind === 'offline'" @change="onModelSelectChange">
+                  <option value="">— select model —</option>
+                  <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
+                </select>
+                <span v-if="forge.switching" class="model-loading">Loading model…</span>
+                <span v-else-if="forge.lastModel" class="model-last">Last: {{ forge.lastModel }}</span>
               </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="p in liveCam" :key="p.key">
-                  <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
-                  <div class="framesync-footer" style="gap:4px;" v-if="p.sourceable">
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
+
+              <div v-for="group in paramPanelGroups" :key="group.label" class="param-group">
+                <div class="framesync-subtitle">{{ group.label }}</div>
+                <div class="param-group-grid">
+                  <div class="framesync-stack" v-for="p in group.items" :key="p.key">
+                    <div class="framesync-subtitle" style="font-size:10px;">{{ p.label }}</div>
+                    <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
                   </div>
                 </div>
+              </div>
+
+              <div class="framesync-footer" style="margin-top:10px;">
+                <button class="framesync-button" @click="resetVibeParams">↺ Reset vibe</button>
+                <button class="framesync-button" @click="resetCameraParams">↺ Reset camera</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rack param-drawer deforum-settings-drawer" data-testid="deforum-settings-panel">
+            <button type="button" class="param-drawer-toggle" @click="deforumPanelOpen = !deforumPanelOpen; saveSessionState()">
+              <span>🎬 Deforum settings</span>
+              <span class="deforum-settings-hint">{{ deforumSettingsStatus || 'Hidden panel' }}</span>
+              <span>{{ deforumPanelOpen ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="deforumPanelOpen" class="param-drawer-body deforum-settings-body">
+              <div class="deforum-settings-toolbar">
+                <button type="button" class="framesync-button" @click="loadDeforumSettings">↻ Reload</button>
+                <button type="button" class="framesync-button" @click="saveDeforumSettings">💾 Save</button>
+                <button type="button" class="framesync-button" :disabled="previewGenerating" @click="generateDeforumPreviewFrame">🖼 Regenerate frame</button>
+                <label class="deforum-advanced-toggle">
+                  <input type="checkbox" v-model="deforumAdvancedOpen"> JSON
+                </label>
+              </div>
+
+              <div v-if="deforumAdvancedOpen" class="deforum-advanced-json">
+                <textarea
+                  class="framesync-input deforum-json-editor"
+                  v-model="deforumSettingsJson"
+                  rows="12"
+                  spellcheck="false"
+                  @blur="applyDeforumSettingsJson"
+                ></textarea>
+                <p v-if="deforumSettingsJsonError" class="deforum-json-error">{{ deforumSettingsJsonError }}</p>
+              </div>
+
+              <div v-else class="deforum-settings-groups">
+                <details
+                  v-for="group in deforumFieldGroups"
+                  :key="group.id"
+                  class="deforum-settings-group"
+                  :open="deforumSectionOpen[group.id] !== false"
+                  @toggle="onDeforumSectionToggle(group.id, $event)"
+                >
+                  <summary class="deforum-settings-group-title">{{ group.label }}</summary>
+                  <div class="deforum-settings-grid">
+                    <label
+                      v-for="field in group.fields"
+                      :key="field.key"
+                      class="deforum-field"
+                      :class="'deforum-field-' + (field.type || 'text')"
+                    >
+                      <span class="deforum-field-label">{{ field.label }}</span>
+                      <input
+                        v-if="field.type === 'number'"
+                        type="number"
+                        class="framesync-input"
+                        :min="field.min"
+                        :max="field.max"
+                        :step="field.step || 1"
+                        :value="getDeforumField(field.key)"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
+                      />
+                      <input
+                        v-else-if="field.type === 'bool'"
+                        type="checkbox"
+                        :checked="!!getDeforumField(field.key)"
+                        @change="onDeforumFieldInput(field.key, $event.target.checked, 'bool')"
+                      />
+                      <textarea
+                        v-else-if="field.type === 'textarea'"
+                        class="framesync-input"
+                        :rows="field.rows || 3"
+                        :value="getDeforumField(field.key) ?? ''"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                      />
+                      <input
+                        v-else
+                        type="text"
+                        class="framesync-input"
+                        :value="getDeforumField(field.key) ?? ''"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                      />
+                    </label>
+                  </div>
+                </details>
               </div>
             </div>
           </div>
@@ -409,9 +597,36 @@
                   <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
                 </select>
               </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Image source</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="framesync-button" :class="{active: activeSlot.imageSource==='file'}" @click="activeSlot.imageSource='file'">📁 File</button>
+                  <button type="button" class="framesync-button" :class="{active: activeSlot.imageSource==='webcam'}" @click="activeSlot.imageSource='webcam'">📷 Webcam</button>
+                  <button type="button" class="framesync-button" :class="{active: activeSlot.imageSource==='screen'}" @click="activeSlot.imageSource='screen'">🖥️ Screen</button>
+                </div>
+                <input ref="cnImageInput" type="file" accept="image/*" style="display:none;" @change="onControlNetFileSelected">
+              </div>
+              <div v-if="activeSlot.imageSource==='webcam'" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Webcam input</div>
+                <video ref="webcamVideo" autoplay playsinline style="width:100%; max-width:320px; border-radius:6px; border:1px solid #0c3048; display:none;"></video>
+                <canvas ref="webcamCanvas" style="display:none;"></canvas>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                  <button type="button" class="framesync-button" :class="{active: cn.webcamActive}" @click="toggleWebcam">{{ cn.webcamActive ? '⏹ Stop' : '▶ Start' }} Webcam</button>
+                  <select class="framesync-input" v-model.number="webcamCaptureRate" style="max-width:120px; font-size:11px;">
+                    <option :value="1000">1 fps</option>
+                    <option :value="500">2 fps</option>
+                    <option :value="200">5 fps</option>
+                    <option :value="100">10 fps</option>
+                  </select>
+                </div>
+              </div>
+              <div v-if="activeSlot.imageSource==='screen'" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Screen capture</div>
+                <button type="button" class="framesync-button" @click="startScreenCapture">🖥️ Start screen capture</button>
+              </div>
               <div class="framesync-footer" style="margin-top:10px;">
-                <button class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Change image</button>
-                <button class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
+                <button type="button" class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Upload image</button>
+                <button type="button" class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
@@ -447,6 +662,30 @@
               </div>
               <div class="framesync-footer" style="margin-top:12px;">
                 <button class="framesync-button" v-for="p in Object.keys(motionPresets)" :key="p" @click="sendPreset(p)">{{ p }}</button>
+              </div>
+            </div>
+          </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎮 XY <span class="framesync-accent">Pad</span></div>
+                <span style="font-size:10px; color:#7fb3d6;">Pan X / Pan Y</span>
+              </div>
+              <div
+                class="xy-pad"
+                :style="{ width: xyPad.padSize + 'px', height: xyPad.padSize + 'px' }"
+                @mousedown="xyPadMouseDown"
+                @mousemove="xyPadMouseMove"
+                @mouseup="xyPadMouseUp"
+                @mouseleave="xyPadMouseUp"
+                @touchstart.prevent="xyPadMouseDown"
+                @touchmove.prevent="xyPadMouseMove"
+                @touchend.prevent="xyPadMouseUp"
+              >
+                <div
+                  class="xy-dot framesync"
+                  :style="{ left: (xyPad.x - 6) + 'px', top: (xyPad.y - 6) + 'px' }"
+                ></div>
               </div>
             </div>
           </div>
@@ -1199,7 +1438,13 @@
     <!-- Bottom context panel -->
     <div class="context">
       <div v-if="currentTab==='LIVE'">
-        <h4>Beat & MIDI status</h4>
+        <h4>Performance</h4>
+        <div class="chips">
+          <span class="chip">Crossfader: {{ performance.crossfader.toFixed(2) }}</span>
+          <span class="chip">Slots: {{ performance.slots.length }}</span>
+          <span class="chip">Model: {{ modelStatusLabel }}</span>
+        </div>
+        <h4 style="margin-top:12px;">Beat & MIDI status</h4>
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
           <div style="min-width:240px;">
             <strong>Beat macros ({{ macrosRack.length }})</strong>
@@ -1314,6 +1559,19 @@
 
 <script>
 import './style.css'
+import {
+  CROSSFADE_SLOT_TYPES,
+  morphSlotValue,
+  smoothstep,
+} from './morph-utils.js'
+import {
+  DEFORUM_DEFAULT_SETTINGS,
+  DEFORUM_FIELD_GROUPS,
+  getNestedValue,
+  setNestedValue,
+  patchFromKeyPath,
+  mergeDeforumSettings,
+} from './deforum-settings-schema.js'
 
 export default {
   name: 'App',
@@ -1322,6 +1580,47 @@ export default {
        showFrames: true,
        isPlaying: false,
        isRecording: false,
+       deforumPlaying: false,
+       previewGenerating: false,
+       previewDebounceTimer: null,
+       framesRefreshBackoffMs: 5000,
+       apiHealthBackoffMs: 15000,
+       paramPanelOpen: false,
+       deforumPanelOpen: false,
+       deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
+       deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+       deforumSectionOpen: {},
+       deforumAdvancedOpen: false,
+       deforumSettingsJson: '',
+       deforumSettingsJsonError: '',
+       deforumSettingsStatus: '',
+       deforumSaveTimer: null,
+       deforumPreviewTimer: null,
+       crossfadeSlotTypes: CROSSFADE_SLOT_TYPES,
+       performance: {
+         genericPrompt: '',
+         crossfader: 0.5,
+         newSlotType: 'prompt',
+         slots: [],
+         status: '',
+         lastPreviewPath: null,
+       },
+       forge: {
+         host: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_HOST ? process.env.SD_FORGE_HOST : '192.168.2.102',
+         port: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_PORT ? process.env.SD_FORGE_PORT : '7860',
+         available: false,
+         loading: false,
+         switching: false,
+         models: [],
+         currentModel: '',
+         selectedModel: '',
+         lastModel: '',
+         modelInfo: null,
+         samplers: [],
+         schedulers: [],
+         vaeList: [],
+         options: {},
+       },
        streamUrl: "",
        lfoOn: true,
       beatMacroOn: true,
@@ -1510,16 +1809,22 @@ export default {
       },
       cn: {
         slots: [
-          { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true },
-          { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false },
+          { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true, imageSource: "file" },
+          { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
         ],
         active: "CN2",
         availableModels: [],
         source: "unknown",
+        webcamActive: false,
+        webcamStream: null,
+        webcamVideo: null,
+        webcamCanvas: null,
+        webcamCaptureInterval: null,
       },
+      webcamCaptureRate: 500,
       midi: {
         supported: typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess,
         devices: [],
@@ -1595,9 +1900,36 @@ export default {
        runsSelected: [],
        runsDetailView: null,
        runsStatus: "",
+       genData: {
+         defaultThemes: ['A journey through light', 'Neon cathedral', 'Ocean depths'],
+         sceneDescriptors: { opening: ['ethereal', 'quiet'], buildup: ['rising', 'vivid'], climax: ['intense', 'surreal'], closing: ['soft', 'fading'] },
+         environments: [['forest', 'meadow'], ['city', 'alley'], ['space', 'nebula']],
+         lighting: ['golden hour', 'neon rim light', 'moonlit'],
+         quality: ['masterpiece', 'best quality'],
+         techSpecs: ['8k', 'sharp focus'],
+         artists: { default: ['artgerm', 'greg rutkowski'], 'Masterpiece, Realistic': ['photorealistic'] },
+         negatives: ['blurry', 'low quality'],
+         cameraBehaviors: ['STATIC', 'ORBIT', 'TUNNEL'],
+       },
      };
   },
   computed: {
+    modelStatusKind() {
+      if (this.forge.switching || this.forge.loading) return 'loading';
+      if (this.forge.available || (this.apiHealth.sdForge && this.apiHealth.sdForge.available)) return 'ready';
+      return 'offline';
+    },
+    modelStatusLabel() {
+      if (this.modelStatusKind === 'loading') return 'Loading';
+      if (this.modelStatusKind === 'ready') return 'Ready';
+      return 'Offline';
+    },
+    paramPanelGroups() {
+      return [
+        { label: 'Style', items: this.liveVibe },
+        { label: 'Camera', items: this.liveCam },
+      ];
+    },
     activeSlot() {
       return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
     },
@@ -1658,21 +1990,45 @@ export default {
     sequencerPlayhead() {
       this.$nextTick(() => this.drawTimeline());
     },
+    'performance.crossfader'() {
+      this.applyCrossfadeMorph();
+      this.saveSessionState();
+    },
+    session() {
+      this.saveSessionState();
+    },
   },
   mounted() {
+    this.loadSessionState();
+    this.applyCrossfadeMorph();
     this.loadMotionStyles();
     this.loadBindings();
     this.refreshPresets();
     this.refreshLoras();
     this.loadControlNetModels();
     this.refreshPlugins();
-    this.refreshForgeAll();
+    this.syncDeforumSettingsJson();
+    this.loadDeforumSettings();
+    this.refreshForgeAll().then(() => {
+      this.restoreLastModel();
+      if (!this.deforumPlaying) this.schedulePreviewFrame();
+    });
     this.scanMidi();
     this.connectWebSocket();
     this.initHls();
     if (typeof fetch === "function") {
-      this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
-      this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
+      const scheduleFramesPoll = () => {
+        this.refreshFrames().finally(() => {
+          this.framesTimer = setTimeout(scheduleFramesPoll, this.framesRefreshBackoffMs || 5000);
+        });
+      };
+      scheduleFramesPoll();
+      const scheduleHealthPoll = () => {
+        this.refreshApiHealth().finally(() => {
+          this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
+        });
+      };
+      scheduleHealthPoll();
     }
     this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
     this.lfoTimer = setInterval(() => this.runLfos(), 120);
@@ -1688,11 +2044,12 @@ export default {
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
     this.stopSequencerPlayback();
-    if (this.framesTimer) clearInterval(this.framesTimer);
-    if (this.apiStatusTimer) clearInterval(this.apiStatusTimer);
+    if (this.framesTimer) clearTimeout(this.framesTimer);
+    if (this.apiStatusTimer) clearTimeout(this.apiStatusTimer);
     if (this.playbackTimer) clearInterval(this.playbackTimer);
     if (this.lfoTimer) clearInterval(this.lfoTimer);
     if (this.beatTimer) clearInterval(this.beatTimer);
+    if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
     this.stopLfoAnimation();
     if (this.playerEl && this.timeHandler) {
       this.playerEl.removeEventListener("timeupdate", this.timeHandler);
@@ -1710,13 +2067,18 @@ export default {
     if (typeof fetch !== "function") return;
     try {
       const res = await fetch("/api/status");
-      if (!res.ok) return;
+      if (!res.ok) {
+        this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
+        return;
+      }
       const j = await res.json();
       if (j && j.sdForge) {
         this.apiHealth = { sdForge: { ...j.sdForge } };
+        this.forge.available = !!j.sdForge.available;
       }
+      this.apiHealthBackoffMs = 15000;
     } catch (_e) {
-      /* ignore */
+      this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
     }
   },
   async refreshRuns() {
@@ -1858,42 +2220,73 @@ export default {
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
  },
  togglePlayPause() {
-   const video = this.playerEl || document.getElementById("player");
-   if (!video) return;
-   if (video.paused) {
-     video.play()
-       .then(() => { this.isPlaying = true; })
-       .catch(e => {
-         console.error("Play failed:", e);
-         this.isPlaying = false;
-       });
-   } else {
-     video.pause();
-     this.isPlaying = false;
-   }
+   this.toggleDeforumPlay();
  },
  stopVideo() {
-   const video = this.playerEl || document.getElementById("player");
-   if (!video) return;
-   video.pause();
-   video.currentTime = 0;
+   this.stopDeforumPlay();
+ },
+ toggleDeforumPlay() {
+   if (this.deforumPlaying) {
+     this.pauseDeforumAnimation();
+   } else {
+     this.startDeforumAnimation();
+   }
+ },
+ startDeforumAnimation() {
+   this.applyCrossfadeMorph();
+   const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
+   this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
+   this.deforumPlaying = true;
+   this.performance.status = 'Deforum animation playing';
+   this.isPlaying = true;
+ },
+ pauseDeforumAnimation() {
+   this.sendControl('liveParam', { is_paused_rendering: 1 });
+   this.deforumPlaying = false;
+   this.performance.status = 'Animation paused — parameter changes update preview';
    this.isPlaying = false;
  },
- async toggleRecord() {
-   if (this.isRecording) {
-     // Stop recording
-     this.isRecording = false;
-     this.sendControl('record', { action: 'stop' });
-   } else {
-     // Start recording
-     this.isRecording = true;
-     this.sendControl('record', { action: 'start' });
-     // Generate unique stream URL with timestamp and random component
-     const streamId = 'stream_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-     this.streamUrl = window.location.origin + '/stream/' + streamId;
-     // In production, you would get this from the server response
-     console.log('Recording started. Stream URL:', this.streamUrl);
+ stopDeforumPlay() {
+   this.sendControl('liveParam', { is_paused_rendering: 1, should_resume: 0 });
+   this.deforumPlaying = false;
+   this.performance.status = '';
+   this.isPlaying = false;
+   const video = this.playerEl || document.getElementById("player");
+   if (video) {
+     video.pause();
+     video.currentTime = 0;
    }
+ },
+ async toggleStreamRecord() {
+   if (this.isRecording) {
+     this.isRecording = false;
+     try {
+       const res = await fetch('/api/stream/stop-record', { method: 'POST' });
+       const data = await res.json();
+       this.performance.status = data.success ? 'Recording stopped' : (data.error || 'Stop failed');
+     } catch (e) {
+       this.performance.status = 'Stop record failed';
+     }
+   } else {
+     this.isRecording = true;
+     const output = `/tmp/defora_rec_${Date.now()}.mp4`;
+     try {
+       const res = await fetch('/api/stream/record', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ output, fps: 24 }),
+       });
+       const data = await res.json();
+       this.performance.status = data.success ? `Recording → ${output}` : (data.error || 'Record failed');
+       if (!data.success) this.isRecording = false;
+     } catch (e) {
+       this.isRecording = false;
+       this.performance.status = 'Record failed';
+     }
+   }
+ },
+ async toggleRecord() {
+   return this.toggleStreamRecord();
  },
  attachPlayer() {
    const video = document.getElementById("player");
@@ -2283,6 +2676,7 @@ export default {
    const val = parseFloat(evt.target.value);
    p.val = val;
    this.queueLiveParam(p.key, val);
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  setSource(key, source) {
    this.paramSources[key] = source;
@@ -2355,8 +2749,11 @@ export default {
           e.preventDefault();
           break;
         case " ":
-          if (self.currentTab === "GENERATE") {
-            self.generateImage();
+          if (self.currentTab === "LIVE") {
+            self.generatePreviewFrame();
+            e.preventDefault();
+          } else if (self.currentTab === "GENERATE") {
+            self.generatePreviewFrame();
             e.preventDefault();
           }
           break;
@@ -2639,7 +3036,10 @@ export default {
    if (typeof fetch !== "function") return;
    try {
      const res = await fetch("/api/frames?limit=10", { cache: "no-store" });
-     if (!res.ok) return;
+     if (!res.ok) {
+       this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
+       return;
+     }
      const json = await res.json();
      if (Array.isArray(json.items)) {
        this.thumbs = json.items.map((item) => {
@@ -2652,8 +3052,10 @@ export default {
          return { src, name, frame };
        });
      }
+     this.framesRefreshBackoffMs = 5000;
    } catch (e) {
      console.warn("frames fetch failed", e);
+     this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
    }
  },
  parseFrameNumber(name) {
@@ -3324,10 +3726,121 @@ export default {
    console.log("Updated ControlNet slot:", slot.id, payload);
  },
  uploadControlNetImage(slot) {
-   // Placeholder for image upload functionality
-   // In a real implementation, this would open a file picker and upload the image
-   console.log("Upload image for slot:", slot.id);
-   alert("Image upload functionality not yet implemented. Use SD-Forge UI for now.");
+   this.cn.active = slot.id;
+   const input = this.$refs.cnImageInput;
+   if (input) input.click();
+ },
+ onControlNetFileSelected(evt) {
+   const file = evt.target.files && evt.target.files[0];
+   if (!file) return;
+   const formData = new FormData();
+   formData.append("image", file);
+   formData.append("slot", this.cn.active);
+   fetch("/api/controlnet/upload-image", { method: "POST", body: formData })
+     .then((r) => r.json())
+     .then((data) => {
+       if (data.error) console.error("ControlNet upload:", data.error);
+     })
+     .catch((err) => console.error("ControlNet upload failed", err));
+   evt.target.value = "";
+ },
+ async toggleWebcam() {
+   if (this.cn.webcamActive) this.stopWebcam();
+   else await this.startWebcam();
+ },
+ async startWebcam() {
+   try {
+     const stream = await navigator.mediaDevices.getUserMedia({
+       video: { width: 512, height: 512, facingMode: "user" },
+     });
+     this.cn.webcamStream = stream;
+     this.cn.webcamActive = true;
+     const videoEl = this.$refs.webcamVideo;
+     if (videoEl) {
+       videoEl.srcObject = stream;
+       videoEl.style.display = "block";
+       this.cn.webcamVideo = videoEl;
+     }
+     const canvasEl = this.$refs.webcamCanvas;
+     if (canvasEl) {
+       this.cn.webcamCanvas = canvasEl;
+       canvasEl.width = 512;
+       canvasEl.height = 512;
+     }
+     this.cn.webcamCaptureInterval = setInterval(() => this.captureWebcamFrame(), this.webcamCaptureRate);
+   } catch (err) {
+     console.error("Failed to start webcam:", err);
+     alert("Could not access webcam. Check browser permissions.");
+   }
+ },
+ stopWebcam() {
+   if (this.cn.webcamCaptureInterval) {
+     clearInterval(this.cn.webcamCaptureInterval);
+     this.cn.webcamCaptureInterval = null;
+   }
+   if (this.cn.webcamStream) {
+     this.cn.webcamStream.getTracks().forEach((t) => t.stop());
+     this.cn.webcamStream = null;
+   }
+   const videoEl = this.$refs.webcamVideo;
+   if (videoEl) {
+     videoEl.style.display = "none";
+     videoEl.srcObject = null;
+   }
+   this.cn.webcamActive = false;
+ },
+ captureWebcamFrame() {
+   const video = this.cn.webcamVideo;
+   const canvas = this.cn.webcamCanvas;
+   if (!video || !canvas || video.readyState < 2) return;
+   const ctx = canvas.getContext("2d");
+   ctx.drawImage(video, 0, 0, 512, 512);
+   canvas.toBlob(async (blob) => {
+     if (!blob) return;
+     const activeSlot = this.cn.slots.find((s) => s.id === this.cn.active);
+     if (!activeSlot || activeSlot.imageSource !== "webcam") return;
+     const formData = new FormData();
+     formData.append("image", blob, "webcam_frame.png");
+     formData.append("slot", this.cn.active);
+     try {
+       await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
+     } catch (err) {
+       console.error("Webcam frame upload failed:", err);
+     }
+   }, "image/png");
+ },
+ async startScreenCapture() {
+   try {
+     const stream = await navigator.mediaDevices.getDisplayMedia({ video: { width: 512, height: 512 } });
+     const video = document.createElement("video");
+     video.srcObject = stream;
+     video.autoplay = true;
+     video.playsInline = true;
+     const canvas = document.createElement("canvas");
+     canvas.width = 512;
+     canvas.height = 512;
+     const captureInterval = setInterval(() => {
+       if (video.readyState < 2) return;
+       canvas.getContext("2d").drawImage(video, 0, 0, 512, 512);
+       canvas.toBlob(async (blob) => {
+         if (!blob) return;
+         const activeSlot = this.cn.slots.find((s) => s.id === this.cn.active);
+         if (!activeSlot || activeSlot.imageSource !== "screen") return;
+         const formData = new FormData();
+         formData.append("image", blob, "screen_capture.png");
+         formData.append("slot", this.cn.active);
+         try {
+           await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
+         } catch (err) {
+           console.error("Screen capture upload failed:", err);
+         }
+       }, "image/png");
+     }, this.webcamCaptureRate);
+     stream.getVideoTracks()[0].onended = () => clearInterval(captureInterval);
+   } catch (err) {
+     console.error("Failed to start screen capture:", err);
+     alert("Could not start screen capture. Check browser permissions.");
+   }
  },
  handleMidi(input, msg) {
    const [status, cc, value] = msg.data;
@@ -3945,6 +4458,7 @@ export default {
    const translation_y = normY * TRANSLATION_RANGE;
    this.queueLiveParam("translation_x", translation_x);
    this.queueLiveParam("translation_y", translation_y);
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
  async refreshLoras() {
@@ -4266,6 +4780,393 @@ export default {
    }
  },
 
+ // ─── Performance deck (crossfader, preview, session) ─────────────────
+ sessionStorageKey() {
+   return `defora_session_${this.session || 'default'}`;
+ },
+ loadSessionState() {
+   try {
+     const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
+     if (!raw) return;
+     const s = JSON.parse(raw);
+     if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
+     if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
+     if (Array.isArray(s.slots)) this.performance.slots = s.slots;
+     if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
+     if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
+     if (s.deforumSettings && typeof s.deforumSettings === 'object') {
+       this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
+       this.syncDeforumSettingsJson();
+     }
+     if (s.lastModel) {
+       this.forge.lastModel = s.lastModel;
+       this.forge.selectedModel = s.lastModel;
+     }
+     if (s.prompts) Object.assign(this.prompts, s.prompts);
+   } catch (_e) { /* ignore */ }
+ },
+ saveSessionState() {
+   try {
+     if (!window.localStorage) return;
+     const blob = {
+       crossfader: this.performance.crossfader,
+       genericPrompt: this.performance.genericPrompt,
+       slots: this.performance.slots,
+       paramPanelOpen: this.paramPanelOpen,
+       deforumPanelOpen: this.deforumPanelOpen,
+       deforumSettings: this.deforumSettings,
+       lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
+       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+     };
+     window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
+   } catch (_e) { /* ignore */ }
+ },
+ restoreLastModel() {
+   const name = this.forge.lastModel || this.forge.selectedModel;
+   if (!name || this.forge.switching) return;
+   if (this.forge.currentModel && this.forge.currentModel === name) return;
+   this.forge.selectedModel = name;
+   this.switchForgeModel();
+ },
+ async onModelSelectChange() {
+   await this.switchForgeModel();
+   this.saveSessionState();
+ },
+ slotTypeLabel(type) {
+   const t = this.crossfadeSlotTypes.find((x) => x.id === type);
+   return t ? t.label : type;
+ },
+ newSlotId() {
+   return `slot_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+ },
+ addCrossfadeSlot() {
+   const type = this.performance.newSlotType || 'prompt';
+   const slot = {
+     id: this.newSlotId(),
+     type,
+     valueA: type === 'param' ? 0 : (type === 'prompt' ? '' : null),
+     valueB: type === 'param' ? 0 : (type === 'prompt' ? '' : null),
+     paramKey: 'cfg',
+     loraStrengthA: 1,
+     loraStrengthB: 1,
+     cnSlotId: this.cn.active || 'CN1',
+   };
+   this.performance.slots.push(slot);
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+ },
+ removeCrossfadeSlot(id) {
+   this.performance.slots = this.performance.slots.filter((s) => s.id !== id);
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+ },
+ slotMorphedPreview(slot) {
+   return morphSlotValue(this.normalizeSlotForMorph(slot), this.performance.crossfader);
+ },
+ formatMorphedPreview(slot) {
+   const v = this.slotMorphedPreview(slot);
+   if (v == null) return '—';
+   if (typeof v === 'object') return JSON.stringify(v);
+   if (typeof v === 'number') return Number(v).toFixed(3);
+   const s = String(v);
+   return s.length > 48 ? s.slice(0, 48) + '…' : s;
+ },
+ normalizeSlotForMorph(slot) {
+   if (slot.type === 'lora') {
+     const pack = (name, str) => (name ? { name, strength: Number(str) || 1 } : null);
+     return {
+       ...slot,
+       valueA: pack(slot.valueA, slot.loraStrengthA),
+       valueB: pack(slot.valueB, slot.loraStrengthB),
+     };
+   }
+   if (slot.type === 'controlnet') {
+     const pack = (weight) => ({
+       slotId: slot.cnSlotId,
+       weight: Number(weight),
+       start: 0,
+       end: 0.9,
+       enabled: true,
+     });
+     return {
+       ...slot,
+       valueA: slot.valueA != null && slot.valueA !== '' ? pack(slot.valueA) : null,
+       valueB: slot.valueB != null && slot.valueB !== '' ? pack(slot.valueB) : null,
+     };
+   }
+   if (slot.type === 'param') {
+     return { ...slot, valueA: slot.valueA, valueB: slot.valueB };
+   }
+   return slot;
+ },
+ buildMorphedPrompt() {
+   const parts = [];
+   const base = (this.performance.genericPrompt || '').trim();
+   if (base) parts.push(base);
+   for (const slot of this.performance.slots) {
+     if (slot.type !== 'prompt') continue;
+     const m = morphSlotValue(this.normalizeSlotForMorph(slot), this.performance.crossfader);
+     if (m) parts.push(String(m));
+   }
+   const merged = parts.join(', ').trim();
+   if (merged) return merged;
+   return (this.prompts.pos || '').trim();
+ },
+ applyCrossfadeMorph() {
+   const t = this.performance.crossfader;
+   const live = {};
+   const loraA = [];
+   const loraB = [];
+   for (const slot of this.performance.slots) {
+     const norm = this.normalizeSlotForMorph(slot);
+     const v = morphSlotValue(norm, t);
+     if (v == null) continue;
+     if (slot.type === 'prompt') continue;
+     if (slot.type === 'param' && slot.paramKey) {
+       live[slot.paramKey] = v;
+       const p = this.liveVibe.find((x) => x.key === slot.paramKey) || this.liveCam.find((x) => x.key === slot.paramKey);
+       if (p) p.val = v;
+     } else if (slot.type === 'lora' && v && v.name) {
+       const entry = { name: v.name, path: v.name, strength: v.strength ?? 1 };
+       if (smoothstep(t) < 0.5) loraA.push(entry);
+       else loraB.push(entry);
+     } else if (slot.type === 'controlnet' && v) {
+       const cnSlot = this.cn.slots.find((s) => s.id === v.slotId);
+       if (cnSlot) {
+         cnSlot.weight = v.weight;
+         cnSlot.start = v.start;
+         cnSlot.end = v.end;
+         cnSlot.enabled = v.enabled;
+         this.updateControlNet(cnSlot);
+       }
+     }
+   }
+   const positive = this.buildMorphedPrompt();
+   const negative = (this.prompts.neg || '').trim();
+   this.prompts.pos = positive;
+   this.sendControl('prompt', { positive, negative });
+   if (Object.keys(live).length) this.sendControl('liveParam', live);
+   if (loraA.length || loraB.length) {
+     this.sendControl('loras', {
+       groupA: loraA,
+       groupB: loraB,
+       crossfaderValue: t,
+     });
+   }
+   this.prompts.crossfaderValue = t;
+ },
+ onCrossfaderInput() {
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ onPerformanceInput() {
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ schedulePreviewFrame() {
+   if (this.deforumPlaying) return;
+   clearTimeout(this.previewDebounceTimer);
+   this.previewDebounceTimer = setTimeout(() => this.generatePreviewFrame(), 900);
+ },
+ scheduleDeforumPreview() {
+   if (this.deforumPlaying) return;
+   clearTimeout(this.deforumPreviewTimer);
+   this.deforumPreviewTimer = setTimeout(() => this.generateDeforumPreviewFrame(), 1200);
+ },
+ getDeforumField(keyPath) {
+   return getNestedValue(this.deforumSettings, keyPath);
+ },
+ onDeforumSectionToggle(groupId, evt) {
+   this.deforumSectionOpen[groupId] = evt.target.open;
+ },
+ onDeforumFieldInput(keyPath, raw, kind) {
+   let value = raw;
+   if (kind === 'number') {
+     const n = parseFloat(raw);
+     value = Number.isFinite(n) ? n : 0;
+   } else if (kind === 'bool') {
+     value = !!raw;
+   } else if (keyPath === 'init_image' && raw === '') {
+     value = null;
+   }
+   setNestedValue(this.deforumSettings, keyPath, value);
+   if (keyPath === 'prompts.0') {
+     const p0 = String(value || '');
+     const negSplit = p0.split(/\s+--neg\s+/i);
+     if (negSplit.length > 1) {
+       this.prompts.pos = negSplit[0].trim();
+       this.prompts.neg = negSplit.slice(1).join(' --neg ').trim();
+     } else {
+       this.prompts.pos = p0.trim();
+     }
+   }
+   if (keyPath === 'negative_prompts') {
+     this.prompts.neg = String(value || '');
+   }
+   if (keyPath === 'seed' && Number.isFinite(value)) {
+     this.hud.seed = value;
+   }
+   this.syncDeforumSettingsJson();
+   this.pushDeforumLivePatch(keyPath, value);
+   this.queueDeforumSettingsSave();
+   if (!this.deforumPlaying) this.scheduleDeforumPreview();
+ },
+ pushDeforumLivePatch(keyPath, value) {
+   const patch = patchFromKeyPath(keyPath, value);
+   this.sendControl('liveParam', patch);
+ },
+ syncDeforumSettingsJson() {
+   try {
+     this.deforumSettingsJson = JSON.stringify(this.deforumSettings, null, 2);
+     this.deforumSettingsJsonError = '';
+   } catch (e) {
+     this.deforumSettingsJsonError = String(e.message || e);
+   }
+ },
+ applyDeforumSettingsJson() {
+   try {
+     const parsed = JSON.parse(this.deforumSettingsJson);
+     if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
+     this.deforumSettings = parsed;
+     this.deforumSettingsJsonError = '';
+     this.queueDeforumSettingsSave();
+     if (!this.deforumPlaying) this.scheduleDeforumPreview();
+   } catch (e) {
+     this.deforumSettingsJsonError = String(e.message || e);
+   }
+ },
+ async loadDeforumSettings() {
+   try {
+     const res = await fetch('/api/deforum/settings');
+     const data = await res.json();
+     if (data.settings && typeof data.settings === 'object') {
+       this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
+     }
+     this.syncDeforumSettingsJson();
+     this.deforumSettingsStatus = 'Loaded';
+   } catch (e) {
+     this.deforumSettingsStatus = 'Load failed';
+     console.error('loadDeforumSettings', e);
+   }
+ },
+ queueDeforumSettingsSave() {
+   clearTimeout(this.deforumSaveTimer);
+   this.deforumSaveTimer = setTimeout(() => this.saveDeforumSettings(), 800);
+ },
+ async saveDeforumSettings() {
+   try {
+     const res = await fetch('/api/deforum/settings', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ settings: this.deforumSettings }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.deforumSettingsStatus = data.error || 'Save failed';
+       return;
+     }
+     this.deforumSettingsStatus = 'Saved';
+   } catch (e) {
+     this.deforumSettingsStatus = 'Save failed';
+   }
+ },
+ async generateDeforumPreviewFrame() {
+   if (this.deforumPlaying) {
+     this.performance.status = 'Stop animation to preview single frames';
+     return false;
+   }
+   if (this.previewGenerating) return false;
+   this.applyCrossfadeMorph();
+   this.previewGenerating = true;
+   this.performance.status = 'Rendering Deforum frame…';
+   this.deforumSettingsStatus = 'Rendering…';
+   try {
+     const res = await fetch('/api/deforum/preview', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ settings: this.deforumSettings }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.performance.status = data.error || 'Deforum preview failed';
+       this.deforumSettingsStatus = 'Preview failed';
+       return false;
+     }
+     this.performance.lastPreviewPath = data.path;
+     this.generator.lastPath = data.path;
+     this.performance.status = 'Deforum frame ready';
+     this.deforumSettingsStatus = 'Frame ready';
+     this.refreshFrames();
+     return true;
+   } catch (err) {
+     this.performance.status = String(err.message || err);
+     this.deforumSettingsStatus = 'Preview failed';
+     return false;
+   } finally {
+     this.previewGenerating = false;
+   }
+ },
+ async generatePreviewFrame() {
+   if (this.deforumPanelOpen) {
+     const ok = await this.generateDeforumPreviewFrame();
+     if (!ok) await this.generateImage();
+   } else {
+     await this.generateImage();
+   }
+ },
+ async generateImage() {
+   if (this.deforumPlaying) {
+     this.performance.status = 'Stop animation to preview single frames';
+     return;
+   }
+   if (this.previewGenerating) return;
+   this.applyCrossfadeMorph();
+   this.previewGenerating = true;
+   this.performance.status = 'Generating preview frame…';
+   const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
+   const strength = this.liveVibe.find((p) => p.key === 'strength');
+   const w = this.deforumSettings.W || 1024;
+   const h = this.deforumSettings.H || 576;
+   const steps = this.deforumSettings.steps || 12;
+   const seed = this.deforumSettings.seed != null ? this.deforumSettings.seed : this.hud.seed;
+   const sampler = this.deforumSettings.sampler || 'Euler a';
+   const neg = this.deforumSettings.negative_prompts || this.prompts.neg || '';
+   const prompt =
+     getNestedValue(this.deforumSettings, 'prompts.0') ||
+     this.buildMorphedPrompt();
+   try {
+     const res = await fetch('/api/txt2img', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({
+         prompt,
+         negative_prompt: neg,
+         steps,
+         cfg_scale: cfg ? cfg.val : 7,
+         width: w,
+         height: h,
+         seed,
+         sampler_name: sampler,
+       }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.performance.status = data.error || 'Preview failed';
+       return;
+     }
+     this.performance.lastPreviewPath = data.path;
+     this.generator.lastPath = data.path;
+     this.performance.status = 'Preview frame ready';
+     this.refreshFrames();
+   } catch (err) {
+     this.performance.status = String(err.message || err);
+   } finally {
+     this.previewGenerating = false;
+   }
+ },
+
  // Forge settings methods
  forgeUrl() {
    return `http://${this.forge.host}:${this.forge.port}`;
@@ -4320,9 +5221,12 @@ export default {
      const data = await res.json();
      if (data.success) {
        this.forge.currentModel = this.forge.selectedModel;
+       this.forge.lastModel = this.forge.selectedModel;
        if (data.model && data.model.metadata) {
          this.forge.modelInfo = data.model.metadata;
        }
+       this.saveSessionState();
+       if (!this.deforumPlaying) this.schedulePreviewFrame();
      }
    } catch (err) {
      console.error('Failed to switch model', err);

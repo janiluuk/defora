@@ -22,9 +22,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest
+          pip install pytest httpx
       - name: Python tests
         run: ./scripts/run_tests.sh
+      - name: Web server live smoke (audit A-10)
+        run: python -m pytest tests/test_web_server_live.py -q
+      - name: Performance tests (audit A-09)
+        env:
+          SKIP_PERF_TESTS: "0"
+        run: python -m pytest tests/test_performance_load.py::TestAPIEndpointPerformance -q
       - name: Set up Node
         uses: actions/setup-node@v4
         with:

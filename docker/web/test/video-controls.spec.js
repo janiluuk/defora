@@ -93,50 +93,54 @@ describe("Video Controls E2E Tests", () => {
 
     it("should start recording when toggleRecord is called", async () => {
       const app = instantiate(appDef);
-      let controlSent = null;
-      app.sendControl = (cmd, payload) => {
-        controlSent = { cmd, payload };
-      };
-      // Mock window for stream URL generation
-      global.window = { location: { origin: "http://localhost" } };
-      
-      await app.toggleRecord();
-      
-      expect(app.isRecording).to.equal(true);
-      expect(app.streamUrl).to.include("/stream/stream_");
-      expect(controlSent).to.deep.equal({ cmd: "record", payload: { action: "start" } });
-      delete global.window;
+      const origFetch = global.fetch;
+      global.fetch = async (url, opts) => ({
+        ok: true,
+        json: async () => ({ success: true, output: "/tmp/defora_rec_test.mp4" }),
+      });
+      try {
+        await app.toggleRecord();
+        expect(app.isRecording).to.equal(true);
+        expect(app.performance.status).to.include("Recording");
+      } finally {
+        global.fetch = origFetch;
+      }
     });
 
     it("should stop recording when toggleRecord is called again", async () => {
       const app = instantiate(appDef);
-      let controlsSent = [];
-      app.sendControl = (cmd, payload) => {
-        controlsSent.push({ cmd, payload });
-      };
-      global.window = { location: { origin: "http://localhost" } };
-      
-      // Start recording
-      await app.toggleRecord();
-      expect(app.isRecording).to.equal(true);
-      
-      // Stop recording
-      await app.toggleRecord();
-      expect(app.isRecording).to.equal(false);
-      expect(controlsSent[1]).to.deep.equal({ cmd: "record", payload: { action: "stop" } });
-      delete global.window;
+      const origFetch = global.fetch;
+      global.fetch = async (url) => ({
+        ok: true,
+        json: async () => ({
+          success: true,
+          output: String(url).includes("stop") ? null : "/tmp/defora_rec_test.mp4",
+        }),
+      });
+      try {
+        await app.toggleRecord();
+        expect(app.isRecording).to.equal(true);
+        await app.toggleRecord();
+        expect(app.isRecording).to.equal(false);
+        expect(app.performance.status).to.include("stopped");
+      } finally {
+        global.fetch = origFetch;
+      }
     });
 
-    it("should generate a stream URL when recording starts", async () => {
+    it("should set recording status when recording starts", async () => {
       const app = instantiate(appDef);
-      app.sendControl = () => {};
-      global.window = { location: { origin: "http://localhost" } };
-      
-      await app.toggleRecord();
-      
-      expect(app.streamUrl).to.be.a("string");
-      expect(app.streamUrl).to.match(/^http:\/\/localhost\/stream\/stream_\d+_[a-z0-9]+$/);
-      delete global.window;
+      const origFetch = global.fetch;
+      global.fetch = async () => ({
+        ok: true,
+        json: async () => ({ success: true, output: "/tmp/defora_rec_test.mp4" }),
+      });
+      try {
+        await app.toggleRecord();
+        expect(app.performance.status).to.include("/tmp/defora_rec");
+      } finally {
+        global.fetch = origFetch;
+      }
     });
   });
 

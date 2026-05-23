@@ -1,5 +1,5 @@
 /**
- * Additional tests for web server functionality mentioned in FEATURES_STATUS.md
+ * Additional tests for web server API and plugin registry
  */
 const fs = require("fs");
 const path = require("path");

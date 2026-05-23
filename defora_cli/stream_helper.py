@@ -70,9 +70,10 @@ def build_ffmpeg_cmd(source: Path, target: str, fps: int, resolution: Optional[s
         if transition == "fade":
             filter_complex.append(f"[0:v]fade=t=in:st=0:d=1[out]")
         elif transition == "wipe":
-            filter_complex.append(f"[0:v]wipe=t=right:duration=1[out]")
+            # xfade wipe (audit A-25); requires two inputs — use single-stream fade if one input
+            filter_complex.append(f"[0:v]fade=t=out:st=0:d=1:alpha=1[out]")
         elif transition == "dissolve":
-            filter_complex.append(f"[0:v]dissolve=duration=1[out]")
+            filter_complex.append(f"[0:v]fade=t=in:st=0:d=1[out]")
     
     if filter_complex:
         cmd.extend(["-filter_complex", ";".join(filter_complex)])

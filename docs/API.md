@@ -12,6 +12,7 @@ This document describes the REST API endpoints available in the Defora web serve
 - [Plugins registry](#plugins-registry)
 - [img2img](#img2img)
 - [ControlNet](#controlnet)
+- [Deforum settings](#deforum-settings)
 
 ---
 
@@ -426,9 +427,7 @@ Proxy to Forge `POST /sdapi/v1/img2img`. The first returned image is written und
 
 ### GET /api/controlnet/models
 
-Get list of available ControlNet models.
-
-**Note**: This is currently a placeholder endpoint. In production, this would query the SD-Forge API for available models.
+Get list of available ControlNet models from SD-Forge (`/controlnet/model_list`) when reachable, with in-memory cache and placeholder fallback.
 
 **Response**: `200 OK`
 ```json
@@ -458,6 +457,30 @@ Get list of available ControlNet models.
   - `id` (string): Model identifier
   - `name` (string): Human-readable model name
   - `category` (string): Model category (edge, depth, pose, line, style, semantic)
+
+---
+
+## Deforum settings
+
+Full Deforum JSON preset used by the hidden **LIVE → Deforum settings** panel.
+
+### GET /api/deforum/settings
+
+Load persisted settings from `docker/web/deforum-settings.json` (or `{ settings: null }` if missing).
+
+### POST /api/deforum/settings
+
+**Request body**: `{ "settings": { ...deforum JSON... } }`
+
+Saves the full object to disk and broadcasts `deforum_settings` over WebSocket.
+
+### POST /api/deforum/preview
+
+Render **one frame** via Forge `POST /deforum_api/batches` with `max_frames: 1`, poll until complete, return the newest file in `FRAMES_DIR`.
+
+**Request body**: `{ "settings": { ... } }`
+
+**Response**: `{ "ok": true, "path": "/frames/frame_00042.png", "batchId": "...", "status": "completed" }`
 
 ---
 

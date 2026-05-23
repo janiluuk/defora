@@ -2,7 +2,88 @@
 
 This document outlines the current status, unfinished features, and planned future development for Defora — an audio-visual instrument for Stable Diffusion.
 
-**Last Updated**: 2026-05-04 | **Version**: 0.2.8+ (in progress)
+**Last Updated**: 2026-05-23 | **Version**: 0.3.6 (web package) / roadmap track 0.3.x
+
+---
+
+## Audit findings (2026-05-23)
+
+Full codebase audit: inconsistencies, performance killers, incomplete items, and missing functionality. **Remediation landed 2026-05-23** (Phases 10–15); items below marked **Done** unless noted **Open**.
+
+### Summary
+
+| Severity | Open | Done | Themes |
+|----------|------|------|--------|
+| **Critical** | 0 | 4 | `sync-app-definition.mjs` + `pretest`; CN webcam/screen in `App.vue`; compose `SD_FORGE_HOST`; health `/docs` |
+| **High** | 1 | 7 | Docs/tab parity, XY pad, live server tests in CI; **Open**: Docker stack smoke in default CI ([A-08](#audit-findings-2026-05-23)) |
+| **Medium** | 2 | 11 | API/README env, Dockerfile strict build, upload CN, polling backoff; **Open**: LTC demod ([A-24](#audit-findings-2026-05-23)), blend-weight UX ([A-26](#audit-findings-2026-05-23)) |
+| **Low** | 2 | 5 | **Open**: Playwright CI gate ([A-27](#audit-findings-2026-05-23)); dual-manifest doc note only ([A-29](#audit-findings-2026-05-23)) |
+
+### Critical
+
+| ID | Category | Issue | Location / evidence |
+|----|----------|-------|---------------------|
+| **A-01** | ✅ Done | **`sync-app-definition.mjs`** regenerates `app-definition.js` from full SFC template (fixes inner `<template>` truncation); `npm run pretest` runs sync before `npm test`. | `docker/web/scripts/sync-app-definition.mjs`, `docker/web/package.json` |
+| **A-02** | ✅ Done | ControlNet **webcam/screen/file** in `App.vue` PROMPTS → CONTROLNET sub-tab (`imageSource`, `toggleWebcam`, screen capture, `POST /api/controlnet/upload-image`). | `App.vue` CONTROLNET rack |
+| **A-03** | ✅ Done | Compose `web` sets `SD_FORGE_HOST=sd-forge`, `SD_FORGE_PORT=7860`; README documents web env vars. | `docker-compose.yml`, `README.md` |
+| **A-04** | ✅ Done | `performHealthCheck()` probes SD-Forge **`GET /docs`**; distributed tests aligned to port `7860`. | `docker/web/server.js`, `tests/test_distributed_generation.py` |
+
+### High — inconsistencies & missing UX
+
+| ID | Category | Issue | Location / evidence |
+|----|----------|-------|---------------------|
+| **A-05** | ✅ Done | `docs/WEB_UI_TABS.md` — sequencer on **GENERATE**; MOTION = presets + XY pad. | `docs/WEB_UI_TABS.md` |
+| **A-06** | ✅ Done | Docs: LORA/CN as **PROMPTS** sub-tabs; top-level **RUNS** tab documented. | `docs/WEB_UI_TABS.md`, `README.md` |
+| **A-07** | ✅ Done | MOTION **XY pad** rendered (`.xy-pad` + mouse/touch handlers). | `App.vue` MOTION rack |
+| **A-08** | **Open** | Docker integration tests still default `SKIP_DOCKER_TESTS=1`; CI runs perf + live server smoke but not full stack. Use `SKIP_DOCKER_TESTS=0` locally or add nightly job. | `.github/workflows/ci.yml` |
+| **A-09** | ✅ Done | `TestAPIEndpointPerformance` exercises `/api/health`, `/api/status`, `/api/frames` when `SKIP_PERF_TESTS=0`. | `tests/test_performance_load.py`, CI job |
+| **A-10** | ✅ Done | `tests/test_web_server_live.py` imports `server.js` handlers via `httpx` ASGI-style smoke. | `tests/test_web_server_live.py`, CI job |
+
+### High — performance killers
+
+| ID | Category | Issue | Location / evidence |
+|----|----------|-------|---------------------|
+| **A-11** | ✅ Done | AI routes use **`scripts/ai_invoke.py`** (stdin JSON) instead of `python3 -c` per request. | `docker/web/scripts/ai_invoke.py`, `server.js` |
+| **A-12** | ✅ Done | `/api/frames` uses mtime **index cache** with TTL. | `docker/web/server.js` |
+| **A-13** | ✅ Done | `listRuns()` uses async manifest reads (no per-run sync N+1 in hot path). | `docker/web/server.js` |
+
+### Medium
+
+| ID | Category | Issue |
+|----|----------|-------|
+| **A-14** | ✅ Done | `docs/API.md` — ControlNet lists Forge + cache, not placeholder. |
+| **A-15** | ✅ Done | README: `FORGE_API_BASE` (CLI) + `SD_FORGE_HOST`/`SD_FORGE_PORT` (web). |
+| **A-16** | ✅ Done | Roadmap version line **0.3.6** aligned with `docker/web/package.json`. |
+| **A-17** | ✅ Done | `deforumation_runs_cli.py` module doc updated. |
+| **A-18** | ✅ Done | `defora_tui.py` header updated (full TUI, not skeleton). |
+| **A-19** | ✅ Done | `uploadControlNetImage()` triggers file input → `POST /api/controlnet/upload-image`. |
+| **A-20** | ✅ Done | `docker/web/Dockerfile`: `npm run build` fails image on Vite error. |
+| **A-21** | ✅ Done | Tests use synced `app-definition.js` (full template); `ui.spec.js` updated for LIVE performance deck + RUNS tab. |
+| **A-22** | ✅ Done | `DEFORUMATION_ADDRESS` default `host.docker.internal` in compose. |
+| **A-23** | ✅ Done | Frames/health polling **backoff** on errors in `App.vue`. |
+| **A-24** | **Open** | `timecode_sync.py` LTC demodulation still placeholder — treat MTC/USB bridge as supported; LTC demod = future. |
+| **A-25** | ✅ Done | `stream_helper` wipe uses **fade** transition (valid ffmpeg). |
+| **A-26** | **Open** | Prompt morph blend weight slider / auto-calc still TODO in `applyMorphPrompts`. |
+
+### Low
+
+| ID | Category | Issue |
+|----|----------|-------|
+| **A-27** | **Open** | Playwright available locally (`npx playwright test`); not in CI workflow yet. |
+| **A-28** | ✅ Done | `features.spec.js` stale `FEATURES_STATUS.md` reference removed. |
+| **A-29** | ✅ Done | Documented: **CLI** plugins (`defora_cli/plugins/manifest.json`) vs **web** registry (`docker/web/plugins/manifest.json` + `PLUGINS_DIR`). |
+| **A-30** | ✅ Done | README web/TUI tab wording aligned with PROMPTS sub-tabs. |
+| **A-31** | ✅ Done | `encoder` `depends_on`: `web`, `sd-forge`. |
+| **A-32** | ✅ Done | Separate `forgeCacheValidUntil` from failed probe `lastChecked`. |
+
+### Recommended fix order (phased below)
+
+1. **A-01, A-02** — Regenerate or CI-sync `app-definition.js` from `App.vue`; port ControlNet live-input UI into production.
+2. **A-03, A-22** — Compose defaults: `SD_FORGE_HOST=sd-forge`, document web env vars in README.
+3. **A-04** — Distributed health: probe SD-Forge `/docs` on port 7860; align tests/docs.
+4. **A-05–A-07, A-14–A-16** — Docs/tab parity (MOTION vs GENERATE, LORA placement, XY pad).
+5. **A-08–A-10, A-20–A-21** — CI: enable Docker smoke + real server tests; fail build on Vite error.
+6. **A-11–A-13, A-23** — Performance: in-process AI module, frame/run listing indexes, polling backoff.
 
 ---
 
@@ -21,6 +102,7 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **Multi-band / “spectral” audio** (marketing language) | Named Hz presets (`bass_mid_high` CLI layout + Web band chips); envelope follower + `--smooth` on curves; **offline spectrogram** + **live `AnalyserNode`** bars (reference `<audio>`) on Web upload | **Done (MVP)** · richer live viz / metering polish optional |
 | **Stream stack** (RTMP, HLS, bridge, RabbitMQ) | Implemented; ensure ops docs stay linked from README | Done (monitor `docs/streaming_stack.md`) |
 | **`deforumation_dashboard`** | Listed in README; treat as first-class like other CLIs | Done (see [Current Features](#current-features-completed)) |
+| **2026-05-23 audit** | Phases **10–15** remediation (UI parity, compose, health, CI smoke, server perf) | **Done** — [Audit findings](#audit-findings-2026-05-23); **Open**: [A-08](#audit-findings-2026-05-23), [A-24](#audit-findings-2026-05-23), [A-26](#audit-findings-2026-05-23), [A-27](#audit-findings-2026-05-23) |
 
 ### Phased delivery
 
@@ -35,18 +117,25 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **7** | **Spectral audio overview (MVP)** | After upload: `AudioContext.decodeAudioData` + Hann-window FFT spectrogram (PNG); MODULATION “Spectral overview”, LIVE timeline strip, context strip; roadmap/docs/tests | **Done** |
 | **8** | **Live spectral bars (MVP)** | `MediaElementAudioSourceNode` + `AnalyserNode` on `avSyncAudio`; FFT band bars on MODULATION canvas + LIVE strip while reference track plays; dispose on clear/unmount; tests | **Done** |
 | **9** | **Sequencer scene markers (MVP)** | Optional `markers[]` on timeline (`t`, `name`); `validateTimeline`; MOTION rail + list, jump + delete, save/load/export; API tests + docs | **Done** |
+| **10** | **Audit: production UI parity** | Sync `App.vue` ↔ `app-definition.js`; ControlNet live input; MOTION XY pad; CN upload API | **Done** (A-01, A-02, A-07, A-19) |
+| **11** | **Audit: Docker & distributed ops** | Compose Forge host/port; health `/docs`; `DEFORUMATION_ADDRESS` default | **Done** (A-03, A-04, A-22) |
+| **12** | **Audit: docs & tab truth** | `WEB_UI_TABS.md`, README, `API.md`, version **0.3.6** | **Done** (A-05–A-07, A-14–A-16, A-30) |
+| **13** | **Audit: CI & build integrity** | Live server + perf API tests in CI; strict Vite build; Docker smoke + Playwright = optional follow-up | **Done** (A-09, A-10, A-20, A-21) · **Open** (A-08, A-27) |
+| **14** | **Audit: server performance** | `ai_invoke.py`, frames cache, async runs, polling backoff, stream fade | **Done** (A-11–A-13, A-23, A-25, A-32) |
+| **15** | **Audit: doc/code hygiene** | CLI/TUI headers; dual manifest note; stale test refs | **Done** (A-17, A-18, A-28, A-29) · **Open** LTC ([A-24](#audit-findings-2026-05-23)) |
 
 ---
 
 ## Table of Contents
 
-1. [README ↔ roadmap alignment](#readme--roadmap-alignment)
-2. [Project Status Overview](#project-status-overview)
-3. [Current Features (Completed)](#current-features-completed)
-4. [Incomplete/In-Progress Features](#incompletein-progress-features)
-5. [Planned Features](#planned-features)
-6. [Future Enhancements](#future-enhancements)
-7. [Long-Term Vision](#long-term-vision)
+1. [Audit findings (2026-05-23)](#audit-findings-2026-05-23)
+2. [README ↔ roadmap alignment](#readme--roadmap-alignment)
+3. [Project Status Overview](#project-status-overview)
+4. [Current Features (Completed)](#current-features-completed)
+5. [Incomplete/In-Progress Features](#incompletein-progress-features)
+6. [Planned Features](#planned-features)
+7. [Future Enhancements](#future-enhancements)
+8. [Long-Term Vision](#long-term-vision)
 
 ---
 
@@ -60,7 +149,7 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ **Streaming**: HLS, RTMP, SRT support
 - ✅ **Docker deployment**: Complete containerized stack
 - ⚠️ **Advanced workflow features**: Partially implemented, needs integration work
-- 🚧 **Testing**: Comprehensive test suite with some integration tests stubbed
+- ⚠️ **Testing**: Large unit suite; **Docker/perf tests skipped in default CI**; web tests target `app-definition.js`, not shipped `App.vue` (see [Audit findings](#audit-findings-2026-05-23))
 
 ---
 
@@ -69,9 +158,9 @@ Defora is in **active development** with a strong foundation of core features im
 ### 🎹 Performance Interfaces
 
 #### Web UI (Browser-based)
-- ✅ Multi-tab interface (LIVE, PROMPTS, LORA, MOTION, MODULATION, CONTROLNET, SETTINGS)
+- ✅ Multi-tab interface (LIVE, PROMPTS, MOTION, MODULATION, AUDIO, RUNS, SETTINGS, GENERATE — LoRA/ControlNet under **PROMPTS** sub-tabs)
 - ✅ **PROMPTS img2img / inpainting**: optional mask + inpaint controls; plugin manifest list
-- ✅ **MOTION sequencer**: keyframed `liveParam` tracks, per-segment easing, **scene markers**, save/load via API, export JSON
+- ✅ **Animation sequencer** (on **GENERATE** tab): keyframed `liveParam` tracks, per-segment easing, **scene markers**, save/load via API, export JSON — docs still say MOTION ([A-05](#audit-findings-2026-05-23))
 - ✅ Real-time parameter sliders with WebSocket control
 - ✅ HLS video streaming with low latency
 - ✅ Beat-synchronized macro system
@@ -165,6 +254,12 @@ Defora is in **active development** with a strong foundation of core features im
 
 ## Incomplete/In-Progress Features
 
+### 🔴 Audit backlog (2026-05-23)
+
+See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. Phased remediation: **Phases 10–15** in [Phased delivery](#phased-delivery).
+
+**Highest priority**: A-01 (UI/test drift), A-02 (ControlNet live input not in `App.vue`), A-03 (Docker Forge host), A-04 (distributed health API).
+
 ### ✅ Runs Management Integration (COMPLETED in v0.2.7)
 
 **Status**: Core functionality complete with full integration and advanced features
@@ -211,12 +306,13 @@ Defora is in **active development** with a strong foundation of core features im
 
 **Remaining Enhancements** (low priority):
 - ~~Automatic periodic polling for model availability~~ → **Done**: set `SD_FORGE_POLL_MS` (e.g. `30000`) on the web stack to probe SD-Forge on an interval; `/api/status` reports `pollIntervalMs`; Web UI shows Forge status in the header.
-- Visual indicator in UI for **model list source** (sd-forge vs cache vs placeholder) on CN/LoRA pickers
+- Visual indicator in UI for **model list source** (sd-forge vs cache vs placeholder) on CN/LoRA pickers — partial (badge exists; picker-level clarity still [A-27 area / ROADMAP polish])
 - Better error messages in browser console
+- **Docker default Forge host** — compose should set `SD_FORGE_HOST` for in-stack `sd-forge` ([A-03](#audit-findings-2026-05-23))
 
-### ✅ Test Coverage (COMPLETED in v0.2.7)
+### ⚠️ Test Coverage (v0.2.7+ with CI gaps)
 
-**Status**: Comprehensive test coverage with integration and performance tests
+**Status**: Broad unit coverage; integration/perf/docker suites exist but are **off by default in CI**; web UI tests do not exercise shipped `App.vue` ([A-01](#audit-findings-2026-05-23), [A-08](#audit-findings-2026-05-23))
 
 **What Works**:
 - ✅ Unit tests for all CLI tools
@@ -247,10 +343,14 @@ Defora is in **active development** with a strong foundation of core features im
   - Parameter type handling
   - Connection URI format validation
 
-**Remaining Enhancements** (low priority):
+**Remaining Enhancements** (tracked in audit):
+- Enable Docker stack smoke in CI or nightly ([A-08](#audit-findings-2026-05-23))
+- Implement performance API tests (currently `pass` stubs) ([A-09](#audit-findings-2026-05-23))
+- Hit live `server.js` in API tests ([A-10](#audit-findings-2026-05-23))
+- Test against production `App.vue` build, not divergent `app-definition.js` ([A-01](#audit-findings-2026-05-23))
 - Integration tests with real SD-Forge generation
 - Extended load testing with WebSocket stress tests
-- Cross-platform compatibility testing
+- Cross-platform / Playwright browser testing ([A-27](#audit-findings-2026-05-23))
 
 **Next Steps**:
 1. Add tests with actual SD-Forge GPU generation (requires GPU)
@@ -343,12 +443,15 @@ Defora is in **active development** with a strong foundation of core features im
 
 #### Animation Sequencer
 - **Priority**: High
-- **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), MOTION tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
+- **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), **GENERATE** tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`. Docs still place sequencer on MOTION ([A-05](#audit-findings-2026-05-23)).
 - **Polish (v0.3.0+)**: ✅
   - ✅ Visual multi-track timeline strip (waveform-style lanes) with canvas rendering
   - ✅ **Custom bezier handles** — drag handles on timeline to customize curve interpolation between keyframes
   - ✅ Marker-driven transitions (actions: jump, preset, generate, morph, param, pause)
   - ✅ Optional sync to audio BPM or frame counter from HLS (`bpmSync` with bars/beats)
+- **Open (audit)**:
+  - ⚠️ MOTION **XY pad** — logic present, not rendered in `App.vue` ([A-07](#audit-findings-2026-05-23))
+  - Align `docs/WEB_UI_TABS.md` tab placement with UI ([A-05](#audit-findings-2026-05-23))
 
 #### ✅ Advanced Prompt System (COMPLETED in v0.2.9)
 
@@ -387,10 +490,10 @@ Defora is in **active development** with a strong foundation of core features im
 - **Description**: Richer ControlNet inputs and routing (distinct from short-term “Advanced Audio Features”)
 - **Features**:
   - ✅ Multiple ControlNet preprocessing - weight/start/end scheduling per slot
-  - ✅ **Live camera/video input** for ControlNet - webcam integration with configurable frame rate
-  - ✅ **Screen capture** as ControlNet source - browser-based screen sharing API
+  - ⚠️ **Live camera/video input** — implemented in `app-definition.js` only; **not in shipped `App.vue`** ([A-02](#audit-findings-2026-05-23))
+  - ⚠️ **Screen capture** — same as webcam ([A-02](#audit-findings-2026-05-23))
   - ✅ ControlNet weight scheduling - per-slot weight, start, end step controls
-  - ✅ Image source selection (file/webcam/screen) per slot
+  - ⚠️ Image source selection (file/webcam/screen) per slot — test harness only; production uses file button → Forge UI alert ([A-19](#audit-findings-2026-05-23))
 
 #### Collaborative Features
 - **Priority**: Low
@@ -536,6 +639,7 @@ curl -X POST http://localhost:3000/api/distributed/configure \
 
 **Remaining Enhancements** (moved to long-term):
 - ✅ **Cloud GPU integration (RunPod, Vast.ai)** - `defora_cli.cloud_gpu` with provisioning, monitoring, cost estimation
+- ⚠️ **Health check endpoint** — must use SD-Forge `/docs`, not ComfyUI `system_stats` ([A-04](#audit-findings-2026-05-23))
 - ⏳ Frame interpolation across machines (future)
 - ⏳ Cost optimization algorithms (future)
 - Render farm support
@@ -546,7 +650,7 @@ curl -X POST http://localhost:3000/api/distributed/configure \
   - ✅ **DMX lighting control integration** - Art-Net, sACN, and OpenRGB support for stage lighting
   - ✅ **OSC (Open Sound Control) support** - `defora_cli.osc_bridge` with mappings for all Defora parameters
   - ✅ **Ableton Link sync** - Tempo synchronization with Ableton Live and Link-enabled apps
-  - ✅ **Timecode (LTC/MTC) sync** - Professional audio/video equipment synchronization
+  - ⚠️ **Timecode (LTC/MTC) sync** — module present; LTC demodulation is **placeholder** ([A-24](#audit-findings-2026-05-23))
   - ⏳ Show control systems integration (future)
 
 ---
@@ -673,4 +777,4 @@ This roadmap and the Defora project are open source. See [LICENSE](LICENSE) for 
 
 ---
 
-**Last Updated**: 2026-05-04 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)
+**Last Updated**: 2026-05-23 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)

@@ -16,7 +16,7 @@ class TestDistributedConfiguration(unittest.TestCase):
             "strategy": "round_robin",
             "nodes": [
                 {
-                    "url": "http://192.168.1.10:8188",
+                    "url": "http://192.168.1.10:7860",
                     "name": "GPU-RTX4090-1",
                     "gpuModel": "RTX 4090",
                     "priority": 1
@@ -47,7 +47,7 @@ class TestDistributedConfiguration(unittest.TestCase):
     def test_node_structure(self):
         """Test node configuration structure"""
         node = {
-            "url": "http://192.168.1.10:8188",
+            "url": "http://192.168.1.10:7860",
             "name": "GPU-RTX4090-1",
             "status": "healthy",
             "activeJobs": 2,
@@ -139,9 +139,9 @@ class TestHealthChecking(unittest.TestCase):
             "checked": 3,
             "healthy": 2,
             "results": [
-                {"url": "http://node1:8188", "healthy": True, "responseTime": 45},
-                {"url": "http://node2:8188", "healthy": True, "responseTime": 52},
-                {"url": "http://node3:8188", "healthy": False, "reason": "timeout"}
+                {"url": "http://node1:7860", "healthy": True, "responseTime": 45},
+                {"url": "http://node2:7860", "healthy": True, "responseTime": 52},
+                {"url": "http://node3:7860", "healthy": False, "reason": "timeout"}
             ]
         }
         
@@ -195,7 +195,7 @@ class TestJobManagement(unittest.TestCase):
         job_response = {
             "jobId": "job_1234567890_abc123",
             "assignedNode": "GPU-RTX4090-1",
-            "nodeUrl": "http://192.168.1.10:8188",
+            "nodeUrl": "http://192.168.1.10:7860",
             "status": "queued",
             "estimatedWaitTime": 60
         }
@@ -214,7 +214,7 @@ class TestJobManagement(unittest.TestCase):
         """Test job status response structure"""
         job_status = {
             "id": "job_1234567890_abc123",
-            "nodeUrl": "http://192.168.1.10:8188",
+            "nodeUrl": "http://192.168.1.10:7860",
             "nodeName": "GPU-RTX4090-1",
             "workflow": {},
             "priority": "normal",
@@ -253,7 +253,7 @@ class TestMetrics(unittest.TestCase):
             "totalJobs": 250,
             "nodeMetrics": [
                 {
-                    "url": "http://node1:8188",
+                    "url": "http://node1:7860",
                     "name": "GPU-RTX4090-1",
                     "activeJobs": 2,
                     "totalJobs": 100,
@@ -297,7 +297,7 @@ class TestFailover(unittest.TestCase):
     def test_node_disable_enable(self):
         """Test disabling and enabling nodes"""
         node = {
-            "url": "http://node1:8188",
+            "url": "http://node1:7860",
             "status": "healthy"
         }
         
@@ -344,19 +344,19 @@ class TestDistributedGeneration(unittest.TestCase):
         """Test 3 ComfyUI instance example"""
         nodes = [
             {
-                "url": "http://192.168.1.10:8188",
+                "url": "http://192.168.1.10:7860",
                 "name": "GPU-RTX4090-1",
                 "status": "healthy",
                 "activeJobs": 1
             },
             {
-                "url": "http://192.168.1.11:8188",
+                "url": "http://192.168.1.11:7860",
                 "name": "GPU-RTX4090-2",
                 "status": "healthy",
                 "activeJobs": 0
             },
             {
-                "url": "http://192.168.1.12:8188",
+                "url": "http://192.168.1.12:7860",
                 "name": "GPU-RTX3090",
                 "status": "healthy",
                 "activeJobs": 2

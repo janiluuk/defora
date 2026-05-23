@@ -4,19 +4,18 @@ This document provides an overview of all tabs in the Defora web interface.
 
 ## Tab Structure
 
-The web UI consists of 7 main tabs:
+The web UI consists of **8 top-level tabs**: LIVE, PROMPTS, MOTION, MODULATION, AUDIO, RUNS, SETTINGS, GENERATE.
+
+LoRA and ControlNet live under **PROMPTS** sub-tabs (not separate top-level tabs).
 
 ### 1. LIVE Tab
-**Purpose**: Real-time parameter control and live generation monitoring
+**Purpose**: Performance deck — single-frame preview vs Deforum animation
 
 **Features**:
-- Vibe & Style sliders (cfg, strength, steps, seed)
-- Camera Position controls (translation_x, translation_y, translation_z, zoom)
-- Camera Rotation controls (rotation_y, rotation_z)
-- View controls (fov, near, far)
-- Real-time parameter adjustment with live updates
-- Preset buttons: Static, Orbit, Tunnel, Handheld, Chaos
-- Source assignment for parameter modulation
+- **Generic prompt** + **crossfader morph slots** (prompt / parameter / LoRA / ControlNet; optional A and/or B values)
+- **Play** starts Deforum animation; otherwise parameter changes trigger **preview frames** (`POST /api/txt2img`)
+- **Record** via stream API; collapsible **Parameters** drawer with model status (offline / loading / ready)
+- Style & camera sliders (moved into Parameters drawer)
 
 **Visual Elements**:
 - Slider rows with min/max ranges
@@ -44,41 +43,42 @@ The web UI consists of 7 main tabs:
 
 ---
 
-### 3. LORA Tab
-**Purpose**: Browse and blend LoRA models for the current session
+### 3. PROMPTS → LORA sub-tab
+**Purpose**: Browse and blend LoRA models
 
-**Features**:
-- List of available LoRAs (from API when SD-Forge is reachable)
-- Per-slot or grouped strength controls
-- A/B grouping and crossfader-style blending (when enabled in UI)
-- Refresh to sync with the server model list
-
-**Visual Elements**:
-- LoRA cards or rows with strength sliders
-- Group A / Group B affordances where applicable
+**Features**: LoRA list from API, A/B groups, crossfader, apply/export presets.
 
 ---
 
-### 4. MOTION Tab
-**Purpose**: Interactive camera movement plus **animation sequencer** (Phase 2 MVP)
+### 4. PROMPTS → CONTROLNET sub-tab
+**Purpose**: ControlNet slots with **file / webcam / screen** sources
 
-**Features**:
-- **Sequencer**: duration, FPS, loop, playhead scrub, Play/Stop; **scene markers** (named cues at time `t`, rail + jump/delete, persisted in timeline JSON); tracks per mediator parameter with keyframes (`t` seconds → value) and per-segment easing (`linear` / `easeIn` / `easeOut` / `easeInOut`); save/load/delete via `/api/sequencer`; export JSON
-- Playback emits **`liveParam`** over WebSocket (same path as manual sliders)
-- XY Pad for intuitive camera pan control
-- Maps X/Y position to translation_x (-10 to 10) and translation_y (-10 to 10)
-- Real-time updates sent to mediator via WebSocket
-- Zoom / tilt sliders and motion style chips
-
-**Visual Elements**:
-- Sequencer controls above the XY pad
-- 140x140px interactive XY pad with crosshair cursor
-- Visual dot indicating current position
-- Motion preset / style controls
+**Features**: Model/weight/start/end per slot; webcam and screen capture upload to `/api/controlnet/upload-image`.
 
 ---
 
-### 5. MODULATION Tab (Unified)
+### 5. MOTION Tab
+**Purpose**: Motion presets and XY camera pad
+
+**Features**:
+- Motion preset chips (Static, Orbit, Tunnel, Handheld, Chaos)
+- **140×140 XY pad** → `translation_x` / `translation_y` via WebSocket
+
+**Visual Elements**:
+- XY pad with crosshair dot
+
+---
+
+### 6. GENERATE Tab — Animation sequencer
+**Purpose**: Keyframed timeline (not on MOTION tab)
+
+**Features**:
+- Duration, FPS, loop, playhead, scene markers, tracks/keyframes, easing, save/load via `/api/sequencer`, export JSON
+- Playback emits **`liveParam`** over WebSocket
+
+---
+
+### 7. MODULATION Tab (Unified)
 **Purpose**: Comprehensive audio, LFO, and beat-synced modulation control
 
 **Theme**: FrameSync dark blue (#061726) with orange accents (#ff8a1a)
