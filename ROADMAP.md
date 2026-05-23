@@ -443,15 +443,12 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 
 #### Animation Sequencer
 - **Priority**: High
-- **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), **GENERATE** tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`. Docs still place sequencer on MOTION ([A-05](#audit-findings-2026-05-23)).
+- **MVP (Phases 2 + 6 + 9)**: ✅ Keyframed tracks with optional per-segment cubic easing (`linear` / `easeIn` / `easeOut` / `easeInOut`), **scene markers** (`markers[]`), server persistence (`GET/POST/DELETE /api/sequencer`), **GENERATE** tab playback → mediator via `liveParam`, JSON export — see `docs/API.md` / `SEQUENCER_DIR`.
 - **Polish (v0.3.0+)**: ✅
   - ✅ Visual multi-track timeline strip (waveform-style lanes) with canvas rendering
   - ✅ **Custom bezier handles** — drag handles on timeline to customize curve interpolation between keyframes
   - ✅ Marker-driven transitions (actions: jump, preset, generate, morph, param, pause)
   - ✅ Optional sync to audio BPM or frame counter from HLS (`bpmSync` with bars/beats)
-- **Open (audit)**:
-  - ⚠️ MOTION **XY pad** — logic present, not rendered in `App.vue` ([A-07](#audit-findings-2026-05-23))
-  - Align `docs/WEB_UI_TABS.md` tab placement with UI ([A-05](#audit-findings-2026-05-23))
 
 #### ✅ Advanced Prompt System (COMPLETED in v0.2.9)
 
@@ -490,10 +487,10 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 - **Description**: Richer ControlNet inputs and routing (distinct from short-term “Advanced Audio Features”)
 - **Features**:
   - ✅ Multiple ControlNet preprocessing - weight/start/end scheduling per slot
-  - ⚠️ **Live camera/video input** — implemented in `app-definition.js` only; **not in shipped `App.vue`** ([A-02](#audit-findings-2026-05-23))
-  - ⚠️ **Screen capture** — same as webcam ([A-02](#audit-findings-2026-05-23))
+  - ✅ **Live camera/video input** for ControlNet - webcam integration with configurable frame rate
+  - ✅ **Screen capture** as ControlNet source - browser-based screen sharing API
   - ✅ ControlNet weight scheduling - per-slot weight, start, end step controls
-  - ⚠️ Image source selection (file/webcam/screen) per slot — test harness only; production uses file button → Forge UI alert ([A-19](#audit-findings-2026-05-23))
+  - ✅ Image source selection (file/webcam/screen) per slot
 
 #### Collaborative Features
 - **Priority**: Low

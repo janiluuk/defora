@@ -387,13 +387,13 @@ def main():
     
     sub.add_parser("stop-record", help="Stop recording")
     sub.add_parser("record-status", help="Show recording status")
-    
+
     webrtc = sub.add_parser("webrtc", help="Start WebRTC streaming")
     webrtc.add_argument("--source", required=True, help="Directory containing frames frame_%05d.png")
     webrtc.add_argument("--fps", type=int, default=24, help="Framerate")
     webrtc.add_argument("--resolution", help="Optional WxH (e.g., 1280x720)")
     webrtc.add_argument("--port", type=int, default=8088, help="WebRTC server port")
-    
+
     sub.add_parser("stop-webrtc", help="Stop WebRTC streaming")
     sub.add_parser("webrtc-status", help="Show WebRTC streaming status")
 
