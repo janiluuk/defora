@@ -1,3 +1,6 @@
+# Web uploads (generated previews)
+docker/web/uploads/
+
 # Python
 __pycache__/
 *.py[cod]

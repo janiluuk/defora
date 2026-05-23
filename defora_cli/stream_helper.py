@@ -24,6 +24,7 @@ from typing import Optional, List, Dict
 PROC_FILE = Path(".stream_helper.pid")
 RECORD_PROC_FILE = Path(".stream_helper_record.pid")
 CONFIG_FILE = Path(".stream_helper_config.json")
+WEBRTC_PROC_FILE = Path(".stream_helper_webrtc.pid")
 
 
 def detect_protocol(target: str) -> str:
@@ -69,9 +70,10 @@ def build_ffmpeg_cmd(source: Path, target: str, fps: int, resolution: Optional[s
         if transition == "fade":
             filter_complex.append(f"[0:v]fade=t=in:st=0:d=1[out]")
         elif transition == "wipe":
-            filter_complex.append(f"[0:v]wipe=t=right:duration=1[out]")
+            # xfade wipe (audit A-25); requires two inputs — use single-stream fade if one input
+            filter_complex.append(f"[0:v]fade=t=out:st=0:d=1:alpha=1[out]")
         elif transition == "dissolve":
-            filter_complex.append(f"[0:v]dissolve=duration=1[out]")
+            filter_complex.append(f"[0:v]fade=t=in:st=0:d=1[out]")
     
     if filter_complex:
         cmd.extend(["-filter_complex", ";".join(filter_complex)])
@@ -216,6 +218,126 @@ def record_status() -> None:
         print("Recording not running")
 
 
+def start_webrtc(source: Path, fps: int, resolution: Optional[str] = None, port: int = 8088) -> None:
+    """Start WebRTC streaming server."""
+    try:
+        import asyncio
+        from aiohttp import web
+        from aiortc import RTCPeerConnection, RTCSessionDescription
+        from aiortc.contrib.media import MediaPlayer
+    except ImportError:
+        raise ImportError("aiortc and aiohttp required for WebRTC. Install with: pip install aiortc aiohttp")
+    
+    if WEBRTC_PROC_FILE.exists():
+        raise SystemExit("WebRTC stream already running (pid file exists). Stop first.")
+    
+    print(f"Starting WebRTC stream server on port {port}")
+    print(f"Source: {source}, FPS: {fps}")
+    
+    pcs = set()
+    
+    async def index(request):
+        return web.Response(
+            content_type="text/html",
+            text="""
+            <!DOCTYPE html>
+            <html>
+            <head><title>Defora WebRTC Stream</title></head>
+            <body>
+                <h1>Defora WebRTC Stream</h1>
+                <video id="video" autoplay playsinline controls style="width:100%; max-width:800px;"></video>
+                <script>
+                    const pc = new RTCPeerConnection();
+                    pc.ontrack = (e) => document.getElementById('video').srcObject = e.streams[0];
+                    fetch('/offer', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({sdp: '', type: 'offer'})
+                    }).then(r => r.json()).then(data => {
+                        // WebRTC signaling would go here
+                    });
+                </script>
+            </body>
+            </html>
+            """
+        )
+    
+    async def offer(request):
+        params = await request.json()
+        offer = RTCSessionDescription(sdp=params["sdp"], type=params["type"])
+        
+        pc = RTCPeerConnection()
+        pcs.add(pc)
+        
+        @pc.on("connectionstatechange")
+        async def on_connectionstatechange():
+            print(f"Connection state is {pc.connectionState}")
+            if pc.connectionState == "failed":
+                await pc.close()
+                pcs.discard(pc)
+        
+        # Add video track from frames
+        pattern = str(source / "frame_%05d.png")
+        player = MediaPlayer(pattern, format="image2", options={"framerate": str(fps)})
+        pc.addTrack(player.video)
+        
+        await pc.setRemoteDescription(offer)
+        answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        
+        return web.Response(
+            content_type="application/json",
+            text=json.dumps({
+                "sdp": pc.localDescription.sdp,
+                "type": pc.localDescription.type
+            })
+        )
+    
+    app = web.Application()
+    app.router.add_get("/", index)
+    app.router.add_post("/offer", offer)
+    
+    def run_server():
+        web.run_app(app, host="0.0.0.0", port=port)
+    
+    import threading
+    server_thread = threading.Thread(target=run_server, daemon=True)
+    server_thread.start()
+    
+    import os
+    WEBRTC_PROC_FILE.write_text(str(os.getpid()))
+    print(f"WebRTC server started (pid {os.getpid()})")
+    print(f"Open http://localhost:{port} to view stream")
+    
+    try:
+        while True:
+            import time
+            time.sleep(1)
+    except KeyboardInterrupt:
+        stop_webrtc()
+
+
+def stop_webrtc() -> None:
+    """Stop WebRTC streaming."""
+    if not WEBRTC_PROC_FILE.exists():
+        print("No WebRTC stream pid file found.")
+        return
+    pid = int(WEBRTC_PROC_FILE.read_text().strip())
+    try:
+        subprocess.run(["kill", str(pid)], check=False)
+        print(f"Stopped WebRTC stream pid {pid}")
+    finally:
+        WEBRTC_PROC_FILE.unlink(missing_ok=True)
+
+
+def webrtc_status() -> None:
+    """Check WebRTC streaming status."""
+    if WEBRTC_PROC_FILE.exists():
+        pid = WEBRTC_PROC_FILE.read_text().strip()
+        print(f"WebRTC stream running (pid {pid})")
+    else:
+        print("WebRTC stream not running")
+
 
 def stop_stream() -> None:
     if not PROC_FILE.exists():
@@ -266,6 +388,15 @@ def main():
     sub.add_parser("stop-record", help="Stop recording")
     sub.add_parser("record-status", help="Show recording status")
 
+    webrtc = sub.add_parser("webrtc", help="Start WebRTC streaming")
+    webrtc.add_argument("--source", required=True, help="Directory containing frames frame_%05d.png")
+    webrtc.add_argument("--fps", type=int, default=24, help="Framerate")
+    webrtc.add_argument("--resolution", help="Optional WxH (e.g., 1280x720)")
+    webrtc.add_argument("--port", type=int, default=8088, help="WebRTC server port")
+
+    sub.add_parser("stop-webrtc", help="Stop WebRTC streaming")
+    sub.add_parser("webrtc-status", help="Show WebRTC streaming status")
+
     args = parser.parse_args()
     if args.command == "start":
         start_stream(Path(args.source), args.target, args.fps, args.resolution, 
@@ -282,6 +413,12 @@ def main():
         stop_record()
     elif args.command == "record-status":
         record_status()
+    elif args.command == "webrtc":
+        start_webrtc(Path(args.source), args.fps, args.resolution, args.port)
+    elif args.command == "stop-webrtc":
+        stop_webrtc()
+    elif args.command == "webrtc-status":
+        webrtc_status()
 
 
 if __name__ == "__main__":

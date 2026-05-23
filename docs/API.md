@@ -12,6 +12,7 @@ This document describes the REST API endpoints available in the Defora web serve
 - [Plugins registry](#plugins-registry)
 - [img2img](#img2img)
 - [ControlNet](#controlnet)
+- [Deforum settings](#deforum-settings)
 
 ---
 
@@ -426,9 +427,7 @@ Proxy to Forge `POST /sdapi/v1/img2img`. The first returned image is written und
 
 ### GET /api/controlnet/models
 
-Get list of available ControlNet models.
-
-**Note**: This is currently a placeholder endpoint. In production, this would query the SD-Forge API for available models.
+Get list of available ControlNet models from SD-Forge (`/controlnet/model_list`) when reachable, with in-memory cache and placeholder fallback.
 
 **Response**: `200 OK`
 ```json
@@ -458,6 +457,30 @@ Get list of available ControlNet models.
   - `id` (string): Model identifier
   - `name` (string): Human-readable model name
   - `category` (string): Model category (edge, depth, pose, line, style, semantic)
+
+---
+
+## Deforum settings
+
+Full Deforum JSON preset used by the hidden **LIVE → Deforum settings** panel.
+
+### GET /api/deforum/settings
+
+Load persisted settings from `docker/web/deforum-settings.json` (or `{ settings: null }` if missing).
+
+### POST /api/deforum/settings
+
+**Request body**: `{ "settings": { ...deforum JSON... } }`
+
+Saves the full object to disk and broadcasts `deforum_settings` over WebSocket.
+
+### POST /api/deforum/preview
+
+Render **one frame** via Forge `POST /deforum_api/batches` with `max_frames: 1`, poll until complete, return the newest file in `FRAMES_DIR`.
+
+**Request body**: `{ "settings": { ... } }`
+
+**Response**: `{ "ok": true, "path": "/frames/frame_00042.png", "batchId": "...", "status": "completed" }`
 
 ---
 
@@ -523,6 +546,42 @@ Configure the web server using these environment variables:
 - `UPLOADS_DIR` - Directory for uploaded audio files (default: ./uploads)
 - `DEF_MEDIATOR_HOST` - Default mediator hostname (default: localhost)
 - `DEF_MEDIATOR_PORT` - Default mediator port (default: 8766)
+
+---
+
+## GPU pool (multi-instance load balancing)
+
+Manage multiple **SD-Forge** (A1111 API) or **ComfyUI** instances. When load balancing is enabled, img2img / txt2img / Deforum preview routes pick an enabled healthy **SD-Forge** node using the configured strategy (`round_robin`, `least_busy`, `priority`, `random`).
+
+**UI**: SETTINGS → **GPUS**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/gpu-pool` | Pool status and all nodes (model, VRAM, GPU %, jobs) |
+| PUT | `/api/gpu-pool` | `{ enabled, strategy, healthCheckInterval, timeout, retryAttempts }` |
+| POST | `/api/gpu-pool/nodes` | Add instance (`url`, `name`, `backend`, `enabled` default true) |
+| PUT | `/api/gpu-pool/nodes/:id` | Update instance — **only when disabled** (409 if enabled) |
+| DELETE | `/api/gpu-pool/nodes/:id` | Remove — **only when disabled** |
+| POST | `/api/gpu-pool/nodes/:id/disable` | Disable (excludes from balancing; allows edit) |
+| POST | `/api/gpu-pool/nodes/:id/enable` | Enable and run health probe |
+| POST | `/api/gpu-pool/refresh` | Health-check all nodes and refresh stats |
+
+**Backends**:
+- `sd-forge` — health: `GET /docs`; model: `GET /sdapi/v1/options`; VRAM: `/internal/sysinfo` or `/sdapi/v1/memory`
+- `comfyui` — health/stats: `GET /system_stats` (monitoring; generation LB uses SD-Forge API nodes)
+
+Legacy aliases: `/api/distributed/*` (same pool). Config persisted in `docker/web/gpu-pool.json`.
+
+### POST /api/runs/compare
+
+Compare 2–8 runs side-by-side (matrix of fields including `prompt_positive` / `prompt_negative`).
+
+**Body**:
+```json
+{ "run_ids": ["run_a", "run_b"], "format": "csv" }
+```
+
+`format` optional: omit for JSON; `"csv"` returns downloadable comparison table.
 
 ---
 

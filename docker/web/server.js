@@ -7,15 +7,22 @@ const WebSocket = require("ws");
 const amqp = require("amqplib");
 const { spawn } = require("child_process");
 const { EventEmitter } = require("events");
+const { createGpuPool } = require("./modules/gpu-pool");
 
 async function start(opts = {}) {
   const port = opts.port ?? process.env.PORT ?? 3000;
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
-  const framesDir = opts.framesDir || process.env.FRAMES_DIR || "/data/frames";
+  const framesDir =
+    opts.framesDir ||
+    process.env.FRAMES_DIR ||
+    path.join(__dirname, "frames");
   const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
-  const hlsDir = opts.hlsDir || process.env.HLS_DIR || "/var/www/hls";
+  const hlsDir =
+    opts.hlsDir ||
+    process.env.HLS_DIR ||
+    path.join(__dirname, "hls");
   const enableMq = opts.enableMq ?? (process.env.DISABLE_MQ ? false : true);
    const spawner = opts.spawner || spawn;
 
@@ -25,22 +32,102 @@ async function start(opts = {}) {
   const apiStatus = {
     sdForgeAvailable: false,
     lastChecked: null,
+    forgeCacheValidUntil: 0,
     controlNetModels: null,
     loraModels: null,
     sdModels: null,
     currentModel: null,
   };
 
-  function forgeBaseUrl() {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    return `http://${forgeHost}:${forgePort}`;
+  const repoRoot = path.resolve(__dirname, "..", "..");
+  const aiInvokeScript = path.join(__dirname, "scripts", "ai_invoke.py");
+
+  function invokeAi(op, payload) {
+    return new Promise((resolve, reject) => {
+      const req = JSON.stringify({ op, ...payload });
+      const child = spawner("python3", [aiInvokeScript], {
+        cwd: repoRoot,
+        env: { ...process.env, PYTHONPATH: repoRoot },
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.on("data", (d) => { stdout += d; });
+      child.stderr.on("data", (d) => { stderr += d; });
+      child.on("error", reject);
+      child.on("close", (code) => {
+        if (code !== 0) {
+          return reject(new Error(stderr || stdout || `ai_invoke exit ${code}`));
+        }
+        try {
+          resolve(stdout.trim() ? JSON.parse(stdout) : null);
+        } catch (e) {
+          reject(new Error(`ai_invoke invalid JSON: ${stdout.slice(0, 200)}`));
+        }
+      });
+      child.stdin.write(req);
+      child.stdin.end();
+    });
+  }
+
+  let framesIndexCache = { items: [], builtAt: 0, dirMtime: 0 };
+  const FRAMES_INDEX_TTL_MS = 2000;
+
+  async function buildFramesIndex(limit = 50) {
+    const now = Date.now();
+    let dirMtime = 0;
+    try {
+      const st = await fsp.stat(framesDir);
+      dirMtime = st.mtimeMs;
+    } catch (e) {
+      if (e.code === "ENOENT") return [];
+      throw e;
+    }
+    if (
+      framesIndexCache.builtAt &&
+      now - framesIndexCache.builtAt < FRAMES_INDEX_TTL_MS &&
+      framesIndexCache.dirMtime === dirMtime
+    ) {
+      return framesIndexCache.items.slice(0, limit);
+    }
+    const entries = await fsp.readdir(framesDir, { withFileTypes: true });
+    const names = entries
+      .filter((e) => e.isFile() && /\.(png|jpg|jpeg|webp)$/i.test(e.name))
+      .map((e) => e.name);
+    const stats = await Promise.all(
+      names.map(async (name) => {
+        const stat = await fsp.stat(path.join(framesDir, name));
+        return { name, mtime: stat.mtimeMs };
+      })
+    );
+    stats.sort((a, b) => b.mtime - a.mtime);
+    const items = stats.slice(0, Math.max(limit, 50)).map((f) => {
+      const match = f.name.match(/(\d{3,})/);
+      const frame = match ? parseInt(match.pop(), 10) : null;
+      return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
+    });
+    framesIndexCache = { items, builtAt: now, dirMtime };
+    return items.slice(0, limit);
+  }
+
+  const gpuPool = createGpuPool({
+    configPath: opts.gpuPoolPath || path.join(__dirname, "gpu-pool.json"),
+    env: process.env,
+  });
+  await gpuPool.init();
+
+  function forgeTarget(req) {
+    return gpuPool.resolveForgeTarget(req);
+  }
+
+  function forgeBaseUrl(req) {
+    return forgeTarget(req).url;
   }
 
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
   async function probeSdForge() {
     if (typeof fetch === "undefined") return;
-    const forgeUrl = forgeBaseUrl();
+    const target = forgeTarget({});
+    const forgeUrl = target.url;
     try {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 2000);
@@ -54,6 +141,8 @@ async function start(opts = {}) {
     } catch (_e) {
       apiStatus.sdForgeAvailable = false;
       apiStatus.lastChecked = new Date().toISOString();
+    } finally {
+      target.release();
     }
   }
 
@@ -208,23 +297,7 @@ async function start(opts = {}) {
   app.get("/api/frames", async (req, res) => {
     try {
       const limit = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 12));
-      const entries = await fsp.readdir(framesDir, { withFileTypes: true });
-      const files = entries
-        .filter((e) => e.isFile())
-        .map((e) => e.name)
-        .filter((name) => /\.(png|jpg|jpeg|webp)$/i.test(name));
-      const stats = await Promise.all(
-        files.map(async (name) => {
-          const stat = await fsp.stat(path.join(framesDir, name));
-          return { name, mtime: stat.mtimeMs };
-        })
-      );
-      stats.sort((a, b) => b.mtime - a.mtime);
-      const items = stats.slice(0, limit).map((f) => {
-        const match = f.name.match(/(\d{3,})/);
-        const frame = match ? parseInt(match.pop(), 10) : null;
-        return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
-      });
+      const items = await buildFramesIndex(limit);
       res.json({ items });
     } catch (err) {
       if (err.code === "ENOENT") {
@@ -526,6 +599,292 @@ async function start(opts = {}) {
     }
   });
 
+  // Shared presets for collaborative features
+  const sharedPresetsDir = path.join(__dirname, "shared-presets");
+  if (!require('fs').existsSync(sharedPresetsDir)) {
+    require('fs').mkdirSync(sharedPresetsDir, { recursive: true });
+  }
+
+  app.get("/api/shared-presets", async (_req, res) => {
+    try {
+      const files = await fsp.readdir(sharedPresetsDir);
+      const presets = await Promise.all(
+        files
+          .filter((f) => f.endsWith(".json"))
+          .map(async (f) => {
+            const data = await fsp.readFile(path.join(sharedPresetsDir, f), "utf-8");
+            const preset = JSON.parse(data);
+            return {
+              name: f.replace(/\.json$/, ""),
+              sharedBy: preset.sharedBy || "unknown",
+              sharedAt: preset.sharedAt || "",
+              description: preset.description || "",
+              tags: preset.tags || [],
+            };
+          })
+      );
+      res.json({ presets });
+    } catch (err) {
+      console.error("[api] shared presets list error", err);
+      res.status(500).json({ error: "could not list shared presets" });
+    }
+  });
+
+  app.post("/api/shared-presets", async (req, res) => {
+    const { name, preset, sharedBy, description, tags } = req.body || {};
+    if (!name || !preset) {
+      return res.status(400).json({ error: "name and preset data required" });
+    }
+    try {
+      const sanitizedName = name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!sanitizedName) return res.status(400).json({ error: "invalid preset name" });
+      
+      const presetData = {
+        ...preset,
+        sharedBy: sharedBy || "anonymous",
+        sharedAt: new Date().toISOString(),
+        description: description || "",
+        tags: tags || [],
+      };
+      
+      const filePath = path.join(sharedPresetsDir, `${sanitizedName}.json`);
+      await fsp.writeFile(filePath, JSON.stringify(presetData, null, 2), "utf-8");
+      
+      // Broadcast to all connected clients
+      broadcast({
+        type: "shared_preset",
+        action: "created",
+        name: sanitizedName,
+        sharedBy: presetData.sharedBy,
+      });
+      
+      res.json({ ok: true, name: sanitizedName });
+    } catch (err) {
+      console.error("[api] shared preset save error", err);
+      res.status(500).json({ error: "could not save shared preset" });
+    }
+  });
+
+  app.get("/api/shared-presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const filePath = path.join(sharedPresetsDir, `${name}.json`);
+      const data = await fsp.readFile(filePath, "utf-8");
+      const preset = JSON.parse(data);
+      res.json({ name, preset });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "shared preset not found" });
+      } else {
+        console.error("[api] shared preset load error", err);
+        res.status(500).json({ error: "could not load shared preset" });
+      }
+    }
+  });
+
+  app.delete("/api/shared-presets/:name", async (req, res) => {
+    try {
+      const name = req.params.name.replace(/[^a-zA-Z0-9_-]/g, "");
+      if (!name) return res.status(400).json({ error: "invalid preset name" });
+      const filePath = path.join(sharedPresetsDir, `${name}.json`);
+      await fsp.unlink(filePath);
+      
+      broadcast({
+        type: "shared_preset",
+        action: "deleted",
+        name,
+      });
+      
+      res.json({ ok: true });
+    } catch (err) {
+      if (err.code === "ENOENT") {
+        res.status(404).json({ error: "shared preset not found" });
+      } else {
+        console.error("[api] shared preset delete error", err);
+        res.status(500).json({ error: "could not delete shared preset" });
+      }
+    }
+  });
+
+  // Deforum animation settings (full JSON preset for hidden LIVE panel)
+  const deforumSettingsFile = path.join(__dirname, "deforum-settings.json");
+
+  app.get("/api/deforum/settings", async (_req, res) => {
+    try {
+      if (!fs.existsSync(deforumSettingsFile)) {
+        return res.json({ settings: null });
+      }
+      const data = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8"));
+      res.json({ settings: data });
+    } catch (err) {
+      console.error("[api] deforum settings read error", err);
+      res.status(500).json({ error: "could not read deforum settings" });
+    }
+  });
+
+  app.post("/api/deforum/settings", async (req, res) => {
+    const { settings } = req.body || {};
+    if (!settings || typeof settings !== "object") {
+      return res.status(400).json({ error: "settings object required" });
+    }
+    try {
+      await fsp.writeFile(deforumSettingsFile, JSON.stringify(settings, null, 2), "utf-8");
+      broadcast({ type: "deforum_settings", action: "updated" });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[api] deforum settings save error", err);
+      res.status(500).json({ error: "could not save deforum settings" });
+    }
+  });
+
+  /** Render a single Deforum frame via Forge /deforum_api/batches (max_frames=1). */
+  app.post("/api/deforum/preview", async (req, res) => {
+    const body = req.body || {};
+    const settings = body.settings && typeof body.settings === "object" ? body.settings : null;
+    if (!settings) {
+      return res.status(400).json({ error: "settings object required" });
+    }
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    const previewSettings = {
+      ...settings,
+      max_frames: 1,
+      motion_preview_mode: true,
+      skip_video_creation: true,
+    };
+    const payload = { deforum_settings: previewSettings, options_overrides: body.options_overrides || {} };
+
+    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    async function latestFramePath() {
+      framesIndexCache.builtAt = 0;
+      const items = await buildFramesIndex(1);
+      if (!items.length) return null;
+      const top = items[0];
+      return top.src || `/frames/${top.name}`;
+    }
+
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available in this Node build" });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 120000);
+      const response = await fetch(`${forgeUrl}/deforum_api/batches`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (response.status !== 202 && !response.ok) {
+        const text = await response.text();
+        return res.status(502).json({
+          error: "Deforum batch submit failed",
+          status: response.status,
+          detail: text.slice(0, 500),
+        });
+      }
+      const data = await response.json();
+      const batchId = data.batch_id;
+      if (!batchId) {
+        const framePath = await latestFramePath();
+        if (framePath) return res.json({ ok: true, path: framePath, batch: data });
+        return res.status(502).json({ error: "Deforum returned no batch_id", raw: data });
+      }
+
+      let status = "pending";
+      for (let i = 0; i < 90; i++) {
+        await sleep(2000);
+        const pollCtrl = new AbortController();
+        const pollTimeout = setTimeout(() => pollCtrl.abort(), 30000);
+        let sresp;
+        try {
+          sresp = await fetch(`${forgeUrl}/deforum_api/batches/${batchId}`, {
+            signal: pollCtrl.signal,
+          });
+        } finally {
+          clearTimeout(pollTimeout);
+        }
+        if (!sresp.ok) continue;
+        const sdata = await sresp.json();
+        status = sdata.status || sdata.state || status;
+        if (["completed", "failed", "cancelled", "canceled", "done"].includes(String(status).toLowerCase())) {
+          if (String(status).toLowerCase() === "failed") {
+            return res.status(502).json({ error: "Deforum preview failed", batch: sdata });
+          }
+          break;
+        }
+      }
+
+      const framePath = await latestFramePath();
+      if (!framePath) {
+        return res.status(502).json({ error: "Deforum finished but no frame found in frames dir", batchId, status });
+      }
+      res.json({
+        ok: true,
+        path: framePath,
+        batchId,
+        status,
+        node: target.node ? { name: target.node.name, url: target.node.url } : null,
+      });
+    } catch (err) {
+      console.error("[api] deforum preview error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
+    }
+  });
+
+  // Shared settings for collaborative features
+  const sharedSettingsFile = path.join(__dirname, "shared-settings.json");
+
+  app.get("/api/shared-settings", async (_req, res) => {
+    try {
+      if (!require('fs').existsSync(sharedSettingsFile)) {
+        return res.json({ settings: {} });
+      }
+      const data = await fsp.readFile(sharedSettingsFile, "utf-8");
+      const settings = JSON.parse(data);
+      res.json({ settings });
+    } catch (err) {
+      res.json({ settings: {} });
+    }
+  });
+
+  app.post("/api/shared-settings", async (req, res) => {
+    const { settings, updatedBy } = req.body || {};
+    if (!settings) {
+      return res.status(400).json({ error: "settings required" });
+    }
+    try {
+      const currentSettings = require('fs').existsSync(sharedSettingsFile)
+        ? JSON.parse(await fsp.readFile(sharedSettingsFile, "utf-8"))
+        : {};
+      
+      const newSettings = {
+        ...currentSettings,
+        ...settings,
+        lastUpdatedBy: updatedBy || "anonymous",
+        lastUpdatedAt: new Date().toISOString(),
+      };
+      
+      await fsp.writeFile(sharedSettingsFile, JSON.stringify(newSettings, null, 2), "utf-8");
+      
+      broadcast({
+        type: "shared_settings",
+        action: "updated",
+        updatedBy: newSettings.lastUpdatedBy,
+      });
+      
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("[api] shared settings save error", err);
+      res.status(500).json({ error: "could not save shared settings" });
+    }
+  });
+
   // Animation sequencer timelines (JSON on disk)
   app.get("/api/sequencer", async (_req, res) => {
     try {
@@ -691,7 +1050,8 @@ async function start(opts = {}) {
       if (maskDataUrl) maskB64 = maskDataUrl[1];
     }
 
-    const forgeUrl = forgeBaseUrl();
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 28));
     const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
     const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
@@ -744,7 +1104,12 @@ async function start(opts = {}) {
       clearTimeout(timeout);
       if (!response.ok) {
         const text = await response.text();
-        return res.status(502).json({ error: "Forge img2img failed", status: response.status, detail: text.slice(0, 500) });
+        return res.status(502).json({
+          error: "Forge img2img failed",
+          status: response.status,
+          detail: text.slice(0, 500),
+          node: target.node ? { name: target.node.name, url: target.node.url } : null,
+        });
       }
       const data = await response.json();
       const images = data.images || [];
@@ -759,18 +1124,93 @@ async function start(opts = {}) {
       }
       const buf = Buffer.from(imgB64, "base64");
       await fsp.writeFile(outPath, buf);
-      res.json({ ok: true, path: `/uploads/${outName}`, info: data.info || null });
+      res.json({
+        ok: true,
+        path: `/uploads/${outName}`,
+        info: data.info || null,
+        node: target.node ? { name: target.node.name, url: target.node.url } : null,
+      });
     } catch (err) {
       console.error("[api] img2img error", err);
       res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
+    }
+  });
+
+  /** Single-frame txt2img preview (performance deck / parameter react mode). */
+  app.post("/api/txt2img", async (req, res) => {
+    const body = req.body || {};
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 12));
+    const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 576));
+    const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
+    const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
+
+    const payload = {
+      prompt: String(body.prompt || body.positive || ""),
+      negative_prompt: String(body.negative_prompt || body.negativePrompt || ""),
+      steps,
+      cfg_scale: cfg,
+      width: w,
+      height: h,
+      sampler_name: sampler,
+      batch_size: 1,
+      n_iter: 1,
+      seed: Number.isFinite(seed) ? seed : -1,
+    };
+
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available in this Node build" });
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 600000);
+      const response = await fetch(`${forgeUrl}/sdapi/v1/txt2img`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+      clearTimeout(timeout);
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: "Forge txt2img failed", status: response.status, detail: text.slice(0, 500) });
+      }
+      const data = await response.json();
+      const images = data.images || [];
+      if (!images.length) {
+        return res.status(502).json({ error: "Forge returned no images", raw: data });
+      }
+      const outName = `preview_${Date.now()}.png`;
+      const outPath = path.join(uploadsDir, outName);
+      let imgB64 = images[0];
+      if (typeof imgB64 === "string" && imgB64.includes(",")) {
+        imgB64 = imgB64.split(",", 2)[1];
+      }
+      const buf = Buffer.from(imgB64, "base64");
+      await fsp.writeFile(outPath, buf);
+      res.json({
+        ok: true,
+        path: `/uploads/${outName}`,
+        info: data.info || null,
+        node: target.node ? { name: target.node.name, url: target.node.url } : null,
+      });
+    } catch (err) {
+      console.error("[api] txt2img error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
     }
   });
 
   // ControlNet models API
-  app.get("/api/controlnet/models", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
+  app.get("/api/controlnet/models", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     
     // Fallback placeholder models
     const placeholderModels = [
@@ -836,8 +1276,10 @@ async function start(opts = {}) {
           return res.json({ models: apiStatus.controlNetModels, source: 'cache', cached: true, cacheAge: Math.floor(cacheAge / 1000) });
         }
       }
+    } finally {
+      target.release();
     }
-    
+
     res.json({ models: placeholderModels, source: 'placeholder', cached: false });
   });
 
@@ -917,11 +1359,10 @@ async function start(opts = {}) {
   });
 
   // SD Models (Checkpoints) API endpoints
-  app.get("/api/sd-models", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+  app.get("/api/sd-models", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    try {
     // Fallback placeholder models
     const placeholderModels = [
       {
@@ -981,36 +1422,33 @@ async function start(opts = {}) {
         // Update API status
         apiStatus.sdForgeAvailable = true;
         apiStatus.lastChecked = new Date().toISOString();
+        apiStatus.forgeCacheValidUntil = Date.now() + 5 * 60 * 1000;
         apiStatus.sdModels = enrichedModels;
         
         console.log(`[sd-models] Fetched ${enrichedModels.length} models from SD-Forge`);
         return res.json({ models: enrichedModels, source: 'sd-forge', cached: false });
       }
     } catch (err) {
-      // API unavailable - use cache or placeholder
       apiStatus.sdForgeAvailable = false;
       apiStatus.lastChecked = new Date().toISOString();
       console.log(`[sd-models] SD-Forge API unavailable, using ${apiStatus.sdModels ? 'cached' : 'placeholder'} models: ${err.message}`);
       
-      // Return cached models if available (with 5 minute cache validity)
-      if (apiStatus.sdModels && apiStatus.lastChecked) {
-        const cacheAge = new Date() - new Date(apiStatus.lastChecked);
-        const fiveMinutes = 5 * 60 * 1000;
-        if (cacheAge < fiveMinutes) {
-          return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge: Math.floor(cacheAge / 1000) });
-        }
+      if (apiStatus.sdModels && apiStatus.forgeCacheValidUntil > Date.now()) {
+        const cacheAge = Math.floor((apiStatus.forgeCacheValidUntil - Date.now()) / 1000);
+        return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge });
       }
     }
     
     res.json({ models: placeholderModels, source: 'placeholder', cached: false });
+    } finally {
+      target.release();
+    }
   });
 
   // Get current SD model
-  app.get("/api/sd-models/current", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+  app.get("/api/sd-models/current", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') {
         throw new Error('fetch not available');
@@ -1036,24 +1474,23 @@ async function start(opts = {}) {
         console.log(`[sd-models] Current model: ${currentModel.model_name}`);
         return res.json({ model: currentModel, source: 'sd-forge' });
       }
+      return res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
     } catch (err) {
       console.log(`[sd-models] Failed to get current model: ${err.message}`);
       
-      // Return cached current model if available
       if (apiStatus.currentModel) {
         return res.json({ model: apiStatus.currentModel, source: 'cache' });
       }
+      return res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
+    } finally {
+      target.release();
     }
-    
-    res.json({ model: { model_name: "Unknown", title: "Unknown" }, source: 'placeholder' });
   });
 
   // Switch SD model
   app.post("/api/sd-models/switch", async (req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     const { model_name } = req.body;
     
     if (!model_name) {
@@ -1099,6 +1536,8 @@ async function start(opts = {}) {
         error: "Failed to switch model", 
         message: err.message 
       });
+    } finally {
+      target.release();
     }
   });
 
@@ -1146,11 +1585,10 @@ async function start(opts = {}) {
   }
 
   // LoRA API endpoints
-  app.get("/api/loras", async (_req, res) => {
-    const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-    const forgePort = process.env.SD_FORGE_PORT || "7860";
-    const forgeUrl = `http://${forgeHost}:${forgePort}`;
-    
+  app.get("/api/loras", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    try {
     // Fallback placeholder LoRAs for development/demo
     const placeholderLoras = [
       {
@@ -1237,12 +1675,16 @@ async function start(opts = {}) {
     }
     
     res.json({ loras: placeholderLoras, source: 'placeholder' });
+    } finally {
+      target.release();
+    }
   });
 
   // Forge Settings API
 
-  app.get("/api/forge/options", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/options", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1259,11 +1701,14 @@ async function start(opts = {}) {
     } catch (err) {
       apiStatus.sdForgeAvailable = false;
       return res.json({ options: {}, available: false, error: err.message });
+    } finally {
+      target.release();
     }
   });
 
   app.post("/api/forge/options", async (req, res) => {
-    const forgeUrl = forgeBaseUrl();
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     const updates = req.body;
     if (!updates || typeof updates !== 'object') {
       return res.status(400).json({ error: "Invalid options" });
@@ -1286,11 +1731,14 @@ async function start(opts = {}) {
       return res.json({ success: true });
     } catch (err) {
       return res.status(502).json({ error: "Failed to update options", message: err.message });
+    } finally {
+      target.release();
     }
   });
 
-  app.get("/api/forge/samplers", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/samplers", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1305,11 +1753,14 @@ async function start(opts = {}) {
       return res.json({ samplers });
     } catch (err) {
       return res.json({ samplers: [], error: err.message });
+    } finally {
+      target.release();
     }
   });
 
-  app.get("/api/forge/schedulers", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/schedulers", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1324,11 +1775,14 @@ async function start(opts = {}) {
       return res.json({ schedulers });
     } catch (err) {
       return res.json({ schedulers: [], error: err.message });
+    } finally {
+      target.release();
     }
   });
 
-  app.get("/api/forge/vae", async (_req, res) => {
-    const forgeUrl = forgeBaseUrl();
+  app.get("/api/forge/vae", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
       const controller = new AbortController();
@@ -1343,6 +1797,8 @@ async function start(opts = {}) {
       return res.json({ vae: vaeList });
     } catch (err) {
       return res.json({ vae: [], error: err.message });
+    } finally {
+      target.release();
     }
   });
 
@@ -1757,352 +2213,7 @@ async function start(opts = {}) {
     res.json(metrics);
   });
 
-  // Distributed Generation System
-  
-  const distributedPool = {
-    enabled: process.env.DISTRIBUTED_ENABLED === 'true' || false,
-    strategy: process.env.DISTRIBUTED_STRATEGY || 'round_robin',  // round_robin, least_busy, random, priority
-    nodes: [],
-    currentIndex: 0,
-    healthCheckInterval: parseInt(process.env.DISTRIBUTED_HEALTH_CHECK_INTERVAL) || 30,
-    timeout: parseInt(process.env.DISTRIBUTED_TIMEOUT) || 300,
-    retryAttempts: parseInt(process.env.DISTRIBUTED_RETRY_ATTEMPTS) || 2,
-    jobs: new Map(),  // jobId -> job info
-    metrics: new Map()  // nodeUrl -> metrics
-  };
-
-  // Parse initial nodes from environment
-  if (process.env.DISTRIBUTED_NODES) {
-    const nodeUrls = process.env.DISTRIBUTED_NODES.split(',').map(u => u.trim()).filter(u => u);
-    nodeUrls.forEach((url, idx) => {
-      distributedPool.nodes.push({
-        url,
-        name: `Node-${idx + 1}`,
-        status: 'unknown',
-        activeJobs: 0,
-        totalJobs: 0,
-        priority: 1,
-        lastHealthCheck: null,
-        responseTime: null
-      });
-    });
-  }
-
-  // Configure distributed generation
-  app.post("/api/distributed/configure", (req, res) => {
-    const { enabled, strategy, nodes, healthCheckInterval, timeout, retryAttempts } = req.body;
-    
-    if (typeof enabled === 'boolean') {
-      distributedPool.enabled = enabled;
-    }
-    if (strategy && ['round_robin', 'least_busy', 'random', 'priority'].includes(strategy)) {
-      distributedPool.strategy = strategy;
-    }
-    if (Array.isArray(nodes)) {
-      distributedPool.nodes = nodes.map(node => ({
-        url: node.url,
-        name: node.name || node.url,
-        status: 'unknown',
-        activeJobs: 0,
-        totalJobs: 0,
-        priority: node.priority || 1,
-        gpuModel: node.gpuModel || null,
-        lastHealthCheck: null,
-        responseTime: null
-      }));
-    }
-    if (typeof healthCheckInterval === 'number' && healthCheckInterval > 0) {
-      distributedPool.healthCheckInterval = healthCheckInterval;
-    }
-    if (typeof timeout === 'number' && timeout > 0) {
-      distributedPool.timeout = timeout;
-    }
-    if (typeof retryAttempts === 'number' && retryAttempts >= 0) {
-      distributedPool.retryAttempts = retryAttempts;
-    }
-    
-    console.log(`[distributed] Configuration updated: ${distributedPool.nodes.length} nodes, strategy: ${distributedPool.strategy}`);
-    res.json({ success: true, message: "Distributed configuration updated", config: getDistributedConfig() });
-  });
-
-  // Get distributed pool status
-  app.get("/api/distributed/status", (_req, res) => {
-    const healthyNodes = distributedPool.nodes.filter(n => n.status === 'healthy').length;
-    
-    res.json({
-      enabled: distributedPool.enabled,
-      strategy: distributedPool.strategy,
-      totalNodes: distributedPool.nodes.length,
-      healthyNodes,
-      nodes: distributedPool.nodes.map(n => ({
-        url: n.url,
-        name: n.name,
-        status: n.status,
-        activeJobs: n.activeJobs,
-        totalJobs: n.totalJobs,
-        priority: n.priority,
-        gpuModel: n.gpuModel,
-        lastHealthCheck: n.lastHealthCheck,
-        responseTime: n.responseTime
-      }))
-    });
-  });
-
-  // Submit distributed generation job
-  app.post("/api/distributed/generate", async (req, res) => {
-    if (!distributedPool.enabled) {
-      return res.status(503).json({ error: "Distributed generation is disabled" });
-    }
-    
-    const { workflow, preferredNode, priority } = req.body;
-    
-    if (!workflow) {
-      return res.status(400).json({ error: "workflow is required" });
-    }
-    
-    // Select node based on strategy
-    const node = selectNode(preferredNode);
-    if (!node) {
-      return res.status(503).json({ error: "No healthy nodes available" });
-    }
-    
-    const jobId = `job_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const job = {
-      id: jobId,
-      nodeUrl: node.url,
-      nodeName: node.name,
-      workflow,
-      priority: priority || 'normal',
-      status: 'queued',
-      createdAt: new Date().toISOString(),
-      startedAt: null,
-      completedAt: null
-    };
-    
-    distributedPool.jobs.set(jobId, job);
-    node.activeJobs++;
-    node.totalJobs++;
-    
-    console.log(`[distributed] Job ${jobId} assigned to ${node.name} (${node.url})`);
-    
-    res.json({
-      jobId,
-      assignedNode: node.name,
-      nodeUrl: node.url,
-      status: 'queued',
-      estimatedWaitTime: estimateWaitTime(node)
-    });
-  });
-
-  // Get job status
-  app.get("/api/distributed/jobs/:jobId", (req, res) => {
-    const job = distributedPool.jobs.get(req.params.jobId);
-    
-    if (!job) {
-      return res.status(404).json({ error: "Job not found" });
-    }
-    
-    res.json(job);
-  });
-
-  // Health check all nodes
-  app.post("/api/distributed/health-check", async (_req, res) => {
-    const results = await performHealthCheck();
-    res.json({
-      success: true,
-      checked: results.length,
-      healthy: results.filter(r => r.healthy).length,
-      results
-    });
-  });
-
-  // Get distributed metrics
-  app.get("/api/distributed/metrics", (_req, res) => {
-    const nodeMetrics = distributedPool.nodes.map(node => {
-      const metrics = distributedPool.metrics.get(node.url) || {
-        successCount: 0,
-        failureCount: 0,
-        avgResponseTime: 0
-      };
-      
-      return {
-        url: node.url,
-        name: node.name,
-        activeJobs: node.activeJobs,
-        totalJobs: node.totalJobs,
-        successRate: metrics.successCount + metrics.failureCount > 0 
-          ? (metrics.successCount / (metrics.successCount + metrics.failureCount) * 100).toFixed(2)
-          : 0,
-        avgResponseTime: metrics.avgResponseTime,
-        status: node.status
-      };
-    });
-    
-    res.json({
-      enabled: distributedPool.enabled,
-      strategy: distributedPool.strategy,
-      totalJobs: distributedPool.jobs.size,
-      nodeMetrics
-    });
-  });
-
-  // Disable node
-  app.post("/api/distributed/nodes/:nodeId/disable", (req, res) => {
-    const nodeId = decodeURIComponent(req.params.nodeId);
-    const node = distributedPool.nodes.find(n => n.url === nodeId);
-    
-    if (!node) {
-      return res.status(404).json({ error: "Node not found" });
-    }
-    
-    node.status = 'disabled';
-    console.log(`[distributed] Node ${node.name} disabled`);
-    res.json({ success: true, message: `Node ${node.name} disabled` });
-  });
-
-  // Enable node
-  app.post("/api/distributed/nodes/:nodeId/enable", (req, res) => {
-    const nodeId = decodeURIComponent(req.params.nodeId);
-    const node = distributedPool.nodes.find(n => n.url === nodeId);
-    
-    if (!node) {
-      return res.status(404).json({ error: "Node not found" });
-    }
-    
-    node.status = 'unknown';  // Will be checked on next health check
-    console.log(`[distributed] Node ${node.name} enabled`);
-    res.json({ success: true, message: `Node ${node.name} enabled` });
-  });
-
-  // Remove node
-  app.delete("/api/distributed/nodes/:nodeId", (req, res) => {
-    const nodeId = decodeURIComponent(req.params.nodeId);
-    const index = distributedPool.nodes.findIndex(n => n.url === nodeId);
-    
-    if (index === -1) {
-      return res.status(404).json({ error: "Node not found" });
-    }
-    
-    const removed = distributedPool.nodes.splice(index, 1)[0];
-    console.log(`[distributed] Node ${removed.name} removed from pool`);
-    res.json({ success: true, message: `Node ${removed.name} removed` });
-  });
-
-  // Helper functions for distributed generation
-  function selectNode(preferredNode) {
-    const healthyNodes = distributedPool.nodes.filter(n => n.status === 'healthy');
-    
-    if (healthyNodes.length === 0) {
-      return null;
-    }
-    
-    // Check preferred node first
-    if (preferredNode) {
-      const preferred = healthyNodes.find(n => n.name === preferredNode || n.url === preferredNode);
-      if (preferred) return preferred;
-    }
-    
-    // Apply strategy
-    switch (distributedPool.strategy) {
-      case 'least_busy':
-        return healthyNodes.reduce((min, node) => 
-          node.activeJobs < min.activeJobs ? node : min
-        );
-      
-      case 'random':
-        return healthyNodes[Math.floor(Math.random() * healthyNodes.length)];
-      
-      case 'priority':
-        const sorted = healthyNodes.sort((a, b) => a.priority - b.priority);
-        return sorted[0];
-      
-      case 'round_robin':
-      default:
-        // Round robin through healthy nodes
-        let attempts = 0;
-        while (attempts < distributedPool.nodes.length) {
-          const node = distributedPool.nodes[distributedPool.currentIndex];
-          distributedPool.currentIndex = (distributedPool.currentIndex + 1) % distributedPool.nodes.length;
-          
-          if (node.status === 'healthy') {
-            return node;
-          }
-          attempts++;
-        }
-        return healthyNodes[0];  // Fallback to first healthy
-    }
-  }
-
-  function estimateWaitTime(node) {
-    // Simple estimation: 30 seconds per active job
-    return node.activeJobs * 30;
-  }
-
-  async function performHealthCheck() {
-    const results = [];
-    
-    for (const node of distributedPool.nodes) {
-      if (node.status === 'disabled') {
-        results.push({ url: node.url, healthy: false, reason: 'disabled' });
-        continue;
-      }
-      
-      try {
-        const startTime = Date.now();
-        
-        // Try to fetch system stats (ComfyUI endpoint)
-        if (typeof fetch !== 'undefined') {
-          const controller = new AbortController();
-          const timeout = setTimeout(() => controller.abort(), 5000);
-          
-          const response = await fetch(`${node.url}/system_stats`, {
-            signal: controller.signal
-          });
-          clearTimeout(timeout);
-          
-          const responseTime = Date.now() - startTime;
-          
-          if (response.ok) {
-            node.status = 'healthy';
-            node.lastHealthCheck = new Date().toISOString();
-            node.responseTime = responseTime;
-            results.push({ url: node.url, healthy: true, responseTime });
-          } else {
-            node.status = 'unhealthy';
-            results.push({ url: node.url, healthy: false, reason: `HTTP ${response.status}` });
-          }
-        } else {
-          node.status = 'unknown';
-          results.push({ url: node.url, healthy: false, reason: 'fetch not available' });
-        }
-      } catch (err) {
-        node.status = 'unhealthy';
-        node.lastHealthCheck = new Date().toISOString();
-        results.push({ url: node.url, healthy: false, reason: err.message });
-      }
-    }
-    
-    return results;
-  }
-
-  function getDistributedConfig() {
-    return {
-      enabled: distributedPool.enabled,
-      strategy: distributedPool.strategy,
-      nodeCount: distributedPool.nodes.length,
-      healthCheckInterval: distributedPool.healthCheckInterval,
-      timeout: distributedPool.timeout,
-      retryAttempts: distributedPool.retryAttempts
-    };
-  }
-
-  // Periodic health check
-  if (distributedPool.enabled && distributedPool.nodes.length > 0) {
-    setInterval(async () => {
-      console.log('[distributed] Performing periodic health check...');
-      await performHealthCheck();
-    }, distributedPool.healthCheckInterval * 1000);
-  }
+  gpuPool.attachRoutes(app);
 
   // Runs browser API
   const runsDir = opts.runsDir || process.env.RUNS_DIR || "/data/runs";
@@ -2118,29 +2229,40 @@ async function start(opts = {}) {
     }
   }
 
-  function listRuns() {
-    if (!fs.existsSync(runsDir)) return [];
-    const runs = [];
-    const entries = fs.readdirSync(runsDir, { withFileTypes: true });
-    for (const entry of entries) {
-      if (entry.isDirectory()) {
-        const runPath = path.join(runsDir, entry.name);
-        const manifest = loadRunManifest(runPath);
-        if (manifest) {
-          // Look for thumbnail
-          const thumbPath = path.join(runPath, "thumb.png");
-          if (fs.existsSync(thumbPath)) {
-            manifest.has_thumbnail = true;
-          }
-          // Look for last frame
-          if (manifest.last_frame && fs.existsSync(manifest.last_frame)) {
-            manifest.last_frame_exists = true;
-          }
-          runs.push(manifest);
-        }
-      }
+  async function listRuns() {
+    try {
+      await fsp.access(runsDir);
+    } catch {
+      return [];
     }
-    return runs.sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
+    const entries = await fsp.readdir(runsDir, { withFileTypes: true });
+    const dirs = entries.filter((e) => e.isDirectory()).map((e) => e.name);
+    const runs = await Promise.all(
+      dirs.map(async (name) => {
+        const runPath = path.join(runsDir, name);
+        const manifestPath = path.join(runPath, "run.json");
+        try {
+          const raw = await fsp.readFile(manifestPath, "utf-8");
+          const data = JSON.parse(raw);
+          const manifest = { ...data, run_id: name, manifest_path: manifestPath };
+          const thumbPath = path.join(runPath, "thumb.png");
+          try {
+            await fsp.access(thumbPath);
+            manifest.has_thumbnail = true;
+          } catch { /* no thumb */ }
+          if (manifest.last_frame) {
+            try {
+              await fsp.access(manifest.last_frame);
+              manifest.last_frame_exists = true;
+            } catch { /* missing */ }
+          }
+          return manifest;
+        } catch {
+          return null;
+        }
+      })
+    );
+    return runs.filter(Boolean).sort((a, b) => (b.started_at || "").localeCompare(a.started_at || ""));
   }
 
   // Collaborative features API
@@ -2215,32 +2337,13 @@ async function start(opts = {}) {
     }
   });
 
-  // AI Assistant API endpoints
+  // AI Assistant API endpoints (stdin JSON bridge — audit A-11)
   app.post("/api/ai/prompt-suggestions", async (req, res) => {
     const { current_prompt, category, limit } = req.body || {};
-    if (!current_prompt) {
-      return res.status(400).json({ error: "current_prompt required" });
-    }
+    if (!current_prompt) return res.status(400).json({ error: "current_prompt required" });
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-suggestions = assistant.get_prompt_suggestions("${current_prompt}", "${category || ''}", ${limit || 5})
-print(json.dumps(suggestions))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const suggestions = JSON.parse(stdout);
-          res.json({ suggestions });
-        } catch (e) {
-          res.json({ suggestions: [] });
-        }
-      });
+      const suggestions = await invokeAi("prompt_suggestions", { current_prompt, category, limit });
+      res.json({ suggestions: suggestions || [] });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2248,23 +2351,10 @@ print(json.dumps(suggestions))
 
   app.post("/api/ai/improve-prompt", async (req, res) => {
     const { current_prompt, style } = req.body || {};
-    if (!current_prompt) {
-      return res.status(400).json({ error: "current_prompt required" });
-    }
+    if (!current_prompt) return res.status(400).json({ error: "current_prompt required" });
     try {
-      const { exec } = require('child_process');
-      const script = `
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-improved = assistant.improve_prompt("${current_prompt}", "${style || 'enhance'}")
-print(improved)
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        res.json({ improved_prompt: stdout.trim() });
-      });
+      const improved = await invokeAi("improve_prompt", { current_prompt, style });
+      res.json({ improved_prompt: typeof improved === "string" ? improved : String(improved || "") });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2272,30 +2362,10 @@ print(improved)
 
   app.post("/api/ai/parameter-recommendations", async (req, res) => {
     const { current_params, style } = req.body || {};
-    if (!current_params) {
-      return res.status(400).json({ error: "current_params required" });
-    }
+    if (!current_params) return res.status(400).json({ error: "current_params required" });
     try {
-      const { exec } = require('child_process');
-      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-recs = assistant.get_parameter_recommendations(${paramsJson}, "${style || 'photorealistic'}")
-print(json.dumps(recs))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const recommendations = JSON.parse(stdout);
-          res.json({ recommendations });
-        } catch (e) {
-          res.json({ recommendations: [] });
-        }
-      });
+      const recommendations = await invokeAi("parameter_recommendations", { current_params, style });
+      res.json({ recommendations: recommendations || [] });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2307,26 +2377,8 @@ print(json.dumps(recs))
       return res.status(400).json({ error: "current_params and feedback_score required" });
     }
     try {
-      const { exec } = require('child_process');
-      const paramsJson = JSON.stringify(current_params).replace(/'/g, "\\'");
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-tuned = assistant.auto_tune_parameters(${paramsJson}, ${feedback_score})
-print(json.dumps(tuned))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const tuned_params = JSON.parse(stdout);
-          res.json({ tuned_params });
-        } catch (e) {
-          res.json({ tuned_params: current_params });
-        }
-      });
+      const tuned_params = await invokeAi("auto_tune", { current_params, feedback_score });
+      res.json({ tuned_params: tuned_params || current_params });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2334,29 +2386,10 @@ print(json.dumps(tuned))
 
   app.post("/api/ai/style-recommendations", async (req, res) => {
     const { current_prompt, limit } = req.body || {};
-    if (!current_prompt) {
-      return res.status(400).json({ error: "current_prompt required" });
-    }
+    if (!current_prompt) return res.status(400).json({ error: "current_prompt required" });
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-styles = assistant.get_style_recommendations("${current_prompt}", ${limit || 3})
-print(json.dumps(styles))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const styles = JSON.parse(stdout);
-          res.json({ styles });
-        } catch (e) {
-          res.json({ styles: [] });
-        }
-      });
+      const styles = await invokeAi("style_recommendations", { current_prompt, limit });
+      res.json({ styles: styles || [] });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2368,25 +2401,8 @@ print(json.dumps(styles))
       return res.status(400).json({ error: "current_prompt and style_name required" });
     }
     try {
-      const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-result = assistant.apply_style_transfer("${current_prompt}", "${current_negative || ''}", "${style_name}")
-print(json.dumps(result))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const result = JSON.parse(stdout);
-          res.json(result);
-        } catch (e) {
-          res.json({ prompt: current_prompt, negative_prompt: current_negative });
-        }
-      });
+      const result = await invokeAi("apply_style", { current_prompt, current_negative, style_name });
+      res.json(result || { prompt: current_prompt, negative_prompt: current_negative });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2394,30 +2410,10 @@ print(json.dumps(result))
 
   app.post("/api/ai/analyze-frame", async (req, res) => {
     const { frame_data } = req.body || {};
-    if (!frame_data) {
-      return res.status(400).json({ error: "frame_data required" });
-    }
+    if (!frame_data) return res.status(400).json({ error: "frame_data required" });
     try {
-      const { exec } = require('child_process');
-      const dataJson = JSON.stringify(frame_data).replace(/'/g, "\\'");
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-result = assistant.analyze_frame(${dataJson})
-print(json.dumps(result))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
-        }
-        try {
-          const result = JSON.parse(stdout);
-          res.json(result);
-        } catch (e) {
-          res.json({ anomalies: [], is_ok: true });
-        }
-      });
+      const result = await invokeAi("analyze_frame", { frame_data });
+      res.json(result || { anomalies: [], is_ok: true });
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -2425,23 +2421,231 @@ print(json.dumps(result))
 
   app.get("/api/ai/anomaly-summary", async (_req, res) => {
     try {
+      const summary = await invokeAi("anomaly_summary", {});
+      res.json(summary || { total_frames: 0, anomalous_frames: 0, anomaly_rate: 0 });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Local LLM API endpoints
+  let llmState = {
+    type: "llama.cpp",
+    serverUrl: "http://localhost:8080",
+    loadedModel: null,
+    running: false,
+    childProcess: null,
+    params: {
+      maxTokens: 2048,
+      temperature: 0.7,
+      topP: 0.9,
+      contextLength: 4096,
+      gpuLayers: 35,
+      threads: 8,
+    },
+  };
+
+  app.get("/api/llm/status", async (_req, res) => {
+    res.json({
+      status: {
+        connected: llmState.running,
+        message: llmState.running ? "Running" : "Stopped",
+      },
+      loadedModel: llmState.loadedModel || "",
+      memory: { used: 0, total: 0, percent: 0 },
+    });
+  });
+
+  app.post("/api/llm/start", async (req, res) => {
+    const { type, url } = req.body || {};
+    if (llmState.running) {
+      return res.json({ success: false, message: "LLM already running" });
+    }
+    llmState.type = type || llmState.type;
+    llmState.serverUrl = url || llmState.serverUrl;
+    res.json({ success: true, message: `LLM server start requested (${llmState.type})` });
+  });
+
+  app.post("/api/llm/stop", async (_req, res) => {
+    if (!llmState.running) {
+      return res.json({ success: false, message: "LLM not running" });
+    }
+    if (llmState.childProcess) {
+      llmState.childProcess.kill();
+      llmState.childProcess = null;
+    }
+    llmState.running = false;
+    res.json({ success: true, message: "LLM server stopped" });
+  });
+
+  app.get("/api/llm/models", async (_req, res) => {
+    const modelsDir = path.join(__dirname, "llm-models");
+    try {
+      if (!require('fs').existsSync(modelsDir)) {
+        return res.json({ models: [] });
+      }
+      const files = require('fs').readdirSync(modelsDir)
+        .filter(f => f.endsWith('.gguf') || f.endsWith('.bin'))
+        .map(f => {
+          const stat = require('fs').statSync(path.join(modelsDir, f));
+          return {
+            name: f,
+            size: (stat.size / (1024 * 1024 * 1024)).toFixed(2) + " GB",
+          };
+        });
+      res.json({ models: files });
+    } catch (err) {
+      res.json({ models: [] });
+    }
+  });
+
+  app.post("/api/llm/load", async (req, res) => {
+    const { model, params } = req.body || {};
+    if (!model) {
+      return res.status(400).json({ error: "model required" });
+    }
+    llmState.loadedModel = model;
+    if (params) {
+      llmState.params = { ...llmState.params, ...params };
+    }
+    res.json({ success: true, message: `Model ${model} loaded` });
+  });
+
+  app.post("/api/llm/unload", async (_req, res) => {
+    llmState.loadedModel = null;
+    res.json({ success: true, message: "Model unloaded" });
+  });
+
+  app.post("/api/llm/config", async (req, res) => {
+    const { type, serverUrl, params } = req.body || {};
+    if (type) llmState.type = type;
+    if (serverUrl) llmState.serverUrl = serverUrl;
+    if (params) llmState.params = { ...llmState.params, ...params };
+    res.json({ success: true, message: "Config saved" });
+  });
+
+  app.post("/api/llm/test", async (req, res) => {
+    const { url } = req.body || {};
+    const testUrl = url || llmState.serverUrl;
+    try {
+      const response = await fetch(testUrl, { method: "GET", signal: AbortSignal.timeout(3000) });
+      res.json({ success: response.ok, message: response.ok ? "Connection successful" : "Connection failed" });
+    } catch (err) {
+      res.json({ success: false, error: err.message });
+    }
+  });
+
+  // Frame interpolation API endpoints
+  app.post("/api/interpolate", async (req, res) => {
+    const { input_dir, output_dir, factor, method } = req.body || {};
+    if (!input_dir || !output_dir) {
+      return res.status(400).json({ error: "input_dir and output_dir required" });
+    }
+    try {
       const { exec } = require('child_process');
-      const script = `
-import json
-from defora_cli.ai_assistant import DeforaAIAssistant
-assistant = DeforaAIAssistant()
-summary = assistant.get_anomaly_summary()
-print(json.dumps(summary))
-`;
-      exec(`python3 -c '${script}'`, (error, stdout, stderr) => {
+      const cmd = [
+        "python3", "-m", "defora_cli.frame_interpolator", "interpolate",
+        "--input-dir", input_dir,
+        "--output-dir", output_dir,
+        "--factor", String(factor || 2),
+        "--method", method || "blend",
+      ];
+      exec(cmd.join(" "), (error, stdout, stderr) => {
         if (error) {
           return res.status(500).json({ error: stderr || stdout });
         }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // WebRTC streaming API endpoints
+  app.post("/api/webrtc/start", async (req, res) => {
+    const { fps, resolution, port } = req.body || {};
+    try {
+      const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
+      const cmd = ["python3", "-m", "defora_cli.stream_helper", "webrtc",
+                   "--source", framesDir,
+                   "--fps", String(fps || 24)];
+      if (resolution) cmd.push("--resolution", resolution);
+      if (port) cmd.push("--port", String(port));
+      
+      const { exec } = require('child_process');
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout, url: `http://localhost:${port || 8088}` });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/webrtc/stop", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper stop-webrtc", (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/webrtc/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.stream_helper webrtc-status", (error, stdout, stderr) => {
+        res.json({
+          status: error ? "stopped" : "running",
+          output: stdout,
+        });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Advanced Synchronization API endpoints
+  app.post("/api/sync/ableton-link", async (req, res) => {
+    const { bpm, mediator_host, mediator_port, fps } = req.body || {};
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.ableton_link", "sync",
+                   "--bpm", String(bpm || 120)];
+      if (mediator_host) cmd.push("--mediator-host", mediator_host);
+      if (mediator_port) cmd.push("--mediator-port", mediator_port);
+      if (fps) cmd.push("--fps", String(fps));
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/sync/ableton-link/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.ableton_link status", (error, stdout, stderr) => {
+        if (error) {
+          return res.json({ status: "stopped", error: stderr || stdout });
+        }
         try {
-          const summary = JSON.parse(stdout);
-          res.json(summary);
+          const status = JSON.parse(stdout);
+          res.json({ status: "running", ...status });
         } catch (e) {
-          res.json({ total_frames: 0, anomalous_frames: 0, anomaly_rate: 0 });
+          res.json({ status: "unknown", output: stdout });
         }
       });
     } catch (err) {
@@ -2449,8 +2653,183 @@ print(json.dumps(summary))
     }
   });
 
-  app.get("/api/runs", (req, res) => {
-    const runs = listRuns();
+  app.post("/api/sync/timecode", async (req, res) => {
+    const { mode, fps, midi_device, mediator_host, mediator_port } = req.body || {};
+    if (!mode || !["ltc", "mtc"].includes(mode)) {
+      return res.status(400).json({ error: "mode required (ltc or mtc)" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.timecode_sync", mode,
+                   "--fps", String(fps || 24)];
+      if (midi_device) cmd.push("--midi-device", midi_device);
+      if (mediator_host) cmd.push("--mediator-host", mediator_host);
+      if (mediator_port) cmd.push("--mediator-port", mediator_port);
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/sync/timecode/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.timecode_sync status", (error, stdout, stderr) => {
+        if (error) {
+          return res.json({ status: "stopped", error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json({ status: "running", ...status });
+        } catch (e) {
+          res.json({ status: "unknown", output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // Cloud GPU API endpoints
+  app.post("/api/cloud-gpu/provision", async (req, res) => {
+    const { provider, gpu_type, pool_name, count, max_cost } = req.body || {};
+    if (!provider || !gpu_type || !pool_name) {
+      return res.status(400).json({ error: "provider, gpu_type, and pool_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.cloud_gpu", "provision",
+                   "--provider", provider,
+                   "--gpu-type", gpu_type,
+                   "--pool-name", pool_name];
+      if (count) cmd.push("--count", String(count));
+      if (max_cost) cmd.push("--max-cost", String(max_cost));
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/cloud-gpu/status", async (req, res) => {
+    const { pool_name } = req.query || {};
+    if (!pool_name) {
+      return res.status(400).json({ error: "pool_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      exec(`python3 -m defora_cli.cloud_gpu status --pool-name ${pool_name}`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json(status);
+        } catch (e) {
+          res.json({ output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/cloud-gpu/stop", async (req, res) => {
+    const { pool_name } = req.body || {};
+    if (!pool_name) {
+      return res.status(400).json({ error: "pool_name required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      exec(`python3 -m defora_cli.cloud_gpu stop --pool-name ${pool_name}`, (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/cloud-gpu/cost-estimate", async (req, res) => {
+    const { provider, gpu_type, hours } = req.query || {};
+    if (!provider || !gpu_type) {
+      return res.status(400).json({ error: "provider and gpu_type required" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.cloud_gpu", "cost-estimate",
+                   "--provider", provider,
+                   "--gpu-type", gpu_type,
+                   "--hours", String(hours || 8)];
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ estimate: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // DMX Lighting Control API endpoints
+  app.post("/api/dmx/start", async (req, res) => {
+    const { interface_type, universe, fps, broadcast_ip } = req.body || {};
+    if (!interface_type || !["artnet", "sacn", "openrgb"].includes(interface_type)) {
+      return res.status(400).json({ error: "interface_type required (artnet, sacn, or openrgb)" });
+    }
+    try {
+      const { exec } = require('child_process');
+      const cmd = ["python3", "-m", "defora_cli.dmx_control", interface_type];
+      if (universe) cmd.push("--universe", String(universe));
+      if (fps) cmd.push("--fps", String(fps));
+      if (broadcast_ip && interface_type === "artnet") cmd.push("--ip", broadcast_ip);
+      
+      exec(cmd.join(" "), (error, stdout, stderr) => {
+        if (error) {
+          return res.status(500).json({ error: stderr || stdout });
+        }
+        res.json({ success: true, message: stdout });
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/dmx/status", async (_req, res) => {
+    try {
+      const { exec } = require('child_process');
+      exec("python3 -m defora_cli.dmx_control status", (error, stdout, stderr) => {
+        if (error) {
+          return res.json({ status: "stopped", error: stderr || stdout });
+        }
+        try {
+          const status = JSON.parse(stdout);
+          res.json({ status: "running", ...status });
+        } catch (e) {
+          res.json({ status: "unknown", output: stdout });
+        }
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/runs", async (req, res) => {
+    const runs = await listRuns();
     const { status, tag, model, search, sort, order } = req.query;
     
     let filtered = runs;
@@ -2571,12 +2950,61 @@ print(json.dumps(summary))
     }
   });
 
-  app.get("/api/runs/export", (req, res) => {
-    const runs = listRuns();
+  const RUN_COMPARE_FIELDS = [
+    "status", "model", "frame_count", "seed", "steps", "strength", "cfg", "tag", "notes",
+    "prompt_positive", "prompt_negative", "started_at",
+  ];
+
+  function buildRunComparison(runIds, runs) {
+    const selected = runIds
+      .map((id) => runs.find((r) => r.run_id === id))
+      .filter(Boolean);
+    const matrix = {};
+    for (const field of RUN_COMPARE_FIELDS) {
+      matrix[field] = {};
+      for (const run of selected) {
+        matrix[field][run.run_id] = run[field] != null ? run[field] : null;
+      }
+    }
+    return { run_ids: selected.map((r) => r.run_id), fields: RUN_COMPARE_FIELDS, matrix, runs: selected };
+  }
+
+  app.post("/api/runs/compare", async (req, res) => {
+    const { run_ids: runIds, format } = req.body || {};
+    if (!Array.isArray(runIds) || runIds.length < 2) {
+      return res.status(400).json({ error: "run_ids array with at least 2 ids required" });
+    }
+    if (runIds.length > 8) {
+      return res.status(400).json({ error: "maximum 8 runs per comparison" });
+    }
+    const runs = await listRuns();
+    const comparison = buildRunComparison(runIds, runs);
+    if (comparison.runs.length < 2) {
+      return res.status(404).json({ error: "fewer than 2 valid run ids" });
+    }
+    if (format === "csv") {
+      const header = ["field", ...comparison.run_ids];
+      const rows = [header.join(",")];
+      for (const field of comparison.fields) {
+        const row = [field, ...comparison.run_ids.map((id) => {
+          const val = comparison.matrix[field][id];
+          return `"${String(val != null ? val : "").replace(/"/g, '""')}"`;
+        })];
+        rows.push(row.join(","));
+      }
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", "attachment; filename=runs_comparison.csv");
+      return res.send(rows.join("\n"));
+    }
+    res.json({ comparison });
+  });
+
+  app.get("/api/runs/export", async (req, res) => {
+    const runs = await listRuns();
     const format = req.query.format || "json";
     
     if (format === "csv") {
-      const headers = ["run_id", "status", "started_at", "model", "frame_count", "tag", "seed", "steps", "strength", "cfg", "notes"];
+      const headers = ["run_id", "status", "started_at", "model", "frame_count", "tag", "seed", "steps", "strength", "cfg", "notes", "prompt_positive", "prompt_negative"];
       const csvRows = [headers.join(",")];
       for (const run of runs) {
         const row = headers.map(h => {

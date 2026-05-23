@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Defora VR Control Room</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #000;
+            font-family: monospace;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: #fff;
+            background: rgba(0,0,0,0.7);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 100;
+            font-size: 12px;
+        }
+        #enter-vr {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background: linear-gradient(90deg, #ff53d9, #2de2ff);
+            border: none;
+            border-radius: 8px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            z-index: 100;
+            font-size: 14px;
+        }
+        #enter-vr:hover {
+            opacity: 0.9;
+        }
+        .parameter-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 15px;
+            border-radius: 8px;
+            color: #fff;
+            z-index: 100;
+            min-width: 200px;
+        }
+        .parameter-panel h3 {
+            margin: 0 0 10px 0;
+            color: #2de2ff;
+        }
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .param-row label {
+            font-size: 11px;
+            color: #9bc4e2;
+        }
+        .param-row input[type="range"] {
+            width: 100px;
+            accent-color: #ff53d9;
+        }
+        .param-value {
+            font-size: 11px;
+            color: #5af2a9;
+            min-width: 40px;
+            text-align: right;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Defora VR Control Room</h3>
+        <p>Use VR controllers or mouse to manipulate 3D parameters</p>
+        <p id="connection-status">Connecting...</p>
+    </div>
+    
+    <div class="parameter-panel">
+        <h3>3D Parameters</h3>
+        <div class="param-row">
+            <label>Translation X</label>
+            <input type="range" id="tx" min="-10" max="10" step="0.1" value="0">
+            <span class="param-value" id="tx-val">0.0</span>
+        </div>
+        <div class="param-row">
+            <label>Translation Y</label>
+            <input type="range" id="ty" min="-10" max="10" step="0.1" value="0">
+            <span class="param-value" id="ty-val">0.0</span>
+        </div>
+        <div class="param-row">
+            <label>Translation Z</label>
+            <input type="range" id="tz" min="-10" max="10" step="0.1" value="0">
+            <span class="param-value" id="tz-val">0.0</span>
+        </div>
+        <div class="param-row">
+            <label>Rotation X</label>
+            <input type="range" id="rx" min="-180" max="180" step="1" value="0">
+            <span class="param-value" id="rx-val">0°</span>
+        </div>
+        <div class="param-row">
+            <label>Rotation Y</label>
+            <input type="range" id="ry" min="-180" max="180" step="1" value="0">
+            <span class="param-value" id="ry-val">0°</span>
+        </div>
+        <div class="param-row">
+            <label>Rotation Z</label>
+            <input type="range" id="rz" min="-180" max="180" step="1" value="0">
+            <span class="param-value" id="rz-val">0°</span>
+        </div>
+        <div class="param-row">
+            <label>FOV</label>
+            <input type="range" id="fov" min="20" max="120" step="1" value="60">
+            <span class="param-value" id="fov-val">60°</span>
+        </div>
+    </div>
+
+    <button id="enter-vr">Enter VR</button>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+        }
+    }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { VRButton } from 'three/addons/webxr/VRButton.js';
+
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x06080f);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.6, 5);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.xr.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        // Add VR button if supported
+        if ('xr' in navigator) {
+            document.getElementById('enter-vr').addEventListener('click', async () => {
+                try {
+                    await navigator.xr.requestSession('immersive-vr');
+                    renderer.xr.setSession(session);
+                    document.getElementById('enter-vr').style.display = 'none';
+                } catch (e) {
+                    console.error('VR session failed:', e);
+                }
+            });
+        }
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+
+        const pointLight = new THREE.PointLight(0x2de2ff, 1);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
+
+        const pointLight2 = new THREE.PointLight(0xff53d9, 1);
+        pointLight2.position.set(-5, 3, -5);
+        scene.add(pointLight2);
+
+        // Create parameter visualization objects
+        const paramGroup = new THREE.Group();
+        scene.add(paramGroup);
+
+        // Central sphere (represents current parameter state)
+        const sphereGeometry = new THREE.SphereGeometry(0.5, 32, 32);
+        const sphereMaterial = new THREE.MeshPhongMaterial({
+            color: 0x2de2ff,
+            emissive: 0x0c3048,
+            specular: 0xffffff,
+            shininess: 100
+        });
+        const sphere = new THREE.Mesh(sphereGeometry, sphereMaterial);
+        paramGroup.add(sphere);
+
+        // Orbit rings for rotation visualization
+        const ringGeometry = new THREE.TorusGeometry(1.5, 0.02, 16, 100);
+        const ringMaterial = new THREE.MeshBasicMaterial({ color: 0xff53d9 });
+        
+        const ringX = new THREE.Mesh(ringGeometry, ringMaterial);
+        ringX.rotation.y = Math.PI / 2;
+        paramGroup.add(ringX);
+
+        const ringY = new THREE.Mesh(ringGeometry, ringMaterial.clone());
+        ringY.material.color.set(0x5af2a9);
+        paramGroup.add(ringY);
+
+        const ringZ = new THREE.Mesh(ringGeometry, ringMaterial.clone());
+        ringZ.material.color.set(0xff8a1a);
+        ringZ.rotation.x = Math.PI / 2;
+        paramGroup.add(ringZ);
+
+        // Grid floor
+        const gridHelper = new THREE.GridHelper(20, 20, 0x1f2a44, 0x0f1422);
+        scene.add(gridHelper);
+
+        // WebSocket connection to Defora
+        let ws = null;
+        const wsUrl = `ws://${window.location.host}/ws`;
+
+        function connectWebSocket() {
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                document.getElementById('connection-status').textContent = '✅ Connected to Defora';
+                document.getElementById('connection-status').style.color = '#5af2a9';
+            };
+            
+            ws.onclose = () => {
+                document.getElementById('connection-status').textContent = '❌ Disconnected';
+                document.getElementById('connection-status').style.color = '#ff4d6d';
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+        }
+
+        function sendParameters(params) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'control',
+                    controlType: 'liveParam',
+                    payload: params
+                }));
+            }
+        }
+
+        // Parameter sliders
+        const params = {
+            translation_x: 0,
+            translation_y: 0,
+            translation_z: 0,
+            rotation_x: 0,
+            rotation_y: 0,
+            rotation_z: 0,
+            fov: 60
+        };
+
+        function updateParameter(id, param, value) {
+            params[param] = value;
+            document.getElementById(`${id}-val`).textContent = value.toFixed(1);
+            sendParameters(params);
+            updateVisualization();
+        }
+
+        function updateVisualization() {
+            // Update sphere position based on translation
+            sphere.position.x = params.translation_x / 10;
+            sphere.position.y = params.translation_y / 10;
+            sphere.position.z = params.translation_z / 10;
+
+            // Update ring rotations
+            ringX.rotation.x = params.rotation_x * Math.PI / 180;
+            ringY.rotation.y = params.rotation_y * Math.PI / 180;
+            ringZ.rotation.z = params.rotation_z * Math.PI / 180;
+
+            // Update camera FOV
+            camera.fov = params.fov;
+            camera.updateProjectionMatrix();
+        }
+
+        // Slider event listeners
+        document.getElementById('tx').addEventListener('input', (e) => updateParameter('tx', 'translation_x', parseFloat(e.target.value)));
+        document.getElementById('ty').addEventListener('input', (e) => updateParameter('ty', 'translation_y', parseFloat(e.target.value)));
+        document.getElementById('tz').addEventListener('input', (e) => updateParameter('tz', 'translation_z', parseFloat(e.target.value)));
+        document.getElementById('rx').addEventListener('input', (e) => updateParameter('rx', 'rotation_x', parseFloat(e.target.value)));
+        document.getElementById('ry').addEventListener('input', (e) => updateParameter('ry', 'rotation_y', parseFloat(e.target.value)));
+        document.getElementById('rz').addEventListener('input', (e) => updateParameter('rz', 'rotation_z', parseFloat(e.target.value)));
+        document.getElementById('fov').addEventListener('input', (e) => updateParameter('fov', 'fov', parseFloat(e.target.value)));
+
+        // VR controller support
+        let controller1, controller2;
+        
+        function setupControllers() {
+            controller1 = renderer.xr.getController(0);
+            controller1.addEventListener('selectstart', onSelectStart);
+            controller1.addEventListener('selectend', onSelectEnd);
+            scene.add(controller1);
+
+            controller2 = renderer.xr.getController(1);
+            controller2.addEventListener('selectstart', onSelectStart);
+            controller2.addEventListener('selectend', onSelectEnd);
+            scene.add(controller2);
+
+            // Controller models
+            const controllerGeometry = new THREE.CylinderGeometry(0.01, 0.02, 0.15, 8);
+            const controllerMaterial = new THREE.MeshPhongMaterial({ color: 0x2de2ff });
+            
+            const controllerModel1 = new THREE.Mesh(controllerGeometry, controllerMaterial);
+            controllerModel1.rotation.x = Math.PI / 2;
+            controllerModel1.position.z = -0.075;
+            controller1.add(controllerModel1);
+
+            const controllerModel2 = new THREE.Mesh(controllerGeometry.clone(), controllerMaterial.clone());
+            controllerModel2.rotation.x = Math.PI / 2;
+            controllerModel2.position.z = -0.075;
+            controller2.add(controllerModel2);
+        }
+
+        function onSelectStart(event) {
+            // Grab nearest parameter object
+            const controller = event.target;
+            const intersections = getIntersections(controller);
+            
+            if (intersections.length > 0) {
+                const object = intersections[0].object;
+                // Start dragging
+                controller.userData.selected = object;
+            }
+        }
+
+        function onSelectEnd(event) {
+            const controller = event.target;
+            controller.userData.selected = null;
+        }
+
+        function getIntersections(controller) {
+            const tempMatrix = new THREE.Matrix4();
+            tempMatrix.identity().extractRotation(controller.matrixWorld);
+
+            const raycaster = new THREE.Raycaster();
+            raycaster.ray.origin.setFromMatrixPosition(controller.matrixWorld);
+            raycaster.ray.direction.set(0, 0, -1).applyMatrix4(tempMatrix);
+
+            return raycaster.intersectObjects(paramGroup.children);
+        }
+
+        setupControllers();
+
+        // Animation loop
+        renderer.setAnimationLoop(() => {
+            // Rotate rings slowly for visual effect
+            ringX.rotation.z += 0.005;
+            ringY.rotation.x += 0.005;
+            ringZ.rotation.y += 0.005;
+
+            renderer.render(scene, camera);
+        });
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Connect to WebSocket
+        connectWebSocket();
+    </script>
+</body>
+</html>
