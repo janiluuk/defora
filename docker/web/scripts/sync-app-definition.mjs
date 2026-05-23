@@ -30,7 +30,7 @@ const template = vue
 let script = scriptMatch[1].trim();
 script = script.replace(/import\s+['"]\.\/style\.css['"];?\s*/g, '');
 let morphRequire = '';
-for (const mod of ['morph-utils.js', 'deforum-settings-schema.js']) {
+for (const mod of ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js']) {
   const re = new RegExp(
     `import\\s+\\{([\\s\\S]*?)\\}\\s+from\\s+['"]\\.\\/${mod.replace('.', '\\.')}['"];?`
   );

@@ -130,6 +130,45 @@ describe("Preset Management API", () => {
   });
 });
 
+describe("Shared Presets API", () => {
+  let svc;
+  let tmp;
+  let request;
+
+  beforeEach(async () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
+    svc = await start({ port: 0, framesDir: tmp, enableMq: false });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+  });
+
+  afterEach(async () => {
+    if (svc && svc.close) await svc.close();
+    if (tmp && fs.existsSync(tmp)) fs.rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it("lists, saves, loads, and deletes shared presets", async () => {
+    const preset = { liveVibe: [{ key: "cfg", val: 0.5 }], audio: { bpm: 128 } };
+    const save = await request.post("/api/shared-presets").send({
+      name: "crew-a",
+      preset,
+      sharedBy: "tester",
+    });
+    expect(save.status).to.equal(200);
+    expect(save.body.ok).to.equal(true);
+
+    const list = await request.get("/api/shared-presets");
+    expect(list.status).to.equal(200);
+    expect(list.body.presets.map((p) => p.name)).to.include("crew-a");
+
+    const load = await request.get("/api/shared-presets/crew-a");
+    expect(load.status).to.equal(200);
+    expect(load.body.preset.audio.bpm).to.equal(128);
+
+    const del = await request.delete("/api/shared-presets/crew-a");
+    expect(del.status).to.equal(200);
+  });
+});
+
 describe("ControlNet API", () => {
   let svc;
   let tmp;

@@ -84,6 +84,10 @@ Full codebase audit: inconsistencies, performance killers, incomplete items, and
 4. **A-05–A-07, A-14–A-16** — Docs/tab parity (MOTION vs GENERATE, LORA placement, XY pad).
 5. **A-08–A-10, A-20–A-21** — CI: enable Docker smoke + real server tests; fail build on Vite error.
 6. **A-11–A-13, A-23** — Performance: in-process AI module, frame/run listing indexes, polling backoff.
+7. **Post-audit UX** — `apiFetch` structured console errors; checkpoint **model list source** pill (Forge / Cache / Placeholder).
+8. **Shared presets** — Web UI in SETTINGS → PRESETS (`/api/shared-presets` list / share / load / delete).
+9. **Collaborative UI** — SETTINGS → COLLAB: user presence, parameter locks, session record / playback via WebSocket.
+10. **Doc hygiene** — Align incomplete / test sections with Phases 10–15 completion.
 
 ---
 
@@ -123,6 +127,7 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **13** | **Audit: CI & build integrity** | Live server + perf API tests; strict Vite build; Docker compose smoke; Playwright tab smoke | **Done** (A-08, A-09, A-10, A-20, A-21, A-27) |
 | **14** | **Audit: server performance** | `ai_invoke.py`, frames cache, async runs, polling backoff, stream fade | **Done** (A-11–A-13, A-23, A-25, A-32) |
 | **15** | **Audit: doc/code hygiene** | CLI/TUI headers; dual manifest note; timecode docs; morph blend | **Done** (A-17, A-18, A-24, A-26, A-28, A-29) |
+| **16** | **Post-audit polish** | `api-utils.js`; model source pill; shared presets UI; COLLAB tab (presence, locks, session record) | **Done** (recommended items 7–9) |
 
 ---
 
@@ -148,8 +153,8 @@ Defora is in **active development** with a strong foundation of core features im
 - ✅ **Audio integration**: Audio-reactive modulation, beat sync
 - ✅ **Streaming**: HLS, RTMP, SRT support
 - ✅ **Docker deployment**: Complete containerized stack
-- ⚠️ **Advanced workflow features**: Partially implemented, needs integration work
-- ⚠️ **Testing**: Large unit suite; **Docker/perf tests skipped in default CI**; web tests target `app-definition.js`, not shipped `App.vue` (see [Audit findings](#audit-findings-2026-05-23))
+- ✅ **Advanced workflow features**: Shared presets, collaboration (presence, locks, session recording) wired in Web UI
+- ✅ **Testing**: Docker compose smoke + perf API + live `server.js` + Playwright in CI; `pretest` syncs `app-definition.js` from `App.vue`
 
 ---
 
@@ -258,7 +263,7 @@ Defora is in **active development** with a strong foundation of core features im
 
 See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. Phased remediation: **Phases 10–15** in [Phased delivery](#phased-delivery).
 
-**Highest priority**: A-01 (UI/test drift), A-02 (ControlNet live input not in `App.vue`), A-03 (Docker Forge host), A-04 (distributed health API).
+**Audit A-01–A-32**: Complete. See [Recommended fix order](#recommended-fix-order-phased-below) items 1–6 and Phase 16 polish (items 7–9).
 
 ### ✅ Runs Management Integration (COMPLETED in v0.2.7)
 
@@ -306,13 +311,12 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 
 **Remaining Enhancements** (low priority):
 - ~~Automatic periodic polling for model availability~~ → **Done**: set `SD_FORGE_POLL_MS` (e.g. `30000`) on the web stack to probe SD-Forge on an interval; `/api/status` reports `pollIntervalMs`; Web UI shows Forge status in the header.
-- Visual indicator in UI for **model list source** (sd-forge vs cache vs placeholder) on CN/LoRA pickers — partial (badge exists; picker-level clarity still [A-27 area / ROADMAP polish])
-- Better error messages in browser console
-- **Docker default Forge host** — compose should set `SD_FORGE_HOST` for in-stack `sd-forge` ([A-03](#audit-findings-2026-05-23))
+- ✅ Visual indicator for **model list source** (sd-forge vs cache vs placeholder) on CN/LoRA pickers and LIVE checkpoint bar
+- ✅ Structured API error logging via `apiFetch` (`docker/web/src/api-utils.js`)
 
-### ⚠️ Test Coverage (v0.2.7+ with CI gaps)
+### ✅ Test Coverage (v0.3.6+)
 
-**Status**: Broad unit coverage; integration/perf/docker suites exist but are **off by default in CI**; web UI tests do not exercise shipped `App.vue` ([A-01](#audit-findings-2026-05-23), [A-08](#audit-findings-2026-05-23))
+**Status**: Broad unit coverage; CI runs Docker compose validation, perf API smoke, live `server.js` tests, and Playwright tab smoke after `npm run build`
 
 **What Works**:
 - ✅ Unit tests for all CLI tools
@@ -343,14 +347,10 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
   - Parameter type handling
   - Connection URI format validation
 
-**Remaining Enhancements** (tracked in audit):
-- Enable Docker stack smoke in CI or nightly ([A-08](#audit-findings-2026-05-23))
-- Implement performance API tests (currently `pass` stubs) ([A-09](#audit-findings-2026-05-23))
-- Hit live `server.js` in API tests ([A-10](#audit-findings-2026-05-23))
-- Test against production `App.vue` build, not divergent `app-definition.js` ([A-01](#audit-findings-2026-05-23))
-- Integration tests with real SD-Forge generation
+**Remaining Enhancements**:
+- Integration tests with real SD-Forge GPU generation
 - Extended load testing with WebSocket stress tests
-- Cross-platform / Playwright browser testing ([A-27](#audit-findings-2026-05-23))
+- Full `docker compose up` E2E in CI (opt-in via `SKIP_DOCKER_E2E=0`)
 
 **Next Steps**:
 1. Add tests with actual SD-Forge GPU generation (requires GPU)
@@ -500,7 +500,7 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
   - ✅ **Parameter locking (prevent conflicts)** - Lock/unlock parameters to prevent concurrent edits
   - ✅ **User presence indicators** - Real-time user list with connection status and locked parameters
   - ✅ **Session recording and replay** - Record all control events and playback with timing
-  - ⏳ Shared presets and settings (future)
+  - ✅ **Shared presets and settings** — `/api/shared-presets` + SETTINGS → PRESETS UI
 
 ### 🎯 Long-Term (6-12 Months)
 
@@ -636,7 +636,7 @@ curl -X POST http://localhost:3000/api/distributed/configure \
 
 **Remaining Enhancements** (moved to long-term):
 - ✅ **Cloud GPU integration (RunPod, Vast.ai)** - `defora_cli.cloud_gpu` with provisioning, monitoring, cost estimation
-- ⚠️ **Health check endpoint** — must use SD-Forge `/docs`, not ComfyUI `system_stats` ([A-04](#audit-findings-2026-05-23))
+- ✅ **Health check endpoint** — SD-Forge `GET /docs` ([A-04](#audit-findings-2026-05-23))
 - ⏳ Frame interpolation across machines (future)
 - ⏳ Cost optimization algorithms (future)
 - Render farm support

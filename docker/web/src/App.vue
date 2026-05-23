@@ -237,6 +237,9 @@
                   <option value="">— select model —</option>
                   <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
                 </select>
+                <span v-if="forge.modelsSource" class="model-source-pill" :class="'src-' + forge.modelsSource" :title="'Model list from ' + forge.modelsSource">
+                  ● {{ modelSourceLabel(forge.modelsSource) }}
+                </span>
                 <span v-if="forge.switching" class="model-loading">Loading model…</span>
                 <span v-else-if="forge.lastModel" class="model-last">Last: {{ forge.lastModel }}</span>
               </div>
@@ -244,9 +247,12 @@
               <div v-for="group in paramPanelGroups" :key="group.label" class="param-group">
                 <div class="framesync-subtitle">{{ group.label }}</div>
                 <div class="param-group-grid">
-                  <div class="framesync-stack" v-for="p in group.items" :key="p.key">
-                    <div class="framesync-subtitle" style="font-size:10px;">{{ p.label }}</div>
-                    <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
+                  <div class="framesync-stack" v-for="p in group.items" :key="p.key" :class="{'param-locked': isParamLocked(p.key)}">
+                    <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:6px;">
+                      <span>{{ p.label }}</span>
+                      <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)">🔒</button>
+                    </div>
+                    <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
                   </div>
                 </div>
               </div>
@@ -1084,6 +1090,7 @@
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">👥 COLLAB</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
           <div v-if="currentSubTab.SETTINGS==='ENGINE'">
@@ -1244,6 +1251,84 @@
                 <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:#ff4d6d; color:#ff4d6d;">🗑 Delete {{ currentPreset }}</button>
               </div>
               <div v-if="presetStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ presetStatus }}</div>
+
+              <div class="framesync-header" style="margin-top:20px; padding-top:12px; border-top:1px solid #13233d;">
+                <div class="framesync-title">🌐 Shared <span class="framesync-accent">Presets</span></div>
+                <button class="framesync-button" @click="refreshSharedPresets">🔄 Refresh</button>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Share as</div>
+                  <input class="framesync-input" v-model="sharedPresetName" placeholder="shared-preset-name">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Your name</div>
+                  <input class="framesync-input" v-model="collab.userName" placeholder="Performer" @change="saveCollabUserName">
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" @click="shareCurrentPreset">📤 Share current state</button>
+              </div>
+              <ul v-if="sharedPresets.length" class="framesync-list" style="margin-top:10px; font-size:11px; padding-left:16px;">
+                <li v-for="sp in sharedPresets" :key="sp.name" style="margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                  <strong>{{ sp.name }}</strong>
+                  <span style="color:#7fb3d6;">by {{ sp.sharedBy }}</span>
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="loadSharedPreset(sp.name)">Load</button>
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:#ff4d6d; color:#ff4d6d;" @click="deleteSharedPreset(sp.name)">Delete</button>
+                </li>
+              </ul>
+              <div v-else style="margin-top:10px; font-size:11px; color:#7fb3d6;">No shared presets yet.</div>
+              <div v-if="sharedPresetsStatus" class="framesync-subtitle" style="margin-top:8px;">{{ sharedPresetsStatus }}</div>
+            </div>
+          </div>
+          </div>
+          <div v-else-if="currentSubTab.SETTINGS==='COLLAB'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">👥 <span class="framesync-accent">Collaboration</span></div>
+                <span class="pill" :style="wsStatus === 'connected' ? { color: 'var(--success)', borderColor: 'rgba(90,242,169,0.4)' } : {}">{{ wsStatus === 'connected' ? 'WS connected' : 'WS ' + wsStatus }}</span>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Display name</div>
+                  <input class="framesync-input" v-model="collab.userName" @change="saveCollabUserName; collabIdentify()">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Your session ID</div>
+                  <input class="framesync-input" :value="collab.userId || '—'" readonly>
+                </div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Connected users ({{ collab.users.length }})</div>
+              <ul v-if="collab.users.length" class="framesync-list" style="font-size:11px; padding-left:16px; margin-top:6px;">
+                <li v-for="u in collab.users" :key="u.id">
+                  {{ u.name }}
+                  <span v-if="u.lockedParams && u.lockedParams.length" style="color:#fbbf24;"> — locks: {{ u.lockedParams.join(', ') }}</span>
+                </li>
+              </ul>
+              <div v-else style="font-size:11px; color:#7fb3d6; margin-top:6px;">Only you (open another browser tab to test multi-user).</div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Session recording</div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" :class="{active: collab.recording}" @click="toggleSessionRecording">
+                  {{ collab.recording ? '⏹ Stop recording' : '● Start recording' }}
+                </button>
+                <button class="framesync-button" @click="listSessionRecordings">📂 List recordings</button>
+              </div>
+              <ul v-if="collab.recordings.length" class="framesync-list" style="margin-top:8px; font-size:11px; padding-left:16px;">
+                <li v-for="r in collab.recordings" :key="r.filename" style="display:flex; gap:8px; align-items:center;">
+                  {{ r.filename }}
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="playbackSessionRecording(r.filename)">Play</button>
+                </li>
+              </ul>
+              <div v-if="collab.status" class="framesync-subtitle" style="margin-top:10px; color:#5af2a9;">{{ collab.status }}</div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Parameter locks (click param label in LIVE drawer)</div>
+              <div v-if="Object.keys(collab.locks).length" style="font-size:11px; margin-top:6px;">
+                <span v-for="(who, param) in collab.locks" :key="param" class="pill" style="margin:2px 4px 2px 0;">
+                  {{ param }} → {{ who }}
+                  <button type="button" style="border:none;background:transparent;color:#ff4d6d;cursor:pointer;margin-left:4px;" @click="unlockParam(param)">✕</button>
+                </span>
+              </div>
+              <div v-else style="font-size:11px; color:#7fb3d6; margin-top:6px;">No active locks.</div>
             </div>
           </div>
           </div>
@@ -1615,6 +1700,7 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
+import { apiFetch, modelSourceLabel } from './api-utils.js'
 
 export default {
   name: 'App',
@@ -1655,6 +1741,7 @@ export default {
          loading: false,
          switching: false,
          models: [],
+         modelsSource: '',
          currentModel: '',
          selectedModel: '',
          lastModel: '',
@@ -1673,6 +1760,19 @@ export default {
       currentPreset: null,
       newPresetName: '',
       presetStatus: '',
+      sharedPresets: [],
+      sharedPresetName: '',
+      sharedPresetBy: '',
+      sharedPresetsStatus: '',
+      collab: {
+        userId: null,
+        userName: typeof localStorage !== 'undefined' ? (localStorage.getItem('defora_user_name') || 'Performer') : 'Performer',
+        users: [],
+        locks: {},
+        recording: false,
+        recordings: [],
+        status: '',
+      },
       generator: {
         theme: '',
         stylePreset: 'Masterpiece, Realistic',
@@ -2047,6 +2147,7 @@ export default {
     this.loadMotionStyles();
     this.loadBindings();
     this.refreshPresets();
+    this.refreshSharedPresets();
     this.refreshLoras();
     this.loadControlNetModels();
     this.refreshPlugins();
@@ -2682,33 +2783,201 @@ export default {
    // Fallback: if no BPM (or BPM is 0/invalid), trigger on every beat
    return true;
  },
- setupWS() {
+ connectWebSocket() {
    const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
    const connect = () => {
      this.ws = new WebSocket(url);
      this.ws.onopen = () => {
        this.wsStatus = "connected";
-       console.log("WS connected");
+       this.collabIdentify();
      };
      this.ws.onclose = () => {
        this.wsStatus = "disconnected";
+       this.collab.userId = null;
        setTimeout(connect, 1000);
      };
      this.ws.onmessage = (evt) => {
        try {
          const msg = JSON.parse(evt.data);
-         if (msg.type === "event") console.log(msg.msg || "event");
-         if (msg.type === "stream" && msg.src) {
-           this.streamSrc = msg.src + "?t=" + Date.now();
-           this.attachPlayer();
-         }
-         if (msg.type === "frame") {
-           this.refreshFrames();
-         }
+         this.handleWsMessage(msg);
        } catch (_) {}
      };
    };
    connect();
+ },
+ handleWsMessage(msg) {
+   if (msg.type === "hello" && msg.userId) {
+     this.collab.userId = msg.userId;
+     this.collabIdentify();
+   }
+   if (msg.type === "presence" && Array.isArray(msg.users)) {
+     this.collab.users = msg.users;
+     const locks = {};
+     msg.users.forEach((u) => {
+       (u.lockedParams || []).forEach((param) => {
+         locks[param] = u.name;
+       });
+     });
+     this.collab.locks = locks;
+   }
+   if (msg.type === "shared_preset") {
+     this.sharedPresetsStatus = `Shared preset ${msg.action}: ${msg.name}`;
+     this.refreshSharedPresets();
+     setTimeout(() => { this.sharedPresetsStatus = ""; }, 3000);
+   }
+   if (msg.type === "recording") {
+     this.collab.recording = msg.status === "started";
+     this.collab.status = msg.status === "started" ? "Session recording…" : "Recording saved on server";
+   }
+   if (msg.type === "recordings" && Array.isArray(msg.files)) {
+     this.collab.recordings = msg.files;
+   }
+   if (msg.type === "playback") {
+     this.collab.status = `Playback started (${msg.events || 0} events)`;
+   }
+   if (msg.type === "error") {
+     console.error("[Defora WS]", msg.msg || msg, msg.locked || "");
+     this.collab.status = msg.msg || "WebSocket error";
+   }
+   if (msg.type === "event") {
+     if (msg.msg) console.log("[Defora event]", msg.msg);
+   }
+   if (msg.type === "stream" && msg.src) {
+     this.streamSrc = msg.src + "?t=" + Date.now();
+     this.attachPlayer();
+   }
+   if (msg.type === "frame") {
+     this.refreshFrames();
+   }
+ },
+ collabIdentify() {
+   if (!this.ws || this.ws.readyState !== 1) return;
+   this.wsSend({ type: "identify", name: this.collab.userName || "Performer" });
+ },
+ saveCollabUserName() {
+   try {
+     localStorage.setItem("defora_user_name", this.collab.userName || "Performer");
+   } catch (_) {}
+ },
+ wsSend(payload) {
+   if (!this.ws || this.ws.readyState !== 1) return;
+   this.ws.send(JSON.stringify(payload));
+ },
+ modelSourceLabel(source) {
+   return modelSourceLabel(source);
+ },
+ isParamLocked(key) {
+   return Boolean(this.collab.locks[key]);
+ },
+ isParamLockedByMe(key) {
+   const who = this.collab.locks[key];
+   return who && who === (this.collab.userName || "Performer");
+ },
+ paramLockTitle(key) {
+   if (!this.collab.locks[key]) return "Lock parameter for collaboration";
+   if (this.isParamLockedByMe(key)) return "Unlock (you hold this lock)";
+   return `Locked by ${this.collab.locks[key]}`;
+ },
+ toggleParamLock(key) {
+   if (this.isParamLockedByMe(key)) {
+     this.unlockParam(key);
+   } else if (!this.isParamLocked(key)) {
+     this.wsSend({ type: "lock_param", param: key });
+   } else {
+     this.collab.status = `${key} is locked by ${this.collab.locks[key]}`;
+   }
+ },
+ unlockParam(key) {
+   this.wsSend({ type: "unlock_param", param: key });
+ },
+ toggleSessionRecording() {
+   if (this.collab.recording) {
+     this.wsSend({ type: "stop_recording" });
+   } else {
+     this.wsSend({ type: "start_recording" });
+   }
+ },
+ listSessionRecordings() {
+   this.wsSend({ type: "list_recordings" });
+ },
+ playbackSessionRecording(filename) {
+   this.wsSend({ type: "playback_recording", recordingFile: filename });
+ },
+ async refreshSharedPresets() {
+   try {
+     const { data } = await apiFetch("/api/shared-presets", {}, "shared-presets list");
+     this.sharedPresets = data.presets || [];
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async shareCurrentPreset() {
+   const name = (this.sharedPresetName || this.newPresetName || this.currentPreset || "shared").replace(/[^a-zA-Z0-9_-]/g, "") || "shared";
+   const preset = {
+     liveVibe: this.liveVibe,
+     liveCam: this.liveCam,
+     audio: { bpm: this.audio.bpm, track: this.audio.track },
+     cn: { slots: this.cn.slots, active: this.cn.active },
+     loras: { groupA: this.loras.groupA, groupB: this.loras.groupB },
+     prompts: {
+       pos: this.prompts.pos,
+       neg: this.prompts.neg,
+       morphOn: this.prompts.morphOn,
+       crossfaderValue: this.prompts.crossfaderValue,
+     },
+     lfos: this.lfos,
+     macrosRack: this.macrosRack,
+     paramSources: this.paramSources,
+   };
+   try {
+     await apiFetch("/api/shared-presets", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         name,
+         preset,
+         sharedBy: this.collab.userName || "anonymous",
+         description: `Shared from web UI`,
+       }),
+     }, "share preset");
+     this.sharedPresetsStatus = `Shared as ${name}`;
+     this.sharedPresetName = name;
+     await this.refreshSharedPresets();
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async loadSharedPreset(name) {
+   try {
+     const { data } = await apiFetch(`/api/shared-presets/${encodeURIComponent(name)}`, {}, "load shared preset");
+     const preset = data.preset || data;
+     if (preset.liveVibe) this.liveVibe = preset.liveVibe;
+     if (preset.liveCam) this.liveCam = preset.liveCam;
+     if (preset.audio) Object.assign(this.audio, preset.audio);
+     if (preset.cn) Object.assign(this.cn, preset.cn);
+     if (preset.lfos) this.lfos = preset.lfos;
+     if (preset.macrosRack) this.macrosRack = preset.macrosRack;
+     if (preset.prompts) Object.assign(this.prompts, preset.prompts);
+     if (preset.loras) {
+       this.loras.groupA = preset.loras.groupA || [];
+       this.loras.groupB = preset.loras.groupB || [];
+       await this.refreshLoras();
+     }
+     this.sharedPresetsStatus = `Loaded shared preset: ${name}`;
+     setTimeout(() => { this.sharedPresetsStatus = ""; }, 3000);
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async deleteSharedPreset(name) {
+   if (!confirm(`Delete shared preset "${name}"?`)) return;
+   try {
+     await apiFetch(`/api/shared-presets/${encodeURIComponent(name)}`, { method: "DELETE" }, "delete shared preset");
+     await this.refreshSharedPresets();
+     this.sharedPresetsStatus = `Deleted ${name}`;
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
  },
  sendControl(controlType, payload) {
    if (!this.ws || this.ws.readyState !== 1) return;
@@ -2716,6 +2985,10 @@ export default {
    this.ws.send(JSON.stringify(msg));
  },
  updateParam(p, evt) {
+   if (this.isParamLocked(p.key) && !this.isParamLockedByMe(p.key)) {
+     console.warn(`[Defora] Parameter "${p.key}" is locked by ${this.collab.locks[p.key]}`);
+     return;
+   }
    const val = parseFloat(evt.target.value);
    p.val = val;
    this.queueLiveParam(p.key, val);
@@ -3339,12 +3612,9 @@ export default {
  // Preset management methods
  async refreshPresets() {
    try {
-     const res = await fetch("/api/presets");
-     const data = await res.json();
+     const { data } = await apiFetch("/api/presets", {}, "presets list");
      this.availablePresets = data.presets || [];
-   } catch (err) {
-     console.error("Failed to load presets", err);
-   }
+   } catch (_) {}
  },
  async loadPreset(name) {
    try {
@@ -3795,13 +4065,10 @@ export default {
  // ControlNet methods
  async loadControlNetModels() {
    try {
-     const res = await fetch("/api/controlnet/models");
-     const data = await res.json();
+     const { data } = await apiFetch("/api/controlnet/models", {}, "controlnet models");
      this.cn.availableModels = data.models || [];
      this.cn.source = data.source || "unknown";
-   } catch (err) {
-     console.error("Failed to load ControlNet models", err);
-   }
+   } catch (_) {}
  },
  updateControlNet(slot) {
    // Send ControlNet parameters to mediator
@@ -4554,8 +4821,7 @@ export default {
  // LoRA management methods
  async refreshLoras() {
    try {
-     const res = await fetch("/api/loras");
-     const data = await res.json();
+     const { data } = await apiFetch("/api/loras", {}, "loras list");
      if (data.loras) {
        this.loras.available = data.loras.map((lora) => ({
          id: lora.id || lora.name,
@@ -5293,11 +5559,11 @@ export default {
  },
  async refreshForgeModels() {
    try {
-     const res = await fetch('/api/sd-models');
-     const data = await res.json();
+     const { data } = await apiFetch('/api/sd-models', {}, 'sd-models list');
      this.forge.models = data.models || [];
-   } catch (err) {
-     console.error('Failed to load models', err);
+     this.forge.modelsSource = data.source || '';
+   } catch (_) {
+     this.forge.modelsSource = '';
    }
  },
  async switchForgeModel() {

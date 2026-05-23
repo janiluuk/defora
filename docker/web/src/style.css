@@ -118,6 +118,26 @@
       font-weight: 600;
     }
     .param-drawer-body { padding: 12px; }
+    .model-source-pill {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    .model-source-pill.src-sd-forge { color: var(--success); border-color: rgba(90, 242, 169, 0.35); }
+    .model-source-pill.src-cache { color: #fbbf24; border-color: rgba(251, 191, 36, 0.35); }
+    .model-source-pill.src-placeholder { color: var(--danger); border-color: rgba(255, 77, 109, 0.35); }
+    .param-lock-btn {
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      font-size: 10px;
+      opacity: 0.55;
+      padding: 0 2px;
+    }
+    .param-lock-btn.active { opacity: 1; color: #fbbf24; }
+    .param-locked input[type="range"] { opacity: 0.45; }
     .deforum-settings-drawer { margin-top: 8px; }
     .deforum-settings-hint {
       font-size: 11px;
