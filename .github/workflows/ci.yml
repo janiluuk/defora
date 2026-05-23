@@ -25,10 +25,6 @@ jobs:
           pip install pytest httpx
       - name: Python tests
         run: ./scripts/run_tests.sh
-      - name: Performance tests (audit A-09)
-        env:
-          SKIP_PERF_TESTS: "0"
-        run: python -m pytest tests/test_performance_load.py::TestAPIEndpointPerformance -q
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
@@ -36,6 +32,10 @@ jobs:
       - name: Web deps
         working-directory: docker/web
         run: npm install
+      - name: Performance tests (audit A-09)
+        env:
+          SKIP_PERF_TESTS: "0"
+        run: python -m pytest tests/test_performance_load.py::TestAPIEndpointPerformance -q
       - name: Web UI tests
         working-directory: docker/web
         run: npm test

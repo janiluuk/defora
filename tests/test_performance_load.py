@@ -177,35 +177,22 @@ class TestAPIEndpointPerformance(unittest.TestCase):
             self.skipTest("Performance tests disabled via SKIP_PERF_TESTS environment variable")
     
     def test_health_endpoint_response_time(self):
-        """Test health endpoint response time via in-process server (audit A-09)."""
+        """Test health endpoint response time via spawned server.js (audit A-09)."""
         try:
             import httpx
         except ImportError:
             self.skipTest("httpx not installed")
-        import os
-        import sys
-        import tempfile
+        from web_server_harness import NodeWebServer, web_stack_ready
 
-        tmp = tempfile.TemporaryDirectory()
-        frames = os.path.join(tmp.name, "frames")
-        hls = os.path.join(tmp.name, "hls")
-        os.makedirs(frames, exist_ok=True)
-        os.makedirs(hls, exist_ok=True)
-        web_dir = os.path.join(os.path.dirname(__file__), "..", "docker", "web")
-        sys.path.insert(0, web_dir)
-        from server import start
+        if not web_stack_ready():
+            self.skipTest("node and docker/web/node_modules required")
 
-        ctx = start(port=0, framesDir=frames, hlsDir=hls, enableMq=False)
-        base = f"http://127.0.0.1:{ctx['port']}"
-        try:
+        with NodeWebServer() as srv:
             t0 = time.time()
-            r = httpx.get(f"{base}/api/health", timeout=5)
+            r = httpx.get(f"{srv.base}/api/health", timeout=5)
             elapsed = time.time() - t0
             self.assertEqual(r.status_code, 200)
             self.assertLess(elapsed, 2.0, f"health took {elapsed:.2f}s")
-        finally:
-            ctx["server"].close()
-            tmp.cleanup()
 
     def test_concurrent_api_requests(self):
         """Concurrent /api/status requests (audit A-09)."""
@@ -213,33 +200,18 @@ class TestAPIEndpointPerformance(unittest.TestCase):
             import httpx
         except ImportError:
             self.skipTest("httpx not installed")
-        import os
-        import sys
-        import tempfile
-        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from web_server_harness import NodeWebServer, web_stack_ready
 
-        tmp = tempfile.TemporaryDirectory()
-        web_dir = os.path.join(os.path.dirname(__file__), "..", "docker", "web")
-        sys.path.insert(0, web_dir)
-        from server import start
+        if not web_stack_ready():
+            self.skipTest("node and docker/web/node_modules required")
 
-        ctx = start(
-            port=0,
-            framesDir=os.path.join(tmp.name, "f"),
-            hlsDir=os.path.join(tmp.name, "h"),
-            enableMq=False,
-        )
-        base = f"http://127.0.0.1:{ctx['port']}"
-        try:
+        with NodeWebServer() as srv:
             def one():
-                return httpx.get(f"{base}/api/status", timeout=5).status_code
+                return httpx.get(f"{srv.base}/api/status", timeout=5).status_code
 
             with ThreadPoolExecutor(max_workers=8) as ex:
                 codes = [f.result() for f in as_completed([ex.submit(one) for _ in range(8)])]
             self.assertTrue(all(c == 200 for c in codes))
-        finally:
-            ctx["server"].close()
-            tmp.cleanup()
 
 
 class TestMemoryUsage(unittest.TestCase):
