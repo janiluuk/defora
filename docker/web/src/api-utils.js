@@ -1,7 +1,7 @@
 /**
  * Fetch helper with structured console errors (audit post-remediation polish).
  */
-async function apiFetch(url, options = {}, context = 'API') {
+export async function apiFetch(url, options = {}, context = 'API') {
   const label = context || url;
   try {
     const res = await fetch(url, options);
@@ -33,11 +33,9 @@ async function apiFetch(url, options = {}, context = 'API') {
   }
 }
 
-function modelSourceLabel(source) {
+export function modelSourceLabel(source) {
   if (source === 'sd-forge') return 'Forge';
   if (source === 'cache') return 'Cache';
   if (source === 'placeholder') return 'Placeholder';
   return source || 'Unknown';
 }
-
-module.exports = { apiFetch, modelSourceLabel };

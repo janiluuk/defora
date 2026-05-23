@@ -1,18 +1,18 @@
 /** Cross-type morph helpers for the performance crossfader (t: 0 = A, 1 = B). */
 
-function clamp01(t) {
+export function clamp01(t) {
   const n = Number(t);
   if (!Number.isFinite(n)) return 0.5;
   return Math.max(0, Math.min(1, n));
 }
 
 /** Smoothstep easing for perceptually smoother blends. */
-function smoothstep(t) {
+export function smoothstep(t) {
   const x = clamp01(t);
   return x * x * (3 - 2 * x);
 }
 
-function lerpNum(a, b, t) {
+export function lerpNum(a, b, t) {
   const st = smoothstep(t);
   const hasA = a !== null && a !== undefined && a !== "";
   const hasB = b !== null && b !== undefined && b !== "";
@@ -25,7 +25,7 @@ function lerpNum(a, b, t) {
   return na + (nb - na) * st;
 }
 
-function morphPrompt(a, b, t) {
+export function morphPrompt(a, b, t) {
   const sa = a != null ? String(a).trim() : "";
   const sb = b != null ? String(b).trim() : "";
   if (!sa && !sb) return "";
@@ -39,7 +39,7 @@ function morphPrompt(a, b, t) {
   return `(${sa}:${wa}) (${sb}:${wb})`;
 }
 
-function morphBoolean(a, b, t) {
+export function morphBoolean(a, b, t) {
   const hasA = a !== null && a !== undefined;
   const hasB = b !== null && b !== undefined;
   if (!hasA && !hasB) return null;
@@ -48,7 +48,7 @@ function morphBoolean(a, b, t) {
   return smoothstep(t) >= 0.5 ? !!b : !!a;
 }
 
-function morphLoraSlot(a, b, t) {
+export function morphLoraSlot(a, b, t) {
   const st = smoothstep(t);
   const parse = (v) => {
     if (!v) return null;
@@ -66,7 +66,7 @@ function morphLoraSlot(a, b, t) {
   return { name: pb.name, strength: (pb.strength ?? 1) * ((st - 0.5) * 2) };
 }
 
-function morphControlNetSlot(a, b, t) {
+export function morphControlNetSlot(a, b, t) {
   const st = smoothstep(t);
   const norm = (v) => {
     if (!v || typeof v !== "object") return null;
@@ -96,7 +96,7 @@ function morphControlNetSlot(a, b, t) {
  * @param {{ type: string, valueA?: unknown, valueB?: unknown }} slot
  * @param {number} t crossfader 0..1
  */
-function morphSlotValue(slot, t) {
+export function morphSlotValue(slot, t) {
   if (!slot) return null;
   const st = clamp01(t);
   switch (slot.type) {
@@ -113,21 +113,9 @@ function morphSlotValue(slot, t) {
   }
 }
 
-const CROSSFADE_SLOT_TYPES = [
+export const CROSSFADE_SLOT_TYPES = [
   { id: "prompt", label: "Prompt" },
   { id: "param", label: "Parameter" },
   { id: "lora", label: "LoRA" },
   { id: "controlnet", label: "ControlNet" },
 ];
-
-module.exports = {
-  clamp01,
-  smoothstep,
-  lerpNum,
-  morphPrompt,
-  morphBoolean,
-  morphLoraSlot,
-  morphControlNetSlot,
-  morphSlotValue,
-  CROSSFADE_SLOT_TYPES,
-};

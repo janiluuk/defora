@@ -3,7 +3,7 @@
  * Full JSON is persisted; only grouped fields are shown in the minimal editor.
  */
 
-const DEFORUM_DEFAULT_SETTINGS = {
+export const DEFORUM_DEFAULT_SETTINGS = {
   W: 1920,
   H: 540,
   show_info_on_ui: false,
@@ -61,7 +61,7 @@ const DEFORUM_DEFAULT_SETTINGS = {
 };
 
 /** @type {{ id: string, label: string, fields: Array<{ key: string, label: string, type?: string, min?: number, max?: number, step?: number, rows?: number, options?: string[] }> }>[]} */
-const DEFORUM_FIELD_GROUPS = [
+export const DEFORUM_FIELD_GROUPS = [
   {
     id: 'canvas',
     label: 'Canvas',
@@ -135,7 +135,7 @@ const DEFORUM_FIELD_GROUPS = [
   },
 ];
 
-function getNestedValue(obj, keyPath) {
+export function getNestedValue(obj, keyPath) {
   if (!keyPath || !obj) return undefined;
   const parts = String(keyPath).split('.');
   let cur = obj;
@@ -146,7 +146,7 @@ function getNestedValue(obj, keyPath) {
   return cur;
 }
 
-function setNestedValue(obj, keyPath, value) {
+export function setNestedValue(obj, keyPath, value) {
   const parts = String(keyPath).split('.');
   let cur = obj;
   for (let i = 0; i < parts.length - 1; i++) {
@@ -157,7 +157,7 @@ function setNestedValue(obj, keyPath, value) {
   cur[parts[parts.length - 1]] = value;
 }
 
-function patchFromKeyPath(keyPath, value) {
+export function patchFromKeyPath(keyPath, value) {
   const parts = String(keyPath).split('.');
   if (parts.length === 1) return { [parts[0]]: value };
   const root = parts[0];
@@ -171,19 +171,10 @@ function patchFromKeyPath(keyPath, value) {
   return { [root]: inner };
 }
 
-function mergeDeforumSettings(base, patch) {
+export function mergeDeforumSettings(base, patch) {
   const out = { ...base, ...patch };
   if (patch.prompts && typeof patch.prompts === 'object') {
     out.prompts = { ...(base.prompts || {}), ...patch.prompts };
   }
   return out;
 }
-
-module.exports = {
-  DEFORUM_DEFAULT_SETTINGS,
-  DEFORUM_FIELD_GROUPS,
-  getNestedValue,
-  setNestedValue,
-  patchFromKeyPath,
-  mergeDeforumSettings,
-};

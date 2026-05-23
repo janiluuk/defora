@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
  * Regenerate src/app-definition.js from src/App.vue for Node test harness parity (audit A-01).
+ * Utility modules stay ESM for Vite; their bodies are inlined here as plain JS for require().
  */
 import { readFileSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
@@ -10,6 +11,23 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = join(__dirname, '..');
 const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
+
+const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js'];
+
+function esmToInlineCjs(src) {
+  return src
+    .replace(/^export\s+(async\s+)?function\s+/gm, '$1function ')
+    .replace(/^export\s+const\s+/gm, 'const ')
+    .replace(/^export\s+\{[^}]*\};?\s*$/gm, '')
+    .replace(/^module\.exports\s*=[\s\S]*$/m, '')
+    .trim();
+}
+
+function inlineUtilModule(mod) {
+  const path = join(root, 'src', mod);
+  const body = esmToInlineCjs(readFileSync(path, 'utf8'));
+  return `// --- inlined from ${mod} (ESM source; do not edit) ---\n${body}\n`;
+}
 
 const vue = readFileSync(appVuePath, 'utf8');
 const scriptOpen = vue.indexOf('<script>');
@@ -29,19 +47,20 @@ const template = vue
   .trim();
 let script = scriptMatch[1].trim();
 script = script.replace(/import\s+['"]\.\/style\.css['"];?\s*/g, '');
-let morphRequire = '';
-for (const mod of ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js']) {
+
+let inlinedUtils = '';
+for (const mod of UTIL_MODULES) {
   const re = new RegExp(
     `import\\s+\\{([\\s\\S]*?)\\}\\s+from\\s+['"]\\.\\/${mod.replace('.', '\\.')}['"];?`
   );
   const m = script.match(re);
   if (m) {
-    const names = m[1].replace(/\s+/g, ' ').trim().replace(/,\s*$/, '');
-    morphRequire += `const { ${names} } = require('./${mod}');\n`;
+    inlinedUtils += inlineUtilModule(mod);
     script = script.replace(m[0], '');
   }
 }
-if (morphRequire) morphRequire += '\n';
+if (inlinedUtils) inlinedUtils += '\n';
+
 script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '');
 script = script.replace(/export\s+default\s+/, '').trim();
 const inner = script.startsWith('{') && script.endsWith('}')
@@ -49,7 +68,7 @@ const inner = script.startsWith('{') && script.endsWith('}')
   : script;
 
 const header = `// Auto-generated from App.vue — run: npm run sync-app-definition (audit A-01)\n\n`;
-const body = `${header}${morphRequire}module.exports = {
+const body = `${header}${inlinedUtils}module.exports = {
   template: ${JSON.stringify(template)},
   ${inner}
 };
