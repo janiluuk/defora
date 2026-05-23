@@ -1090,6 +1090,7 @@
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">🖥️ GPUS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">👥 COLLAB</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
@@ -1279,6 +1280,114 @@
               </ul>
               <div v-else style="margin-top:10px; font-size:11px; color:#7fb3d6;">No shared presets yet.</div>
               <div v-if="sharedPresetsStatus" class="framesync-subtitle" style="margin-top:8px;">{{ sharedPresetsStatus }}</div>
+            </div>
+          </div>
+          </div>
+          <div v-else-if="currentSubTab.SETTINGS==='GPUS'">
+          <div class="rack">
+            <div class="framesync-panel" data-testid="gpu-pool-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🖥️ GPU <span class="framesync-accent">Pool</span></div>
+                <label class="gpu-pool-enable">
+                  <input type="checkbox" v-model="gpuPool.enabled" @change="saveGpuPoolSettings">
+                  Load balancing
+                </label>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Strategy</div>
+                  <select class="framesync-select" v-model="gpuPool.strategy" @change="saveGpuPoolSettings" :disabled="gpuPool.loading">
+                    <option value="round_robin">Round robin</option>
+                    <option value="least_busy">Least busy</option>
+                    <option value="priority">Priority</option>
+                    <option value="random">Random</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Healthy / total</div>
+                  <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ gpuPool.healthyNodes }} / {{ gpuPool.nodes.length }}</div>
+                </div>
+                <div class="framesync-stack" style="justify-content:flex-end;">
+                  <button class="framesync-button" @click="refreshGpuPool(true)" :disabled="gpuPool.loading">🔄 Refresh stats</button>
+                </div>
+              </div>
+              <p style="font-size:11px; color:#7fb3d6; margin:12px 0 0;">
+                Add SD-Forge (A1111 API) or ComfyUI instances. Disable a node to edit or remove it.
+                Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum.
+              </p>
+
+              <div class="gpu-pool-add" style="margin-top:14px; padding:12px; border:1px solid #13233d; border-radius:10px;">
+                <div class="framesync-subtitle">Add instance (saved disabled — enable after editing)</div>
+                <div class="framesync-row" style="grid-template-columns: 2fr 1fr 1fr; gap:8px; margin-top:8px;">
+                  <input class="framesync-input" v-model="gpuPool.draft.url" placeholder="http://host:7860 or :8188" :disabled="gpuPool.loading">
+                  <input class="framesync-input" v-model="gpuPool.draft.name" placeholder="Name" :disabled="gpuPool.loading">
+                  <select class="framesync-select" v-model="gpuPool.draft.backend" :disabled="gpuPool.loading">
+                    <option value="sd-forge">SD-Forge</option>
+                    <option value="comfyui">ComfyUI</option>
+                  </select>
+                </div>
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <button class="framesync-button" @click="addGpuNode" :disabled="gpuPool.loading || !gpuPool.draft.url">+ Add instance</button>
+                </div>
+              </div>
+
+              <div v-if="gpuPool.nodes.length" class="gpu-pool-table-wrap" style="margin-top:14px;">
+                <table class="gpu-pool-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Backend</th>
+                      <th>Status</th>
+                      <th>Model</th>
+                      <th>VRAM</th>
+                      <th>GPU %</th>
+                      <th>Jobs</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="n in gpuPool.nodes" :key="n.id" :class="{ 'gpu-row-disabled': !n.enabled }">
+                      <td>
+                        <template v-if="gpuPool.editId === n.id">
+                          <input class="framesync-input" v-model="gpuPool.editDraft.name" style="font-size:11px; margin-bottom:4px;">
+                          <input class="framesync-input" v-model="gpuPool.editDraft.url" style="font-size:10px;">
+                        </template>
+                        <template v-else>{{ n.name }}</template>
+                        <div style="font-size:9px; color:#5a8fb8; word-break:break-all;">{{ n.url }}</div>
+                      </td>
+                      <td>
+                        <template v-if="gpuPool.editId === n.id">
+                          <select class="framesync-select" v-model="gpuPool.editDraft.backend" style="font-size:11px;">
+                            <option value="sd-forge">SD-Forge</option>
+                            <option value="comfyui">ComfyUI</option>
+                          </select>
+                        </template>
+                        <span v-else>{{ n.backend }}</span>
+                      </td>
+                      <td><span class="gpu-status-pill" :class="'st-' + (n.enabled ? n.status : 'disabled')">{{ n.enabled ? n.status : 'disabled' }}</span></td>
+                      <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis;" :title="n.currentModel || ''">{{ n.currentModel || '—' }}</td>
+                      <td>{{ formatGpuMemory(n) }}</td>
+                      <td>{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</td>
+                      <td>{{ n.activeJobs }}</td>
+                      <td>
+                        <div class="framesync-footer" style="flex-wrap:wrap; gap:4px;">
+                          <template v-if="n.enabled">
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="disableGpuNode(n)">Disable</button>
+                          </template>
+                          <template v-else>
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="enableGpuNode(n)">Enable</button>
+                            <button v-if="gpuPool.editId !== n.id" class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="startEditGpuNode(n)">Edit</button>
+                            <button v-else class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="saveGpuNodeEdit(n)">Save</button>
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:#ff4d6d; color:#ff4d6d;" @click="removeGpuNode(n)">Remove</button>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else style="margin-top:14px; font-size:12px; color:#7fb3d6;">No GPU instances configured.</div>
+              <div v-if="gpuPool.status" class="framesync-subtitle" style="margin-top:10px;">{{ gpuPool.status }}</div>
             </div>
           </div>
           </div>
@@ -1773,6 +1882,17 @@ export default {
         recordings: [],
         status: '',
       },
+      gpuPool: {
+        enabled: false,
+        strategy: 'round_robin',
+        healthyNodes: 0,
+        nodes: [],
+        loading: false,
+        status: '',
+        draft: { url: '', name: '', backend: 'sd-forge', priority: 1 },
+        editId: null,
+        editDraft: { name: '', url: '', backend: 'sd-forge', priority: 1 },
+      },
       generator: {
         theme: '',
         stylePreset: 'Masterpiece, Realistic',
@@ -2148,6 +2268,7 @@ export default {
     this.loadBindings();
     this.refreshPresets();
     this.refreshSharedPresets();
+    this.refreshGpuPool(false);
     this.refreshLoras();
     this.loadControlNetModels();
     this.refreshPlugins();
@@ -2978,6 +3099,120 @@ export default {
    } catch (err) {
      this.sharedPresetsStatus = err.message;
    }
+ },
+ async refreshGpuPool(refreshStats = false) {
+   this.gpuPool.loading = true;
+   try {
+     if (refreshStats) {
+       await apiFetch("/api/gpu-pool/refresh", { method: "POST" }, "gpu pool refresh");
+     }
+     const { data } = await apiFetch("/api/gpu-pool", {}, "gpu pool status");
+     this.gpuPool.enabled = !!data.enabled;
+     this.gpuPool.strategy = data.strategy || "round_robin";
+     this.gpuPool.healthyNodes = data.healthyNodes ?? 0;
+     this.gpuPool.nodes = data.nodes || [];
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   } finally {
+     this.gpuPool.loading = false;
+   }
+ },
+ async saveGpuPoolSettings() {
+   try {
+     await apiFetch("/api/gpu-pool", {
+       method: "PUT",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         enabled: this.gpuPool.enabled,
+         strategy: this.gpuPool.strategy,
+       }),
+     }, "gpu pool settings");
+     this.gpuPool.status = this.gpuPool.enabled ? "Load balancing enabled" : "Load balancing disabled";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async addGpuNode() {
+   const url = (this.gpuPool.draft.url || "").trim();
+   if (!url) return;
+   try {
+     await apiFetch("/api/gpu-pool/nodes", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         url,
+         name: this.gpuPool.draft.name || url,
+         backend: this.gpuPool.draft.backend,
+         enabled: false,
+         priority: this.gpuPool.draft.priority || 1,
+       }),
+     }, "add gpu node");
+     this.gpuPool.draft = { url: "", name: "", backend: "sd-forge", priority: 1 };
+     await this.refreshGpuPool(false);
+     this.gpuPool.status = "Instance added (disabled). Edit if needed, then enable.";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ startEditGpuNode(n) {
+   if (n.enabled) {
+     this.gpuPool.status = "Disable the node before editing.";
+     return;
+   }
+   this.gpuPool.editId = n.id;
+   this.gpuPool.editDraft = {
+     name: n.name,
+     url: n.url,
+     backend: n.backend,
+     priority: n.priority || 1,
+   };
+ },
+ async saveGpuNodeEdit(n) {
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}`, {
+       method: "PUT",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(this.gpuPool.editDraft),
+     }, "edit gpu node");
+     this.gpuPool.editId = null;
+     await this.refreshGpuPool(false);
+     this.gpuPool.status = "Node updated.";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async disableGpuNode(n) {
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}/disable`, { method: "POST" }, "disable gpu");
+     await this.refreshGpuPool(false);
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async enableGpuNode(n) {
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}/enable`, { method: "POST" }, "enable gpu");
+     await this.refreshGpuPool(true);
+     this.gpuPool.status = `${n.name} enabled.`;
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async removeGpuNode(n) {
+   if (!confirm(`Remove GPU instance "${n.name}"?`)) return;
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}`, { method: "DELETE" }, "remove gpu");
+     await this.refreshGpuPool(false);
+     this.gpuPool.status = "Node removed.";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ formatGpuMemory(n) {
+   if (n.memoryUsedMb == null && n.memoryTotalMb == null) return "—";
+   const used = n.memoryUsedMb != null ? `${n.memoryUsedMb}` : "?";
+   const total = n.memoryTotalMb != null ? `${n.memoryTotalMb}` : "?";
+   return `${used} / ${total} MB`;
  },
  sendControl(controlType, payload) {
    if (!this.ws || this.ws.readyState !== 1) return;

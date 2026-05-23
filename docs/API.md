@@ -549,6 +549,31 @@ Configure the web server using these environment variables:
 
 ---
 
+## GPU pool (multi-instance load balancing)
+
+Manage multiple **SD-Forge** (A1111 API) or **ComfyUI** instances. When load balancing is enabled, img2img / txt2img / Deforum preview routes pick an enabled healthy **SD-Forge** node using the configured strategy (`round_robin`, `least_busy`, `priority`, `random`).
+
+**UI**: SETTINGS → **GPUS**
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/gpu-pool` | Pool status and all nodes (model, VRAM, GPU %, jobs) |
+| PUT | `/api/gpu-pool` | `{ enabled, strategy, healthCheckInterval, timeout, retryAttempts }` |
+| POST | `/api/gpu-pool/nodes` | Add instance (`url`, `name`, `backend`, `enabled` default true) |
+| PUT | `/api/gpu-pool/nodes/:id` | Update instance — **only when disabled** (409 if enabled) |
+| DELETE | `/api/gpu-pool/nodes/:id` | Remove — **only when disabled** |
+| POST | `/api/gpu-pool/nodes/:id/disable` | Disable (excludes from balancing; allows edit) |
+| POST | `/api/gpu-pool/nodes/:id/enable` | Enable and run health probe |
+| POST | `/api/gpu-pool/refresh` | Health-check all nodes and refresh stats |
+
+**Backends**:
+- `sd-forge` — health: `GET /docs`; model: `GET /sdapi/v1/options`; VRAM: `/internal/sysinfo` or `/sdapi/v1/memory`
+- `comfyui` — health/stats: `GET /system_stats` (monitoring; generation LB uses SD-Forge API nodes)
+
+Legacy aliases: `/api/distributed/*` (same pool). Config persisted in `docker/web/gpu-pool.json`.
+
+---
+
 ## Rate Limiting & Security
 
 **Current Implementation**:

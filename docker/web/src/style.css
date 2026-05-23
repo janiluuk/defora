@@ -138,6 +138,16 @@
     }
     .param-lock-btn.active { opacity: 1; color: #fbbf24; }
     .param-locked input[type="range"] { opacity: 0.45; }
+    .gpu-pool-enable { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); cursor: pointer; }
+    .gpu-pool-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .gpu-pool-table th { text-align: left; padding: 8px; color: #7fb3d6; border-bottom: 1px solid #13233d; }
+    .gpu-pool-table td { padding: 8px; border-bottom: 1px solid #0c3048; vertical-align: top; color: #cfe5f5; }
+    .gpu-pool-table-wrap { max-height: 420px; overflow: auto; border: 1px solid #13233d; border-radius: 10px; }
+    .gpu-row-disabled { opacity: 0.85; }
+    .gpu-status-pill { font-size: 10px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); }
+    .gpu-status-pill.st-healthy { color: var(--success); border-color: rgba(90, 242, 169, 0.35); }
+    .gpu-status-pill.st-unhealthy { color: var(--danger); }
+    .gpu-status-pill.st-disabled, .gpu-status-pill.st-unknown { color: #7fb3d6; }
     .deforum-settings-drawer { margin-top: 8px; }
     .deforum-settings-hint {
       font-size: 11px;
