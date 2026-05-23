@@ -37,7 +37,7 @@ Full codebase audit: inconsistencies, performance killers, incomplete items, and
 | **A-07** | ✅ Done | MOTION **XY pad** rendered (`.xy-pad` + mouse/touch handlers). | `App.vue` MOTION rack |
 | **A-08** | ✅ Done | CI runs `TestDockerStackIntegration` with `SKIP_DOCKER_TESTS=0`; full `docker compose up` E2E opt-in (`SKIP_DOCKER_E2E=0`, off in Actions). | `.github/workflows/ci.yml`, `tests/test_docker_stack_integration.py` |
 | **A-09** | ✅ Done | `TestAPIEndpointPerformance` exercises `/api/health`, `/api/status`, `/api/frames` when `SKIP_PERF_TESTS=0`. | `tests/test_performance_load.py`, CI job |
-| **A-10** | ✅ Done | `tests/test_web_server_live.py` imports `server.js` handlers via `httpx` ASGI-style smoke. | `tests/test_web_server_live.py`, CI job |
+| **A-10** | ✅ Done | `tests/test_web_server_live.py` spawns `server.js` and hits `/api/health`, `/api/frames`, `/api/status` via `httpx`. | `tests/test_web_server_live.py`, CI job |
 
 ### High — performance killers
 

@@ -25,8 +25,6 @@ jobs:
           pip install pytest httpx
       - name: Python tests
         run: ./scripts/run_tests.sh
-      - name: Web server live smoke (audit A-10)
-        run: python -m pytest tests/test_web_server_live.py -q
       - name: Performance tests (audit A-09)
         env:
           SKIP_PERF_TESTS: "0"
@@ -41,6 +39,8 @@ jobs:
       - name: Web UI tests
         working-directory: docker/web
         run: npm test
+      - name: Web server live smoke (audit A-10)
+        run: python -m pytest tests/test_web_server_live.py -q
       - name: Docker compose smoke (audit A-08)
         env:
           SKIP_DOCKER_TESTS: "0"
