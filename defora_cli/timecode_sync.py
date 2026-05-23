@@ -2,12 +2,15 @@
 """
 Timecode synchronization for Defora.
 
-Supports LTC (Linear Timecode) and MTC (MIDI Timecode) for synchronization
-with professional audio/video equipment.
+- **MTC (MIDI Timecode)**: quarter-frame assembly via ``MTCDemodulator`` — suitable for
+  USB MIDI bridges and DAWs that emit MTC.
+- **LTC (Linear Timecode)**: ``LTCDemodulator`` is **experimental** (basic zero-crossing
+  heuristic only). For production LTC, use an external reader or library such as ``pyltc``
+  and forward MTC/OSC to the mediator.
 
 Usage:
-  python -m defora_cli.timecode_sync ltc --port 8001 --mediator-host 127.0.0.1 --mediator-port 8766
   python -m defora_cli.timecode_sync mtc --midi-device "MIDI Timecode" --mediator-host 127.0.0.1
+  python -m defora_cli.timecode_sync ltc --port 8001   # experimental; requires sounddevice
 """
 from __future__ import annotations
 
@@ -44,7 +47,7 @@ class TimecodeState:
 
 
 class LTCDemodulator:
-    """Demodulate LTC timecode from audio input."""
+    """Experimental LTC demodulator from audio (not production-grade; prefer external LTC→MTC)."""
     
     def __init__(self, sample_rate: int = 44100, fps: float = 24.0):
         self.sample_rate = sample_rate
@@ -183,11 +186,18 @@ class TimecodeSync:
             self.demodulator = LTCDemodulator(fps=fps)
         else:
             self.demodulator = MTCDemodulator(fps=fps)
-            
+
     def initialize(self):
         """Initialize timecode sync."""
         self.mediator_client = MediatorClient(self.mediator_host, self.mediator_port)
-        print(f"[timecode] Initialized in {self.mode.upper()} mode at {self.fps} fps")
+        if self.mode == "ltc":
+            print(
+                f"[timecode] LTC mode at {self.fps} fps — experimental demod; "
+                "use MTC or external LTC hardware for reliable sync",
+                flush=True,
+            )
+        else:
+            print(f"[timecode] MTC mode at {self.fps} fps", flush=True)
         
     def _audio_callback(self, indata, frames, time_info, status):
         """Callback for audio input (LTC)."""

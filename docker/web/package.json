@@ -10,7 +10,8 @@
     "sync-app-definition": "node scripts/sync-app-definition.mjs",
     "pretest": "node scripts/sync-app-definition.mjs",
     "test": "node --test test/*.spec.js",
-    "capture-ui-shots": "node scripts/capture-web-ui.mjs"
+    "capture-ui-shots": "node scripts/capture-web-ui.mjs",
+    "test:playwright": "node test/playwright-smoke.mjs"
   },
   "dependencies": {
     "amqplib": "^0.10.3",

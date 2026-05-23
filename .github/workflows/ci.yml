@@ -41,3 +41,25 @@ jobs:
       - name: Web UI tests
         working-directory: docker/web
         run: npm test
+      - name: Docker compose smoke (audit A-08)
+        env:
+          SKIP_DOCKER_TESTS: "0"
+        run: python -m pytest tests/test_docker_stack_integration.py::TestDockerStackIntegration -q
+      - name: Build web for Playwright
+        working-directory: docker/web
+        run: npm run build
+      - name: Install Playwright Chromium
+        working-directory: docker/web
+        run: npx playwright install chromium
+      - name: Playwright UI smoke (audit A-27)
+        working-directory: docker/web
+        run: |
+          PORT=3999 DISABLE_MQ=1 node server.js &
+          echo $! > /tmp/defora-web.pid
+          sleep 2
+          for i in 1 2 3 4 5 6 7 8 9 10; do
+            curl -sf http://127.0.0.1:3999/ >/dev/null && break
+            sleep 1
+          done
+          BASE_URL=http://127.0.0.1:3999 npm run test:playwright
+          kill "$(cat /tmp/defora-web.pid)" 2>/dev/null || true

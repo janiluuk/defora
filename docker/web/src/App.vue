@@ -360,6 +360,49 @@
               </div>
 
               <div v-if="!morphCollapsed">
+              <div class="morph-blend-bar" style="margin-top:14px;">
+                <div class="framesync-subtitle">Prompt morph blend</div>
+                <div class="framesync-gradient-bar"></div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  v-model.number="prompts.morphBlend"
+                  class="framesync-input"
+                  data-testid="prompt-morph-blend"
+                  @input="onPromptMorphBlendInput"
+                />
+                <div class="morph-blend-labels">
+                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+                </div>
+              </div>
+              <div v-if="prompts.morphOn" class="morph-slot-weights" style="margin-top:12px;">
+                <div
+                  v-for="slot in morphSlots"
+                  :key="'mw-' + slot.id"
+                  class="morph-slot-weight-row"
+                  :class="{ inactive: !slot.on || !morphSlotInRange(slot) }"
+                >
+                  <label class="morph-slot-weight-name">
+                    <input type="checkbox" v-model="slot.on" @change="applyPromptMorphing" />
+                    {{ slot.name }}
+                  </label>
+                  <span class="morph-slot-range">{{ slot.range }}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    v-model.number="slot.weight"
+                    class="framesync-input morph-slot-weight-slider"
+                    :disabled="!slot.on"
+                    @input="onMorphSlotWeightInput(slot)"
+                  />
+                  <code class="morph-slot-preview">{{ morphSlotPreview(slot) }}</code>
+                </div>
+              </div>
               <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">A Group</div>
@@ -1673,7 +1716,7 @@ export default {
         cfgscale: "Manual",
         zoom: "Beat",
       },
-      prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5 },
+      prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5, morphBlend: 0.5 },
       img2img: {
         show: false,
         dataUrl: null,
@@ -1689,9 +1732,9 @@ export default {
       },
       pluginsRegistry: [],
       morphSlots: [
-        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
-        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
-        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
+        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00", weight: 1 },
+        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60", weight: 1 },
+        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80", weight: 1 },
       ],
       loras: {
         available: [],
@@ -2801,17 +2844,65 @@ export default {
      this.applyPromptMorphing();
    }
  },
+ parseMorphRange(range) {
+   const m = String(range || "0–1").match(/([0-9.]+)\s*[–\-]\s*([0-9.]+)/);
+   if (!m) return { min: 0, max: 1 };
+   const min = Math.min(parseFloat(m[1]), parseFloat(m[2]));
+   const max = Math.max(parseFloat(m[1]), parseFloat(m[2]));
+   return { min, max };
+ },
+ morphSlotInRange(slot) {
+   const { min, max } = this.parseMorphRange(slot.range);
+   const t = this.prompts.morphBlend ?? 0.5;
+   return t >= min && t <= max;
+ },
+ morphBlendInSlotRange(slot) {
+   const { min, max } = this.parseMorphRange(slot.range);
+   const t = this.prompts.morphBlend ?? 0.5;
+   if (max <= min) return t;
+   return Math.max(0, Math.min(1, (t - min) / (max - min)));
+ },
+ morphSlotPreview(slot) {
+   if (!slot.on || !this.morphSlotInRange(slot)) return "—";
+   const phrase = morphSlotValue(
+     { type: "prompt", valueA: slot.a, valueB: slot.b },
+     this.morphBlendInSlotRange(slot)
+   );
+   if (!phrase) return "—";
+   const w = slot.weight != null ? slot.weight : 1;
+   return w < 0.99 ? `${phrase} ×${w.toFixed(2)}` : phrase;
+ },
+ onPromptMorphBlendInput() {
+   this.applyPromptMorphing();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ onMorphSlotWeightInput(_slot) {
+   this.applyPromptMorphing();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
  applyPromptMorphing() {
    if (!this.prompts.morphOn) return;
-   const activeSlots = this.morphSlots.filter(s => s.on);
-   if (!activeSlots.length) return;
-   let morphedPrompt = this.prompts.pos || "";
-   activeSlots.forEach(slot => {
-     // TODO: Add slider or auto-calculation for blend weight
-     // For now using simple concatenation approach
-     morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
+   const base = (this.prompts.pos || "").trim();
+   const parts = base ? [base] : [];
+   for (const slot of this.morphSlots) {
+     if (!slot.on || !this.morphSlotInRange(slot)) continue;
+     const phrase = morphSlotValue(
+       { type: "prompt", valueA: slot.a, valueB: slot.b },
+       this.morphBlendInSlotRange(slot)
+     );
+     if (!phrase) continue;
+     const w = Math.max(0, Math.min(1, slot.weight != null ? slot.weight : 1));
+     if (w >= 0.99) parts.push(phrase);
+     else parts.push(`(${phrase}:${w.toFixed(2)})`);
+   }
+   const morphedPrompt = parts.join(", ").trim();
+   if (!morphedPrompt) return;
+   this.prompts.pos = morphedPrompt;
+   this.sendControl("prompt", {
+     positive: morphedPrompt,
+     negative: this.prompts.neg,
+     morphBlend: this.prompts.morphBlend,
    });
-   this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
  },
  sendPrompts() {
    this.sendControl("prompt", { positive: this.prompts.pos, negative: this.prompts.neg });

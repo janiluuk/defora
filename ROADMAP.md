@@ -15,9 +15,9 @@ Full codebase audit: inconsistencies, performance killers, incomplete items, and
 | Severity | Open | Done | Themes |
 |----------|------|------|--------|
 | **Critical** | 0 | 4 | `sync-app-definition.mjs` + `pretest`; CN webcam/screen in `App.vue`; compose `SD_FORGE_HOST`; health `/docs` |
-| **High** | 1 | 7 | Docs/tab parity, XY pad, live server tests in CI; **Open**: Docker stack smoke in default CI ([A-08](#audit-findings-2026-05-23)) |
-| **Medium** | 2 | 11 | API/README env, Dockerfile strict build, upload CN, polling backoff; **Open**: LTC demod ([A-24](#audit-findings-2026-05-23)), blend-weight UX ([A-26](#audit-findings-2026-05-23)) |
-| **Low** | 2 | 5 | **Open**: Playwright CI gate ([A-27](#audit-findings-2026-05-23)); dual-manifest doc note only ([A-29](#audit-findings-2026-05-23)) |
+| **High** | 0 | 8 | Docker compose validation in CI (`TestDockerStackIntegration`); full compose E2E opt-in via `SKIP_DOCKER_E2E` |
+| **Medium** | 0 | 13 | LTC documented as experimental; MTC unit tests; prompt morph blend slider ([A-26](#audit-findings-2026-05-23)) |
+| **Low** | 0 | 6 | Playwright tab smoke in CI ([A-27](#audit-findings-2026-05-23)) |
 
 ### Critical
 
@@ -35,7 +35,7 @@ Full codebase audit: inconsistencies, performance killers, incomplete items, and
 | **A-05** | ✅ Done | `docs/WEB_UI_TABS.md` — sequencer on **GENERATE**; MOTION = presets + XY pad. | `docs/WEB_UI_TABS.md` |
 | **A-06** | ✅ Done | Docs: LORA/CN as **PROMPTS** sub-tabs; top-level **RUNS** tab documented. | `docs/WEB_UI_TABS.md`, `README.md` |
 | **A-07** | ✅ Done | MOTION **XY pad** rendered (`.xy-pad` + mouse/touch handlers). | `App.vue` MOTION rack |
-| **A-08** | **Open** | Docker integration tests still default `SKIP_DOCKER_TESTS=1`; CI runs perf + live server smoke but not full stack. Use `SKIP_DOCKER_TESTS=0` locally or add nightly job. | `.github/workflows/ci.yml` |
+| **A-08** | ✅ Done | CI runs `TestDockerStackIntegration` with `SKIP_DOCKER_TESTS=0`; full `docker compose up` E2E opt-in (`SKIP_DOCKER_E2E=0`, off in Actions). | `.github/workflows/ci.yml`, `tests/test_docker_stack_integration.py` |
 | **A-09** | ✅ Done | `TestAPIEndpointPerformance` exercises `/api/health`, `/api/status`, `/api/frames` when `SKIP_PERF_TESTS=0`. | `tests/test_performance_load.py`, CI job |
 | **A-10** | ✅ Done | `tests/test_web_server_live.py` imports `server.js` handlers via `httpx` ASGI-style smoke. | `tests/test_web_server_live.py`, CI job |
 
@@ -61,15 +61,15 @@ Full codebase audit: inconsistencies, performance killers, incomplete items, and
 | **A-21** | ✅ Done | Tests use synced `app-definition.js` (full template); `ui.spec.js` updated for LIVE performance deck + RUNS tab. |
 | **A-22** | ✅ Done | `DEFORUMATION_ADDRESS` default `host.docker.internal` in compose. |
 | **A-23** | ✅ Done | Frames/health polling **backoff** on errors in `App.vue`. |
-| **A-24** | **Open** | `timecode_sync.py` LTC demodulation still placeholder — treat MTC/USB bridge as supported; LTC demod = future. |
+| **A-24** | ✅ Done | LTC demod documented **experimental**; **MTC** quarter-frame path + `tests/test_timecode_sync.py`; production LTC via external hardware/library. |
 | **A-25** | ✅ Done | `stream_helper` wipe uses **fade** transition (valid ffmpeg). |
-| **A-26** | **Open** | Prompt morph blend weight slider / auto-calc still TODO in `applyMorphPrompts`. |
+| **A-26** | ✅ Done | PROMPTS tab: global **morph blend** slider, per-slot weight + range gating, `morphSlotValue` in `applyPromptMorphing`. |
 
 ### Low
 
 | ID | Category | Issue |
 |----|----------|-------|
-| **A-27** | **Open** | Playwright available locally (`npx playwright test`); not in CI workflow yet. |
+| **A-27** | ✅ Done | CI: `npm run build` + `npm run test:playwright` (`test/playwright-smoke.mjs`) against local server. |
 | **A-28** | ✅ Done | `features.spec.js` stale `FEATURES_STATUS.md` reference removed. |
 | **A-29** | ✅ Done | Documented: **CLI** plugins (`defora_cli/plugins/manifest.json`) vs **web** registry (`docker/web/plugins/manifest.json` + `PLUGINS_DIR`). |
 | **A-30** | ✅ Done | README web/TUI tab wording aligned with PROMPTS sub-tabs. |
@@ -102,7 +102,7 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **Multi-band / “spectral” audio** (marketing language) | Named Hz presets (`bass_mid_high` CLI layout + Web band chips); envelope follower + `--smooth` on curves; **offline spectrogram** + **live `AnalyserNode`** bars (reference `<audio>`) on Web upload | **Done (MVP)** · richer live viz / metering polish optional |
 | **Stream stack** (RTMP, HLS, bridge, RabbitMQ) | Implemented; ensure ops docs stay linked from README | Done (monitor `docs/streaming_stack.md`) |
 | **`deforumation_dashboard`** | Listed in README; treat as first-class like other CLIs | Done (see [Current Features](#current-features-completed)) |
-| **2026-05-23 audit** | Phases **10–15** remediation (UI parity, compose, health, CI smoke, server perf) | **Done** — [Audit findings](#audit-findings-2026-05-23); **Open**: [A-08](#audit-findings-2026-05-23), [A-24](#audit-findings-2026-05-23), [A-26](#audit-findings-2026-05-23), [A-27](#audit-findings-2026-05-23) |
+| **2026-05-23 audit** | Phases **10–15** remediation (UI parity, compose, health, CI smoke, server perf, morph blend, Playwright) | **Done** — [Audit findings](#audit-findings-2026-05-23) (all A-01–A-32 addressed or documented) |
 
 ### Phased delivery
 
@@ -120,9 +120,9 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **10** | **Audit: production UI parity** | Sync `App.vue` ↔ `app-definition.js`; ControlNet live input; MOTION XY pad; CN upload API | **Done** (A-01, A-02, A-07, A-19) |
 | **11** | **Audit: Docker & distributed ops** | Compose Forge host/port; health `/docs`; `DEFORUMATION_ADDRESS` default | **Done** (A-03, A-04, A-22) |
 | **12** | **Audit: docs & tab truth** | `WEB_UI_TABS.md`, README, `API.md`, version **0.3.6** | **Done** (A-05–A-07, A-14–A-16, A-30) |
-| **13** | **Audit: CI & build integrity** | Live server + perf API tests in CI; strict Vite build; Docker smoke + Playwright = optional follow-up | **Done** (A-09, A-10, A-20, A-21) · **Open** (A-08, A-27) |
+| **13** | **Audit: CI & build integrity** | Live server + perf API tests; strict Vite build; Docker compose smoke; Playwright tab smoke | **Done** (A-08, A-09, A-10, A-20, A-21, A-27) |
 | **14** | **Audit: server performance** | `ai_invoke.py`, frames cache, async runs, polling backoff, stream fade | **Done** (A-11–A-13, A-23, A-25, A-32) |
-| **15** | **Audit: doc/code hygiene** | CLI/TUI headers; dual manifest note; stale test refs | **Done** (A-17, A-18, A-28, A-29) · **Open** LTC ([A-24](#audit-findings-2026-05-23)) |
+| **15** | **Audit: doc/code hygiene** | CLI/TUI headers; dual manifest note; timecode docs; morph blend | **Done** (A-17, A-18, A-24, A-26, A-28, A-29) |
 
 ---
 
@@ -650,7 +650,7 @@ curl -X POST http://localhost:3000/api/distributed/configure \
   - ✅ **DMX lighting control integration** - Art-Net, sACN, and OpenRGB support for stage lighting
   - ✅ **OSC (Open Sound Control) support** - `defora_cli.osc_bridge` with mappings for all Defora parameters
   - ✅ **Ableton Link sync** - Tempo synchronization with Ableton Live and Link-enabled apps
-  - ⚠️ **Timecode (LTC/MTC) sync** — module present; LTC demodulation is **placeholder** ([A-24](#audit-findings-2026-05-23))
+  - ✅ **Timecode sync** — **MTC** quarter-frame path + tests; **LTC** experimental audio demod ([A-24](#audit-findings-2026-05-23))
   - ⏳ Show control systems integration (future)
 
 ---
