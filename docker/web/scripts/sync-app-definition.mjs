@@ -61,6 +61,18 @@ for (const mod of UTIL_MODULES) {
 }
 if (inlinedUtils) inlinedUtils += '\n';
 
+const componentStubs = [];
+script = script.replace(
+  /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"]\.\/components\/[^'"]+\.vue['"];?\s*$/gm,
+  (_, name) => {
+    componentStubs.push(name);
+    return '';
+  }
+);
+const stubBlock = componentStubs.length
+  ? `${componentStubs.map((name) => `const ${name} = { template: '<div></div>' };`).join('\n')}\n\n`
+  : '';
+
 script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '');
 script = script.replace(/export\s+default\s+/, '').trim();
 const inner = script.startsWith('{') && script.endsWith('}')
@@ -68,7 +80,7 @@ const inner = script.startsWith('{') && script.endsWith('}')
   : script;
 
 const header = `// Auto-generated from App.vue — run: npm run sync-app-definition (audit A-01)\n\n`;
-const body = `${header}${inlinedUtils}module.exports = {
+const body = `${header}${inlinedUtils}${stubBlock}module.exports = {
   template: ${JSON.stringify(template)},
   ${inner}
 };

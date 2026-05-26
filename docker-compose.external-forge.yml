@@ -1,0 +1,182 @@
+services:
+  encoder:
+    image: jrottenberg/ffmpeg:4.4-alpine
+    command:
+      - sh
+      - -c
+      - |
+          until ls /data/frames/frame_00001.png >/dev/null 2>&1; do
+            echo 'Waiting for frames in /data/frames ...';
+            sleep 2;
+          done;
+
+          QUALITY_PRESET="$${ENCODER_QUALITY:-medium}";
+
+          case "$$QUALITY_PRESET" in
+            low)
+              BITRATE=500k
+              MAXRATE=750k
+              BUFSIZE=1M
+              PRESET=veryfast
+              CRF=28
+              ;;
+            medium)
+              BITRATE=1500k
+              MAXRATE=2250k
+              BUFSIZE=3M
+              PRESET=veryfast
+              CRF=23
+              ;;
+            high)
+              BITRATE=3500k
+              MAXRATE=5000k
+              BUFSIZE=7M
+              PRESET=fast
+              CRF=20
+              ;;
+            ultra)
+              BITRATE=6000k
+              MAXRATE=9000k
+              BUFSIZE=12M
+              PRESET=medium
+              CRF=18
+              ;;
+            *)
+              BITRATE=1500k
+              MAXRATE=2250k
+              BUFSIZE=3M
+              PRESET=veryfast
+              CRF=23
+              ;;
+          esac
+
+          echo "Encoder starting with quality preset: $$QUALITY_PRESET";
+          echo "  Bitrate: $$BITRATE | Max: $$MAXRATE | Buffer: $$BUFSIZE";
+          echo "  Preset: $$PRESET | CRF: $$CRF";
+
+          ffmpeg -re -framerate "$${FPS:-24}" -pattern_type glob -i '/data/frames/frame_*.png' \
+            -vf "scale=$${RESOLUTION:-960:540}" \
+            -c:v libx264 -preset "$$PRESET" -tune zerolatency \
+            -b:v "$$BITRATE" -maxrate "$$MAXRATE" -bufsize "$$BUFSIZE" -crf "$$CRF" \
+            -g $$(( $${FPS:-24} * 2 )) \
+            -f flv rtmp://web:1935/live/deforum
+    volumes:
+      - frames:/data/frames
+    environment:
+      - ENCODER_QUALITY=${ENCODER_QUALITY:-medium}
+      - FPS=${FPS:-24}
+      - RESOLUTION=${RESOLUTION:-960:540}
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web/Dockerfile
+    ports:
+      - "8080:80"
+      - "1935:1935"
+    extra_hosts:
+      - "vimage2:${VIMAGE2_IP:-192.168.2.101}"
+      - "vimage3:${VIMAGE3_IP:-192.168.2.102}"
+      - "vimage5:${VIMAGE5_IP:-192.168.2.104}"
+    volumes:
+      - frames:/data/frames:ro
+      - hls:/var/www/hls
+    environment:
+      - RABBIT_URL=amqp://mq
+      - FRAMES_DIR=/data/frames
+      - HLS_STREAM=/hls/live/deforum.m3u8
+      - HLS_DIR=/var/www/hls
+      # Fallback single target for endpoints that are not load-balanced.
+      - SD_FORGE_HOST=${SD_FORGE_HOST:-vimage2}
+      - SD_FORGE_PORT=${SD_FORGE_PORT:-7860}
+      # External SD-Forge pool: use remote instances instead of deploying sd-forge locally.
+      - DISTRIBUTED_ENABLED=${DISTRIBUTED_ENABLED:-true}
+      - DISTRIBUTED_STRATEGY=${DISTRIBUTED_STRATEGY:-least_busy}
+      - DISTRIBUTED_NODES=${DISTRIBUTED_NODES:-http://vimage2:7860,http://vimage5:7860}
+      - DISTRIBUTED_HEALTH_CHECK_INTERVAL=${DISTRIBUTED_HEALTH_CHECK_INTERVAL:-30}
+      - DISTRIBUTED_TIMEOUT=${DISTRIBUTED_TIMEOUT:-300}
+      - DISTRIBUTED_RETRY_ATTEMPTS=${DISTRIBUTED_RETRY_ATTEMPTS:-2}
+      - MEDIATOR_HOST=${MEDIATOR_HOST:-vimage2}
+      - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
+      - DEF_MEDIATOR_HOST=${DEF_MEDIATOR_HOST:-vimage2}
+      - DEF_MEDIATOR_PORT=${DEF_MEDIATOR_PORT:-8766}
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/api/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  mediator:
+    build:
+      context: .
+      dockerfile: docker/mediator/Dockerfile
+    ports:
+      - "8765:8765"
+      - "8766:8766"
+    environment:
+      - MEDIATOR_DEFORUM_ADDRESS=0.0.0.0
+      - MEDIATOR_DEFORUM_PORT=8765
+      - MEDIATOR_DEFORUMATION_ADDRESS=0.0.0.0
+      - MEDIATOR_DEFORUMATION_PORT=8766
+      - DEFORUMATION_ADDRESS=${DEFORUMATION_ADDRESS:-host.docker.internal}
+      - DEFORUMATION_PORT=${DEFORUMATION_PORT:-8767}
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8765)); s.close(); s2=socket.socket(); s2.settimeout(2); s2.connect(('localhost',8766)); s2.close()\""]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  dev-frame-seeder:
+    build:
+      context: .
+      dockerfile: docker/frame-seeder/Dockerfile
+    environment:
+      - OUTPUT_DIR=/data/frames
+      - FPS=${SEEDER_FPS:-12}
+      - CLEAR=${SEEDER_CLEAR:-1}
+      - PATTERN=${SEEDER_PATTERN:-timestamp}
+      - CUSTOM_TEXT=${SEEDER_CUSTOM_TEXT:-Defora External Forge Test}
+      - WIDTH=${SEEDER_WIDTH:-1280}
+      - HEIGHT=${SEEDER_HEIGHT:-720}
+    volumes:
+      - frames:/data/frames
+    depends_on:
+      - web
+
+  mq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"
+      - "5672:5672"
+    volumes:
+      - mqdata:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  control-bridge:
+    build:
+      context: .
+      dockerfile: docker/bridge/Dockerfile
+    extra_hosts:
+      - "vimage2:${VIMAGE2_IP:-192.168.2.101}"
+    environment:
+      - MQ_URL=amqp://mq
+      - MQ_QUEUE=controls
+      - MEDIATOR_HOST=${MEDIATOR_HOST:-vimage2}
+      - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
+    depends_on:
+      mq:
+        condition: service_healthy
+
+volumes:
+  frames:
+  hls:
+  mqdata:

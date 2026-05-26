@@ -16,6 +16,22 @@ Fields:
 - `cfg` (float, optional)
 - `tag` (string, optional): free-form tag/label.
 
-Example: see `docs/run_manifest_example.json`.
+Example:
+```json
+{
+  "status": "completed",
+  "started_at": "2024-01-01T12:00:00Z",
+  "model": "dreamshaper_8",
+  "frame_count": 240,
+  "last_frame": "runs/2024-01-01/run_001/frame_00240.png",
+  "prompt_positive": "a neon skyline at dusk",
+  "prompt_negative": "blurry, low quality",
+  "seed": 123456,
+  "steps": 28,
+  "strength": 0.72,
+  "cfg": 7.5,
+  "tag": "promo"
+}
+```
 
 Validation: `defora_cli/run_manifest_schema.py` provides a minimal validator used by `defora_cli/deforumation_runs_cli.py` and tests in `tests/test_runs_schema.py`.

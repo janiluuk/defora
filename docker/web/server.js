@@ -3389,6 +3389,7 @@ async function start(opts = {}) {
     clearInterval(pollTimer);
     if (forgePollTimer) clearInterval(forgePollTimer);
     clearInterval(cleanupTimer);
+    if (gpuPool && typeof gpuPool.close === "function") gpuPool.close();
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
       try {

@@ -6,6 +6,7 @@
 # Optional repository variables (see "Export deploy targets" step for defaults):
 #   DEPLOY_JUMP_HOST, DEPLOY_JUMP_USER, DEPLOY_JUMP_PORT
 #   DEPLOY_HOST, DEPLOY_PATH, DEPLOY_USER, DEPLOY_APP_PORT
+#   DEPLOY_COMPOSE_FILE, DEPLOY_COMPOSE_SERVICES, DEPLOY_VIMAGE2_IP
 #
 # Triggers:
 #   - workflow_dispatch (manual)
@@ -48,6 +49,9 @@ jobs:
       DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
       DEPLOY_USER: ${{ vars.DEPLOY_USER }}
       DEPLOY_APP_PORT: ${{ vars.DEPLOY_APP_PORT }}
+      DEPLOY_COMPOSE_FILE: ${{ vars.DEPLOY_COMPOSE_FILE }}
+      DEPLOY_COMPOSE_SERVICES: ${{ vars.DEPLOY_COMPOSE_SERVICES }}
+      DEPLOY_VIMAGE2_IP: ${{ vars.DEPLOY_VIMAGE2_IP }}
 
     steps:
       - uses: actions/checkout@v4
@@ -68,6 +72,9 @@ jobs:
             echo "DEPLOY_PATH=${DEPLOY_PATH:-/srv/defora}"
             echo "DEPLOY_USER=${DEPLOY_USER:-root}"
             echo "DEPLOY_APP_PORT=${DEPLOY_APP_PORT:-8080}"
+            echo "COMPOSE_FILE=${DEPLOY_COMPOSE_FILE:-docker-compose.external-forge.yml}"
+            echo "COMPOSE_SERVICES=${DEPLOY_COMPOSE_SERVICES:-mq mediator web control-bridge encoder}"
+            echo "VIMAGE2_IP=${DEPLOY_VIMAGE2_IP:-192.168.2.101}"
             echo "WEB_PORT=${DEPLOY_APP_PORT:-8080}"
             echo "SSH_PROXY_JUMP=${jump_user}@${jump_host}:${jump_port}"
           } >> "$GITHUB_ENV"
@@ -130,6 +137,9 @@ jobs:
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
           DEPLOY_PATH: ${{ env.DEPLOY_PATH }}
           DEPLOY_USER: ${{ env.DEPLOY_USER }}
+          COMPOSE_FILE: ${{ env.COMPOSE_FILE }}
+          COMPOSE_SERVICES: ${{ env.COMPOSE_SERVICES }}
+          VIMAGE2_IP: ${{ env.VIMAGE2_IP }}
           WEB_PORT: ${{ env.DEPLOY_APP_PORT }}
         run: |
           set -euo pipefail

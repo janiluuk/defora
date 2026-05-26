@@ -311,7 +311,7 @@ DEFORUM_MEDIATOR_URL=ws://mediator:8765
 
 # Encoder
 FPS=24                           # Frame rate
-RESOLUTION=1280:720              # Output resolution
+RESOLUTION=960:540               # Output resolution
 
 # Web
 CONTROL_TOKEN=secret             # Optional WebSocket auth

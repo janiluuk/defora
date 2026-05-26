@@ -8,22 +8,17 @@ This guide covers the complete setup for all three core requirements:
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- Git with submodule support
+- Git
 - (Optional) GPU-enabled machine for SD-Forge generation
 
 ## Quick Start (5 minutes)
 
-### 1. Clone and Initialize Submodules
+### 1. Clone the Repo
 
 ```bash
 git clone https://github.com/janiluuk/defora.git
 cd defora
-git submodule update --init --recursive
 ```
-
-The `deforumation` submodule provides:
-- `mediator.py` - WebSocket mediator for real-time control
-- Deforum bridge patches for SD-Forge
 
 ### 2. Verify Setup
 
@@ -97,7 +92,7 @@ You should see:
 
 ### 1. Deforum Mediator (Requirement 1: Connection)
 
-**Location:** `deforumation/mediator.py` (from submodule)
+**Location:** `defora_cli/mediator_server.py`
 
 **Ports:**
 - 8765 - Deforum bridge connection
@@ -110,8 +105,7 @@ You should see:
 
 **Start manually (optional):**
 ```bash
-cd deforumation
-python mediator.py \
+python -m defora_cli.mediator_server \
   --mediator_deforum_address 0.0.0.0 \
   --mediator_deforum_port 8765 \
   --mediator_deforumation_address 0.0.0.0 \
@@ -165,7 +159,7 @@ The `encoder` service:
 ```yaml
 environment:
   - FPS=24              # Frame rate
-  - RESOLUTION=1280:720 # Output resolution
+  - RESOLUTION=960:540  # Output resolution
 ```
 
 ### 3. Web Player (Requirement 3: Watch Stream)
@@ -230,7 +224,7 @@ environment:
 
 **Dashboard (full UI):**
 ```bash
-./deforumation_dashboard --config deforumation/helpers/DeforumationSendConfig.json
+./deforumation_dashboard --config defora_data/DeforumationSendConfig.json
 ```
 
 **Audio reactivity:**
@@ -262,7 +256,7 @@ MQ_QUEUE=controls
 CONTROL_TOKEN=secret  # Optional: gate WebSocket access
 RABBIT_URL=amqp://mq
 FPS=24
-RESOLUTION=1280:720
+RESOLUTION=960:540
 ```
 
 ### Custom Frame Pipeline
@@ -338,7 +332,7 @@ volumes:
 
 - **Production deployment:** See `docs/streaming_stack.md` for scaling tips
 - **CLI tools:** Explore `./forge_cli`, `./deforumation_runs_cli`, etc.
-- **Custom presets:** Create presets in `deforumation/presets/`
+- **Custom presets:** Create presets in `defora_data/presets/`
 - **Audio sync:** Map audio bands to parameters with audio modulator
 - **MIDI control:** Connect MIDI devices via WebMIDI in Settings tab
 
@@ -356,7 +350,7 @@ defora/
 ├── defora_cli/
 │   ├── control_bridge.py      # RabbitMQ → mediator relay
 │   └── mediator_client.py     # WebSocket client library
-├── deforumation/              # Submodule (Rakile/DeforumationQT)
+├── defora_data/               # Local config + presets
 │   ├── mediator.py           # Core mediator server
 │   └── Deforum_Version/       # Deforum bridge patches
 └── docs/
