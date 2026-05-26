@@ -94,15 +94,11 @@ if [[ -n "$NO_CACHE" ]]; then
   BUILD_CMD+=" --no-cache"
 fi
 
-echo "==> Remote: ensure deforumation submodule, build, up (${COMPOSE_SERVICES})"
+echo "==> Remote: build and start stack (${COMPOSE_SERVICES})"
 # shellcheck disable=SC2029
 ssh_remote "${REMOTE_USER}@${HOST}" \
   "set -e
    cd '${REMOTE_PATH}'
-   if [ ! -f deforumation/mediator.py ]; then
-     echo '==> Cloning deforumation submodule on host...'
-     ./scripts/clone_deforumation.sh
-   fi
    if [ -f .env ]; then set -a; . ./.env; set +a; fi
    ${BUILD_CMD}
    WEB_PORT=${WEB_PORT} docker compose -f '${COMPOSE_FILE}' up -d ${COMPOSE_SERVICES}"

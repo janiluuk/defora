@@ -72,6 +72,6 @@ Workflow: [`.github/workflows/deploy-production.yml`](../.github/workflows/deplo
 
 **Optional repository variables:** `DEPLOY_JUMP_HOST`, `DEPLOY_JUMP_PORT`, `DEPLOY_HOST`, `DEPLOY_PATH`, `DEPLOY_APP_PORT`.
 
-## Submodule
+## Repo layout
 
-Deploy runs `./scripts/clone_deforumation.sh` on the remote host if `deforumation/mediator.py` is missing. CI/checkout should use `submodules: recursive` so rsync includes vendored `deforumation/`.
+The repository no longer uses the old `deforumation` submodule bootstrap flow, so CI and deploys do not need `submodules: recursive` or `./scripts/clone_deforumation.sh`.
