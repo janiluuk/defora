@@ -1518,60 +1518,62 @@
                 </div>
               </div>
 
-              <div v-if="gpuPool.nodes.length" class="gpu-pool-table-wrap" style="margin-top:14px;">
-                <table class="gpu-pool-table">
-                  <thead>
-                    <tr>
-                      <th>Name</th>
-                      <th>Backend</th>
-                      <th>Status</th>
-                      <th>Model</th>
-                      <th>VRAM</th>
-                      <th>GPU %</th>
-                      <th>Jobs</th>
-                      <th>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr v-for="n in gpuPool.nodes" :key="n.id" :class="{ 'gpu-row-disabled': !n.enabled }">
-                      <td>
-                        <template v-if="gpuPool.editId === n.id">
-                          <input class="framesync-input" v-model="gpuPool.editDraft.name" style="font-size:11px; margin-bottom:4px;">
-                          <input class="framesync-input" v-model="gpuPool.editDraft.url" style="font-size:10px;">
-                        </template>
-                        <template v-else>{{ n.name }}</template>
-                        <div style="font-size:9px; color:var(--text-dim); word-break:break-all;">{{ n.url }}</div>
-                      </td>
-                      <td>
-                        <template v-if="gpuPool.editId === n.id">
-                          <select class="framesync-select" v-model="gpuPool.editDraft.backend" style="font-size:11px;">
-                            <option value="sd-forge">SD-Forge</option>
-                            <option value="comfyui">ComfyUI</option>
-                          </select>
-                        </template>
-                        <span v-else>{{ n.backend }}</span>
-                      </td>
-                      <td><span class="gpu-status-pill" :class="'st-' + (n.enabled ? n.status : 'disabled')">{{ n.enabled ? n.status : 'disabled' }}</span></td>
-                      <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis;" :title="n.currentModel || ''">{{ n.currentModel || '—' }}</td>
-                      <td>{{ formatGpuMemory(n) }}</td>
-                      <td>{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</td>
-                      <td>{{ n.activeJobs }}</td>
-                      <td>
-                        <div class="framesync-footer" style="flex-wrap:wrap; gap:4px;">
-                          <template v-if="n.enabled">
-                            <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="disableGpuNode(n)">Disable</button>
-                          </template>
-                          <template v-else>
-                            <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="enableGpuNode(n)">Enable</button>
-                            <button v-if="gpuPool.editId !== n.id" class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="startEditGpuNode(n)">Edit</button>
-                            <button v-else class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="saveGpuNodeEdit(n)">Save</button>
-                            <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="removeGpuNode(n)">Remove</button>
-                          </template>
-                        </div>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+              <div v-if="gpuPool.nodes.length" style="margin-top:14px; display:grid; gap:10px;">
+                <div v-for="n in gpuPool.nodes" :key="n.id" class="gpu-node-card" :class="{ 'gpu-row-disabled': !n.enabled }">
+                  <!-- Node header row -->
+                  <div class="gpu-node-card__header">
+                    <div class="gpu-node-card__identity">
+                      <span class="gpu-status-pill" :class="'st-' + (n.enabled ? n.status : 'disabled')">{{ n.enabled ? n.status : 'disabled' }}</span>
+                      <template v-if="gpuPool.editId === n.id">
+                        <input class="framesync-input" v-model="gpuPool.editDraft.name" style="font-size:11px; width:120px;">
+                        <input class="framesync-input" v-model="gpuPool.editDraft.url" style="font-size:10px; flex:1; min-width:160px;">
+                        <select class="framesync-select" v-model="gpuPool.editDraft.backend" style="font-size:11px; width:100px;">
+                          <option value="sd-forge">SD-Forge</option>
+                          <option value="comfyui">ComfyUI</option>
+                        </select>
+                      </template>
+                      <template v-else>
+                        <strong style="font-size:12px;">{{ n.name }}</strong>
+                        <span style="font-size:10px; color:var(--text-dim);">{{ n.url }}</span>
+                        <span style="font-size:10px; color:var(--text-dim);">{{ n.backend }}</span>
+                      </template>
+                    </div>
+                    <div class="gpu-node-card__stats">
+                      <span title="Current model" style="font-size:10px; color:var(--text-secondary); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.currentModel || '—' }}</span>
+                      <span title="VRAM" style="font-size:10px; color:var(--text-dim);">{{ formatGpuMemory(n) }}</span>
+                      <span title="GPU utilization" style="font-size:10px; color:var(--text-dim);">{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</span>
+                      <span title="Active jobs" style="font-size:10px; color:var(--text-dim);">{{ n.activeJobs }} jobs</span>
+                    </div>
+                    <div class="framesync-footer" style="flex-wrap:wrap; gap:4px; margin:0;">
+                      <template v-if="n.enabled">
+                        <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="disableGpuNode(n)">Disable</button>
+                      </template>
+                      <template v-else>
+                        <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="enableGpuNode(n)">Enable</button>
+                        <button v-if="gpuPool.editId !== n.id" class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="startEditGpuNode(n)">Edit</button>
+                        <button v-else class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="saveGpuNodeEdit(n)">Save</button>
+                        <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="removeGpuNode(n)">Remove</button>
+                      </template>
+                      <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="gpuPool.expandedLog = gpuPool.expandedLog === n.id ? null : n.id">
+                        {{ gpuPool.expandedLog === n.id ? 'Hide log' : 'Log' }}{{ n.requestLog && n.requestLog.length ? ' (' + n.requestLog.length + ')' : '' }}
+                      </button>
+                    </div>
+                  </div>
+                  <!-- Per-node request log -->
+                  <div v-if="gpuPool.expandedLog === n.id" class="gpu-node-log">
+                    <div v-if="!n.requestLog || !n.requestLog.length" class="gpu-node-log__empty">No requests logged yet.</div>
+                    <div v-for="(entry, idx) in (n.requestLog || [])" :key="idx" class="gpu-node-log__entry" :class="{ 'gpu-node-log__entry--error': !entry.ok }">
+                      <span class="gpu-node-log__badge" :class="'gpu-node-log__badge--' + entry.type">{{ entry.type }}</span>
+                      <span class="gpu-node-log__path">{{ entry.path }}</span>
+                      <span class="gpu-node-log__status" :style="entry.ok ? 'color:var(--live-text)' : 'color:var(--error)'">
+                        {{ entry.statusCode || (entry.ok ? 'ok' : 'err') }}
+                      </span>
+                      <span class="gpu-node-log__duration">{{ entry.durationMs }}ms</span>
+                      <span v-if="entry.error" class="gpu-node-log__error">{{ entry.error }}</span>
+                      <span class="gpu-node-log__time">{{ new Date(entry.ts).toLocaleTimeString() }}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div v-else style="margin-top:14px; font-size:12px; color:var(--text-dim);">No GPU instances configured.</div>
               <div v-if="gpuPool.status" class="framesync-subtitle" style="margin-top:10px;">{{ gpuPool.status }}</div>
@@ -2110,6 +2112,7 @@ export default {
         draft: { url: '', name: '', backend: 'sd-forge', priority: 1 },
         editId: null,
         editDraft: { name: '', url: '', backend: 'sd-forge', priority: 1 },
+        expandedLog: null,
       },
       generator: {
         theme: '',

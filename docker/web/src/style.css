@@ -1046,6 +1046,69 @@
     }
     .runs-compare-card__table th { color: var(--text-dim); }
 
+    /* GPU node card */
+    .gpu-node-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg-1);
+      overflow: hidden;
+    }
+    .gpu-node-card__header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+    }
+    .gpu-node-card__identity {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+    .gpu-node-card__stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .gpu-node-log {
+      border-top: 1px solid var(--border);
+      background: var(--bg-0);
+      max-height: 200px;
+      overflow-y: auto;
+      font-size: 10px;
+      font-family: ui-monospace, "Cascadia Code", monospace;
+    }
+    .gpu-node-log__empty { padding: 8px 10px; color: var(--text-dim); }
+    .gpu-node-log__entry {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 10px;
+      border-bottom: 1px solid rgba(42, 45, 58, 0.5);
+    }
+    .gpu-node-log__entry--error { background: rgba(226, 75, 74, 0.06); }
+    .gpu-node-log__badge {
+      padding: 1px 5px;
+      border-radius: 3px;
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .gpu-node-log__badge--health { background: rgba(29, 158, 117, 0.15); color: var(--live-text); }
+    .gpu-node-log__badge--stats { background: rgba(127, 119, 221, 0.15); color: var(--accent-text); }
+    .gpu-node-log__badge--generate { background: rgba(239, 159, 39, 0.15); color: var(--warn); }
+    .gpu-node-log__badge--options { background: rgba(55, 138, 221, 0.15); color: var(--a-group); }
+    .gpu-node-log__path { flex: 1; min-width: 0; color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gpu-node-log__status { flex-shrink: 0; }
+    .gpu-node-log__duration { color: var(--text-dim); flex-shrink: 0; }
+    .gpu-node-log__error { color: var(--error); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .gpu-node-log__time { color: var(--text-dim); flex-shrink: 0; }
+
     .settings-tab-shell .framesync-panel,
     [data-testid="gpu-pool-panel"] {
       border-radius: 11px;
