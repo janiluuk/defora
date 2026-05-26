@@ -6,6 +6,62 @@
 
 Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: live visuals, prompt morphing, camera motion, beat-synced controls, and a neon-styled web UI for performance.
 https://defora.dudeisland.eu/
+
+## Current Browser Tour
+
+These screenshots were recaptured from the current web UI after generating fresh material in the `GENERATE` view. The shared preview therefore shows a real recent render instead of placeholder content.
+
+<table>
+<tr>
+<td width="50%">
+<h4>LIVE</h4>
+<img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
+<p>The stage-first performance view keeps the latest render front and center, with floating morph and modulation HUDs for quick changes during playback.</p>
+</td>
+<td width="50%">
+<h4>PROMPTS</h4>
+<img src="screenshots/prompts-tab.png" alt="Web UI Prompts Tab" width="100%" />
+<p>Prompt morphing, img2img, and plugin surfaces stay grouped in one place so narrative control and prompt blending stay close to the live preview.</p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<h4>MOTION</h4>
+<img src="screenshots/motion-tab.png" alt="Web UI Motion Tab" width="100%" />
+<p>The motion view exposes the XY performance pad and camera presets for fast spatial moves without burying the performer in curve editors.</p>
+</td>
+<td width="50%">
+<h4>MODULATION</h4>
+<img src="screenshots/modulation-tab.png" alt="Web UI Modulation Tab" width="100%" />
+<p>LFO cards, routed targets, and beat macros make modulation ownership visible at a glance so you can see what is driving each parameter.</p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<h4>AUDIO</h4>
+<img src="screenshots/audio-tab.png" alt="Web UI Audio Tab" width="100%" />
+<p>Audio routing shows live band mappings and target ranges, turning the latest render into an audio-reactive control surface instead of a separate setup screen.</p>
+</td>
+<td width="50%">
+<h4>RUNS</h4>
+<img src="screenshots/runs-tab.png" alt="Web UI Runs Tab" width="100%" />
+<p>The runs browser collects saved generations, filters, exports, and comparison tools so previous material can be reused as part of a live set.</p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<h4>SETTINGS</h4>
+<img src="screenshots/settings-tab.png" alt="Web UI Settings Tab" width="100%" />
+<p>Engine, Forge, controller, preset, and GPU pool controls are available without leaving the same performance shell as the rest of the instrument.</p>
+</td>
+<td width="50%">
+<h4>GENERATE</h4>
+<img src="screenshots/generate-tab.png" alt="Web UI Generate Tab" width="100%" />
+<p>The generator now pairs story/image creation with the timeline dock, so fresh source material and sequencer edits happen in the same view.</p>
+</td>
+</tr>
+</table>
+
 ## ✨ Feature Highlights
 
 ### 🎹 Live Performance Interface
