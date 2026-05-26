@@ -189,7 +189,9 @@ describe("Video Controls E2E Tests", () => {
       const css = readFileSync(path.join(__dirname, "..", "src", "style.css"), "utf-8");
       
       expect(css).to.include('.control-btn');
-      expect(css).to.include('#ff8a1a');
+      expect(css).to.include('--warn: #ef9f27');
+      expect(css).to.include('.control-btn:hover');
+      expect(css).to.include('var(--warn)');
     });
 
     it("should have recording animation", () => {

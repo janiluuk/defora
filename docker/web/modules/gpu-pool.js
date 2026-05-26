@@ -352,6 +352,9 @@ function createGpuPool(options = {}) {
     healthTimer = setInterval(() => {
       performHealthCheck().catch((e) => console.error("[gpu-pool] health check", e));
     }, state.healthCheckInterval * 1000);
+    if (typeof healthTimer.unref === "function") {
+      healthTimer.unref();
+    }
   }
 
   function close() {
@@ -604,7 +607,7 @@ function createGpuPool(options = {}) {
   async function init() {
     await loadConfig();
     scheduleHealthChecks();
-    if (state.nodes.length) {
+    if (state.enabled && state.nodes.length) {
       performHealthCheck().catch(() => {});
     }
   }

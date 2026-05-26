@@ -21,6 +21,9 @@ export DEPLOY_HOST="${DEPLOY_HOST:-192.168.2.100}"
 export DEPLOY_USER="${DEPLOY_USER:-root}"
 export DEPLOY_PATH="${DEPLOY_PATH:-/srv/defora}"
 export WEB_PORT="${WEB_PORT:-8080}"
+export COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.external-forge.yml}"
+export COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge encoder}"
+export VIMAGE2_IP="${VIMAGE2_IP:-192.168.2.101}"
 
 echo "==> Deploy via lab-stack-up (jump: ${SSH_PROXY_JUMP})"
 if [[ -n "$NO_CACHE" ]]; then
