@@ -771,11 +771,10 @@
               </div>
               <div class="lfo-grid" style="margin-top:12px;">
                 <div class="lfo-card" v-for="lfo in lfos" :key="'lfo-'+lfo.id">
-                  <h4>
+                  <div class="lfo-card-head">
                     <label class="switch"><input type="checkbox" v-model="lfo.on"> LFO {{ lfo.id }}</label>
-                    <canvas :ref="el => lfoCanvasRefs[lfo.id] = el" width="200" height="60" style="width:100%; height:60px; border-radius:4px; background:#031b2d;"></canvas>
-                  </h4>
-                  <div class="meta">Targets: {{ lfo.targets.join(', ') || 'none' }}</div>
+                    <Waveform :shape="lfo.shape" :depth="lfo.depth" :active="lfo.on" :width="160" :height="40" class="lfo-waveform" />
+                  </div>
                   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
                     <div>
                       <div class="framesync-subtitle">Shape</div>
@@ -798,8 +797,16 @@
                   </div>
                   <div style="margin-top:8px;">
                     <div class="framesync-subtitle">Targets</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                      <button class="framesync-button" v-for="t in lfoTargets" :key="'lt-'+t.key" :class="{active: lfo.targets.includes(t.key)}" @click="toggleLfoTarget(lfo, t.key)" style="padding:2px 6px; font-size:9px;">{{ t.label }}</button>
+                    <div class="lfo-target-grid">
+                      <TargetCell
+                        v-for="t in lfoTargets"
+                        :key="'tc-'+lfo.id+t.key"
+                        :label="t.label"
+                        :param-key="t.key"
+                        :selected="lfo.targets.includes(t.key)"
+                        :owners="targetOwners[t.key] || []"
+                        @toggle="toggleLfoTarget(lfo, t.key)"
+                      />
                     </div>
                   </div>
                 </div>
@@ -817,10 +824,10 @@
               </div>
               <div class="lfo-grid" style="margin-top:12px;">
                 <div class="lfo-card" v-for="(m, idx) in macrosRack" :key="'mac'+idx">
-                  <h4>
+                  <div class="lfo-card-head">
                     <label class="switch"><input type="checkbox" v-model="m.on"> Macro {{ idx+1 }}</label>
-                  </h4>
-                  <div class="meta">Target: {{ m.target || 'none' }} · {{ m.shape }}</div>
+                    <Waveform :shape="m.shape" :depth="m.depth" :active="m.on" :width="100" :height="36" class="lfo-waveform" />
+                  </div>
                   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
                     <div>
                       <div class="framesync-subtitle">Target</div>
@@ -1837,10 +1844,12 @@ import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
 import Crossfader from './components/Crossfader.vue'
 import LiveParamRow from './components/LiveParamRow.vue'
+import Waveform from './components/Waveform.vue'
+import TargetCell from './components/TargetCell.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, Waveform, TargetCell },
   data() {
     return {
        showFrames: true,
@@ -2247,6 +2256,22 @@ export default {
         const p = paramMap[entry.key] || { key: entry.key, label: entry.key, val: 0, min: 0, max: 1 };
         return { ...p, source: entry.sources.join(' + ') };
       });
+    },
+    targetOwners() {
+      const map = {};
+      this.lfos.forEach(l => {
+        if (!l.on) return;
+        l.targets.forEach(key => {
+          if (!map[key]) map[key] = [];
+          map[key].push(`LFO ${l.id}`);
+        });
+      });
+      this.macrosRack.forEach((m, idx) => {
+        if (!m.on || !m.target) return;
+        if (!map[m.target]) map[m.target] = [];
+        map[m.target].push(`Macro ${idx + 1}`);
+      });
+      return map;
     },
     activeSlot() {
       return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
