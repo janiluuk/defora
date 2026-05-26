@@ -159,7 +159,7 @@ The `encoder` service:
 ```yaml
 environment:
   - FPS=24              # Frame rate
-  - RESOLUTION=1280:720 # Output resolution
+  - RESOLUTION=960:540  # Output resolution
 ```
 
 ### 3. Web Player (Requirement 3: Watch Stream)
@@ -256,7 +256,7 @@ MQ_QUEUE=controls
 CONTROL_TOKEN=secret  # Optional: gate WebSocket access
 RABBIT_URL=amqp://mq
 FPS=24
-RESOLUTION=1280:720
+RESOLUTION=960:540
 ```
 
 ### Custom Frame Pipeline

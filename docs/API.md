@@ -311,7 +311,7 @@ Keyframe timelines for the Web UI **MOTION** tab are stored as JSON under `SEQUE
 Timeline schema (`version` **1**):
 
 - `durationSec` (number): timeline length in seconds (positive, ≤ 3600).
-- `fps` (number): playback sample rate (1–120).
+- `fps` (number): playback sample rate (5–25).
 - `loop` (boolean, optional): repeat when playback reaches the end.
 - `markers` (optional array): scene cues `{ t, name }` with `t` in seconds within `0..durationSec`, `name` a 1–48 character label (`[a-zA-Z0-9_ \\-.]+`). At most **64** markers. Omitted or empty means none.
 - `tracks` (array): each track has `id`, `param` (mediator parameter key), and `keyframes` (`t` in seconds, `v` numeric value). Optional `easing` on a keyframe controls the segment **from that keyframe to the next**: `linear` (default), `easeIn`, `easeOut`, `easeInOut` (cubic). Unknown values are rejected on save.
@@ -397,7 +397,7 @@ Proxy to Forge `POST /sdapi/v1/img2img`. The first returned image is written und
 | `negative_prompt` / `negativePrompt` | string | no | |
 | `steps` | number | no | 1–100, default 28 |
 | `cfg_scale` / `cfgScale` | number | no | 1–30, default 7 |
-| `width`, `height` | number | no | 64–2048, default 1024 |
+| `width`, `height` | number | no | 64–2048, default `960x540` |
 | `denoising_strength` / `denoisingStrength` | number | no | 0–1, default 0.55 |
 | `sampler_name` | string | no | default `Euler a` |
 | `seed` | number | no | default `-1` |

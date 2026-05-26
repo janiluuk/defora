@@ -8,6 +8,12 @@
 <body>
   <div id="app">
   <div id="app">
+    <ThreeBackground
+      :lfos="lfos"
+      :audio-metrics="backgroundAudioMetrics"
+      :active-tab="currentTab"
+      :morph="performance.crossfader"
+    />
     <header>
       <div class="tabs">
         <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
@@ -821,11 +827,11 @@
               <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Resolution</div>
-                  <select class="framesync-select"><option>1024x576</option><option>1280x720</option></select>
+                  <select class="framesync-select"><option>960x540</option><option>1280x720</option></select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <select class="framesync-select"><option>24</option><option selected>30</option><option>60</option></select>
+                  <select class="framesync-select"><option>5</option><option selected>12</option><option>25</option></select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Steps</div>
@@ -1028,7 +1034,7 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
+                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="5" max="25" step="1">
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Loop</div>
@@ -1204,117 +1210,58 @@
       </div>
     </div>
 
-    <!-- Bottom context panel -->
-    <div class="context">
-      <div v-if="currentTab==='LIVE'">
-        <h4>Beat & MIDI status</h4>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <div style="min-width:240px;">
-            <strong>Beat macros ({{ macrosRack.length }})</strong>
-            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--muted);">
-              • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
+    <!-- Bottom context rail -->
+    <div class="context context--rail">
+      <div class="context-rail-header">
+        <div>
+          <h4>Recent Runs</h4>
+          <p class="context-rail-copy">{{ contextRailCopy }}</p>
+        </div>
+        <div class="context-rail-actions">
+          <span class="pill"><span class="dot"></span>{{ recentRunsRail.length }} loaded</span>
+          <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div v-if="contextSummaryChips.length" class="context-summary-chips">
+        <span v-for="chip in contextSummaryChips" :key="chip" class="chip chip--context">{{ chip }}</span>
+      </div>
+
+      <div v-if="runsStatus" class="context-rail-status">{{ runsStatus }}</div>
+
+      <div v-if="recentRunsRail.length" class="recent-runs-rail">
+        <button
+          v-for="run in recentRunsRail"
+          :key="'rail-' + run.run_id"
+          type="button"
+          class="recent-runs-card"
+          :class="{ 'recent-runs-card--active': runsDetailView && runsDetailView.run_id === run.run_id }"
+          @click="openRunFromRail(run)"
+        >
+          <div class="recent-runs-thumb-wrap">
+            <img
+              v-if="run.has_thumbnail"
+              :src="`/api/runs/${run.run_id}/thumb`"
+              :alt="run.run_id"
+              class="recent-runs-thumb"
+            >
+            <div v-else class="recent-runs-thumb recent-runs-thumb--empty">No preview</div>
+            <span class="status-chip recent-runs-status" :class="'status-' + (run.status || 'queued')">{{ run.status || 'queued' }}</span>
+          </div>
+          <div class="recent-runs-meta">
+            <div class="recent-runs-id">{{ run.run_id }}</div>
+            <div class="recent-runs-model">{{ run.model || 'Unknown model' }}</div>
+            <div class="recent-runs-subline">
+              <span>{{ formatDate(run.started_at) }}</span>
+              <span>{{ run.frame_count || run.length_frames || 0 }}f</span>
             </div>
+            <div v-if="runRailSummary(run)" class="recent-runs-note">{{ runRailSummary(run) }}</div>
           </div>
-          <div style="min-width:240px;">
-            <strong>MIDI mappings</strong>
-            <div style="font-size:12px; color:var(--muted);">
-              • LaunchControl CC21 → Vibe<br/>
-              • LaunchControl CC22 → Strength<br/>
-              • LaunchControl CC23 → Zoom
-            </div>
-          </div>
-        </div>
+        </button>
       </div>
 
-      <div v-else-if="currentTab==='PROMPTS'">
-        <h4>Prompts & Parameters</h4>
-        <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
-          <table class="table">
-            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
-            <tbody>
-              <tr v-for="slot in morphSlots" :key="slot.id">
-                <td>{{ slot.id }}</td>
-                <td>{{ slot.on ? '●' : '○' }}</td>
-                <td>{{ slot.name }}</td>
-                <td>{{ slot.a }}</td>
-                <td>{{ slot.b }}</td>
-                <td>{{ slot.range }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='LORA'">
-          <div class="chips">
-            <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
-            <span class="chip">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>
-          </div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
-          <div class="chips">
-            <span class="chip">ControlNet: {{ cn.active }}</span>
-            <span class="chip">Slots: {{ cn.slots.length }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MOTION'">
-        <h4>Sequencer status</h4>
-        <div class="chips">
-          <span class="chip" v-for="(s, name) in motionStylesSaved" :key="'ctx-saved-'+name">💾 {{ name }}</span>
-          <span class="chip">Tracks: {{ sequencer.tracks.length }}</span>
-          <span class="chip">Markers: {{ sequencer.markers?.length || 0 }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MODULATION'">
-        <h4>Modulation</h4>
-        <div class="chips">
-          <span class="chip" v-for="(m, idx) in macrosRack.filter(x => x.on)" :key="'ctx-mac'+idx">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>
-          <span class="chip">LFOs: {{ lfos.filter(l => l.on).length }}/{{ lfos.length }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='AUDIO'">
-        <h4>Audio</h4>
-        <div v-if="audio.uploadedFile" style="margin-top:8px;">
-          <div class="chips">
-            <span class="chip">File: {{ audio.uploadedFile }}</span>
-            <span class="chip">BPM: {{ audio.bpm }}</span>
-          </div>
-          <div style="margin-top:8px;">
-            <img v-if="audioSpectrogramDataUrl" :src="audioSpectrogramDataUrl" class="spectral-preview" alt="Spectrogram">
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='SETTINGS'">
-        <h4>Settings</h4>
-        <div v-if="currentSubTab.SETTINGS==='MIDI'">
-          <table class="table">
-            <thead><tr><th>Control</th><th>CC</th><th>Target</th></tr></thead>
-            <tbody>
-              <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
-                <td>{{ m.control }}</td>
-                <td>{{ m.cc }}</td>
-                <td>
-                  <select class="select" v-model="m.key" @change="updateMidiMapping(m)">
-                    <option value="">None</option>
-                    <option v-for="t in lfoTargets" :key="'map'+t.key" :value="t.key">{{ t.label }}</option>
-                  </select>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='GENERATE'">
-        <h4>Generator</h4>
-        <div class="chips">
-          <span class="chip">Theme: {{ generator.theme || '—' }}</span>
-          <span class="chip">Style: {{ generator.stylePreset }}</span>
-        </div>
+      <div v-else class="recent-runs-empty">
+        No recent runs yet. Render something and refresh this rail to populate it.
       </div>
     </div>
   </div>

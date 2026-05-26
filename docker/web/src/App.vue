@@ -1,5 +1,11 @@
 <template>
   <div id="app">
+    <ThreeBackground
+      :lfos="lfos"
+      :audio-metrics="backgroundAudioMetrics"
+      :active-tab="currentTab"
+      :morph="performance.crossfader"
+    />
     <header>
       <div class="tabs">
         <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
@@ -1147,11 +1153,11 @@
               <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Resolution</div>
-                  <select class="framesync-select"><option>1024x576</option><option>1280x720</option></select>
+                  <select class="framesync-select"><option>960x540</option><option>1280x720</option></select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <select class="framesync-select"><option>24</option><option selected>30</option><option>60</option></select>
+                  <select class="framesync-select"><option>5</option><option selected>12</option><option>25</option></select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Steps</div>
@@ -1520,7 +1526,7 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
+                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="5" max="25" step="1">
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Loop</div>
@@ -1696,123 +1702,58 @@
       </div>
     </div>
 
-    <!-- Bottom context panel -->
-    <div class="context">
-      <div v-if="currentTab==='LIVE'">
-        <h4>Performance</h4>
-        <div class="chips">
-          <span class="chip">Crossfader: {{ performance.crossfader.toFixed(2) }}</span>
-          <span class="chip">Slots: {{ performance.slots.length }}</span>
-          <span class="chip">Model: {{ modelStatusLabel }}</span>
+    <!-- Bottom context rail -->
+    <div class="context context--rail">
+      <div class="context-rail-header">
+        <div>
+          <h4>Recent Runs</h4>
+          <p class="context-rail-copy">{{ contextRailCopy }}</p>
         </div>
-        <h4 style="margin-top:12px;">Beat & MIDI status</h4>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <div style="min-width:240px;">
-            <strong>Beat macros ({{ macrosRack.length }})</strong>
-            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--text-secondary);">
-              • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
+        <div class="context-rail-actions">
+          <span class="pill"><span class="dot"></span>{{ recentRunsRail.length }} loaded</span>
+          <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div v-if="contextSummaryChips.length" class="context-summary-chips">
+        <span v-for="chip in contextSummaryChips" :key="chip" class="chip chip--context">{{ chip }}</span>
+      </div>
+
+      <div v-if="runsStatus" class="context-rail-status">{{ runsStatus }}</div>
+
+      <div v-if="recentRunsRail.length" class="recent-runs-rail">
+        <button
+          v-for="run in recentRunsRail"
+          :key="'rail-' + run.run_id"
+          type="button"
+          class="recent-runs-card"
+          :class="{ 'recent-runs-card--active': runsDetailView && runsDetailView.run_id === run.run_id }"
+          @click="openRunFromRail(run)"
+        >
+          <div class="recent-runs-thumb-wrap">
+            <img
+              v-if="run.has_thumbnail"
+              :src="`/api/runs/${run.run_id}/thumb`"
+              :alt="run.run_id"
+              class="recent-runs-thumb"
+            >
+            <div v-else class="recent-runs-thumb recent-runs-thumb--empty">No preview</div>
+            <span class="status-chip recent-runs-status" :class="'status-' + (run.status || 'queued')">{{ run.status || 'queued' }}</span>
+          </div>
+          <div class="recent-runs-meta">
+            <div class="recent-runs-id">{{ run.run_id }}</div>
+            <div class="recent-runs-model">{{ run.model || 'Unknown model' }}</div>
+            <div class="recent-runs-subline">
+              <span>{{ formatDate(run.started_at) }}</span>
+              <span>{{ run.frame_count || run.length_frames || 0 }}f</span>
             </div>
+            <div v-if="runRailSummary(run)" class="recent-runs-note">{{ runRailSummary(run) }}</div>
           </div>
-          <div style="min-width:240px;">
-            <strong>MIDI mappings</strong>
-            <div style="font-size:12px; color:var(--text-secondary);">
-              • LaunchControl CC21 → Vibe<br/>
-              • LaunchControl CC22 → Strength<br/>
-              • LaunchControl CC23 → Zoom
-            </div>
-          </div>
-        </div>
+        </button>
       </div>
 
-      <div v-else-if="currentTab==='PROMPTS'">
-        <h4>Prompts & Parameters</h4>
-        <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
-          <table class="table">
-            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
-            <tbody>
-              <tr v-for="slot in morphSlots" :key="slot.id">
-                <td>{{ slot.id }}</td>
-                <td>{{ slot.on ? '●' : '○' }}</td>
-                <td>{{ slot.name }}</td>
-                <td>{{ slot.a }}</td>
-                <td>{{ slot.b }}</td>
-                <td>{{ slot.range }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='LORA'">
-          <div class="chips">
-            <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
-            <span class="chip">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>
-          </div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
-          <div class="chips">
-            <span class="chip">ControlNet: {{ cn.active }}</span>
-            <span class="chip">Slots: {{ cn.slots.length }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MOTION'">
-        <h4>Sequencer status</h4>
-        <div class="chips">
-          <span class="chip" v-for="(s, name) in motionStylesSaved" :key="'ctx-saved-'+name">💾 {{ name }}</span>
-          <span class="chip">Tracks: {{ sequencer.tracks.length }}</span>
-          <span class="chip">Markers: {{ sequencer.markers?.length || 0 }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MODULATION'">
-        <h4>Modulation</h4>
-        <div class="chips">
-          <span class="chip" v-for="(m, idx) in macrosRack.filter(x => x.on)" :key="'ctx-mac'+idx">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>
-          <span class="chip">LFOs: {{ lfos.filter(l => l.on).length }}/{{ lfos.length }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='AUDIO'">
-        <h4>Audio</h4>
-        <div v-if="audio.uploadedFile" style="margin-top:8px;">
-          <div class="chips">
-            <span class="chip">File: {{ audio.uploadedFile }}</span>
-            <span class="chip">BPM: {{ audio.bpm }}</span>
-          </div>
-          <div style="margin-top:8px;">
-            <img v-if="audioSpectrogramDataUrl" :src="audioSpectrogramDataUrl" class="spectral-preview" alt="Spectrogram">
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='SETTINGS'">
-        <h4>Settings</h4>
-        <div v-if="currentSubTab.SETTINGS==='MIDI'">
-          <table class="table">
-            <thead><tr><th>Control</th><th>CC</th><th>Target</th></tr></thead>
-            <tbody>
-              <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
-                <td>{{ m.control }}</td>
-                <td>{{ m.cc }}</td>
-                <td>
-                  <select class="select" v-model="m.key" @change="updateMidiMapping(m)">
-                    <option value="">None</option>
-                    <option v-for="t in lfoTargets" :key="'map'+t.key" :value="t.key">{{ t.label }}</option>
-                  </select>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='GENERATE'">
-        <h4>Generator</h4>
-        <div class="chips">
-          <span class="chip">Theme: {{ generator.theme || '—' }}</span>
-          <span class="chip">Style: {{ generator.stylePreset }}</span>
-        </div>
+      <div v-else class="recent-runs-empty">
+        No recent runs yet. Render something and refresh this rail to populate it.
       </div>
     </div>
   </div>
@@ -1833,7 +1774,6 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
-<<<<<<< HEAD
 import { apiFetch, getStoredControlToken, modelSourceLabel } from './api-utils.js'
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
@@ -1841,10 +1781,11 @@ import Crossfader from './components/Crossfader.vue'
 import LiveParamRow from './components/LiveParamRow.vue'
 import Waveform from './components/Waveform.vue'
 import TargetCell from './components/TargetCell.vue'
+import ThreeBackground from './components/ThreeBackground.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, Waveform, TargetCell },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, Waveform, TargetCell, ThreeBackground },
   data() {
     return {
        showFrames: true,
@@ -1983,8 +1924,8 @@ export default {
         inpaintingFill: 1,
         inpaintFullRes: true,
         denoisingStrength: 0.55,
-        width: 1024,
-        height: 1024,
+        width: 960,
+        height: 540,
         status: "",
         lastPath: null,
       },
@@ -2017,6 +1958,14 @@ export default {
       avSyncEnabled: false,
       avSyncLeadSec: 4,
       audioStatus: "Idle",
+      backgroundAudioMetrics: {
+        active: false,
+        level: 0,
+        bass: 0,
+        mid: 0,
+        treble: 0,
+        pulse: 0,
+      },
       audioMappings: [
         { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
         { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
@@ -2263,6 +2212,93 @@ export default {
         const p = paramMap[entry.key] || { key: entry.key, label: entry.key, val: 0, min: 0, max: 1 };
         return { ...p, source: entry.sources.join(' + ') };
       });
+    },
+    recentRunsRail() {
+      return (this.runsAll || []).slice(0, 6);
+    },
+    contextRailCopy() {
+      if (this.currentTab === 'LIVE') {
+        return 'Stay on the performance surface while jumping back into recent output.';
+      }
+      if (this.currentTab === 'RUNS') {
+        return 'Recent output stays docked while you inspect details and compare runs.';
+      }
+      if (this.currentTab === 'SETTINGS') {
+        return 'Keep the latest output in view while tuning engine and node configuration.';
+      }
+      if (this.currentTab === 'GENERATE') {
+        return 'Review recent output while shaping timelines, scenes, and prompts.';
+      }
+      return 'Recent output stays one click away while you tune this surface.';
+    },
+    contextSummaryChips() {
+      switch (this.currentTab) {
+        case 'LIVE':
+          return [
+            `Model ${this.modelStatusLabel}`,
+            `Morph ${this.performance.crossfader.toFixed(2)}`,
+            `Pinned ${this.pinnedParamItems.length}`,
+            `Modulating ${this.liveModulating.length}`,
+          ];
+        case 'PROMPTS':
+          if (this.currentSubTab.PROMPTS === 'LORA') {
+            return [
+              `LoRA A ${this.loras.groupA.length}`,
+              `LoRA B ${this.loras.groupB.length}`,
+              `Morph ${this.prompts.crossfaderValue.toFixed(2)}`,
+            ];
+          }
+          if (this.currentSubTab.PROMPTS === 'CONTROLNET') {
+            return [
+              `ControlNet ${this.cn.active || 'idle'}`,
+              `Slots ${this.cn.slots.length}`,
+              `Webcam ${this.cn.webcamActive ? 'on' : 'off'}`,
+            ];
+          }
+          return [
+            `Morph ${this.prompts.morphOn ? 'on' : 'off'}`,
+            `Slots ${this.morphSlots.length}`,
+            `Blend ${this.prompts.crossfaderValue.toFixed(2)}`,
+          ];
+        case 'MOTION':
+          return [
+            `Tracks ${this.sequencer.tracks.length}`,
+            `Markers ${this.sequencer.markers?.length || 0}`,
+            `FPS ${this.sequencer.fps}`,
+          ];
+        case 'MODULATION':
+          return [
+            `LFOs ${this.lfos.filter(l => l.on).length}/${this.lfos.length}`,
+            `Macros ${this.macrosRack.filter(m => m.on).length}/${this.macrosRack.length}`,
+            `Live ${this.liveModulating.length}`,
+          ];
+        case 'AUDIO':
+          return [
+            this.audio.uploadedFile ? `File ${this.audio.uploadedFile}` : 'No audio loaded',
+            `BPM ${this.audio.bpm}`,
+            `Mappings ${this.audioMappings.length}`,
+          ];
+        case 'RUNS':
+          return [
+            `Filtered ${this.runsFiltered.length}`,
+            `Selected ${this.runsSelected.length}`,
+            `Sort ${this.runsSort.field}`,
+          ];
+        case 'SETTINGS':
+          return [
+            `Section ${this.currentSubTab.SETTINGS}`,
+            `GPU nodes ${this.gpuPool.nodes.length}`,
+            `API ${this.apiHealth.sdForge && this.apiHealth.sdForge.available ? 'online' : 'offline'}`,
+          ];
+        case 'GENERATE':
+          return [
+            `Tracks ${this.sequencer.tracks.length}`,
+            `Markers ${this.sequencer.markers?.length || 0}`,
+            `Theme ${this.generator.theme || '—'}`,
+          ];
+        default:
+          return [];
+      }
     },
     targetOwners() {
       const map = {};
@@ -2606,6 +2642,54 @@ export default {
     } catch {
       return dateStr;
     }
+  },
+  runRailSummary(run) {
+    const raw = run && (run.tag || run.notes || '');
+    const text = String(raw || '').trim();
+    if (!text) return '';
+    return text.length > 72 ? `${text.slice(0, 71)}…` : text;
+  },
+  averageByteRange(buf, start, end) {
+    if (!buf || !buf.length) return 0;
+    const s = Math.max(0, Math.min(buf.length, start | 0));
+    const e = Math.max(s + 1, Math.min(buf.length, end | 0));
+    let total = 0;
+    for (let i = s; i < e; i += 1) total += buf[i];
+    return total / (e - s);
+  },
+  updateBackgroundAudioMetrics(freqBytes) {
+    const prev = this.backgroundAudioMetrics || {};
+    if (!freqBytes || !freqBytes.length) {
+      this.backgroundAudioMetrics = {
+        active: false,
+        level: (prev.level || 0) * 0.82,
+        bass: (prev.bass || 0) * 0.82,
+        mid: (prev.mid || 0) * 0.82,
+        treble: (prev.treble || 0) * 0.82,
+        pulse: (prev.pulse || 0) * 0.88,
+      };
+      return;
+    }
+    const bassEnd = Math.max(1, Math.floor(freqBytes.length * 0.08));
+    const midEnd = Math.max(bassEnd + 1, Math.floor(freqBytes.length * 0.32));
+    const trebleEnd = Math.max(midEnd + 1, Math.floor(freqBytes.length * 0.8));
+    const bass = this.averageByteRange(freqBytes, 0, bassEnd) / 255;
+    const mid = this.averageByteRange(freqBytes, bassEnd, midEnd) / 255;
+    const treble = this.averageByteRange(freqBytes, midEnd, trebleEnd) / 255;
+    const level = Math.min(1, bass * 0.42 + mid * 0.35 + treble * 0.23);
+    this.backgroundAudioMetrics = {
+      active: level > 0.015,
+      level: (prev.level || 0) * 0.68 + level * 0.32,
+      bass: (prev.bass || 0) * 0.7 + bass * 0.3,
+      mid: (prev.mid || 0) * 0.7 + mid * 0.3,
+      treble: (prev.treble || 0) * 0.7 + treble * 0.3,
+      pulse: Math.min(1, (prev.pulse || 0) * 0.72 + level * 0.6 + bass * 0.12),
+    };
+  },
+  async openRunFromRail(run) {
+    this.switchTab('RUNS');
+    this.runsSelected = [run.run_id];
+    await this.showRunDetails(run);
   },
  switchTab(id) {
    this.currentTab = id;
@@ -4257,6 +4341,7 @@ export default {
    this._liveSpecAnalyser = null;
    this._liveSpecGain = null;
    this._liveSpecFreqBuf = null;
+   this.updateBackgroundAudioMetrics(null);
    if (ctx && typeof ctx.close === "function") {
      try {
        void ctx.close();
@@ -4313,6 +4398,7 @@ export default {
    }
    this._liveSpecRaf = null;
    this.paintLiveSpectrumCanvases(null);
+   this.updateBackgroundAudioMetrics(null);
  },
  scheduleLiveSpectrumFrame() {
    if (this._liveSpecRaf != null) return;
@@ -4333,6 +4419,7 @@ export default {
    });
  },
  paintLiveSpectrumCanvases(freqBytes) {
+   this.updateBackgroundAudioMetrics(freqBytes);
    const canvases = [this.$refs.liveSpectrumCanvas, this.$refs.liveSpectrumCanvasStrip].filter(Boolean);
    for (const c of canvases) {
      if (!c || !c.getContext) continue;
@@ -5869,8 +5956,8 @@ export default {
    this.performance.status = 'Generating preview frame…';
    const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
    const strength = this.liveVibe.find((p) => p.key === 'strength');
-   const w = this.deforumSettings.W || 1024;
-   const h = this.deforumSettings.H || 576;
+  const w = Math.min(960, Math.max(64, Number(this.deforumSettings.W) || 960));
+  const h = Math.min(540, Math.max(64, Number(this.deforumSettings.H) || 540));
    const steps = this.deforumSettings.steps || 12;
    const seed = this.deforumSettings.seed != null ? this.deforumSettings.seed : this.hud.seed;
    const sampler = this.deforumSettings.sampler || 'Euler a';

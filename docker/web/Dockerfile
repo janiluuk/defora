@@ -9,6 +9,7 @@ FROM alfg/nginx-rtmp:latest
 COPY --from=builder /usr/local/bin/node /usr/local/bin/node
 COPY --from=builder /app/public /usr/share/nginx/html/public
 COPY --from=builder /app/node_modules /usr/share/nginx/html/node_modules
+COPY --from=builder /app/modules /usr/share/nginx/html/modules
 COPY docker/web/nginx.conf /etc/nginx/nginx.conf
 COPY docker/web/server.js /usr/share/nginx/html/server.js
 COPY docker/web/modules /usr/share/nginx/html/modules

@@ -118,7 +118,7 @@ services:
         echo \"  Preset: $PRESET | CRF: $CRF | Tune: $TUNE\";
         
         ffmpeg -re -framerate ${FPS:-24} -pattern_type glob -i '/data/frames/frame_*.png'
-          -vf scale=${RESOLUTION:-1280:720}
+          -vf scale=${RESOLUTION:-960:540}
           -c:v libx264 -preset $PRESET -tune $TUNE
           -b:v $BITRATE -maxrate $MAXRATE -bufsize $BUFSIZE -crf $CRF
           -g $(( ${FPS:-24} * 2 ))
@@ -129,7 +129,7 @@ services:
     environment:
       - ENCODER_QUALITY=${ENCODER_QUALITY:-turbo}
       - FPS=${FPS:-24}
-      - RESOLUTION=${RESOLUTION:-1280:720}
+      - RESOLUTION=${RESOLUTION:-960:540}
     depends_on:
       - web
 
@@ -188,6 +188,7 @@ services:
       args:
         DEFORUM_MEDIATOR_URL: ${DEFORUM_MEDIATOR_URL:-ws://mediator:8765}
     image: sd-forge-turbo:latest
+    gpus: all
     command: 
       - python
       - launch.py
@@ -213,6 +214,8 @@ services:
     environment:
       - OUTPUT_DIR=/data/frames
       - HLS_PATH=/var/www/hls
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       # Turbo model defaults
       - COMMANDLINE_ARGS=--medvram --opt-split-attention
       # Performance hints

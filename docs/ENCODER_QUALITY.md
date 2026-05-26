@@ -128,7 +128,7 @@ ENCODER_QUALITY=high FPS=24 RESOLUTION=3840:2160 docker compose up
 |----------|---------|-------------|
 | `ENCODER_QUALITY` | `medium` | Quality preset: low, medium, high, ultra |
 | `FPS` | `24` | Frame rate in frames per second |
-| `RESOLUTION` | `1280:720` | Video resolution (width:height) |
+| `RESOLUTION` | `960:540` | Video resolution (width:height) |
 
 ## Performance Considerations
 
@@ -165,7 +165,7 @@ encoder:
       resolution: 640:360
       bitrate: 500k
     - quality: medium
-      resolution: 1280:720
+      resolution: 960:540
       bitrate: 1500k
     - quality: high
       resolution: 1920:1080

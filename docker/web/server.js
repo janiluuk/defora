@@ -477,7 +477,7 @@ async function start(opts = {}) {
     if (typeof body.durationSec !== "number" || body.durationSec <= 0 || body.durationSec > 3600) {
       return "durationSec must be between 0 and 3600";
     }
-    if (typeof body.fps !== "number" || body.fps < 1 || body.fps > 120) return "fps must be 1–120";
+    if (typeof body.fps !== "number" || body.fps < 5 || body.fps > 25) return "fps must be 5–25";
     if (!Array.isArray(body.tracks)) return "tracks must be an array";
     for (const tr of body.tracks) {
       if (!tr || typeof tr !== "object") return "invalid track";
@@ -831,6 +831,9 @@ async function start(opts = {}) {
     const forgeUrl = target.url;
     const previewSettings = {
       ...settings,
+      W: Math.min(960, Math.max(64, parseInt(settings.W, 10) || 960)),
+      H: Math.min(540, Math.max(64, parseInt(settings.H, 10) || 540)),
+      fps: Math.min(25, Math.max(5, parseInt(settings.fps, 10) || 12)),
       max_frames: 1,
       motion_preview_mode: true,
       skip_video_creation: true,
@@ -1136,8 +1139,8 @@ async function start(opts = {}) {
     const forgeUrl = target.url;
     const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 28));
     const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
-    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
-    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 1024));
+    const w = Math.min(960, Math.max(64, parseInt(body.width, 10) || 960));
+    const h = Math.min(540, Math.max(64, parseInt(body.height, 10) || 540));
     const denoise = Math.min(1, Math.max(0, parseFloat(body.denoising_strength ?? body.denoisingStrength) || 0.55));
     const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
     const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
@@ -1227,8 +1230,8 @@ async function start(opts = {}) {
     const forgeUrl = target.url;
     const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 12));
     const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
-    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
-    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 576));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 960));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 540));
     const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
     const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
 
@@ -1396,10 +1399,10 @@ async function start(opts = {}) {
       const slot = req.body.slot || "CN1";
       const imageBuffer = req.file.buffer;
       
+      const target = forgeTarget(req);
+      const forgeUrl = target.url;
+
       try {
-        const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
-        const forgePort = process.env.SD_FORGE_PORT || "7860";
-        const forgeUrl = `http://${forgeHost}:${forgePort}`;
         
         const FormData = require('form-data');
         const formData = new FormData();
@@ -1425,6 +1428,8 @@ async function start(opts = {}) {
       } catch (error) {
         console.error(`[controlnet] Upload failed: ${error.message}`);
         res.status(500).json({ error: "Failed to upload image to SD-Forge" });
+      } finally {
+        target.release();
       }
     });
   });
