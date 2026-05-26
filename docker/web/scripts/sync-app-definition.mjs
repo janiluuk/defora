@@ -93,14 +93,21 @@ const stubBlock = componentStubs.length
   ? `${componentStubs.join('\n')}\n\n`
   : '';
 
-script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '');
-script = script.replace(/export\s+default\s+/, '').trim();
-const inner = script.startsWith('{') && script.endsWith('}')
-  ? script.slice(1, -1).trim()
-  : script;
+script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '').trim();
+const exportDefaultIndex = script.indexOf('export default');
+if (exportDefaultIndex < 0) {
+  console.error('Could not locate export default in App.vue script');
+  process.exit(1);
+}
+const preamble = script.slice(0, exportDefaultIndex).trim();
+const componentObject = script.slice(exportDefaultIndex).replace(/export\s+default\s+/, '').trim();
+const inner = componentObject.startsWith('{') && componentObject.endsWith('}')
+  ? componentObject.slice(1, -1).trim()
+  : componentObject;
+const preambleBlock = preamble ? `${preamble}\n\n` : '';
 
 const header = `// Auto-generated from App.vue — run: npm run sync-app-definition (audit A-01)\n\n`;
-const body = `${header}${inlinedUtils}${stubBlock}module.exports = {
+const body = `${header}${inlinedUtils}${stubBlock}${preambleBlock}module.exports = {
   template: ${JSON.stringify(template)},
   ${inner}
 };

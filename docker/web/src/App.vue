@@ -1149,7 +1149,7 @@ export default {
     });
     this.scanMidi();
     this.connectWebSocket();
-    this.initHls();
+    this.attachPlayer();
     if (typeof fetch === "function") {
       const scheduleFramesPoll = () => {
         this.refreshFrames().finally(() => {

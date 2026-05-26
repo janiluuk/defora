@@ -299,6 +299,7 @@
 
 <script>
 import UiIcon from '../UiIcon.vue'
+import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'LiveView',
@@ -307,7 +308,7 @@ export default {
     app: { type: Object, required: true },
   },
   setup(props) {
-    return props.app
+    return proxyAppView(props)
   },
 }
 </script>

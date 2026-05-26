@@ -37,13 +37,15 @@
 </template>
 
 <script>
+import { proxyAppView } from './app-view-proxy.js'
+
 export default {
   name: 'MotionView',
   props: {
     app: { type: Object, required: true },
   },
   setup(props) {
-    return props.app
+    return proxyAppView(props)
   },
 }
 </script>

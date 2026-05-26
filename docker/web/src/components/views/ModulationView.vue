@@ -220,6 +220,7 @@
 <script>
 import Waveform from '../Waveform.vue'
 import TargetCell from '../TargetCell.vue'
+import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'ModulationView',
@@ -228,7 +229,7 @@ export default {
     app: { type: Object, required: true },
   },
   setup(props) {
-    return props.app
+    return proxyAppView(props)
   },
 }
 </script>

@@ -358,13 +358,15 @@
 </template>
 
 <script>
+import { proxyAppView } from './app-view-proxy.js'
+
 export default {
   name: 'PromptsView',
   props: {
     app: { type: Object, required: true },
   },
   setup(props) {
-    return props.app
+    return proxyAppView(props)
   },
 }
 </script>

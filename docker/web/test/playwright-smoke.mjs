@@ -38,9 +38,9 @@ try {
   await page.waitForTimeout(300);
   await page.locator('.sub-pill').filter({ hasText: /^AUDIO$/ }).first().click();
   await page.waitForTimeout(300);
-  const avSyncToggle = page.locator('[data-testid="av-sync-enable"]');
-  if ((await avSyncToggle.count()) === 0) {
-    throw new Error('A/V sync controls not found under MODULATION → AUDIO');
+  const audioReactivePanel = page.locator('.audio-reactive-panel');
+  if ((await audioReactivePanel.count()) === 0) {
+    throw new Error('Audio reactive panel not found under MODULATION -> AUDIO');
   }
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   await page.waitForTimeout(300);
@@ -48,7 +48,7 @@ try {
   await page.waitForTimeout(300);
   const runsBrowser = page.locator('.runs-browser');
   if ((await runsBrowser.count()) === 0) {
-    throw new Error('Runs browser not found under SETTINGS → RUNS');
+    throw new Error('Runs browser not found under SETTINGS -> RUNS');
   }
   await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(300);
