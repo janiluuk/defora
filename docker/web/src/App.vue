@@ -94,6 +94,7 @@
               <Crossfader
                 :model-value="performance.crossfader"
                 @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+                testid="performance-crossfader"
               />
             </GlassPanel>
           </div>
