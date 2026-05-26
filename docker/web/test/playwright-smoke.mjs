@@ -1,21 +1,13 @@
 /**
  * Playwright smoke: built web UI loads and exposes all main tabs (audit A-27).
- * Usage: BASE_URL=http://127.0.0.1:3999 BROWSER=chromium node test/playwright-smoke.mjs
+ * Usage: BASE_URL=http://127.0.0.1:3999 node test/playwright-smoke.mjs
  */
-import { chromium, firefox, webkit } from 'playwright';
+import { chromium } from 'playwright';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const browserName = (process.env.BROWSER || 'chromium').toLowerCase();
 const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'RUNS', 'SETTINGS', 'GENERATE'];
 
-const browserTypes = { chromium, firefox, webkit };
-const browserType = browserTypes[browserName];
-
-if (!browserType) {
-  throw new Error(`Unsupported browser "${browserName}". Expected one of: ${Object.keys(browserTypes).join(', ')}`);
-}
-
-const browser = await browserType.launch({ headless: true });
+const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 try {
@@ -50,7 +42,7 @@ try {
   if ((await gpuPanel.count()) === 0) {
     throw new Error('GPU pool panel not found under SETTINGS → GPUS');
   }
-  console.log(`OK [${browserName}]: ${trimmed.length} tabs, morph blend, GPU pool panel present`);
+  console.log(`OK: ${trimmed.length} tabs, morph blend, GPU pool panel present`);
 } finally {
   await browser.close();
 }
