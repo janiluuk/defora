@@ -1,15 +1,44 @@
       :root {
-      --bg: #06080f;
-      --panel: #0f1422;
-      --panel-2: #11182d;
-      --border: #1f2a44;
-      --glow1: #ff53d9;
-      --glow2: #2de2ff;
-      --text: #e8edf7;
-      --muted: #9bb1d0;
+      /* ── Surfaces ─────────────────────────────── */
+      --bg-0: #08090d;
+      --bg-1: #0c0d14;
+      --bg-2: #11131c;
+      --bg-3: #14161f;
+
+      /* ── Borders ──────────────────────────────── */
+      --border: #2a2d3a;
+      --border-strong: #3a3d4c;
+
+      /* ── Semantic state ───────────────────────── */
+      --live: #1d9e75;          /* teal — active / modulated */
+      --live-text: #9fe1cb;
+      --accent: #7f77dd;        /* purple — selected / morph */
+      --accent-text: #cecbf6;
+      --a-group: #378add;       /* blue — A side everywhere */
+      --b-group: #e879b0;       /* pink — B side everywhere */
+      --warn: #ef9f27;          /* amber — performance headers */
+      --error: #e24b4a;         /* red — failures */
+
+      /* ── Text ─────────────────────────────────── */
+      --text-primary: #e6e8f0;
+      --text-secondary: #9a9db0;
+      --text-dim: #777b8f;
+
+      /* ── Shape ────────────────────────────────── */
+      --radius: 11px;
+      --radius-sm: 7px;
+      --radius-pill: 5px;
+
+      /* ── Legacy aliases (phased out in Step 8) ── */
+      --bg: var(--bg-0);
+      --panel: var(--bg-2);
+      --panel-2: var(--bg-1);
+      --glow1: var(--b-group);
+      --glow2: var(--accent);
+      --text: var(--text-primary);
+      --muted: var(--text-secondary);
       --success: #5af2a9;
-      --danger: #ff4d6d;
-      --radius: 12px;
+      --danger: var(--error);
     }
     * { box-sizing: border-box; }
     body {
@@ -24,24 +53,47 @@
       flex-direction: column;
     }
     header {
-      padding: 8px 16px;
-      background: rgba(13, 18, 34, 0.8);
-      border-bottom: 1px solid var(--border);
-      backdrop-filter: blur(6px);
+      padding: 7px 14px;
+      background: rgba(8, 9, 13, 0.9);
+      border-bottom: 0.5px solid var(--border);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
       display: grid;
       grid-template-columns: auto 1fr;
-      gap: 16px;
+      gap: 14px;
       align-items: center;
     }
     .brand { display: none; }
-    .tabs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-start; }
-    .tab { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border); background: #0f172a; color: var(--muted); cursor: pointer; }
-    .tab.active { border-color: var(--glow2); color: var(--text); box-shadow: 0 6px 20px rgba(45,226,255,0.12); }
-    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--border); background: #11182d; color: var(--muted); font-size: 12px; }
-    .pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 8px var(--success); }
-    .pill.danger .dot { background: var(--danger); box-shadow: 0 0 8px var(--danger); }
-    .btn { background: linear-gradient(90deg, var(--glow1), var(--glow2)); color: #0a0c12; border: none; border-radius: 999px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
-    .btn.ghost { background: #0f172a; color: var(--text); border: 1px solid var(--border); }
+    .tabs { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-start; }
+    .tab {
+      padding: 5px 11px;
+      border-radius: var(--radius-pill);
+      border: 0.5px solid var(--border);
+      background: var(--bg-2);
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      transition: color 0.12s, border-color 0.12s;
+    }
+    .tab:hover { color: var(--text-secondary); border-color: var(--border-strong); }
+    .tab.active {
+      border-color: var(--accent);
+      color: var(--accent-text);
+      box-shadow: 0 0 10px rgba(127, 119, 221, 0.16);
+    }
+    /* Legacy global pills (used outside StatusStrip in some places) */
+    .pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; border: 0.5px solid var(--border); background: var(--bg-2); color: var(--text-secondary); font-size: 11px; }
+    .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--live); box-shadow: 0 0 5px var(--live); flex-shrink: 0; }
+    .pill.danger .dot { background: var(--error); box-shadow: 0 0 5px var(--error); }
+    /* Legacy global btns (header Anim/Stop/Rec — now replaced by StatusStrip but kept for fallback) */
+    .btn { background: var(--live); color: #fff; border: none; border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 11px; cursor: pointer; letter-spacing: 0.04em; }
+    .btn.ghost { background: var(--bg-2); color: var(--text-dim); border: 0.5px solid var(--border); }
+    .btn.playing { background: var(--live); box-shadow: 0 0 10px rgba(29, 158, 117, 0.35); }
+    .btn.recording { background: var(--error); animation: btn-rec-pulse 1.5s ease-in-out infinite; }
+    @keyframes btn-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .layout { flex: 1; display: grid; grid-template-columns: 1.8fr 1fr; gap: 10px; padding: 10px; }
     .preview { display: flex; flex-direction: column; gap: 0; }
     .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; width: 100%; }

@@ -6,25 +6,18 @@
           {{ tab.label }}
         </button>
       </div>
-      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
-        <button class="btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" :title="deforumPlaying ? 'Pause Deforum' : 'Play Deforum animation'">
-          {{ deforumPlaying ? '⏸ Anim' : '▶ Anim' }}
-        </button>
-        <button class="btn ghost" @click="stopDeforumPlay" title="Stop animation">⏹</button>
-        <button class="btn ghost" :class="{recording: isRecording}" @click="toggleStreamRecord">{{ isRecording ? '⏹ Rec' : '● Rec' }}</button>
-        <div class="pill" :class="{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}" v-if="apiHealth.sdForge" :title="apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'">
-          <span class="dot"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
-        </div>
-        <div class="pill" v-if="midi.supported">
-          <span class="dot"></span><span>MIDI</span><strong>{{ midi.selected ? 'on' : 'off' }}</strong>
-        </div>
-        <div class="pill">
-          <span class="dot"></span><span>WS</span><strong>{{ wsStatus }}</strong>
-        </div>
-        <div class="pill">
-          <span class="dot"></span><span>Session</span><strong>{{ session }}</strong>
-        </div>
-      </div>
+      <StatusStrip
+        :playing="deforumPlaying"
+        :recording="isRecording"
+        :api-health="apiHealth"
+        :midi-supported="midi.supported"
+        :midi-selected="midi.selected"
+        :ws-status="wsStatus"
+        :session="session"
+        @toggle-play="toggleDeforumPlay"
+        @stop-play="stopDeforumPlay"
+        @toggle-record="toggleStreamRecord"
+      />
     </header>
 
     <div class="layout">
@@ -1814,9 +1807,11 @@ import {
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
+import StatusStrip from './components/StatusStrip.vue'
 
 export default {
   name: 'App',
+  components: { StatusStrip },
   data() {
     return {
        showFrames: true,
