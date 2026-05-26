@@ -177,6 +177,23 @@ describe("Deforumation Web UI", () => {
     expect(appVm.deforumFeedStatusLabel).to.match(/live|ready/i);
   });
 
+  it("keeps the standby animation visible on initial LIVE load", () => {
+    appVm.currentTab = "LIVE";
+    appVm.deforumPlaying = false;
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    appVm.performance.lastPreviewPath = "/frames/frame_0001.png";
+
+    expect(appVm.activePreviewStillPath).to.equal("/frames/frame_0001.png");
+    expect(appVm.showPreviewStill).to.equal(false);
+
+    appVm.currentTab = "MOTION";
+    expect(appVm.showPreviewStill).to.equal(true);
+
+    appVm.currentTab = "LIVE";
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    expect(appVm.showPreviewStill).to.equal(true);
+  });
+
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;

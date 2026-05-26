@@ -1017,7 +1017,9 @@ module.exports = {
       return !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo && this.videoReady);
     },
     showPreviewStill() {
-      return !!(!this.showDeforumVideo && !this.deforumPlaying && this.activePreviewStillPath);
+      const shouldSurfaceStill = this.currentTab !== 'LIVE'
+        || !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo);
+      return !!(!this.showDeforumVideo && !this.deforumPlaying && this.activePreviewStillPath && shouldSurfaceStill);
     },
     deforumFeedStatusLabel() {
       if (this.showDeforumVideo) return 'Deforum feed live';
