@@ -14,7 +14,7 @@
       "gpuModel": null
     },
     {
-      "url": "http://192.168.2.105:7860",
+      "url": "http://192.168.2.104:7860",
       "name": "vimage5",
       "backend": "sd-forge",
       "enabled": true,
