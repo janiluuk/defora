@@ -48,11 +48,20 @@
       <strong>{{ midiSelected ? 'on' : 'off' }}</strong>
     </button>
 
-    <div class="ss-pill" :class="{ 'ss-pill--live': wsStatus === 'connected', 'ss-pill--warn': wsStatus !== 'connected' }">
+    <button
+      type="button"
+      class="ss-pill ss-pill--button"
+      :class="{
+        'ss-pill--live': wsStatus === 'connected',
+        'ss-pill--warn': wsStatus !== 'connected' && wsStatus !== 'offline',
+      }"
+      :title="wsStatus === 'connected' ? 'Go offline and disable collaboration' : 'Reconnect collaboration'"
+      @click="$emit('toggle-ws')"
+    >
       <span class="ss-dot"></span>
       <span class="ss-key">WS</span>
       <strong>{{ wsStatus }}</strong>
-    </div>
+    </button>
 
     <div class="ss-pill">
       <span class="ss-key">Session</span>
@@ -67,7 +76,7 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record', 'open-midi'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'toggle-ws', 'open-midi'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
