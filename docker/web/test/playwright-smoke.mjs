@@ -25,12 +25,15 @@ try {
   }
   await page.getByRole('button', { name: 'PROMPTS', exact: true }).click();
   await page.waitForTimeout(400);
-  const expandMorph = page.locator('button.framesync-button').filter({ hasText: /^(Expand|Show)$/ });
+  await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
+  await page.waitForTimeout(300);
+  const morphPanel = page.locator('.framesync-panel').filter({ hasText: /Prompt Morphing/ }).first();
+  const expandMorph = morphPanel.locator('button.framesync-button').filter({ hasText: /^(Expand|Show)$/ });
   if ((await expandMorph.count()) > 0) {
     await expandMorph.first().click();
     await page.waitForTimeout(300);
   }
-  const morphBlend = page.locator('[data-testid="prompt-morph-blend"]');
+  const morphBlend = morphPanel.locator('[data-testid="prompt-morph-blend"]');
   if ((await morphBlend.count()) === 0) {
     throw new Error('Prompt morph blend slider not found on PROMPTS tab');
   }

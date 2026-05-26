@@ -1963,6 +1963,38 @@
     /* ── P2 fix: generate-sequencer — was missing, causing Loop/BPM Sync to run together ── */
     .generate-sequencer__status { font-size: 10px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); }
     .generate-sequencer__status--live { border-color: var(--live); color: var(--live-text); }
+    .generate-sequencer__hero-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .generate-sequencer__hero-card {
+      display: grid;
+      gap: 6px;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+        var(--bg-1);
+      box-shadow: 0 10px 22px rgba(0,0,0,0.18);
+    }
+    .generate-sequencer__hero-value {
+      font-size: 22px;
+      line-height: 1;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+    .generate-sequencer__hero-value--status {
+      color: var(--live-text);
+    }
+    .generate-sequencer__hero-meta {
+      font-size: 11px;
+      color: var(--text-secondary);
+      line-height: 1.35;
+    }
     .generate-sequencer__transport { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-top: 12px; }
     .generate-sequencer__transport--secondary { background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-top: 8px; }
     .generate-sequencer__field { display: grid; gap: 4px; min-width: 80px; flex: 1; }
@@ -1993,6 +2025,102 @@
       margin-top: 8px;
       font-size: 11px;
       color: var(--text-dim);
+    }
+    .generate-track-card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+        var(--bg-1);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.2);
+    }
+    .generate-track-card--selected {
+      border-color: rgba(127, 119, 221, 0.52);
+      box-shadow: 0 10px 22px rgba(0,0,0,0.24), inset 0 0 0 1px rgba(127,119,221,0.14);
+    }
+    .generate-track-card__header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .generate-track-card__title {
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: var(--text-primary);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: left;
+    }
+    .generate-track-card__remove {
+      flex-shrink: 0;
+    }
+    .generate-track-card__keyframes {
+      display: grid;
+      gap: 8px;
+    }
+    .generate-track-card__keyframe-row {
+      display: grid;
+      grid-template-columns: auto auto minmax(120px, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(0,0,0,0.18);
+      border: 1px solid rgba(255,255,255,0.04);
+    }
+    .generate-track-card__keyframe-time,
+    .generate-track-card__keyframe-value {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .generate-track-card__easing {
+      min-width: 0;
+    }
+    .generate-track-card__delete {
+      border: 0;
+      background: transparent;
+      color: var(--error);
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .generate-track-card__empty {
+      font-size: 11px;
+      color: var(--text-dim);
+      padding: 8px 0 2px;
+    }
+    .generate-marker-row {
+      display: grid;
+      grid-template-columns: auto minmax(120px, 160px) minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.01)),
+        var(--bg-1);
+    }
+    .generate-marker-row__jump {
+      justify-self: start;
+    }
+    .generate-marker-row__hint {
+      font-size: 11px;
+      color: var(--text-dim);
+      min-width: 0;
+    }
+    .generate-marker-row__delete {
+      border: 0;
+      background: transparent;
+      color: var(--error);
+      font-size: 11px;
+      cursor: pointer;
+      justify-self: end;
     }
 
     /* ── P1: LIVE stage — full-bleed video with floating HUD panels ── */
@@ -2766,6 +2894,13 @@
       .img2img-dropgrid {
         grid-template-columns: 1fr;
       }
+      .generate-sequencer__hero-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .generate-track-card__keyframe-row,
+      .generate-marker-row {
+        grid-template-columns: 1fr;
+      }
       .engine-main-summary {
         grid-template-columns: 1fr;
       }
@@ -2774,5 +2909,8 @@
       .modulation-lfo-grid { grid-template-columns: repeat(2, 1fr) !important; }
     }
     @media (max-width: 600px) {
+      .generate-sequencer__hero-grid {
+        grid-template-columns: 1fr;
+      }
       .modulation-lfo-grid { grid-template-columns: 1fr !important; }
     }

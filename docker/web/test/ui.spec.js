@@ -279,6 +279,9 @@ describe("Deforumation Web UI", () => {
 
     const pageText = document.body.textContent;
     expect(pageText).to.include("Animation Sequencer");
+    expect(pageText).to.include("Duration (s)");
+    expect(pageText).to.include("Playhead (s)");
+    expect(pageText).to.include("Preview frame");
     expect(pageText).to.include("Preview frame ready");
     expect(pageText).to.include("Story generation text");
     expect(pageText).to.include("Theme: Neon city");
