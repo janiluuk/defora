@@ -10,6 +10,8 @@
         :playing="deforumPlaying"
         :recording="isRecording"
         :api-health="apiHealth"
+        :gpu-active-count="gpuActiveCount"
+        :gpu-total-count="gpuTotalCount"
         :midi-supported="midi.supported"
         :midi-selected="midi.selected"
         :ws-status="wsStatus"
@@ -17,6 +19,7 @@
         @toggle-play="toggleDeforumPlay"
         @stop-play="stopDeforumPlay"
         @toggle-record="toggleStreamRecord"
+        @open-gpus="openGpuSettings"
         @toggle-ws="toggleCollaboration"
         @open-midi="openMidiSettings"
       />
@@ -534,6 +537,7 @@ export default {
        deforumFieldGroups: DEFORUM_FIELD_GROUPS,
        deforumSectionOpen: {},
        deforumAdvancedOpen: false,
+       sessionDeforumSettingsLoaded: false,
        deforumSettingsJson: '',
        deforumSettingsJsonError: '',
        deforumSettingsStatus: '',
@@ -942,6 +946,12 @@ export default {
   computed: {
     appViewModel() {
       return this;
+    },
+    gpuActiveCount() {
+      return Math.max(0, Number(this.gpuPool && this.gpuPool.healthyNodes) || 0);
+    },
+    gpuTotalCount() {
+      return Array.isArray(this.gpuPool && this.gpuPool.nodes) ? this.gpuPool.nodes.length : 0;
     },
     rtmpStreamHref() {
       const host = typeof window !== 'undefined' && window.location && window.location.hostname
@@ -1466,6 +1476,10 @@ export default {
   openMidiSettings() {
     this.switchTab('SETTINGS');
     this.switchSubTab('SETTINGS', 'MIDI');
+  },
+  openGpuSettings() {
+    this.switchTab('SETTINGS');
+    this.switchSubTab('SETTINGS', 'GPUS');
   },
   openRunsSettings() {
     this.switchTab('SETTINGS');
@@ -5208,6 +5222,7 @@ async generateStory() {
      const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
      if (!raw) return;
      const s = JSON.parse(raw);
+    this.sessionDeforumSettingsLoaded = false;
      if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
@@ -5224,6 +5239,7 @@ async generateStory() {
      if (s.deforumSettings && typeof s.deforumSettings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
        this.syncDeforumSettingsJson();
+      this.sessionDeforumSettingsLoaded = true;
      }
      if (s.lastModel) {
        this.forge.lastModel = s.lastModel;
@@ -5473,6 +5489,7 @@ onEngineSamplerChange(rawValue) {
   this.deforumSettings.sampler = next;
   this.forge.options.sampler_name = next;
   this.syncDeforumSettingsJson();
+  this.saveSessionState();
   this.pushDeforumLivePatch('sampler', next);
   this.queueDeforumSettingsSave();
   if (!this.deforumPlaying) this.scheduleDeforumPreview();
@@ -5485,6 +5502,7 @@ onEngineStepsChange(rawValue) {
   this.deforumSettings.steps_schedule = `0: (${next})`;
   this.forge.options.steps = next;
   this.syncDeforumSettingsJson();
+  this.saveSessionState();
   this.pushDeforumLivePatch('steps', next);
   this.pushDeforumLivePatch('steps_schedule', this.deforumSettings.steps_schedule);
   this.queueDeforumSettingsSave();
@@ -5500,6 +5518,7 @@ onEngineCfgScaleChange(rawValue) {
   const cfgParam = this.liveVibe.find((param) => param.key === 'cfgscale') || this.liveVibe.find((param) => param.key === 'cfg');
   if (cfgParam) cfgParam.val = next;
   this.syncDeforumSettingsJson();
+  this.saveSessionState();
   this.pushDeforumLivePatch('cfg_scale_schedule', this.deforumSettings.cfg_scale_schedule);
   this.pushDeforumLivePatch('distilled_cfg_scale_schedule', this.deforumSettings.distilled_cfg_scale_schedule);
   this.queueDeforumSettingsSave();
@@ -5510,6 +5529,7 @@ reapplyEngineModelDefaults() {
   if (!modelName) return false;
   const applied = this.applyModelOptimizedDefaults(modelName);
   if (applied) {
+    this.saveSessionState();
     this.queueDeforumSettingsSave();
     if (!this.deforumPlaying) this.scheduleDeforumPreview();
   }
@@ -5740,6 +5760,7 @@ flushQueuedPreview() {
     this.forge.selectedModel = this.normalizeModelName(value);
   }
    this.syncDeforumSettingsJson();
+  this.saveSessionState();
    this.pushDeforumLivePatch(keyPath, value);
    this.queueDeforumSettingsSave();
    if (!this.deforumPlaying) this.scheduleDeforumPreview();
@@ -5787,12 +5808,12 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    try {
      const res = await fetch('/api/deforum/settings');
      const data = await res.json();
-     if (data.settings && typeof data.settings === 'object') {
+    if (!this.sessionDeforumSettingsLoaded && data.settings && typeof data.settings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
      }
     this.syncSelectedModelFromDeforumSettings();
      this.syncDeforumSettingsJson();
-     this.deforumSettingsStatus = 'Loaded';
+    this.deforumSettingsStatus = this.sessionDeforumSettingsLoaded ? 'Loaded local session' : 'Loaded';
     if (syncServerModel) {
       await this.restoreLastModel();
     }

@@ -16,7 +16,7 @@
             <div class="prompt-toolbar">
               <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">Enabled</button>
               <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">Disabled</button>
-              <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? 'Show' : 'Hide' }}</button>
+              <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? 'Expand' : 'Collapse' }}</button>
             </div>
           </div>
 
