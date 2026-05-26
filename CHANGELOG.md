@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.5.1] - 2026-05-26
+
+## What's Changed
+
+- fix(web): copy modules dir and seed gpu-pool with vimage2/vimage5 (5ebb112)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.0...v0.5.1
+
+
 ## [0.5.0] - 2026-05-26
 
 ## What's Changed
