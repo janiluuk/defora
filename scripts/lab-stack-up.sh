@@ -40,10 +40,10 @@ PROXY_JUMP="${SSH_PROXY_JUMP:-}"
 WEB_PORT="${WEB_PORT:-8080}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge sd-forge}"
+
 REMOTE_KILL_REGEX="${REMOTE_KILL_REGEX:-python(3)? /app/mediator\\.py|python(3)? -m defora_cli\\.control_bridge|python3? -m defora_cli\\.(stream_helper|ableton_link|timecode_sync|cloud_gpu|dmx_control)|node server\\.js|ffmpeg .*deforum|(^| )mv -i defora_frames( |$)}"
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" cd "$ROOT"
 
 SSH_COMMON_OPTS=(-o StrictHostKeyChecking=accept-new)
 if [[ -n "$PROXY_JUMP" ]]; then

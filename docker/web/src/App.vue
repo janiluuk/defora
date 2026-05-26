@@ -20,11 +20,28 @@
       />
     </header>
 
-    <div class="layout" :class="{ 'layout--live': currentTab === 'LIVE' }">
+    <div class="layout" :class="{
+      'layout--live': currentTab === 'LIVE',
+      'layout--stage': currentTab === 'MOTION',
+      'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO'
+    }">
       <!-- Left: video + mini timeline -->
       <div class="preview">
         <div class="video-wrap" :class="{ 'video-wrap--preview-loading': previewGenerating }">
-          <video id="player" ref="videoEl" autoplay muted playsinline></video>
+          <img
+            v-if="!deforumPlaying && (performance.lastPreviewPath || generator.lastPath)"
+            :src="performance.lastPreviewPath || generator.lastPath"
+            alt="Generated preview"
+            class="video-still-preview"
+          />
+          <video
+            v-show="deforumPlaying || !(performance.lastPreviewPath || generator.lastPath)"
+            id="player"
+            ref="videoEl"
+            autoplay
+            muted
+            playsinline
+          ></video>
           <div
             v-if="previewGenerating"
             class="preview-loading-overlay"
@@ -77,6 +94,7 @@
               <Crossfader
                 :model-value="performance.crossfader"
                 @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+                testid="performance-crossfader"
               />
             </GlassPanel>
           </div>
@@ -89,7 +107,7 @@
           <template v-if="audio.objectUrl">
             <div class="thumbs">
               <div class="thumb-card" v-for="f in thumbs.slice(0, 12)" :key="f.name">
-                <img class="thumb" :src="f.url" :alt="f.name" />
+                <img class="thumb" :src="f.src || f.url" :alt="f.name" />
                 <div class="thumb-label">{{ f.name }}</div>
               </div>
             </div>
@@ -119,7 +137,7 @@
           </div>
           <div class="preview-bar" :class="{collapsed: !showFrames}">
             <div class="thumb-card" v-for="f in thumbs" :key="'bar-'+f.name">
-              <img class="thumb" :src="f.url" :alt="f.name" />
+              <img class="thumb" :src="f.src || f.url" :alt="f.name" />
               <div class="thumb-label">{{ f.name }}</div>
             </div>
             <div v-if="!thumbs.length" class="thumb-card">
@@ -171,7 +189,7 @@
               <span>HLS Stream</span>
             </a>
             <span style="color:var(--text-dim);">|</span>
-            <a href="rtmp://localhost:1935/live/deforum" target="_blank">
+            <a :href="rtmpStreamHref" target="_blank">
               <UiIcon class="stream-link-icon" name="broadcast" />
               <span>RTMP</span>
             </a>
@@ -210,7 +228,11 @@
       </div>
 
       <!-- Right: control rack per tab (fixed drawer overlay in LIVE mode) -->
-      <div v-if="currentTab !== 'LIVE' || liveDrawerOpen" :class="{ 'live-right-column': currentTab === 'LIVE' }">
+      <div v-if="currentTab !== 'LIVE' || liveDrawerOpen" :class="{
+        'live-right-column': currentTab === 'LIVE',
+        'stage-rack-overlay': currentTab === 'MOTION',
+        'studio-right-column': currentTab === 'MODULATION' || currentTab === 'AUDIO'
+      }">
         <div v-if="currentTab==='LIVE'">
           <div class="rack performance-deck">
             <div class="framesync-panel">
@@ -922,6 +944,7 @@
             <div class="framesync-panel modulation-panel">
               <div class="framesync-header">
                 <div class="framesync-title">LFO <span class="framesync-accent">Patch Bay</span></div>
+                <span class="modulation-summary">{{ lfos.filter(l => l.on).length }}/{{ lfos.length }} active</span>
                 <div class="modulation-panel__actions">
                   <button class="framesync-button" :class="{active: lfoOn}" @click="lfoOn=!lfoOn">{{ lfoOn ? 'On' : 'Off' }}</button>
                   <button class="framesync-button" @click="resetLfos">Reset</button>
@@ -949,7 +972,7 @@
                     </label>
                     <code class="modulation-lfo-card__meta">{{ lfo.shape }} · {{ lfo.bpm }}</code>
                   </div>
-                  <Waveform :shape="lfo.shape" :depth="lfo.depth" :active="lfo.on" :width="180" :height="30" class="modulation-lfo-card__waveform" />
+                  <Waveform :shape="lfo.shape" :phase="lfo.phase" :depth="lfo.depth" :active="lfo.on" :width="240" :height="48" class="modulation-lfo-card__waveform" />
                   <div class="modulation-lfo-card__controls">
                     <label class="modulation-lfo-card__control">
                       <span class="framesync-subtitle">Shape</span>
@@ -1011,7 +1034,7 @@
                   </div>
                 </div>
                 <div class="modulation-macro-strip">
-                  <div v-for="(macro, idx) in macrosRack" :key="'macro-' + idx" class="modulation-macro-pill" :class="{ 'modulation-macro-pill--active': macro.on }">
+                  <div v-for="(macro, idx) in macrosRack" :key="'macro-' + idx" class="modulation-macro-pill" :class="{ 'modulation-macro-pill--active': macro.on }" :style="macro.on ? { '--macro-beat-dur': ((60 / (macro.bpm || 120)).toFixed(3) + 's') } : {}">
                     <label class="switch modulation-macro-pill__switch"><input type="checkbox" v-model="macro.on"> Macro {{ idx + 1 }}</label>
                     <select class="framesync-select modulation-macro-pill__select" v-model="macro.target">
                       <option value="">None</option>
@@ -1062,8 +1085,8 @@
             <div class="framesync-panel audio-reactive-panel">
               <div class="framesync-header">
                 <div class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
-                <button class="framesync-button audio-start-button" :class="{ active: audioStatus === 'Streaming' }" @click="startAudioStream">
-                  {{ audioStatus === 'Streaming' ? 'Stop' : 'Start' }}
+                <button class="framesync-button audio-start-button" :class="{ active: audioStatus === 'Audio sent to mediator' || audioStatus === 'Streaming' }" @click="startAudioStream">
+                  {{ audioStatus === 'Streaming' ? 'Stop' : 'Send' }}
                 </button>
               </div>
               <div class="framesync-subtitle" style="margin-top:8px;">
@@ -1073,7 +1096,7 @@
                 <div class="audio-map-card audio-map-card--live" v-for="(m, idx) in audioMappings" :key="'amap-'+idx">
                   <div class="audio-map-card__header">
                     <div class="audio-map-card__title-wrap">
-                      <div class="framesync-subtitle" style="margin:0;">Target parameter</div>
+                      <span class="audio-map-card__target-name">{{ lfoTargets.find(t => t.key === m.param)?.label || m.param || 'No target' }}</span>
                       <select class="framesync-select audio-map-card__target" v-model="m.param">
                         <option value="">Select target…</option>
                         <option v-for="target in lfoTargets" :key="'audio-target-' + idx + '-' + target.key" :value="target.key">
@@ -1081,7 +1104,10 @@
                         </option>
                       </select>
                     </div>
-                    <button class="framesync-button audio-map-card__remove" @click="removeAudioMapping(idx)">Remove</button>
+                    <button class="framesync-button audio-map-card__remove" @click="removeAudioMapping(idx)">✕</button>
+                  </div>
+                  <div class="audio-map-card__freq-meter">
+                    <div class="audio-map-card__freq-bar" :style="{ width: ((audioMappingLevels[idx] || 0) * 100) + '%' }"></div>
                   </div>
                   <div class="audio-map-card__fields">
                     <div class="framesync-subtitle">Freq range</div>
@@ -2246,6 +2272,7 @@ export default {
         { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
         { param: "translation_z", freq_min: 1200, freq_max: 3000, out_min: -5, out_max: 5 },
       ],
+      audioMappingLevels: [0, 0, 0],
       audioBandPresets: {
         sub: { label: "Sub", freq_min: 20, freq_max: 60 },
         bass: { label: "Bass", freq_min: 60, freq_max: 250 },
@@ -2444,6 +2471,12 @@ export default {
      };
   },
   computed: {
+    rtmpStreamHref() {
+      const host = typeof window !== 'undefined' && window.location && window.location.hostname
+        ? window.location.hostname
+        : '192.168.2.100';
+      return `rtmp://${host}:1935/live/deforum`;
+    },
     modelStatusKind() {
       if (this.forge.switching || this.forge.loading) return 'loading';
       if (this.forge.available || (this.apiHealth.sdForge && this.apiHealth.sdForge.available)) return 'ready';
@@ -3143,12 +3176,46 @@ export default {
   },
  startLfoAnimation() {
    this.stopLfoAnimation();
+   const REDUCED = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+   let lastWaveTs = 0;
+   const TAU = Math.PI * 2;
    const animate = (ts) => {
-     this.lfos.forEach((lfo) => {
-       const canvas = this.lfoCanvasRefs[lfo.id];
-       if (!canvas || !canvas.getContext) return;
-       this.drawLfoPreview(canvas, lfo, ts);
-     });
+     // Throttle waveform SVG updates to ~20 fps — enough for smooth motion
+     if (!REDUCED && ts - lastWaveTs > 48) {
+       lastWaveTs = ts;
+       const nowSec = ts / 1000;
+       this.lfos.forEach((lfo) => {
+         if (lfo.on) {
+           const bps = (lfo.bpm / 60) * (lfo.speed || 1);
+           lfo.phase = nowSec * bps * TAU;
+         }
+         // Legacy canvas path (no-ops when no canvas element registered)
+         const canvas = this.lfoCanvasRefs[lfo.id];
+         if (canvas?.getContext) this.drawLfoPreview(canvas, lfo, ts);
+       });
+     }
+     // Audio freq meter — update at full rate for responsive meter feel
+     const analyser = this._liveSpecAnalyser;
+     const buf = this._liveSpecFreqBuf;
+     if (analyser && buf && buf.length) {
+       try { analyser.getByteFrequencyData(buf); } catch (_) {}
+       const sampleRate = (analyser.context && analyser.context.sampleRate) || 44100;
+       const nyquist = sampleRate / 2;
+       const binCount = buf.length;
+       this.audioMappings.forEach((m, idx) => {
+         const lo = Math.max(0, Math.floor((m.freq_min / nyquist) * binCount));
+         const hi = Math.min(binCount - 1, Math.ceil((m.freq_max / nyquist) * binCount));
+         const count = Math.max(1, hi - lo + 1);
+         let sum = 0;
+         for (let i = lo; i <= hi; i++) sum += buf[i];
+         if (this.audioMappingLevels.length <= idx) this.audioMappingLevels.push(0);
+         this.audioMappingLevels[idx] = Math.min(1, sum / (count * 255));
+       });
+     } else {
+       this.audioMappings.forEach((_, idx) => {
+         if (this.audioMappingLevels.length > idx) this.audioMappingLevels[idx] = 0;
+       });
+     }
      this._lfoAnimFrame = requestAnimationFrame(animate);
    };
    this._lfoAnimFrame = requestAnimationFrame(animate);
@@ -3888,9 +3955,11 @@ applyMotionPresetAndSelect(name) {
  },
  addAudioMapping() {
    this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
+   this.audioMappingLevels.push(0);
  },
  removeAudioMapping(index) {
    this.audioMappings.splice(index, 1);
+   this.audioMappingLevels.splice(index, 1);
  },
  applyAudioBandPreset(mapIndex, bandKey) {
    const spec = this.audioBandPresets[bandKey];

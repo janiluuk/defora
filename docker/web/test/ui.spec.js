@@ -155,6 +155,7 @@ describe("Deforumation Web UI", () => {
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
+    appVm.liveDrawerOpen = true;
     appVm.paramPanelOpen = true;
     await nextTick();
     const sliderRows = [...document.querySelectorAll(".param-drawer input[type='range'], [data-testid='performance-crossfader']")];
