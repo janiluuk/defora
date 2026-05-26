@@ -153,6 +153,8 @@
     .perf-mode-badge.mode-preview { border-color: var(--glow2); color: var(--glow2); }
     .perf-mode-badge.mode-animate { border-color: var(--glow1); color: var(--glow1); }
     .preview-frame-thumb { width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
+    .live-hud-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .live-hud-empty { font-size: 10px; color: var(--text-dim); padding: 4px 0; }
     .param-drawer { padding: 0; overflow: hidden; }
     .param-drawer-toggle {
       width: 100%;

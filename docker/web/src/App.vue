@@ -108,6 +108,32 @@
             <a href="rtmp://localhost:1935/live/deforum" target="_blank">📡 RTMP</a>
           </div>
         </div>
+
+        <!-- LIVE HUD strip — docked below video -->
+        <div v-if="currentTab === 'LIVE'" class="live-hud-strip">
+          <GlassPanel size="sm" class="live-hud-morph">
+            <template #header>Morph</template>
+            <Crossfader
+              :model-value="performance.crossfader"
+              @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+            />
+          </GlassPanel>
+          <GlassPanel size="sm" class="live-hud-modulating">
+            <template #header>Modulating now</template>
+            <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
+            <LiveParamRow
+              v-for="p in liveModulating"
+              :key="p.key"
+              :label="p.label"
+              :param-key="p.key"
+              :value="p.val"
+              :min="p.min"
+              :max="p.max"
+              :source="p.source"
+              :modulated="true"
+            />
+          </GlassPanel>
+        </div>
       </div>
 
       <!-- Right: control rack per tab -->
@@ -1808,10 +1834,13 @@ import {
 } from './deforum-settings-schema.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
 import StatusStrip from './components/StatusStrip.vue'
+import GlassPanel from './components/GlassPanel.vue'
+import Crossfader from './components/Crossfader.vue'
+import LiveParamRow from './components/LiveParamRow.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow },
   data() {
     return {
        showFrames: true,
@@ -2195,6 +2224,29 @@ export default {
         { label: 'Style', items: this.liveVibe },
         { label: 'Camera', items: this.liveCam },
       ];
+    },
+    liveModulating() {
+      const paramMap = {};
+      [...this.liveVibe, ...this.liveCam].forEach(p => { paramMap[p.key] = p; });
+      this.lfoTargets.forEach(t => {
+        if (!paramMap[t.key]) paramMap[t.key] = { key: t.key, label: t.label, val: t.default || 0, min: t.min || 0, max: t.max || 1 };
+      });
+      const modulated = {};
+      this.lfos.filter(l => l.on && l.targets.length).forEach(l => {
+        l.targets.forEach(key => {
+          if (!modulated[key]) modulated[key] = { key, sources: [] };
+          modulated[key].sources.push(`LFO ${l.id}`);
+        });
+      });
+      this.macrosRack.filter(m => m.on && m.target).forEach(m => {
+        const key = m.target;
+        if (!modulated[key]) modulated[key] = { key, sources: [] };
+        modulated[key].sources.push('Macro');
+      });
+      return Object.values(modulated).map(entry => {
+        const p = paramMap[entry.key] || { key: entry.key, label: entry.key, val: 0, min: 0, max: 1 };
+        return { ...p, source: entry.sources.join(' + ') };
+      });
     },
     activeSlot() {
       return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
