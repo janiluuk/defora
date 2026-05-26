@@ -10,8 +10,10 @@
     type="button"
   >
     <span class="target-cell-label">{{ label }}</span>
-    <span v-if="owners.length === 1" class="target-cell-owner">{{ owners[0] }}</span>
-    <span v-else-if="owners.length > 1" class="target-cell-owner">{{ owners[0] }}<span class="target-cell-extra"> +{{ owners.length - 1 }}</span></span>
+    <div v-if="owners.length" class="target-cell-owners">
+      <span v-for="owner in owners.slice(0, 3)" :key="owner" class="target-cell-owner">{{ owner }}</span>
+      <span v-if="owners.length > 3" class="target-cell-extra">+{{ owners.length - 3 }}</span>
+    </div>
   </button>
 </template>
 
@@ -76,14 +78,25 @@ export default {
 .target-cell--routed .target-cell-label  { color: var(--live-text); }
 .target-cell--selected .target-cell-label { color: var(--accent-text); }
 
+.target-cell-owners {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
 .target-cell-owner {
   font-size: 8px;
   color: var(--live);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
+  font-weight: 700;
+  border: 0.5px solid color-mix(in srgb, var(--live) 35%, transparent);
+  border-radius: 999px;
+  padding: 1px 4px;
+}
+.target-cell-extra {
+  color: var(--text-dim);
+  font-size: 8px;
   font-weight: 700;
 }
-.target-cell-extra { color: var(--text-dim); }
 </style>
