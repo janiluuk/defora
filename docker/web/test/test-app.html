@@ -557,7 +557,7 @@
           </div>
         </div>
 
-        <div v-else-if="currentTab==='AUDIO'">
+        <div v-else-if="currentTab==='MODULATION' && currentSubTab.MODULATION==='AUDIO'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -626,7 +626,7 @@
           </div>
         </div>
 
-        <div v-else-if="currentTab==='RUNS'">
+        <div v-else-if="currentTab==='SETTINGS' && currentSubTab.SETTINGS==='RUNS'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">

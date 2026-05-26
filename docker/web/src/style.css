@@ -23,6 +23,8 @@
       --text-primary: #e6e8f0;
       --text-secondary: #9a9db0;
       --text-dim: #777b8f;
+      --media-bg: #000000;
+      --media-text: #ffffff;
 
       /* ── Shape ────────────────────────────────── */
       --radius: 11px;
@@ -82,19 +84,19 @@
     .pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--live); box-shadow: 0 0 5px var(--live); flex-shrink: 0; }
     .pill.danger .dot { background: var(--error); box-shadow: 0 0 5px var(--error); }
     /* Legacy global btns (header Anim/Stop/Rec — now replaced by StatusStrip but kept for fallback) */
-    .btn { background: var(--live); color: #fff; border: none; border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 11px; cursor: pointer; letter-spacing: 0.04em; }
+    .btn { background: var(--live); color: var(--media-text); border: none; border-radius: 999px; padding: 5px 12px; font-weight: 700; font-size: 11px; cursor: pointer; letter-spacing: 0.04em; }
     .btn.ghost { background: var(--bg-2); color: var(--text-dim); border: 0.5px solid var(--border); }
     .btn.playing { background: var(--live); box-shadow: 0 0 10px rgba(29, 158, 117, 0.35); }
     .btn.recording { background: var(--error); animation: btn-rec-pulse 1.5s ease-in-out infinite; }
     @keyframes btn-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
     .layout { flex: 1; display: grid; grid-template-columns: 1.8fr 1fr; gap: 10px; padding: 10px; }
     .preview { display: flex; flex-direction: column; gap: 0; }
-    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: #000; aspect-ratio: 16 / 9; width: 100%; }
+    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: var(--media-bg); aspect-ratio: 16 / 9; width: 100%; }
     .video-wrap--preview-loading video,
     .video-wrap--preview-loading .video-still-preview { filter: saturate(0.8) brightness(0.6) blur(1.5px); transform: scale(1.01); transition: filter 0.18s ease, transform 0.18s ease; }
-    video { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
-    .video-still-preview { width: 100%; height: 100%; display: block; background: #000; object-fit: contain; }
-    .overlay { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; padding: 10px 12px; background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent); font-size: 13px; font-weight: 600; color: #fff; }
+    video { width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: contain; }
+    .video-still-preview { width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: contain; }
+    .overlay { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; padding: 10px 12px; background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent); font-size: 13px; font-weight: 600; color: var(--media-text); }
     .preview-loading-overlay {
       position: absolute;
       inset: 0;
@@ -632,7 +634,7 @@
     .lazy-loading-indicator--subtle { gap: 6px; }
     .lazy-loading-indicator--overlay {
       font-size: 14px;
-      color: #fff;
+      color: var(--media-text);
       text-shadow: 0 1px 10px rgba(0, 0, 0, 0.35);
     }
     .lazy-loading-indicator__spinner {

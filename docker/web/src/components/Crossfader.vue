@@ -92,7 +92,7 @@ export default {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--media-text);
   transform: translate(-50%, -50%);
   box-shadow: 0 0 0 2px rgba(127, 119, 221, 0.5), 0 0 8px rgba(127, 119, 221, 0.35);
   pointer-events: none;

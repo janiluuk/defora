@@ -128,7 +128,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { PROMPTS: 'PROMPTS', SETTINGS: 'ENGINE' };
+    appVm.currentSubTab = { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
     await nextTick();
   });
 
@@ -138,11 +138,11 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
-    expect(tabs.join(" ")).to.include("AUDIO");
     expect(tabs.join(" ")).to.include("SETTINGS");
     expect(tabs.join(" ")).to.include("GENERATE");
-    expect(tabs.join(" ")).to.include("RUNS");
-    expect(tabs.length).to.equal(8);
+    expect(tabs.join(" ")).to.not.include("AUDIO");
+    expect(tabs.join(" ")).to.not.include("RUNS");
+    expect(tabs.length).to.equal(6);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -185,6 +185,7 @@ describe("Deforumation Web UI", () => {
   it("toggles modulation tab sections and shows LFO modulators", async () => {
     // Verify app state changes (Vue reactivity in JSDOM is limited)
     appVm.currentTab = "MODULATION";
+    appVm.currentSubTab.MODULATION = "LFO";
     await nextTick();
     
     // Check app state
@@ -192,12 +193,13 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos.length).to.equal(6);
     expect(appVm.macrosRack.length).to.be.greaterThan(0);
     
-    // Switch to AUDIO tab
-    appVm.currentTab = "AUDIO";
+    // Switch to MODULATION -> AUDIO
+    appVm.switchTab("AUDIO");
     appVm.avSyncCollapsed = false;
     await nextTick();
     
-    expect(appVm.currentTab).to.equal("AUDIO");
+    expect(appVm.currentTab).to.equal("MODULATION");
+    expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO");
     expect(appVm.audioMappings.length).to.be.greaterThan(0);
     
     appVm.audio.uploadedFile = "song.wav";

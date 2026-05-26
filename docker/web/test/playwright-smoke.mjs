@@ -5,7 +5,7 @@
 import { chromium } from 'playwright';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'RUNS', 'SETTINGS', 'GENERATE'];
+const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS', 'GENERATE'];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -34,15 +34,29 @@ try {
   if ((await morphBlend.count()) === 0) {
     throw new Error('Prompt morph blend slider not found on PROMPTS tab');
   }
+  await page.getByRole('button', { name: 'MODULATION', exact: true }).click();
+  await page.waitForTimeout(300);
+  await page.locator('.sub-pill').filter({ hasText: /^AUDIO$/ }).first().click();
+  await page.waitForTimeout(300);
+  const avSyncToggle = page.locator('[data-testid="av-sync-enable"]');
+  if ((await avSyncToggle.count()) === 0) {
+    throw new Error('A/V sync controls not found under MODULATION → AUDIO');
+  }
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   await page.waitForTimeout(300);
+  await page.locator('.sub-pill').filter({ hasText: /^RUNS$/ }).first().click();
+  await page.waitForTimeout(300);
+  const runsBrowser = page.locator('.runs-browser');
+  if ((await runsBrowser.count()) === 0) {
+    throw new Error('Runs browser not found under SETTINGS → RUNS');
+  }
   await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
-  await page.waitForTimeout(400);
+  await page.waitForTimeout(300);
   const gpuPanel = page.locator('[data-testid="gpu-pool-panel"]');
   if ((await gpuPanel.count()) === 0) {
     throw new Error('GPU pool panel not found under SETTINGS → GPUS');
   }
-  console.log(`OK: ${trimmed.length} tabs, morph blend, GPU pool panel present`);
+  console.log(`OK: ${trimmed.length} tabs, nested audio/runs views, morph blend, GPU pool panel present`);
 } finally {
   await browser.close();
 }

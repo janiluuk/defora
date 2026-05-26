@@ -447,11 +447,20 @@ import {
 } from './deforum-settings-schema.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
 
-const TIMELINE_TRACK_COLORS = ['#2de2ff', '#ff53d9', '#5af2a9', '#ff8a1a', '#a78bfa', '#f472b6', '#34d399', '#fbbf24']
-const TIMELINE_GRID_EMPTY = '#1a3a52'
-const TIMELINE_GRID_LABEL = '#3a5a78'
-const TIMELINE_GRID_BORDER = '#0c3048'
-const TIMELINE_GRID_TEXT = '#5a8fb8'
+const TIMELINE_TRACK_COLORS = [
+  'rgb(45, 226, 255)',
+  'rgb(255, 83, 217)',
+  'rgb(90, 242, 169)',
+  'rgb(255, 138, 26)',
+  'rgb(167, 139, 250)',
+  'rgb(244, 114, 182)',
+  'rgb(52, 211, 153)',
+  'rgb(251, 191, 36)',
+]
+const TIMELINE_GRID_EMPTY = 'rgb(26, 58, 82)'
+const TIMELINE_GRID_LABEL = 'rgb(58, 90, 120)'
+const TIMELINE_GRID_BORDER = 'rgb(12, 48, 72)'
+const TIMELINE_GRID_TEXT = 'rgb(90, 143, 184)'
 
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
@@ -1192,6 +1201,10 @@ export default {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
   },
 
+  themeColor(name, fallback) {
+    return this.cssVar(name) || fallback
+  },
+
   async refreshApiHealth() {
     if (typeof fetch !== "function") return;
     try {
@@ -1751,7 +1764,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    const mid = h / 2;
    const amp = (h / 2 - 4) * (lfo.depth || 0.2);
 
-   ctx.fillStyle = this.cssVar('--bg-0') || '#08090d';
+   ctx.fillStyle = this.themeColor('--bg-0', 'rgb(8, 9, 13)');
    ctx.fillRect(0, 0, w, h);
 
    // Grid lines
@@ -1766,7 +1779,9 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    const speed = (lfo.speed || 1.0) * 0.002;
    const phase = (ts || 0) * speed;
 
-   ctx.strokeStyle = lfo.on ? (this.cssVar('--warn') || '#ef9f27') : (this.cssVar('--border') || '#2a2d3a');
+   ctx.strokeStyle = lfo.on
+     ? this.themeColor('--warn', 'rgb(239, 159, 39)')
+     : this.themeColor('--border', 'rgb(42, 45, 58)');
    ctx.lineWidth = 2;
    ctx.beginPath();
 
@@ -3422,7 +3437,7 @@ audioBandWindowStyle(mapping) {
      const w = c.width || 280;
      const h = c.height || 56;
      if (!freqBytes || !freqBytes.length) {
-       ctx2.fillStyle = this.cssVar('--bg-0') || '#08090d';
+      ctx2.fillStyle = this.themeColor('--bg-0', 'rgb(8, 9, 13)');
        ctx2.fillRect(0, 0, w, h);
        continue;
      }
@@ -4116,7 +4131,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    const laneH = (h - 20) / Math.max(1, this.sequencer.tracks.length);
    const trackColors = TIMELINE_TRACK_COLORS;
    ctx.clearRect(0, 0, w, h);
-   ctx.fillStyle = this.cssVar('--bg-0') || '#08090d';
+  ctx.fillStyle = this.themeColor('--bg-0', 'rgb(8, 9, 13)');
    ctx.fillRect(0, 0, w, h);
    this.sequencer.tracks.forEach((tr, idx) => {
      const y = 20 + idx * laneH;
@@ -4187,7 +4202,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
            ctx.lineTo(hInPx, hInPy);
            ctx.stroke();
            ctx.setLineDash([]);
-           ctx.fillStyle = "#fff";
+          ctx.fillStyle = this.themeColor('--media-text', 'rgb(255, 255, 255)');
            ctx.beginPath();
            ctx.arc(hOutPx, hOutPy, 3, 0, Math.PI * 2);
            ctx.fill();
@@ -4200,7 +4215,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
        ctx.beginPath();
        ctx.arc(px, py, 4, 0, Math.PI * 2);
        ctx.fill();
-       ctx.fillStyle = "#fff";
+      ctx.fillStyle = this.themeColor('--media-text', 'rgb(255, 255, 255)');
        ctx.beginPath();
        ctx.arc(px, py, 2, 0, Math.PI * 2);
        ctx.fill();
@@ -4212,7 +4227,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    const markers = (this.sequencer.markers || []);
    markers.forEach(m => {
      const px = (m.t / dur) * w;
-     const markerColor = this.cssVar('--error') || '#e24b4a';
+    const markerColor = this.themeColor('--error', 'rgb(226, 75, 74)');
      ctx.strokeStyle = markerColor + '80';
      ctx.lineWidth = 1;
      ctx.setLineDash([2, 3]);
@@ -4226,13 +4241,13 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      ctx.fillText(m.name, px + 3, 14);
    });
    const playX = (this.sequencerPlayhead / dur) * w;
-   ctx.strokeStyle = "#fff";
+  ctx.strokeStyle = this.themeColor('--media-text', 'rgb(255, 255, 255)');
    ctx.lineWidth = 2;
    ctx.beginPath();
    ctx.moveTo(playX, 20);
    ctx.lineTo(playX, h);
    ctx.stroke();
-   ctx.fillStyle = "#fff";
+  ctx.fillStyle = this.themeColor('--media-text', 'rgb(255, 255, 255)');
    ctx.beginPath();
    ctx.moveTo(playX - 5, 20);
    ctx.lineTo(playX + 5, 20);
