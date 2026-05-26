@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.5.4] - 2026-05-26
+
+## What's Changed
+
+- fix forge model sync and external forge defaults (a7ac172)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.3...v0.5.4
+
+
 ## [0.5.3] - 2026-05-26
 
 ## What's Changed
