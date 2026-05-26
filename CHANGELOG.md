@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.5.5] - 2026-05-26
+
+## What's Changed
+
+- UI migration: GENERATE timeline hero, all remaining views restyled + distributed Forge sync (#39) (efb7fda)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.4...v0.5.5
+
+
 ## [0.5.4] - 2026-05-26
 
 ## What's Changed
