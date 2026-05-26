@@ -354,6 +354,13 @@ function createGpuPool(options = {}) {
     }, state.healthCheckInterval * 1000);
   }
 
+  function close() {
+    if (healthTimer) {
+      clearInterval(healthTimer);
+      healthTimer = null;
+    }
+  }
+
   function attachRoutes(app) {
     const sendPool = (_req, res) => {
       const healthy = state.nodes.filter((n) => n.enabled && n.status === "healthy").length;
@@ -617,6 +624,7 @@ function createGpuPool(options = {}) {
     findNode,
     saveConfig,
     eligibleNodes,
+    close,
     BACKENDS,
     STRATEGIES,
   };

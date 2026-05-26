@@ -86,9 +86,13 @@ jobs:
         run: python -m pytest tests/test_docker_stack_integration.py::TestDockerStackIntegration -q
 
   playwright-smoke:
-    name: Playwright smoke
+    name: Playwright smoke (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox]
     steps:
       - uses: actions/checkout@v4
       - name: Set up Node
@@ -103,29 +107,30 @@ jobs:
       - name: Build web for Playwright
         working-directory: docker/web
         run: npm run build
-      - name: Cache Playwright Chromium
+      - name: Cache Playwright browser
         id: playwright-cache
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-chromium-${{ hashFiles('docker/web/package-lock.json') }}
-      - name: Install Playwright Chromium
+          key: ${{ runner.os }}-playwright-${{ matrix.browser }}-${{ hashFiles('docker/web/package-lock.json') }}
+      - name: Install Playwright browser
         if: steps.playwright-cache.outputs.cache-hit != 'true'
         working-directory: docker/web
-        run: npx playwright@1.58.0 install chromium
+        run: npx playwright@1.58.0 install ${{ matrix.browser }}
       - name: Playwright UI smoke (audit A-27)
         working-directory: docker/web
         env:
+          BROWSER: ${{ matrix.browser }}
           FRAMES_DIR: /tmp/defora-frames
           HLS_DIR: /tmp/defora-hls
         run: |
           mkdir -p /tmp/defora-frames /tmp/defora-hls
-          PORT=3999 DISABLE_MQ=1 node server.js &
-          echo $! > /tmp/defora-web.pid
+          PORT=3999 DISABLE_MQ=1 node scripts/test-server.js &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
           sleep 2
           for i in 1 2 3 4 5 6 7 8 9 10; do
             curl -sf http://127.0.0.1:3999/ >/dev/null && break
             sleep 1
           done
           BASE_URL=http://127.0.0.1:3999 npm run test:playwright
-          kill "$(cat /tmp/defora-web.pid)" 2>/dev/null || true

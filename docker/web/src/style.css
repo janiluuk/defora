@@ -573,12 +573,111 @@
     .thumb-placeholder svg { width: 30px; height: 30px; opacity: 0.3; }
     video::-webkit-media-controls { display: none !important; }
     video::-webkit-media-controls-enclosure { display: none !important; }
+    .runs-filter-help {
+      margin-top: 8px;
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+    .runs-filter-help code {
+      color: var(--text-secondary);
+      background: rgba(19, 22, 32, 0.65);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1px 5px;
+    }
+    .runs-filter-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+    }
     .runs-row-selected { background: rgba(45, 226, 255, 0.08) !important; }
     .status-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; }
     .status-completed { background: rgba(90, 242, 169, 0.15); color: var(--success); }
     .status-failed { background: rgba(226, 75, 74, 0.15); color: var(--error); }
     .status-running { background: rgba(127, 119, 221, 0.15); color: var(--accent-text); }
     .status-queued { background: rgba(239, 159, 39, 0.15); color: var(--warn); }
+    .prompt-diff-wrap {
+      margin-top: 14px;
+      border-top: 1px solid var(--border);
+      padding-top: 14px;
+    }
+    .prompt-diff-meta {
+      margin-left: 8px;
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: ui-monospace, "Cascadia Code", monospace;
+    }
+    .prompt-diff-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 10px;
+      margin-top: 8px;
+    }
+    .prompt-diff-card {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      background: rgba(13, 16, 24, 0.88);
+    }
+    .prompt-diff-head {
+      margin-bottom: 8px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .prompt-diff-columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+    .prompt-diff-column {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+    }
+    .prompt-diff-label {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 10px;
+      color: var(--text-dim);
+      font-family: ui-monospace, "Cascadia Code", monospace;
+    }
+    .prompt-diff-segments {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-content: flex-start;
+      min-height: 56px;
+    }
+    .prompt-diff-segment {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--border);
+      background: rgba(21, 24, 33, 0.88);
+      color: var(--text-primary);
+      font-size: 10px;
+      line-height: 1.35;
+    }
+    .prompt-diff-segment.is-same {
+      opacity: 0.82;
+    }
+    .prompt-diff-segment.is-remove {
+      border-color: rgba(226, 75, 74, 0.35);
+      background: rgba(226, 75, 74, 0.12);
+      color: #ffc4c4;
+    }
+    .prompt-diff-segment.is-add {
+      border-color: rgba(90, 242, 169, 0.35);
+      background: rgba(90, 242, 169, 0.12);
+      color: #c8ffe5;
+    }
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }

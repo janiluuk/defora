@@ -111,7 +111,7 @@ async function start(opts = {}) {
   }
 
   const gpuPool = createGpuPool({
-    configPath: opts.gpuPoolPath || path.join(__dirname, "gpu-pool.json"),
+    configPath: opts.gpuPoolPath || process.env.GPU_POOL_PATH || path.join(__dirname, "gpu-pool.json"),
     env: process.env,
   });
   await gpuPool.init();
@@ -3477,6 +3477,7 @@ async function start(opts = {}) {
     if (forgePollTimer) clearInterval(forgePollTimer);
     clearInterval(cleanupTimer);
     clearInterval(pruneRateLimitTimer);
+    if (gpuPool && typeof gpuPool.close === "function") gpuPool.close();
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
       try {
@@ -3501,7 +3502,37 @@ async function start(opts = {}) {
 }
 
 if (require.main === module) {
-  start();
+  let closing = false;
+  let service = null;
+
+  const shutdown = async (code = 0) => {
+    if (closing) return;
+    closing = true;
+    try {
+      if (service && typeof service.close === "function") {
+        await service.close();
+      }
+    } catch (err) {
+      console.error("[server] shutdown error", err);
+      code = 1;
+    } finally {
+      process.exit(code);
+    }
+  };
+
+  start()
+    .then((svc) => {
+      service = svc;
+      ["SIGINT", "SIGTERM"].forEach((sig) => {
+        process.on(sig, () => {
+          void shutdown(0);
+        });
+      });
+    })
+    .catch((err) => {
+      console.error("[server] startup error", err);
+      process.exit(1);
+    });
 }
 
 module.exports = { start };

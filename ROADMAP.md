@@ -363,7 +363,7 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 **Next Steps**:
 1. Add tests with actual SD-Forge GPU generation (requires GPU)
 2. Implement automated performance regression testing
-3. Add cross-browser testing for Web UI
+3. ✅ Add cross-browser testing for Web UI (Chromium + Firefox smoke in CI)
 
 ---
 

@@ -327,6 +327,65 @@ describe("Deforumation Web UI behavior", () => {
     delete global.fetch;
   });
 
+  it("applyRunsFilters supports advanced fields and search tokens", () => {
+    const instance = instantiate(appDef);
+    instance.runsAll = [
+      {
+        run_id: "run_a",
+        status: "completed",
+        tag: "forest-set",
+        model: "flux-dev",
+        seed: 42,
+        frame_count: 120,
+        started_at: "2026-05-20T10:00:00Z",
+        prompt_positive: "forest, cinematic lighting",
+        prompt_negative: "blurry",
+        notes: "hero take",
+      },
+      {
+        run_id: "run_b",
+        status: "failed",
+        tag: "city-set",
+        model: "sdxl",
+        seed: 99,
+        frame_count: 24,
+        started_at: "2026-05-01T10:00:00Z",
+        prompt_positive: "city, neon",
+        prompt_negative: "lowres",
+        notes: "backup",
+      },
+    ];
+    instance.runsFilter = {
+      search: "prompt:forest note:hero after:2026-05-10",
+      status: "",
+      tag: "",
+      model: "",
+      seed: "42",
+      minFrames: 100,
+      maxFrames: 150,
+      dateFrom: "",
+      dateTo: "",
+    };
+
+    instance.applyRunsFilters();
+
+    expect(instance.runsFiltered.map((run) => run.run_id)).to.deep.equal(["run_a"]);
+    expect(instance.activeRunsFilterChips).to.include("seed:42");
+  });
+
+  it("buildPromptSegmentDiff marks changed prompt segments", () => {
+    const instance = instantiate(appDef);
+
+    const diff = instance.buildPromptSegmentDiff(
+      "forest, cinematic lighting, fog",
+      "forest, neon lighting, fog, particles"
+    );
+
+    expect(diff.left.some((segment) => segment.kind === "remove" && segment.text === "cinematic lighting")).to.equal(true);
+    expect(diff.right.some((segment) => segment.kind === "add" && segment.text === "neon lighting")).to.equal(true);
+    expect(diff.right.some((segment) => segment.kind === "add" && segment.text === "particles")).to.equal(true);
+  });
+
   it("ensureLivePlayback triggers play when paused", () => {
     const instance = instantiate(appDef);
     let plays = 0;

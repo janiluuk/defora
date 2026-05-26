@@ -639,7 +639,7 @@
               </div>
 
               <!-- Filters -->
-              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;">
+              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr repeat(4, minmax(0, 1fr)); gap:8px;">
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
                 <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
                   <option value="">All Status</option>
@@ -650,6 +650,24 @@
                 </select>
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.seed" placeholder="Seed" @input="applyRunsFilters">
+              </div>
+
+              <div style="margin-top:8px; display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:8px;">
+                <input type="number" class="framesync-input" v-model.number="runsFilter.minFrames" placeholder="Min frames" @input="applyRunsFilters">
+                <input type="number" class="framesync-input" v-model.number="runsFilter.maxFrames" placeholder="Max frames" @input="applyRunsFilters">
+                <input type="date" class="framesync-input" v-model="runsFilter.dateFrom" @change="applyRunsFilters">
+                <input type="date" class="framesync-input" v-model="runsFilter.dateTo" @change="applyRunsFilters">
+                <button class="framesync-button" @click="clearRunsFilters">Reset filters</button>
+              </div>
+
+              <div class="runs-filter-help">
+                Search supports tokens like <code>status:completed</code>, <code>seed:42</code>, <code>prompt:forest</code>,
+                <code>note:todo</code>, <code>after:2026-05-01</code>, <code>before:2026-05-31</code>.
+              </div>
+
+              <div v-if="activeRunsFilterChips.length" class="runs-filter-chips">
+                <span v-for="chip in activeRunsFilterChips" :key="chip" class="chip chip--context">{{ chip }}</span>
               </div>
 
               <!-- Sort controls -->
@@ -784,9 +802,13 @@
 
           <!-- Comparison view -->
           <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
               <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
-              <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+              <div style="display:flex; gap:6px;">
+                <button class="framesync-button" style="padding:4px 10px; font-size:10px;" @click="exportRunComparison('json')">📥 JSON</button>
+                <button class="framesync-button" style="padding:4px 10px; font-size:10px;" @click="exportRunComparison('csv')">📥 CSV</button>
+                <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+              </div>
             </div>
             <div style="overflow-x:auto;">
               <table style="width:100%; border-collapse:collapse; font-size:10px;">
@@ -805,6 +827,53 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div v-if="comparePromptRuns.length >= 2" class="prompt-diff-wrap">
+              <div class="framesync-subtitle">
+                Prompt diff
+                <span class="prompt-diff-meta">{{ comparePromptRuns[0].run_id }} ↔ {{ comparePromptRuns[1].run_id }}</span>
+              </div>
+              <div v-if="runsSelected.length > 2" class="runs-filter-help">
+                Showing side-by-side prompt diff for the first two selected runs.
+              </div>
+              <div class="prompt-diff-grid">
+                <div class="prompt-diff-card">
+                  <div class="prompt-diff-head">Positive prompt</div>
+                  <div class="prompt-diff-columns">
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[0].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span v-for="(segment, idx) in positivePromptDiff.left" :key="'pp-left-' + idx" class="prompt-diff-segment" :class="'is-' + segment.kind">{{ segment.text }}</span>
+                      </div>
+                    </div>
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[1].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span v-for="(segment, idx) in positivePromptDiff.right" :key="'pp-right-' + idx" class="prompt-diff-segment" :class="'is-' + segment.kind">{{ segment.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="prompt-diff-card">
+                  <div class="prompt-diff-head">Negative prompt</div>
+                  <div class="prompt-diff-columns">
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[0].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span v-for="(segment, idx) in negativePromptDiff.left" :key="'np-left-' + idx" class="prompt-diff-segment" :class="'is-' + segment.kind">{{ segment.text }}</span>
+                      </div>
+                    </div>
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[1].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span v-for="(segment, idx) in negativePromptDiff.right" :key="'np-right-' + idx" class="prompt-diff-segment" :class="'is-' + segment.kind">{{ segment.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

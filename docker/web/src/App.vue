@@ -960,7 +960,7 @@
               </div>
 
               <!-- Filters -->
-              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;">
+              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr repeat(4, minmax(0, 1fr)); gap:8px;">
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
                 <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
                   <option value="">All Status</option>
@@ -971,6 +971,24 @@
                 </select>
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
+                <input type="text" class="framesync-input" v-model.trim="runsFilter.seed" placeholder="Seed" @input="applyRunsFilters">
+              </div>
+
+              <div style="margin-top:8px; display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:8px;">
+                <input type="number" class="framesync-input" v-model.number="runsFilter.minFrames" placeholder="Min frames" @input="applyRunsFilters">
+                <input type="number" class="framesync-input" v-model.number="runsFilter.maxFrames" placeholder="Max frames" @input="applyRunsFilters">
+                <input type="date" class="framesync-input" v-model="runsFilter.dateFrom" @change="applyRunsFilters">
+                <input type="date" class="framesync-input" v-model="runsFilter.dateTo" @change="applyRunsFilters">
+                <button class="framesync-button" @click="clearRunsFilters">Reset filters</button>
+              </div>
+
+              <div class="runs-filter-help">
+                Search supports tokens like <code>status:completed</code>, <code>seed:42</code>, <code>prompt:forest</code>,
+                <code>note:todo</code>, <code>after:2026-05-01</code>, <code>before:2026-05-31</code>.
+              </div>
+
+              <div v-if="activeRunsFilterChips.length" class="runs-filter-chips">
+                <span v-for="chip in activeRunsFilterChips" :key="chip" class="chip chip--context">{{ chip }}</span>
               </div>
 
               <!-- Sort controls -->
@@ -1130,6 +1148,73 @@
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div v-if="comparePromptRuns.length >= 2" class="prompt-diff-wrap">
+              <div class="framesync-subtitle">
+                Prompt diff
+                <span class="prompt-diff-meta">{{ comparePromptRuns[0].run_id }} ↔ {{ comparePromptRuns[1].run_id }}</span>
+              </div>
+              <div v-if="runsSelected.length > 2" class="runs-filter-help">
+                Showing side-by-side prompt diff for the first two selected runs.
+              </div>
+              <div class="prompt-diff-grid">
+                <div class="prompt-diff-card">
+                  <div class="prompt-diff-head">Positive prompt</div>
+                  <div class="prompt-diff-columns">
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[0].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span
+                          v-for="(segment, idx) in positivePromptDiff.left"
+                          :key="'pp-left-' + idx"
+                          class="prompt-diff-segment"
+                          :class="'is-' + segment.kind"
+                        >{{ segment.text }}</span>
+                      </div>
+                    </div>
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[1].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span
+                          v-for="(segment, idx) in positivePromptDiff.right"
+                          :key="'pp-right-' + idx"
+                          class="prompt-diff-segment"
+                          :class="'is-' + segment.kind"
+                        >{{ segment.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="prompt-diff-card">
+                  <div class="prompt-diff-head">Negative prompt</div>
+                  <div class="prompt-diff-columns">
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[0].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span
+                          v-for="(segment, idx) in negativePromptDiff.left"
+                          :key="'np-left-' + idx"
+                          class="prompt-diff-segment"
+                          :class="'is-' + segment.kind"
+                        >{{ segment.text }}</span>
+                      </div>
+                    </div>
+                    <div class="prompt-diff-column">
+                      <div class="prompt-diff-label">{{ comparePromptRuns[1].run_id }}</div>
+                      <div class="prompt-diff-segments">
+                        <span
+                          v-for="(segment, idx) in negativePromptDiff.right"
+                          :key="'np-right-' + idx"
+                          class="prompt-diff-segment"
+                          :class="'is-' + segment.kind"
+                        >{{ segment.text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -2145,7 +2230,7 @@ export default {
        _lfoAnimFrame: null,
        runsAll: [],
        runsFiltered: [],
-       runsFilter: { search: "", status: "", tag: "", model: "" },
+       runsFilter: { search: "", status: "", tag: "", model: "", seed: "", minFrames: null, maxFrames: null, dateFrom: "", dateTo: "" },
        runsSort: { field: "started_at", order: "desc" },
        runsSelected: [],
        runsCompareFields: [
@@ -2299,6 +2384,39 @@ export default {
         default:
           return [];
       }
+    },
+    activeRunsFilterChips() {
+      const chips = [];
+      if (this.runsFilter.status) chips.push(`status:${this.runsFilter.status}`);
+      if (this.runsFilter.tag) chips.push(`tag:${this.runsFilter.tag}`);
+      if (this.runsFilter.model) chips.push(`model:${this.runsFilter.model}`);
+      if (this.runsFilter.seed !== "" && this.runsFilter.seed !== null && this.runsFilter.seed !== undefined) chips.push(`seed:${this.runsFilter.seed}`);
+      if (Number.isFinite(this.runsFilter.minFrames)) chips.push(`min frames ${this.runsFilter.minFrames}`);
+      if (Number.isFinite(this.runsFilter.maxFrames)) chips.push(`max frames ${this.runsFilter.maxFrames}`);
+      if (this.runsFilter.dateFrom) chips.push(`after ${this.runsFilter.dateFrom}`);
+      if (this.runsFilter.dateTo) chips.push(`before ${this.runsFilter.dateTo}`);
+      if (this.runsFilter.search) chips.push(`search:${this.runsFilter.search}`);
+      return chips;
+    },
+    comparePromptRuns() {
+      return this.runsSelected
+        .map((runId) => this.runsAll.find((r) => r.run_id === runId))
+        .filter(Boolean)
+        .slice(0, 2);
+    },
+    positivePromptDiff() {
+      if (this.comparePromptRuns.length < 2) return { left: [], right: [] };
+      return this.buildPromptSegmentDiff(
+        this.comparePromptRuns[0].prompt_positive,
+        this.comparePromptRuns[1].prompt_positive
+      );
+    },
+    negativePromptDiff() {
+      if (this.comparePromptRuns.length < 2) return { left: [], right: [] };
+      return this.buildPromptSegmentDiff(
+        this.comparePromptRuns[0].prompt_negative,
+        this.comparePromptRuns[1].prompt_negative
+      );
     },
     targetOwners() {
       const map = {};
@@ -2481,22 +2599,105 @@ export default {
       this.runsStatus = "Failed to load runs";
     }
   },
+  clearRunsFilters() {
+    this.runsFilter = {
+      search: "",
+      status: "",
+      tag: "",
+      model: "",
+      seed: "",
+      minFrames: null,
+      maxFrames: null,
+      dateFrom: "",
+      dateTo: "",
+    };
+    this.applyRunsFilters();
+  },
+  parseRunSearchQuery(rawQuery) {
+    const out = {
+      terms: [],
+      status: "",
+      tag: "",
+      model: "",
+      seed: "",
+      note: "",
+      prompt: "",
+      before: "",
+      after: "",
+    };
+    const tokens = String(rawQuery || "").trim().split(/\s+/).filter(Boolean);
+    for (const token of tokens) {
+      const idx = token.indexOf(":");
+      if (idx <= 0) {
+        out.terms.push(token.toLowerCase());
+        continue;
+      }
+      const key = token.slice(0, idx).toLowerCase();
+      const value = token.slice(idx + 1).trim();
+      if (!value) continue;
+      if (key === "status") out.status = value.toLowerCase();
+      else if (key === "tag") out.tag = value.toLowerCase();
+      else if (key === "model") out.model = value.toLowerCase();
+      else if (key === "seed") out.seed = value;
+      else if (key === "note" || key === "notes") out.note = value.toLowerCase();
+      else if (key === "prompt" || key === "positive" || key === "negative") out.prompt = value.toLowerCase();
+      else if (key === "before") out.before = value;
+      else if (key === "after") out.after = value;
+      else out.terms.push(token.toLowerCase());
+    }
+    return out;
+  },
+  runMatchesFreeTerms(run, terms) {
+    if (!terms.length) return true;
+    const haystack = [
+      run.run_id,
+      run.tag,
+      run.model,
+      run.status,
+      run.seed,
+      run.prompt_positive,
+      run.prompt_negative,
+      run.notes,
+    ].map((value) => String(value || "").toLowerCase()).join(" ");
+    return terms.every((term) => haystack.includes(term));
+  },
   applyRunsFilters() {
     let filtered = [...this.runsAll];
-    const { search, status, tag, model } = this.runsFilter;
-    if (status) filtered = filtered.filter(r => r.status === status);
-    if (tag) filtered = filtered.filter(r => (r.tag || "").toLowerCase().includes(tag.toLowerCase()));
-    if (model) filtered = filtered.filter(r => (r.model || "").toLowerCase().includes(model.toLowerCase()));
-    if (search) {
-      const s = search.toLowerCase();
+    const { search, status, tag, model, seed, minFrames, maxFrames, dateFrom, dateTo } = this.runsFilter;
+    const query = this.parseRunSearchQuery(search);
+    const effectiveStatus = (status || query.status || "").toLowerCase();
+    const effectiveTag = (tag || query.tag || "").toLowerCase();
+    const effectiveModel = (model || query.model || "").toLowerCase();
+    const effectiveSeed = String(seed || query.seed || "").trim();
+    const effectiveDateFrom = dateFrom || query.after || "";
+    const effectiveDateTo = dateTo || query.before || "";
+
+    if (effectiveStatus) filtered = filtered.filter(r => String(r.status || "").toLowerCase() === effectiveStatus);
+    if (effectiveTag) filtered = filtered.filter(r => String(r.tag || "").toLowerCase().includes(effectiveTag));
+    if (effectiveModel) filtered = filtered.filter(r => String(r.model || "").toLowerCase().includes(effectiveModel));
+    if (effectiveSeed) filtered = filtered.filter(r => String(r.seed ?? "").trim() === effectiveSeed);
+    if (query.note) filtered = filtered.filter(r => String(r.notes || "").toLowerCase().includes(query.note));
+    if (query.prompt) {
       filtered = filtered.filter(r =>
-        (r.run_id || "").toLowerCase().includes(s) ||
-        (r.tag || "").toLowerCase().includes(s) ||
-        (r.model || "").toLowerCase().includes(s) ||
-        (r.prompt_positive || "").toLowerCase().includes(s) ||
-        (r.notes || "").toLowerCase().includes(s)
+        String(r.prompt_positive || "").toLowerCase().includes(query.prompt) ||
+        String(r.prompt_negative || "").toLowerCase().includes(query.prompt)
       );
     }
+    if (Number.isFinite(minFrames)) {
+      filtered = filtered.filter((r) => Number(r.frame_count || r.length_frames || 0) >= minFrames);
+    }
+    if (Number.isFinite(maxFrames)) {
+      filtered = filtered.filter((r) => Number(r.frame_count || r.length_frames || 0) <= maxFrames);
+    }
+    if (effectiveDateFrom) {
+      const floor = Date.parse(effectiveDateFrom);
+      if (Number.isFinite(floor)) filtered = filtered.filter((r) => Date.parse(r.started_at || "") >= floor);
+    }
+    if (effectiveDateTo) {
+      const ceil = Date.parse(`${effectiveDateTo}T23:59:59Z`);
+      if (Number.isFinite(ceil)) filtered = filtered.filter((r) => Date.parse(r.started_at || "") <= ceil);
+    }
+    filtered = filtered.filter((r) => this.runMatchesFreeTerms(r, query.terms));
     const { field, order } = this.runsSort;
     filtered.sort((a, b) => {
       let va = a[field] || "";
@@ -2595,6 +2796,52 @@ export default {
       return String(val).slice(0, 80) + '…';
     }
     return val;
+  },
+  splitPromptSegments(text) {
+    const parts = String(text || "")
+      .split(/\n|,/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+    return parts.length ? parts : ['—'];
+  },
+  buildPromptSegmentDiff(leftText, rightText) {
+    const left = this.splitPromptSegments(leftText);
+    const right = this.splitPromptSegments(rightText);
+    const rows = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
+    for (let i = left.length - 1; i >= 0; i -= 1) {
+      for (let j = right.length - 1; j >= 0; j -= 1) {
+        rows[i][j] = left[i] === right[j]
+          ? rows[i + 1][j + 1] + 1
+          : Math.max(rows[i + 1][j], rows[i][j + 1]);
+      }
+    }
+    const outLeft = [];
+    const outRight = [];
+    let i = 0;
+    let j = 0;
+    while (i < left.length && j < right.length) {
+      if (left[i] === right[j]) {
+        outLeft.push({ text: left[i], kind: 'same' });
+        outRight.push({ text: right[j], kind: 'same' });
+        i += 1;
+        j += 1;
+      } else if (rows[i + 1][j] >= rows[i][j + 1]) {
+        outLeft.push({ text: left[i], kind: 'remove' });
+        i += 1;
+      } else {
+        outRight.push({ text: right[j], kind: 'add' });
+        j += 1;
+      }
+    }
+    while (i < left.length) {
+      outLeft.push({ text: left[i], kind: 'remove' });
+      i += 1;
+    }
+    while (j < right.length) {
+      outRight.push({ text: right[j], kind: 'add' });
+      j += 1;
+    }
+    return { left: outLeft, right: outRight };
   },
   async exportRunComparison(format) {
     if (this.runsSelected.length < 2) {
