@@ -1,0 +1,25 @@
+{
+  "enabled": true,
+  "strategy": "round_robin",
+  "healthCheckInterval": 30,
+  "timeout": 300,
+  "retryAttempts": 2,
+  "nodes": [
+    {
+      "url": "http://192.168.2.102:7860",
+      "name": "vimage2",
+      "backend": "sd-forge",
+      "enabled": true,
+      "priority": 1,
+      "gpuModel": null
+    },
+    {
+      "url": "http://192.168.2.105:7860",
+      "name": "vimage5",
+      "backend": "sd-forge",
+      "enabled": true,
+      "priority": 2,
+      "gpuModel": null
+    }
+  ]
+}

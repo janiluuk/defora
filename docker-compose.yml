@@ -84,7 +84,7 @@ services:
       - FRAMES_DIR=/data/frames
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
-      - SD_FORGE_HOST=${SD_FORGE_HOST:-sd-forge}
+      - SD_FORGE_HOST=${SD_FORGE_HOST:-192.168.2.102}
       - SD_FORGE_PORT=${SD_FORGE_PORT:-7860}
       - MEDIATOR_HOST=${MEDIATOR_HOST:-mediator}
       - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
