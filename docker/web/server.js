@@ -170,9 +170,18 @@ async function start(opts = {}) {
     const targets = writableForgeTargets();
     const results = await Promise.all(
       targets.map(async (target) => {
+        const t0 = Date.now();
+        const paths = Object.keys(updates).slice(0, 3).join(",");
         try {
-          return await postForgeOptionsToTarget(target, updates, timeoutMs);
+          const result = await postForgeOptionsToTarget(target, updates, timeoutMs);
+          if (target.node) {
+            gpuPool.logNodeRequest(target.node.id, { type: "options", path: `/sdapi/v1/options [${paths}]`, statusCode: 200, durationMs: Date.now() - t0, ok: true });
+          }
+          return result;
         } catch (err) {
+          if (target.node) {
+            gpuPool.logNodeRequest(target.node.id, { type: "options", path: `/sdapi/v1/options [${paths}]`, durationMs: Date.now() - t0, ok: false, error: err.message });
+          }
           return {
             ok: false,
             url: target.url,

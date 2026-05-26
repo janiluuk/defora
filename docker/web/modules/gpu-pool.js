@@ -21,6 +21,8 @@ function nodeIdFromUrl(url) {
   return crypto.createHash("sha256").update(normalizeUrl(url)).digest("hex").slice(0, 16);
 }
 
+const NODE_LOG_MAX = 50;
+
 function defaultNode(input = {}) {
   const url = normalizeUrl(input.url);
   return {
@@ -41,7 +43,15 @@ function defaultNode(input = {}) {
     memoryTotalMb: input.memoryTotalMb ?? null,
     gpuUtilization: input.gpuUtilization ?? null,
     statsError: input.statsError ?? null,
+    requestLog: [],
   };
+}
+
+function pushNodeLog(node, entry) {
+  if (!node) return;
+  if (!Array.isArray(node.requestLog)) node.requestLog = [];
+  node.requestLog.unshift({ ts: Date.now(), ...entry });
+  if (node.requestLog.length > NODE_LOG_MAX) node.requestLog.length = NODE_LOG_MAX;
 }
 
 function parseEnvNodes(env) {
@@ -134,6 +144,7 @@ function createGpuPool(options = {}) {
       gpuUtilization: n.gpuUtilization,
       statsError: n.statsError,
       editable: !n.enabled,
+      requestLog: (n.requestLog || []).slice(0, 30),
     };
   }
 
@@ -249,25 +260,29 @@ function createGpuPool(options = {}) {
     }
     const base = node.url;
     const probePath = node.backend === "comfyui" ? "/system_stats" : "/docs";
+    const start = Date.now();
     try {
-      const start = Date.now();
       const res = await fetchJson(
         `${base}${probePath}`,
         { headers: { Accept: node.backend === "comfyui" ? "application/json" : "text/html" } },
         5000
       );
-      const responseTime = Date.now() - start;
+      const durationMs = Date.now() - start;
       node.lastHealthCheck = new Date().toISOString();
-      node.responseTime = responseTime;
+      node.responseTime = durationMs;
       if (res.ok) {
         node.status = "healthy";
-        return { url: node.url, healthy: true, responseTime, probe: probePath, backend: node.backend };
+        pushNodeLog(node, { type: "health", path: probePath, statusCode: res.status, durationMs, ok: true });
+        return { url: node.url, healthy: true, responseTime: durationMs, probe: probePath, backend: node.backend };
       }
       node.status = "unhealthy";
+      pushNodeLog(node, { type: "health", path: probePath, statusCode: res.status, durationMs, ok: false, error: `HTTP ${res.status}` });
       return { url: node.url, healthy: false, reason: `HTTP ${res.status}`, probe: probePath };
     } catch (err) {
+      const durationMs = Date.now() - start;
       node.status = "unhealthy";
       node.lastHealthCheck = new Date().toISOString();
+      pushNodeLog(node, { type: "health", path: probePath, durationMs, ok: false, error: err.message });
       return { url: node.url, healthy: false, reason: err.message, backend: node.backend };
     }
   }
@@ -281,7 +296,9 @@ function createGpuPool(options = {}) {
     const base = node.url;
     try {
       if (node.backend === "comfyui") {
+        const t0 = Date.now();
         const res = await fetchJson(`${base}/system_stats`, { headers: { Accept: "application/json" } }, 5000);
+        pushNodeLog(node, { type: "stats", path: "/system_stats", statusCode: res.status, durationMs: Date.now() - t0, ok: res.ok });
         if (!res.ok) throw new Error(`system_stats HTTP ${res.status}`);
         const dev = res.data?.devices?.[0];
         if (dev) {
@@ -299,12 +316,16 @@ function createGpuPool(options = {}) {
         return;
       }
 
+      const t1 = Date.now();
       const optRes = await fetchJson(`${base}/sdapi/v1/options`, { headers: { Accept: "application/json" } }, 5000);
+      pushNodeLog(node, { type: "stats", path: "/sdapi/v1/options", statusCode: optRes.status, durationMs: Date.now() - t1, ok: optRes.ok });
       if (optRes.ok && optRes.data) {
-        node.currentModel = optRes.data.sd_model_checkpoint || optRes.data.sd_model_checkpoint || null;
+        node.currentModel = optRes.data.sd_model_checkpoint || null;
       }
 
+      const t2 = Date.now();
       const sysRes = await fetchJson(`${base}/internal/sysinfo`, { headers: { Accept: "application/json" } }, 3000);
+      pushNodeLog(node, { type: "stats", path: "/internal/sysinfo", statusCode: sysRes.status, durationMs: Date.now() - t2, ok: sysRes.ok });
       if (sysRes.ok && sysRes.data?.cuda) {
         const cuda = sysRes.data.cuda;
         if (cuda.system?.total != null && cuda.system?.free != null) {
@@ -317,7 +338,9 @@ function createGpuPool(options = {}) {
           node.gpuUtilization = Math.min(100, Math.round((node.memoryUsedMb / node.memoryTotalMb) * 100));
         }
       } else if (node.memoryUsedMb == null) {
+        const t3 = Date.now();
         const memRes = await fetchJson(`${base}/sdapi/v1/memory`, { headers: { Accept: "application/json" } }, 3000);
+        pushNodeLog(node, { type: "stats", path: "/sdapi/v1/memory", statusCode: memRes.status, durationMs: Date.now() - t3, ok: memRes.ok });
         if (memRes.ok && memRes.data) {
           const cuda = memRes.data.cuda || memRes.data;
           if (cuda.system?.total != null) {
@@ -384,135 +407,182 @@ function createGpuPool(options = {}) {
     app.get("/api/distributed/status", sendPool);
 
     app.put("/api/gpu-pool", async (req, res) => {
-      const { enabled, strategy, healthCheckInterval, timeout, retryAttempts } = req.body || {};
-      if (typeof enabled === "boolean") state.enabled = enabled;
-      if (STRATEGIES.includes(strategy)) state.strategy = strategy;
-      if (typeof healthCheckInterval === "number" && healthCheckInterval > 0) {
-        state.healthCheckInterval = healthCheckInterval;
+      try {
+        const { enabled, strategy, healthCheckInterval, timeout, retryAttempts } = req.body || {};
+        if (typeof enabled === "boolean") state.enabled = enabled;
+        if (STRATEGIES.includes(strategy)) state.strategy = strategy;
+        if (typeof healthCheckInterval === "number" && healthCheckInterval > 0) {
+          state.healthCheckInterval = healthCheckInterval;
+        }
+        if (typeof timeout === "number" && timeout > 0) state.timeout = timeout;
+        if (typeof retryAttempts === "number" && retryAttempts >= 0) state.retryAttempts = retryAttempts;
+        await saveConfig();
+        scheduleHealthChecks();
+        res.json({ success: true, ...publicStatus() });
+      } catch (err) {
+        console.error("[gpu-pool] PUT /api/gpu-pool error:", err.message);
+        res.status(500).json({ error: err.message });
       }
-      if (typeof timeout === "number" && timeout > 0) state.timeout = timeout;
-      if (typeof retryAttempts === "number" && retryAttempts >= 0) state.retryAttempts = retryAttempts;
-      await saveConfig();
-      scheduleHealthChecks();
-      res.json({ success: true, ...publicStatus() });
     });
 
     app.post("/api/distributed/configure", async (req, res) => {
-      req.body = req.body || {};
-      const mapped = { ...req.body };
-      if (Array.isArray(req.body.nodes)) {
-        mapped.nodes = req.body.nodes.map((n) =>
-          defaultNode({
-            url: n.url,
-            name: n.name,
-            backend: n.backend || "sd-forge",
-            enabled: n.enabled !== false,
-            priority: n.priority,
-            gpuModel: n.gpuModel,
-          })
-        );
-        state.nodes = mapped.nodes;
+      try {
+        req.body = req.body || {};
+        const mapped = { ...req.body };
+        if (Array.isArray(req.body.nodes)) {
+          mapped.nodes = req.body.nodes.map((n) =>
+            defaultNode({
+              url: n.url,
+              name: n.name,
+              backend: n.backend || "sd-forge",
+              enabled: n.enabled !== false,
+              priority: n.priority,
+              gpuModel: n.gpuModel,
+            })
+          );
+          state.nodes = mapped.nodes;
+        }
+        const put = { enabled: mapped.enabled, strategy: mapped.strategy };
+        if (typeof put.enabled === "boolean") state.enabled = put.enabled;
+        if (STRATEGIES.includes(put.strategy)) state.strategy = put.strategy;
+        await saveConfig();
+        scheduleHealthChecks();
+        res.json({ success: true, message: "Distributed configuration updated", config: publicStatus() });
+      } catch (err) {
+        console.error("[gpu-pool] configure error:", err.message);
+        res.status(500).json({ error: err.message });
       }
-      const put = { enabled: mapped.enabled, strategy: mapped.strategy };
-      if (typeof put.enabled === "boolean") state.enabled = put.enabled;
-      if (STRATEGIES.includes(put.strategy)) state.strategy = put.strategy;
-      await saveConfig();
-      scheduleHealthChecks();
-      res.json({ success: true, message: "Distributed configuration updated", config: publicStatus() });
     });
 
     app.post("/api/gpu-pool/nodes", async (req, res) => {
-      const { url, name, backend, priority, gpuModel, enabled } = req.body || {};
-      const normalized = normalizeUrl(url);
-      if (!normalized) return res.status(400).json({ error: "url required" });
-      if (findNode(normalized)) return res.status(409).json({ error: "node already exists" });
-      const node = defaultNode({
-        url: normalized,
-        name: name || normalized,
-        backend: backend || "sd-forge",
-        priority,
-        gpuModel,
-        enabled: enabled !== false,
-      });
-      state.nodes.push(node);
-      await saveConfig();
-      res.json({ success: true, node: publicNode(node) });
+      try {
+        const { url, name, backend, priority, gpuModel, enabled } = req.body || {};
+        const normalized = normalizeUrl(url);
+        if (!normalized) return res.status(400).json({ error: "url required" });
+        if (findNode(normalized)) return res.status(409).json({ error: "node already exists" });
+        const node = defaultNode({
+          url: normalized,
+          name: name || normalized,
+          backend: backend || "sd-forge",
+          priority,
+          gpuModel,
+          enabled: enabled !== false,
+        });
+        state.nodes.push(node);
+        await saveConfig();
+        res.json({ success: true, node: publicNode(node) });
+      } catch (err) {
+        console.error("[gpu-pool] add node error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.put("/api/gpu-pool/nodes/:id", async (req, res) => {
-      const node = findNode(req.params.id);
-      if (!node) return res.status(404).json({ error: "node not found" });
-      if (node.enabled) {
-        return res.status(409).json({ error: "disable node before editing (only disabled nodes can be edited)" });
+      try {
+        const node = findNode(req.params.id);
+        if (!node) return res.status(404).json({ error: "node not found" });
+        if (node.enabled) {
+          return res.status(409).json({ error: "disable node before editing (only disabled nodes can be edited)" });
+        }
+        const { url, name, backend, priority, gpuModel } = req.body || {};
+        if (url) {
+          const normalized = normalizeUrl(url);
+          if (!normalized) return res.status(400).json({ error: "invalid url" });
+          const other = state.nodes.find((n) => n.url === normalized && n.id !== node.id);
+          if (other) return res.status(409).json({ error: "url already used" });
+          node.url = normalized;
+          node.id = nodeIdFromUrl(normalized);
+        }
+        if (name) node.name = String(name);
+        if (backend && BACKENDS.includes(backend)) node.backend = backend;
+        if (priority != null) node.priority = Number(priority) || 1;
+        if (gpuModel !== undefined) node.gpuModel = gpuModel;
+        await saveConfig();
+        res.json({ success: true, node: publicNode(node) });
+      } catch (err) {
+        console.error("[gpu-pool] edit node error:", err.message);
+        res.status(500).json({ error: err.message });
       }
-      const { url, name, backend, priority, gpuModel } = req.body || {};
-      if (url) {
-        const normalized = normalizeUrl(url);
-        if (!normalized) return res.status(400).json({ error: "invalid url" });
-        const other = state.nodes.find((n) => n.url === normalized && n.id !== node.id);
-        if (other) return res.status(409).json({ error: "url already used" });
-        node.url = normalized;
-        node.id = nodeIdFromUrl(normalized);
-      }
-      if (name) node.name = String(name);
-      if (backend && BACKENDS.includes(backend)) node.backend = backend;
-      if (priority != null) node.priority = Number(priority) || 1;
-      if (gpuModel !== undefined) node.gpuModel = gpuModel;
-      await saveConfig();
-      res.json({ success: true, node: publicNode(node) });
     });
 
     app.delete("/api/gpu-pool/nodes/:id", async (req, res) => {
-      const node = findNode(req.params.id);
-      if (!node) return res.status(404).json({ error: "node not found" });
-      if (node.enabled) {
-        return res.status(409).json({ error: "disable node before removal" });
+      try {
+        const node = findNode(req.params.id);
+        if (!node) return res.status(404).json({ error: "node not found" });
+        if (node.enabled) {
+          return res.status(409).json({ error: "disable node before removal" });
+        }
+        state.nodes = state.nodes.filter((n) => n.id !== node.id);
+        await saveConfig();
+        res.json({ success: true, removed: node.name });
+      } catch (err) {
+        console.error("[gpu-pool] delete node error:", err.message);
+        res.status(500).json({ error: err.message });
       }
-      state.nodes = state.nodes.filter((n) => n.id !== node.id);
-      await saveConfig();
-      res.json({ success: true, removed: node.name });
     });
 
     app.post("/api/gpu-pool/nodes/:id/disable", async (req, res) => {
-      const node = findNode(req.params.id);
-      if (!node) return res.status(404).json({ error: "node not found" });
-      node.enabled = false;
-      node.status = "disabled";
-      node.activeJobs = 0;
-      await saveConfig();
-      res.json({ success: true, node: publicNode(node) });
+      try {
+        const node = findNode(req.params.id);
+        if (!node) return res.status(404).json({ error: "node not found" });
+        node.enabled = false;
+        node.status = "disabled";
+        node.activeJobs = 0;
+        await saveConfig();
+        res.json({ success: true, node: publicNode(node) });
+      } catch (err) {
+        console.error("[gpu-pool] disable node error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.post("/api/gpu-pool/nodes/:id/enable", async (req, res) => {
-      const node = findNode(req.params.id);
-      if (!node) return res.status(404).json({ error: "node not found" });
-      node.enabled = true;
-      node.status = "unknown";
-      await saveConfig();
-      await probeHealth(node);
-      await refreshNodeStats(node);
-      res.json({ success: true, node: publicNode(node) });
+      try {
+        const node = findNode(req.params.id);
+        if (!node) return res.status(404).json({ error: "node not found" });
+        node.enabled = true;
+        node.status = "unknown";
+        await saveConfig();
+        // Probe and stats in background — don't block the response
+        probeHealth(node)
+          .then(() => refreshNodeStats(node))
+          .catch((e) => console.error("[gpu-pool] probe after enable:", e.message));
+        res.json({ success: true, node: publicNode(node) });
+      } catch (err) {
+        console.error("[gpu-pool] enable node error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.post("/api/gpu-pool/refresh", async (_req, res) => {
-      const results = await performHealthCheck();
-      res.json({
-        success: true,
-        checked: results.length,
-        healthy: results.filter((r) => r.healthy).length,
-        results,
-        nodes: state.nodes.map(publicNode),
-      });
+      try {
+        const results = await performHealthCheck();
+        res.json({
+          success: true,
+          checked: results.length,
+          healthy: results.filter((r) => r.healthy).length,
+          results,
+          nodes: state.nodes.map(publicNode),
+        });
+      } catch (err) {
+        console.error("[gpu-pool] refresh error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.post("/api/distributed/health-check", async (_req, res) => {
-      const results = await performHealthCheck();
-      res.json({
-        success: true,
-        checked: results.length,
-        healthy: results.filter((r) => r.healthy).length,
-        results,
-      });
+      try {
+        const results = await performHealthCheck();
+        res.json({
+          success: true,
+          checked: results.length,
+          healthy: results.filter((r) => r.healthy).length,
+          results,
+        });
+      } catch (err) {
+        console.error("[gpu-pool] health-check error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.get("/api/distributed/metrics", (_req, res) => {
@@ -533,33 +603,48 @@ function createGpuPool(options = {}) {
     });
 
     const distributedDisable = async (req, res) => {
-      const node = findNode(req.params.nodeId);
-      if (!node) return res.status(404).json({ error: "Node not found" });
-      node.enabled = false;
-      node.status = "disabled";
-      node.activeJobs = 0;
-      await saveConfig();
-      res.json({ success: true, message: `Node ${node.name} disabled` });
+      try {
+        const node = findNode(req.params.nodeId);
+        if (!node) return res.status(404).json({ error: "Node not found" });
+        node.enabled = false;
+        node.status = "disabled";
+        node.activeJobs = 0;
+        await saveConfig();
+        res.json({ success: true, message: `Node ${node.name} disabled` });
+      } catch (err) {
+        console.error("[gpu-pool] distributed disable error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     };
     app.post("/api/distributed/nodes/:nodeId/disable", distributedDisable);
 
     app.post("/api/distributed/nodes/:nodeId/enable", async (req, res) => {
-      const node = findNode(req.params.nodeId);
-      if (!node) return res.status(404).json({ error: "Node not found" });
-      node.enabled = true;
-      node.status = "unknown";
-      await saveConfig();
-      await probeHealth(node);
-      res.json({ success: true, message: `Node ${node.name} enabled` });
+      try {
+        const node = findNode(req.params.nodeId);
+        if (!node) return res.status(404).json({ error: "Node not found" });
+        node.enabled = true;
+        node.status = "unknown";
+        await saveConfig();
+        probeHealth(node).catch((e) => console.error("[gpu-pool] probe after enable:", e.message));
+        res.json({ success: true, message: `Node ${node.name} enabled` });
+      } catch (err) {
+        console.error("[gpu-pool] distributed enable error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.delete("/api/distributed/nodes/:nodeId", async (req, res) => {
-      const node = findNode(req.params.nodeId);
-      if (!node) return res.status(404).json({ error: "Node not found" });
-      if (node.enabled) return res.status(409).json({ error: "disable node before removal" });
-      state.nodes = state.nodes.filter((n) => n.id !== node.id);
-      await saveConfig();
-      res.json({ success: true, message: `Node ${node.name} removed` });
+      try {
+        const node = findNode(req.params.nodeId);
+        if (!node) return res.status(404).json({ error: "Node not found" });
+        if (node.enabled) return res.status(409).json({ error: "disable node before removal" });
+        state.nodes = state.nodes.filter((n) => n.id !== node.id);
+        await saveConfig();
+        res.json({ success: true, message: `Node ${node.name} removed` });
+      } catch (err) {
+        console.error("[gpu-pool] distributed delete error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
     });
 
     app.post("/api/distributed/generate", async (req, res) => {
@@ -612,6 +697,11 @@ function createGpuPool(options = {}) {
     }
   }
 
+  function logNodeRequest(nodeIdOrUrl, entry) {
+    const node = findNode(nodeIdOrUrl) || state.nodes.find((n) => n.url === nodeIdOrUrl);
+    if (node) pushNodeLog(node, entry);
+  }
+
   return {
     init,
     state,
@@ -628,6 +718,7 @@ function createGpuPool(options = {}) {
     saveConfig,
     eligibleNodes,
     close,
+    logNodeRequest,
     BACKENDS,
     STRATEGIES,
   };
