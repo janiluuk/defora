@@ -36,7 +36,7 @@ try {
   }
   await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
   await page.waitForTimeout(300);
-  await page.getByRole('button', { name: '🖥️ GPUS' }).click();
+  await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(400);
   const gpuPanel = page.locator('[data-testid="gpu-pool-panel"]');
   if ((await gpuPanel.count()) === 0) {
