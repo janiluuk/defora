@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.0] - 2026-05-26
+
+## What's Changed
+
+- Cursor/live preview loading deforum defaults (#42) (53f2831)
+- Cursor/live preview loading deforum defaults (#41) (11aca87)
+- Cursor/live preview loading deforum defaults (#40) (60515bb)
+- fix: reduce LIVE preview width (4fb5d49)
+- feat: log generation requests (deforum preview + txt2img) to gpu node log (a6a9dfa)
+- chore: gitignore built assets, remove stale asset files (80c91e2)
+- fix: P1 LIVE stage layout + P2 spacing bugs (c16c118)
+- feat: GPU pool node cards with per-node request log + stability fixes (d027d2f)
+- feat: log distributed GPU node requests (5343277)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.6...v0.6.0
+
+
 ## [0.5.6] - 2026-05-26
 
 ## What's Changed
