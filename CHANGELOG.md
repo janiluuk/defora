@@ -7,6 +7,15 @@ All notable changes to this project will be documented in this file.
 
 ## What's Changed
 
+- Mediator merge (#38) (fab76ef)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.2...v0.5.2
+
+
+## [0.5.2] - 2026-05-26
+
+## What's Changed
+
 - Fixes (be876ab)
 
 **Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.1...v0.5.2
