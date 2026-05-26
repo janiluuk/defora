@@ -157,6 +157,7 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.not.include("AUDIO");
     expect(tabs.join(" ")).to.not.include("RUNS");
     expect(tabs.length).to.equal(6);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(6);
   });
 
   it("has a video player and overlay HUD", () => {

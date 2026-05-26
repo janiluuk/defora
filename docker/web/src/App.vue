@@ -2,8 +2,20 @@
   <div id="app">
     <header>
       <div class="tabs">
-        <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
-          {{ tab.label }}
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+            <span class="tab__hint">{{ tab.hint }}</span>
+          </span>
         </button>
       </div>
       <StatusStrip
@@ -620,12 +632,12 @@ export default {
       },
       session: "clown_set_01",
       tabs: [
-        { id: "LIVE", label: "LIVE" },
-        { id: "PROMPTS", label: "PROMPTS" },
-        { id: "MOTION", label: "MOTION" },
-        { id: "MODULATION", label: "MODULATION" },
-        { id: "SETTINGS", label: "SETTINGS" },
-        { id: "GENERATE", label: "GENERATE" },
+        { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
+        { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
+        { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
+        { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
+        { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { PROMPTS: 'IMAGE', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
