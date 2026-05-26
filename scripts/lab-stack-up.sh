@@ -13,8 +13,7 @@
 #   LAB_PATH / DEPLOY_PATH     — default /srv/defora
 #   LAB_USER / DEPLOY_USER     — default root
 #   SSH_PROXY_JUMP             — e.g. pi@sparkki.dudeisland.eu:4322 (GitHub Actions / remote deploy)
-#   COMPOSE_FILE               — compose file to deploy (default docker-compose.external-forge.yml)
-#   COMPOSE_SERVICES           — space-separated services (default derived from compose file)
+#   COMPOSE_SERVICES           — space-separated services (default below)
 #   WEB_PORT                   — host port for web UI (default 8080)
 #   RSYNC_DELETE=1             — rsync --delete (careful)
 #
@@ -38,14 +37,7 @@ REMOTE_PATH="${LAB_PATH:-${DEPLOY_PATH:-/srv/defora}}"
 REMOTE_USER="${LAB_USER:-${DEPLOY_USER:-root}}"
 PROXY_JUMP="${SSH_PROXY_JUMP:-}"
 WEB_PORT="${WEB_PORT:-8080}"
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.external-forge.yml}"
-if [[ -n "${COMPOSE_SERVICES:-}" ]]; then
-  COMPOSE_SERVICES="${COMPOSE_SERVICES}"
-elif [[ "$COMPOSE_FILE" == *"external-forge"* ]]; then
-  COMPOSE_SERVICES="mq web control-bridge encoder"
-else
-  COMPOSE_SERVICES="mq mediator web control-bridge sd-forge"
-fi
+COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge sd-forge}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -67,10 +59,10 @@ if [[ "${RSYNC_DELETE:-}" == "1" ]]; then
   RSYNC_FLAGS+=(--delete)
 fi
 
-echo "==> Remote: tear down old stack (${COMPOSE_FILE})"
+echo "==> Remote: tear down old stack"
 # shellcheck disable=SC2029
 ssh_remote "${REMOTE_USER}@${HOST}" \
-  "[ -d '${REMOTE_PATH}' ] && cd '${REMOTE_PATH}' && docker compose -f '${COMPOSE_FILE}' down --remove-orphans 2>/dev/null || true"
+  "[ -d '${REMOTE_PATH}' ] && cd '${REMOTE_PATH}' && docker compose down --remove-orphans 2>/dev/null || true"
 
 echo "==> Sync → ${REMOTE_USER}@${HOST}:${REMOTE_PATH}"
 ssh_remote "${REMOTE_USER}@${HOST}" "mkdir -p '${REMOTE_PATH}'"
@@ -89,32 +81,30 @@ rsync "${RSYNC_FLAGS[@]}" \
   --exclude '.env.*.local' \
   ./ "${REMOTE_USER}@${HOST}:${REMOTE_PATH}/"
 
-BUILD_CMD="docker compose -f '${COMPOSE_FILE}' build --pull ${COMPOSE_SERVICES}"
+BUILD_CMD="docker compose build --pull ${COMPOSE_SERVICES}"
 if [[ -n "$NO_CACHE" ]]; then
   BUILD_CMD+=" --no-cache"
 fi
 
-echo "==> Remote: build and start stack (${COMPOSE_SERVICES})"
+echo "==> Remote: ensure deforumation submodule, build, up (${COMPOSE_SERVICES})"
 # shellcheck disable=SC2029
 ssh_remote "${REMOTE_USER}@${HOST}" \
   "set -e
    cd '${REMOTE_PATH}'
+   if [ ! -f deforumation/mediator.py ]; then
+     echo '==> Cloning deforumation submodule on host...'
+     ./scripts/clone_deforumation.sh
+   fi
    if [ -f .env ]; then set -a; . ./.env; set +a; fi
    ${BUILD_CMD}
-   WEB_PORT=${WEB_PORT} docker compose -f '${COMPOSE_FILE}' up -d ${COMPOSE_SERVICES}"
+   WEB_PORT=${WEB_PORT} docker compose up -d ${COMPOSE_SERVICES}"
 
 BASE_URL="http://${HOST}:${WEB_PORT}"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  Compose file:  ${COMPOSE_FILE}"
 echo "  Defora UI:     ${BASE_URL}"
 echo "  Health:        ${BASE_URL}/api/health"
 echo "  HLS:           ${BASE_URL}/hls/live/deforum.m3u8"
-if [[ "$COMPOSE_SERVICES" == *"sd-forge"* ]]; then
-  echo "  SD-Forge:      http://${HOST}:7860"
-else
-  echo "  Mediator:      ws://${MEDIATOR_HOST:-vimage2}:8766"
-  echo "  SD-Forge pool: ${DISTRIBUTED_NODES:-http://vimage2:7860,http://vimage5:7860}"
-fi
+echo "  SD-Forge:      http://${HOST}:7860"
 echo "  RabbitMQ UI:   http://${HOST}:15672"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

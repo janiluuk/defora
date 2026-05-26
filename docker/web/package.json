@@ -1,6 +1,6 @@
 {
   "name": "defora-web",
-  "version": "0.5.2",
+  "version": "0.5.1",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -16,7 +16,6 @@
   "dependencies": {
     "amqplib": "^0.10.3",
     "express": "^4.19.2",
-    "three": "^0.184.0",
     "ws": "^8.16.0"
   },
   "devDependencies": {
