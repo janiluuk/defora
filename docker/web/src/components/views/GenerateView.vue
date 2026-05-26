@@ -18,6 +18,28 @@
           <li>Preview-frame generation while shaping a clip</li>
         </ul>
       </div>
+      <div class="generate-sequencer__details">
+        <div v-if="performance.status || generator.status" class="generate-story__story-result">
+          <div class="framesync-header">
+            <div class="framesync-subtitle" style="margin:0;">Preview + Story status</div>
+            <span
+              class="generate-sequencer__status"
+              :class="{ 'generate-sequencer__status--live': /frame ready/i.test(String(performance.status || '')) }"
+            >
+              {{ /frame ready/i.test(String(performance.status || '')) ? 'Frame ready' : 'Idle' }}
+            </span>
+          </div>
+          <div v-if="performance.status" class="generate-sequencer__status-text">{{ performance.status }}</div>
+          <div v-if="generator.status" class="framesync-subtitle" style="margin-top:8px;">{{ generator.status }}</div>
+        </div>
+        <div v-if="generator.result" class="generate-story__story-result">
+          <div class="framesync-header">
+            <div class="framesync-subtitle" style="margin:0;">Story generation text</div>
+            <span class="pill" v-if="generator.result.source && generator.result.source.model">{{ generator.result.source.model }}</span>
+          </div>
+          <pre class="generate-story__story-text">{{ generator.result.formatted }}</pre>
+        </div>
+      </div>
     </div>
   </div>
 </template>

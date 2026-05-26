@@ -843,7 +843,7 @@ export default {
       cn: {
         slots: [
           { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
-          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true, imageSource: "file" },
+          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
           { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
           { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
           { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
@@ -5474,6 +5474,7 @@ async generateStory() {
     }
      if (s.deforumSettings && typeof s.deforumSettings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
+       this.syncResolutionAcrossControls(this.deforumSettings.W, this.deforumSettings.H, { syncGpuModal: false });
        this.syncDeforumSettingsJson();
       this.sessionDeforumSettingsLoaded = true;
      }
@@ -5505,6 +5506,51 @@ async generateStory() {
  },
 normalizedDeforumSettings() {
   return mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, this.deforumSettings || {});
+},
+currentResolution({ fallbackWidth = 1024, fallbackHeight = 576 } = {}) {
+  const width = Number(this.deforumSettings && this.deforumSettings.W)
+    || Number(this.forge && this.forge.options && this.forge.options.width)
+    || Number(this.img2img && this.img2img.width)
+    || Number((this.generator && this.generator.resolution ? this.generator.resolution : '').split('x')[0])
+    || fallbackWidth;
+  const height = Number(this.deforumSettings && this.deforumSettings.H)
+    || Number(this.forge && this.forge.options && this.forge.options.height)
+    || Number(this.img2img && this.img2img.height)
+    || Number((this.generator && this.generator.resolution ? this.generator.resolution : '').split('x')[1])
+    || fallbackHeight;
+  return { width, height };
+},
+syncResolutionAcrossControls(rawWidth, rawHeight, {
+  syncDeforum = true,
+  syncForge = true,
+  syncImg2img = true,
+  syncGenerator = true,
+  syncGpuModal = true,
+} = {}) {
+  const fallback = this.currentResolution();
+  const width = Math.max(64, Math.round(Number(rawWidth) || fallback.width || 1024));
+  const height = Math.max(64, Math.round(Number(rawHeight) || fallback.height || 576));
+  if (syncDeforum) {
+    this.deforumSettings = this.normalizedDeforumSettings();
+    this.deforumSettings.W = width;
+    this.deforumSettings.H = height;
+  }
+  if (syncForge) {
+    this.forge.options.width = width;
+    this.forge.options.height = height;
+  }
+  if (syncImg2img) {
+    this.img2img.width = width;
+    this.img2img.height = height;
+  }
+  if (syncGenerator) {
+    this.generator.resolution = `${width}x${height}`;
+  }
+  if (syncGpuModal && this.gpuPool && this.gpuPool.forgeModal && this.gpuPool.forgeModal.options) {
+    this.gpuPool.forgeModal.options.width = width;
+    this.gpuPool.forgeModal.options.height = height;
+  }
+  return { width, height };
 },
 normalizeModelName(name) {
   const normalized = typeof name === 'string' ? name.trim() : '';
@@ -5987,10 +6033,10 @@ flushQueuedPreview() {
     this.forge.options.sampler_name = String(value || '');
   }
   if (keyPath === 'W' && Number.isFinite(value)) {
-    this.forge.options.width = value;
+    this.syncResolutionAcrossControls(value, this.deforumSettings && this.deforumSettings.H, { syncGpuModal: true });
   }
   if (keyPath === 'H' && Number.isFinite(value)) {
-    this.forge.options.height = value;
+    this.syncResolutionAcrossControls(this.deforumSettings && this.deforumSettings.W, value, { syncGpuModal: true });
   }
   if (keyPath === 'sd_model_name') {
     this.forge.selectedModel = this.normalizeModelName(value);
@@ -6004,12 +6050,36 @@ flushQueuedPreview() {
  onEngineResolutionChange(val) {
    const [w, h] = String(val).split('x').map(Number);
    if (w > 0 && h > 0) {
-    this.forge.options.width = w;
-    this.forge.options.height = h;
+    this.syncResolutionAcrossControls(w, h, { syncGpuModal: true });
      this.onDeforumFieldInput('W', w, 'number');
      this.onDeforumFieldInput('H', h, 'number');
    }
  },
+onImg2imgResolutionInput(axis, rawValue) {
+  const fallback = {
+    fallbackWidth: Number(this.img2img && this.img2img.width) || 1024,
+    fallbackHeight: Number(this.img2img && this.img2img.height) || 576,
+  };
+  const current = this.currentResolution(fallback);
+  const nextWidth = axis === 'width' ? rawValue : current.width;
+  const nextHeight = axis === 'height' ? rawValue : current.height;
+  const next = this.syncResolutionAcrossControls(nextWidth, nextHeight, { syncGpuModal: true });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+  return next;
+},
+onGpuForgeModalResolutionInput(axis, rawValue) {
+  const modal = this.gpuPool && this.gpuPool.forgeModal;
+  if (!modal || !modal.options) return null;
+  const nextWidth = axis === 'width' ? rawValue : modal.options.width;
+  const nextHeight = axis === 'height' ? rawValue : modal.options.height;
+  const next = this.syncResolutionAcrossControls(nextWidth, nextHeight, { syncGpuModal: true });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+  return next;
+},
  pushDeforumLivePatch(keyPath, value) {
    const patch = patchFromKeyPath(keyPath, value);
    this.sendControl('liveParam', patch);

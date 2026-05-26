@@ -266,6 +266,24 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".gpu-forge-modal")).to.exist;
   });
 
+  it("shows preview-ready and story generation text in the animation sequencer tab", async () => {
+    appVm.switchTab("GENERATE");
+    appVm.performance.status = "Preview frame ready";
+    appVm.generator.status = "Story ready";
+    appVm.generator.result = {
+      formatted: "Theme: Neon city\n\n0: opening skyline shot",
+      source: { model: "llama3.1" },
+    };
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Animation Sequencer");
+    expect(pageText).to.include("Preview frame ready");
+    expect(pageText).to.include("Story generation text");
+    expect(pageText).to.include("Theme: Neon city");
+  });
+
   it("shows img2img under the image subtab", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "IMAGE");
