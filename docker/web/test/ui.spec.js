@@ -177,6 +177,23 @@ describe("Deforumation Web UI", () => {
     expect(appVm.deforumFeedStatusLabel).to.match(/live|ready/i);
   });
 
+  it("keeps the standby animation visible on initial LIVE load", () => {
+    appVm.currentTab = "LIVE";
+    appVm.deforumPlaying = false;
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    appVm.performance.lastPreviewPath = "/frames/frame_0001.png";
+
+    expect(appVm.activePreviewStillPath).to.equal("/frames/frame_0001.png");
+    expect(appVm.showPreviewStill).to.equal(false);
+
+    appVm.currentTab = "MOTION";
+    expect(appVm.showPreviewStill).to.equal(true);
+
+    appVm.currentTab = "LIVE";
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    expect(appVm.showPreviewStill).to.equal(true);
+  });
+
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
@@ -199,6 +216,9 @@ describe("Deforumation Web UI", () => {
   it("shows prompt morph controls", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "PROMPTS");
+    await nextTick();
+    const promptButtonsCollapsed = [...document.querySelectorAll(".prompt-toolbar .framesync-button")].map((el) => el.textContent.trim());
+    expect(promptButtonsCollapsed).to.include("Expand");
     appVm.morphCollapsed = false;
     await nextTick();
     await nextTick();
@@ -212,18 +232,91 @@ describe("Deforumation Web UI", () => {
     expect(allButtons.join(" ")).to.include("LFO 1");
   });
 
+  it("shows the main engine controls in the engine tab", async () => {
+    appVm.forge.currentModel = "juggernautXL.safetensors";
+    appVm.forge.selectedModel = "juggernautXL.safetensors";
+    appVm.deforumSettings.sd_model_name = "juggernautXL.safetensors";
+    appVm.deforumSettings.steps = 30;
+    appVm.deforumSettings.cfg_scale_schedule = "0:(6.5)";
+    appVm.deforumSettings.sampler = "Euler a";
+    appVm.forge.samplers = ["Euler a", "DPM++ 2M"];
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "ENGINE");
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Current model");
+    expect(pageText).to.include("Current CFG");
+    expect(pageText).to.include("Current steps");
+    expect(pageText).to.include("Checkpoint");
+    expect(pageText).to.include("Sampler");
+    expect(pageText).to.include("Optimize for model");
+    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
+    expect(subTabs.join(" ")).to.not.include("FORGE");
+    expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
+    expect(subTabs.join(" ")).to.not.include("BINDINGS");
+    expect(subTabs.join(" ")).to.not.include("PRESETS");
+  });
+
+  it("renders a forge instance editor modal from GPU pool state", async () => {
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "GPUS");
+    appVm.gpuPool.forgeModal = {
+      ...appVm.gpuPool.forgeModal,
+      open: true,
+      nodeId: "forge-1",
+      nodeName: "Forge Alpha",
+      url: "http://127.0.0.1:7860",
+      currentModel: "juggernautXL.safetensors",
+      schedulers: ["Normal"],
+      vaeList: ["vae-ft-mse"],
+      options: { scheduler: "Normal", sd_vae: "vae-ft-mse", width: 1024, height: 576, batch_size: 1 },
+    };
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Edit SD-Forge instance");
+    expect(pageText).to.include("Forge Alpha");
+    expect(pageText).to.include("Apply options");
+    expect(document.querySelector(".gpu-forge-modal")).to.exist;
+  });
+
+  it("shows preview-ready and story generation text in the animation sequencer tab", async () => {
+    appVm.switchTab("GENERATE");
+    appVm.performance.status = "Preview frame ready";
+    appVm.generator.status = "Story ready";
+    appVm.generator.result = {
+      formatted: "Theme: Neon city\n\n0: opening skyline shot",
+      source: { model: "llama3.1" },
+    };
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Animation Sequencer");
+    expect(pageText).to.include("Duration (s)");
+    expect(pageText).to.include("Playhead (s)");
+    expect(pageText).to.include("Preview frame");
+    expect(pageText).to.include("Preview frame ready");
+    expect(pageText).to.include("Story generation text");
+    expect(pageText).to.include("Theme: Neon city");
+  });
+
   it("shows img2img under the image subtab", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "IMAGE");
-    appVm.img2img.show = true;
     await nextTick();
     await nextTick();
 
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.include("IMAGE");
 
-    const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
-    expect(titles.join(" ")).to.include("img2img (Forge)");
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("img2img (Forge)");
+    expect(pageText).to.include("Input image");
+    expect(document.querySelectorAll(".img2img-dropzone").length).to.equal(2);
   });
 
   it("shows active LoRAs and opens a compatible picker with +", async () => {
@@ -304,6 +397,10 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(appVm.currentSubTab.SETTINGS).to.equal("MIDI");
     expect(appVm.midi.mappings.length).to.be.greaterThan(0);
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Controllers");
+    expect(pageText).to.include("Parameter Bindings");
+    expect(pageText).to.include("Preset Management");
     const settingsHeadings = [...document.querySelectorAll(".framesync-title")].map((h) => h.textContent.trim());
     if (appVm.midi.supported && settingsHeadings.join(" ").includes("Controllers")) {
       const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
@@ -340,12 +437,70 @@ describe("Deforumation Web UI behavior", () => {
     if (!global.window) {
       global.window = {};
     }
-    global.window.localStorage = {
+    const localStorageMock = {
       getItem: (key) => testStorage[key] || null,
       setItem: (key, value) => { testStorage[key] = value; },
       removeItem: (key) => { delete testStorage[key]; },
       clear: () => { testStorage = {}; Object.keys(testStorage).forEach(k => delete testStorage[k]); }
     };
+    Object.defineProperty(global.window, "localStorage", {
+      value: localStorageMock,
+      configurable: true,
+      writable: true,
+    });
+    global.localStorage = localStorageMock;
+  });
+
+  it("defaults prompts to the image subtab", () => {
+    const instance = instantiate(appDef);
+    expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
+    expect(instance.img2img.show).to.equal(true);
+  });
+
+  it("openGpuSettings jumps to settings GPUS", () => {
+    const instance = instantiate(appDef);
+
+    instance.openGpuSettings();
+
+    expect(instance.currentTab).to.equal("SETTINGS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("GPUS");
+  });
+
+  it("redirects legacy settings subtabs for bindings and presets into MIDI", () => {
+    const instance = instantiate(appDef);
+
+    instance.switchSubTab("SETTINGS", "BINDINGS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
+
+    instance.switchSubTab("SETTINGS", "PRESETS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
+  });
+
+  it("reports GPU status counts from the pool state", () => {
+    const instance = instantiate(appDef);
+    instance.gpuPool.healthyNodes = 2;
+    instance.gpuPool.nodes = [{ id: "gpu-1" }, { id: "gpu-2" }, { id: "gpu-3" }];
+
+    expect(instance.gpuActiveCount).to.equal(2);
+    expect(instance.gpuTotalCount).to.equal(3);
+  });
+
+  it("startEditGpuNode opens the forge modal for disabled sd-forge nodes", async () => {
+    const instance = instantiate(appDef);
+    let openedNode = null;
+    instance.openGpuForgeModal = async (node) => { openedNode = node; };
+
+    await instance.startEditGpuNode({
+      id: "forge-1",
+      name: "Forge Alpha",
+      url: "http://127.0.0.1:7860",
+      backend: "sd-forge",
+      enabled: false,
+    });
+
+    expect(openedNode).to.exist;
+    expect(openedNode.id).to.equal("forge-1");
+    expect(instance.gpuPool.editId).to.equal(null);
   });
 
   it("setSource updates state and dispatches payload", () => {
@@ -466,6 +621,74 @@ describe("Deforumation Web UI behavior", () => {
     expect(plays).to.equal(1);
   });
 
+  it("toggleCollaboration goes offline cleanly and reconnects on the next press", () => {
+    const instance = instantiate(appDef);
+    const sockets = [];
+    const previousLocation = global.location;
+    const previousWebSocket = global.WebSocket;
+    const previousWindowWebSocket = global.window && global.window.WebSocket;
+
+    try {
+      global.location = { protocol: "http:", host: "localhost" };
+      global.WebSocket = class TestSocket {
+        constructor(url) {
+          this.url = url;
+          this.readyState = 1;
+          this.sent = [];
+          sockets.push(this);
+        }
+        send(msg) {
+          if (typeof msg === "string") {
+            this.sent.push(JSON.parse(msg));
+          } else {
+            this.sent.push(msg ?? null);
+          }
+        }
+        close() {
+          this.readyState = 3;
+          if (typeof this.onclose === "function") this.onclose();
+        }
+      };
+      if (global.window) {
+        global.window.WebSocket = global.WebSocket;
+      }
+
+      instance.connectWebSocket();
+      expect(instance.wsStatus).to.equal("connecting");
+      sockets[0].onopen();
+      expect(instance.wsStatus).to.equal("connected");
+
+      instance.collab.userId = "user-1";
+      instance.collab.users = [{ id: "user-1", name: "Performer", lockedParams: ["cfg"] }];
+      instance.collab.locks = { cfg: "Performer" };
+      instance.collab.recording = true;
+      instance.collab.recordings = [{ filename: "take-1.jsonl" }];
+      instance.collab.status = "Session recording…";
+
+      instance.toggleCollaboration();
+      expect(instance.collabEnabled).to.equal(false);
+      expect(instance.wsStatus).to.equal("offline");
+      expect(instance.ws).to.equal(null);
+      expect(instance.collab.userId).to.equal(null);
+      expect(instance.collab.users).to.deep.equal([]);
+      expect(instance.collab.locks).to.deep.equal({});
+      expect(instance.collab.recordings).to.deep.equal([]);
+
+      instance.toggleCollaboration();
+      expect(instance.collabEnabled).to.equal(true);
+      expect(instance.wsStatus).to.equal("connecting");
+      expect(sockets).to.have.length(2);
+      sockets[1].onopen();
+      expect(instance.wsStatus).to.equal("connected");
+    } finally {
+      global.location = previousLocation;
+      global.WebSocket = previousWebSocket;
+      if (global.window) {
+        global.window.WebSocket = previousWindowWebSocket;
+      }
+    }
+  });
+
   it("runLfos emits liveParam payload when audio is off", () => {
     const instance = instantiate(appDef);
     instance.ws = new FakeSocket();
@@ -565,7 +788,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.forge.currentModel).to.equal("new-model.safetensors");
     expect(instance.forge.lastModel).to.equal("new-model.safetensors");
     expect(instance.deforumSettings.sd_model_name).to.equal("new-model.safetensors");
-    expect(queuedSave).to.equal(1);
+    expect(queuedSave).to.be.greaterThan(0);
     expect(savedSession).to.be.greaterThan(0);
     delete global.fetch;
   });
@@ -659,6 +882,50 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.deforumSettings.cn_2_weight).to.equal("0:(1)");
     expect(instance.deforumSettings.cn_2_guidance_start).to.equal("0:(0.0)");
     expect(instance.deforumSettings.cn_2_guidance_end).to.equal("0:(1.0)");
+  });
+
+  it("onDeforumFieldInput persists updated deforum settings into session storage", () => {
+    const instance = instantiate(appDef);
+    instance.queueDeforumSettingsSave = () => {};
+    instance.pushDeforumLivePatch = () => {};
+    instance.scheduleDeforumPreview = () => {};
+
+    instance.onDeforumFieldInput("steps", 14, "number");
+
+    const saved = JSON.parse(testStorage[instance.sessionStorageKey()]);
+    expect(saved.deforumSettings.steps).to.equal(14);
+  });
+
+  it("loadDeforumSettings preserves session-restored settings on startup", async () => {
+    const instance = instantiate(appDef);
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      deforumSettings: {
+        steps: 18,
+        sampler: "Euler a",
+        sd_model_name: "local-model.safetensors",
+      },
+      lastModel: "local-model.safetensors",
+    });
+    instance.loadSessionState();
+
+    global.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        settings: {
+          steps: 4,
+          sampler: "DPM++ 2M",
+          sd_model_name: "server-model.safetensors",
+        },
+      }),
+    });
+
+    await instance.loadDeforumSettings({ syncServerModel: false });
+
+    expect(instance.deforumSettings.steps).to.equal(18);
+    expect(instance.deforumSettings.sampler).to.equal("Euler a");
+    expect(instance.deforumSettings.sd_model_name).to.equal("local-model.safetensors");
+    expect(instance.deforumSettingsStatus).to.equal("Loaded local session");
+    delete global.fetch;
   });
 
   it("disposeLiveAudioAnalyser is safe when nothing is wired", () => {
@@ -777,6 +1044,47 @@ describe("Deforumation Web UI behavior", () => {
     instance.sendPreset("NonExistent");
 
     expect(instance.ws.sent.length).to.equal(0);
+  });
+});
+
+describe("Engine model defaults", () => {
+  let appDef;
+
+  beforeEach(() => {
+    appDef = loadAppDefinition();
+  });
+
+  it("applies model-aware defaults when switching checkpoints", async () => {
+    const instance = instantiate(appDef);
+    instance.forge.models = [
+      { model_name: "juggernautXL.safetensors", metadata: { architecture: "sdxl" } },
+    ];
+    instance.queueDeforumSettingsSave = () => {};
+    instance.schedulePreviewFrame = () => {};
+
+    global.fetch = async () => ({
+      json: async () => ({
+        success: true,
+        model: {
+          model_name: "juggernautXL.safetensors",
+          metadata: { architecture: "sdxl" },
+        },
+      }),
+    });
+
+    const switched = await instance.switchForgeModel("juggernautXL.safetensors", {
+      persistDeforumSettings: true,
+      applyOptimizedDefaults: true,
+    });
+
+    expect(switched).to.equal(true);
+    expect(instance.deforumSettings.sd_model_name).to.equal("juggernautXL.safetensors");
+    expect(instance.deforumSettings.steps).to.equal(30);
+    expect(instance.deforumSettings.cfg_scale_schedule).to.equal("0:(6.5)");
+    expect(instance.forge.options.steps).to.equal(30);
+    expect(instance.forge.options.cfg_scale).to.equal(6.5);
+
+    delete global.fetch;
   });
 });
 

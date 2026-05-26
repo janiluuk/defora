@@ -342,8 +342,8 @@ async function start(opts = {}) {
   });
   await gpuPool.init();
 
-  function forgeTarget(req) {
-    return gpuPool.resolveForgeTarget(req);
+  function forgeTarget(req, options = {}) {
+    return gpuPool.resolveForgeTarget(req, options);
   }
 
   function forgeBaseUrl(req) {
@@ -1942,7 +1942,11 @@ async function start(opts = {}) {
 
   // Get current SD model
   app.get("/api/sd-models/current", async (req, res) => {
-    const target = forgeTarget(req);
+    const target = forgeTarget(req, { allowDirectPreferred: true });
+    const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
+    if (preferredNode && !target.node) {
+      return res.status(404).json({ error: "Preferred Forge node not found" });
+    }
     const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') {
@@ -2183,7 +2187,11 @@ async function start(opts = {}) {
   // Forge Settings API
 
   app.get("/api/forge/options", async (req, res) => {
-    const target = forgeTarget(req);
+    const target = forgeTarget(req, { allowDirectPreferred: true });
+    const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
+    if (preferredNode && !target.node) {
+      return res.status(404).json({ options: {}, available: false, error: "Preferred Forge node not found" });
+    }
     const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
@@ -2208,10 +2216,20 @@ async function start(opts = {}) {
 
   app.post("/api/forge/options", async (req, res) => {
     const updates = req.body;
+    const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
     if (!updates || typeof updates !== 'object') {
       return res.status(400).json({ error: "Invalid options" });
     }
+    if (preferredNode) delete updates.preferredNode;
     try {
+      if (preferredNode) {
+        const target = forgeTarget({ ...req, query: { ...(req.query || {}), preferredNode } }, { allowDirectPreferred: true });
+        if (!target.node) {
+          return res.status(404).json({ error: "Preferred Forge node not found" });
+        }
+        const sync = await postForgeOptionsToTarget(target, updates, 10000);
+        return res.json({ success: true, partial: false, sync });
+      }
       const sync = await applyForgeOptionsAcrossTargets(updates, 10000);
       return res.json({ success: true, partial: sync.partial, sync });
     } catch (err) {
@@ -2220,7 +2238,11 @@ async function start(opts = {}) {
   });
 
   app.get("/api/forge/samplers", async (req, res) => {
-    const target = forgeTarget(req);
+    const target = forgeTarget(req, { allowDirectPreferred: true });
+    const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
+    if (preferredNode && !target.node) {
+      return res.status(404).json({ samplers: [], error: "Preferred Forge node not found" });
+    }
     const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
@@ -2242,7 +2264,11 @@ async function start(opts = {}) {
   });
 
   app.get("/api/forge/schedulers", async (req, res) => {
-    const target = forgeTarget(req);
+    const target = forgeTarget(req, { allowDirectPreferred: true });
+    const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
+    if (preferredNode && !target.node) {
+      return res.status(404).json({ schedulers: [], error: "Preferred Forge node not found" });
+    }
     const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');
@@ -2264,7 +2290,11 @@ async function start(opts = {}) {
   });
 
   app.get("/api/forge/vae", async (req, res) => {
-    const target = forgeTarget(req);
+    const target = forgeTarget(req, { allowDirectPreferred: true });
+    const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
+    if (preferredNode && !target.node) {
+      return res.status(404).json({ vae: [], error: "Preferred Forge node not found" });
+    }
     const forgeUrl = target.url;
     try {
       if (typeof fetch === 'undefined') throw new Error('fetch not available');

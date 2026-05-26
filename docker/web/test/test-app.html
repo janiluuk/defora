@@ -1020,10 +1020,7 @@
         <div v-else-if="currentTab==='SETTINGS'">
           <div class="sub-pills">
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='FORGE'}" @click="switchSubTab('SETTINGS','FORGE')">FORGE</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
           <div v-if="currentSubTab.SETTINGS==='ENGINE'">
@@ -1053,31 +1050,11 @@
             </div>
           </div>
           </div>
-          <div v-else-if="currentSubTab.SETTINGS==='FORGE'">
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">🔌 <span class="framesync-accent">Connection</span></div>
-                <button class="framesync-button" @click="refreshApiHealth">🔄 Refresh</button>
-              </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">SD-Forge Host</div>
-                  <input class="framesync-input" :value="forgeHost" readonly>
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Status</div>
-                  <div style="font-size:14px; color:#5af2a9; padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
-                </div>
-              </div>
-            </div>
-          </div>
-          </div>
           <div v-else-if="currentSubTab.SETTINGS==='MIDI'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
-                <div class="framesync-title">🎹 Controllers <span class="framesync-accent">(WebMIDI)</span></div>
+                <div class="framesync-title">🎹 Controllers <span class="framesync-accent">/ MIDI</span></div>
               </div>
               <div v-if="!midi.supported" style="color:#9bc4e2; margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
               <div v-else>
@@ -1112,7 +1089,6 @@
             </div>
           </div>
           </div>
-          <div v-else-if="currentSubTab.SETTINGS==='BINDINGS'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -1165,7 +1141,6 @@
             </div>
           </div>
           </div>
-          <div v-else-if="currentSubTab.SETTINGS==='PRESETS'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
