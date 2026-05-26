@@ -1879,6 +1879,7 @@ export default {
        deforumPlaying: false,
        previewGenerating: false,
        previewDebounceTimer: null,
+      sessionSaveTimer: null,
        framesRefreshBackoffMs: 5000,
        apiHealthBackoffMs: 15000,
        paramPanelOpen: false,
@@ -2496,10 +2497,91 @@ export default {
     },
     'performance.crossfader'() {
       this.applyCrossfadeMorph();
-      this.saveSessionState();
+      this.queueSessionStateSave();
     },
     session() {
-      this.saveSessionState();
+      this.queueSessionStateSave();
+    },
+    currentTab() {
+      this.queueSessionStateSave();
+    },
+    currentSubTab: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    showFrames() {
+      this.queueSessionStateSave();
+    },
+    liveVibe: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    liveCam: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    paramSources: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    prompts: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    lfos: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    macrosRack: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    audioMappings: {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    'audio.bpm'() {
+      this.queueSessionStateSave();
+    },
+    'audio.track'() {
+      this.queueSessionStateSave();
+    },
+    'audio.uploadedFile'() {
+      this.queueSessionStateSave();
+    },
+    'forge.lastModel'() {
+      this.queueSessionStateSave();
+    },
+    'performance.lastPreviewPath'() {
+      this.queueSessionStateSave();
+    },
+    'loras.groupA': {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
+    },
+    'loras.groupB': {
+      handler() {
+        this.queueSessionStateSave();
+      },
+      deep: true,
     },
   },
   mounted() {
@@ -2556,6 +2638,7 @@ export default {
     if (this.lfoTimer) clearInterval(this.lfoTimer);
     if (this.beatTimer) clearInterval(this.beatTimer);
     if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
+    if (this.sessionSaveTimer) clearTimeout(this.sessionSaveTimer);
     this.stopLfoAnimation();
     if (this.playerEl && this.timeHandler) {
       this.playerEl.removeEventListener("timeupdate", this.timeHandler);
@@ -4122,15 +4205,8 @@ export default {
      }
      const json = await res.json();
      if (Array.isArray(json.items)) {
-       this.thumbs = json.items.map((item) => {
-         if (typeof item === "string") {
-           return { src: item, name: item.split("/").pop(), frame: this.parseFrameNumber(item) };
-         }
-         const src = item.src || item.url || item.path || "";
-         const name = item.name || src.split("/").pop();
-         const frame = item.frame != null ? item.frame : this.parseFrameNumber(name || src);
-         return { src, name, frame };
-       });
+      this.thumbs = json.items.map((item) => this.normalizeThumb(item));
+      this.queueSessionStateSave();
      }
      this.framesRefreshBackoffMs = 5000;
    } catch (e) {
@@ -4143,6 +4219,36 @@ export default {
    const match = String(name).match(/(\d{3,})/);
    return match ? parseInt(match.pop(), 10) : null;
  },
+normalizeThumb(item) {
+  if (typeof item === "string") {
+    const src = item;
+    return {
+      src,
+      url: src,
+      name: src.split("/").pop(),
+      frame: this.parseFrameNumber(src),
+    };
+  }
+  const src = item?.src || item?.url || item?.path || "";
+  const name = item?.name || src.split("/").pop();
+  const frame = item?.frame != null ? item.frame : this.parseFrameNumber(name || src);
+  return {
+    src,
+    url: src,
+    name,
+    frame,
+  };
+},
+queueSessionStateSave() {
+  if (typeof setTimeout !== 'function') {
+    this.saveSessionState();
+    return;
+  }
+  clearTimeout(this.sessionSaveTimer);
+  this.sessionSaveTimer = setTimeout(() => {
+    this.saveSessionState();
+  }, 120);
+},
  async runAudioMod() {
    if (!this.audio.track) {
      this.audioStatus = "Set audio file first";
@@ -5863,36 +5969,98 @@ export default {
  loadSessionState() {
    try {
      const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
-     if (!raw) return;
-     const s = JSON.parse(raw);
+    const tab = window.localStorage && window.localStorage.getItem('defora_tab');
+    const promptsSubTab = window.localStorage && window.localStorage.getItem('defora_subtab_PROMPTS');
+    const settingsSubTab = window.localStorage && window.localStorage.getItem('defora_subtab_SETTINGS');
+    const s = raw ? JSON.parse(raw) : {};
      if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
+     if (typeof s.currentTab === 'string') this.currentTab = s.currentTab;
+     else if (tab) this.currentTab = tab;
+     if (s.currentSubTab && typeof s.currentSubTab === 'object') {
+       this.currentSubTab = { ...this.currentSubTab, ...s.currentSubTab };
+     }
+     if (!s.currentSubTab || typeof s.currentSubTab !== 'object') {
+       if (promptsSubTab) this.currentSubTab.PROMPTS = promptsSubTab;
+       if (settingsSubTab) this.currentSubTab.SETTINGS = settingsSubTab;
+     }
+     if (typeof s.showFrames === 'boolean') this.showFrames = s.showFrames;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
+     if (typeof s.deforumAdvancedOpen === 'boolean') this.deforumAdvancedOpen = s.deforumAdvancedOpen;
      if (s.deforumSettings && typeof s.deforumSettings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
        this.syncDeforumSettingsJson();
+     }
+     if (Array.isArray(s.thumbs)) {
+       this.thumbs = s.thumbs.map((item) => this.normalizeThumb(item)).filter((item) => item.src);
+     }
+     if (s.performance && typeof s.performance === 'object') {
+       if (typeof s.performance.lastPreviewPath === 'string') {
+         this.performance.lastPreviewPath = s.performance.lastPreviewPath;
+       }
      }
      if (s.lastModel) {
        this.forge.lastModel = s.lastModel;
        this.forge.selectedModel = s.lastModel;
      }
      if (s.prompts) Object.assign(this.prompts, s.prompts);
+     if (Array.isArray(s.liveVibe)) this.liveVibe = s.liveVibe;
+     if (Array.isArray(s.liveCam)) this.liveCam = s.liveCam;
+     if (s.paramSources && typeof s.paramSources === 'object') this.paramSources = { ...this.paramSources, ...s.paramSources };
+     if (Array.isArray(s.lfos)) this.lfos = s.lfos;
+     if (Array.isArray(s.macrosRack)) this.macrosRack = s.macrosRack;
+     if (Array.isArray(s.audioMappings)) this.audioMappings = s.audioMappings;
+     if (s.audio && typeof s.audio === 'object') {
+       this.audio.track = s.audio.track || "";
+       this.audio.uploadedFile = s.audio.uploadedFile || null;
+       if (Number.isFinite(Number(s.audio.bpm))) this.audio.bpm = Number(s.audio.bpm);
+     }
+     if (s.loras && typeof s.loras === 'object') {
+       this.loras.groupA = Array.isArray(s.loras.groupA) ? s.loras.groupA : [];
+       this.loras.groupB = Array.isArray(s.loras.groupB) ? s.loras.groupB : [];
+     }
    } catch (_e) { /* ignore */ }
  },
  saveSessionState() {
    try {
      if (!window.localStorage) return;
      const blob = {
+      currentTab: this.currentTab,
+      currentSubTab: this.currentSubTab,
+      showFrames: this.showFrames,
        crossfader: this.performance.crossfader,
        genericPrompt: this.performance.genericPrompt,
        slots: this.performance.slots,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
+      deforumAdvancedOpen: this.deforumAdvancedOpen,
        deforumSettings: this.deforumSettings,
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
-       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+      prompts: this.prompts,
+      performance: {
+        lastPreviewPath: this.performance.lastPreviewPath,
+      },
+      liveVibe: this.liveVibe,
+      liveCam: this.liveCam,
+      paramSources: this.paramSources,
+      lfos: this.lfos,
+      macrosRack: this.macrosRack,
+      audio: {
+        track: this.audio.track,
+        bpm: this.audio.bpm,
+        uploadedFile: this.audio.uploadedFile,
+      },
+      audioMappings: this.audioMappings,
+      loras: {
+        groupA: this.loras.groupA,
+        groupB: this.loras.groupB,
+      },
+      thumbs: this.thumbs.slice(0, 24).map((item) => {
+        const thumb = this.normalizeThumb(item);
+        return { src: thumb.src, name: thumb.name, frame: thumb.frame };
+      }),
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
    } catch (_e) { /* ignore */ }
