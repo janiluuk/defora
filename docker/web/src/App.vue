@@ -104,7 +104,7 @@
           </div>
           <div class="stream-link">
             <a href="/hls/live/deforum.m3u8" target="_blank">📡 HLS Stream</a>
-            <span style="color:#5a8fb8;">|</span>
+            <span style="color:var(--text-dim);">|</span>
             <a href="rtmp://localhost:1935/live/deforum" target="_blank">📡 RTMP</a>
           </div>
         </div>
@@ -233,7 +233,7 @@
                 </div>
               </div>
 
-              <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:#5af2a9;">{{ performance.status }}</div>
+              <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:var(--success);">{{ performance.status }}</div>
               <div v-if="performance.lastPreviewPath" style="margin-top:8px;">
                 <img :src="performance.lastPreviewPath" alt="Last preview frame" class="preview-frame-thumb">
               </div>
@@ -446,15 +446,15 @@
               <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">A Group</div>
-                  <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;">
-                    <div style="font-size:12px; color:#cfe5f5; font-weight:600;">{{ lora.name }}</div>
+                  <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" style="background:var(--bg-1); border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:6px;">
+                    <div style="font-size:12px; color:var(--text-primary); font-weight:600;">{{ lora.name }}</div>
                     <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input" style="margin-top:4px;">
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
+                    <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
                   </div>
-                  <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
+                  <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11px; text-align:center;">
                     No LoRAs in A group
                   </div>
-                  <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
+                  <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:var(--text-secondary); text-align:center; padding:4px;">
                     +{{ loras.groupA.length - 3 }} more
                   </div>
                 </div>
@@ -463,7 +463,7 @@
                   <div class="framesync-subtitle">Crossfader</div>
                   <div class="framesync-gradient-bar"></div>
                   <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="prompts.crossfaderValue=parseFloat($event.target.value)" class="framesync-input" style="margin-top:8px;">
-                  <div style="display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;">
+                  <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-top:4px;">
                     <span>A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
                     <span>B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
                   </div>
@@ -471,15 +471,15 @@
 
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">B Group</div>
-                  <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;">
-                    <div style="font-size:12px; color:#cfe5f5; font-weight:600;">{{ lora.name }}</div>
+                  <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" style="background:var(--bg-1); border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:6px;">
+                    <div style="font-size:12px; color:var(--text-primary); font-weight:600;">{{ lora.name }}</div>
                     <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input" style="margin-top:4px;">
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
+                    <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
                   </div>
-                  <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
+                  <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11px; text-align:center;">
                     No LoRAs in B group
                   </div>
-                  <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
+                  <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:var(--text-secondary); text-align:center; padding:4px;">
                     +{{ loras.groupB.length - 3 }} more
                   </div>
                 </div>
@@ -532,7 +532,7 @@
               </div>
               <div v-if="img2img.status" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ img2img.status }}</div>
               <div v-if="img2img.lastPath" class="framesync-subtitle" style="margin-top:4px; text-align:center;">
-                Output: <a :href="img2img.lastPath" target="_blank" style="color:#ff8a1a;">{{ img2img.lastPath }}</a>
+                Output: <a :href="img2img.lastPath" target="_blank" style="color:var(--warn);">{{ img2img.lastPath }}</a>
               </div>
               </div>
             </div>
@@ -558,42 +558,42 @@
                 <div class="framesync-title">📚 LoRA <span class="framesync-accent">Browser</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <span class="source" v-if="loras.source" style="font-size:10px;">
-                    <span v-if="loras.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
-                    <span v-else-if="loras.source==='cache'" style="color:#fbbf24;">● Cache</span>
-                    <span v-else-if="loras.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
-                    <span v-else style="color:#7fb3d6;">● {{ loras.source }}</span>
+                    <span v-if="loras.source==='sd-forge'" style="color:var(--success);">● Forge</span>
+                    <span v-else-if="loras.source==='cache'" style="color:var(--warn);">● Cache</span>
+                    <span v-else-if="loras.source==='placeholder'" style="color:var(--error);">● Placeholder</span>
+                    <span v-else style="color:var(--text-dim);">● {{ loras.source }}</span>
                   </span>
                   <button class="framesync-button" @click="refreshLoras">🔄 Refresh</button>
                 </div>
               </div>
               <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; max-height:400px; overflow-y:auto;">
                 <div v-for="lora in loras.available" :key="lora.id"
-                     style="background:#0b1526; border:1px solid #13233d; border-radius:10px; overflow:hidden; cursor:pointer;"
+                     style="background:var(--bg-1); border:1px solid var(--border); border-radius:10px; overflow:hidden; cursor:pointer;"
                      @click="toggleLoraSelection(lora)">
-                  <div style="position:relative; width:100%; height:180px; background:#031b2d;">
+                  <div style="position:relative; width:100%; height:180px; background:var(--bg-0);">
                     <img v-if="lora.thumbnail" :src="lora.thumbnail" style="width:100%; height:100%; object-fit:cover;" :alt="lora.name" />
-                    <div v-else style="display:flex; align-items:center; justify-content:center; height:100%; color:#7fb3d6;">
+                    <div v-else style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-dim);">
                       <svg viewBox="0 0 24 24" style="width:48px; height:48px; opacity:0.3;" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
                         <circle cx="8" cy="8" r="2" fill="currentColor"/>
                         <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
                       </svg>
                     </div>
-                    <div v-if="lora.selected" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid #ff8a1a; border-radius:4px; padding:4px 8px; font-size:10px; color:#ff8a1a; font-weight:700;">
+                    <div v-if="lora.selected" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid var(--warn); border-radius:4px; padding:4px 8px; font-size:10px; color:var(--warn); font-weight:700;">
                       ✓ {{ lora.group }}
                     </div>
                   </div>
                   <div style="padding:10px;">
-                    <div style="font-size:13px; color:#cfe5f5; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    <div style="font-size:13px; color:var(--text-primary); font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                       {{ lora.name }}
                     </div>
-                    <div style="font-size:10px; color:#7fb3d6; margin-bottom:8px;">
+                    <div style="font-size:10px; color:var(--text-dim); margin-bottom:8px;">
                       {{ lora.path }}
                     </div>
                     <div class="framesync-stack">
                       <div class="framesync-subtitle">Strength</div>
                       <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input">
-                      <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
+                      <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
                     </div>
                     <div class="framesync-footer" style="margin-top:8px;">
                       <button class="framesync-button" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora,'A')">A</button>
@@ -603,7 +603,7 @@
                   </div>
                 </div>
               </div>
-              <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+              <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:var(--text-dim); font-size:12px;">
                 No LoRA models found. Refresh or check SD-Forge connection.
               </div>
             </div>
@@ -615,27 +615,27 @@
               </div>
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
                 <div>
-                  <div style="font-size:12px; color:#5af2a9; margin-bottom:8px; font-weight:600;">A GROUP ({{ loras.groupA.length }})</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;">
+                  <div style="font-size:12px; color:var(--success); margin-bottom:8px; font-weight:600;">A GROUP ({{ loras.groupA.length }})</div>
+                  <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:8px; padding:8px;">
                     <div v-for="lora in loras.groupA" :key="lora.id"
-                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;">
-                      <span style="font-size:12px; color:#cfe5f5;">{{ lora.name }}</span>
-                      <span style="font-size:10px; color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
+                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
+                      <span style="font-size:12px; color:var(--text-primary);">{{ lora.name }}</span>
+                      <span style="font-size:10px; color:var(--text-dim);">{{ lora.strength.toFixed(2) }}</span>
                     </div>
-                    <div v-if="loras.groupA.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
+                    <div v-if="loras.groupA.length === 0" style="font-size:11px; color:var(--text-dim); padding:8px; text-align:center;">
                       No LoRAs in A group
                     </div>
                   </div>
                 </div>
                 <div>
-                  <div style="font-size:12px; color:#2de2ff; margin-bottom:8px; font-weight:600;">B GROUP ({{ loras.groupB.length }})</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;">
+                  <div style="font-size:12px; color:var(--accent-text); margin-bottom:8px; font-weight:600;">B GROUP ({{ loras.groupB.length }})</div>
+                  <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:8px; padding:8px;">
                     <div v-for="lora in loras.groupB" :key="lora.id"
-                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;">
-                      <span style="font-size:12px; color:#cfe5f5;">{{ lora.name }}</span>
-                      <span style="font-size:10px; color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
+                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
+                      <span style="font-size:12px; color:var(--text-primary);">{{ lora.name }}</span>
+                      <span style="font-size:10px; color:var(--text-dim);">{{ lora.strength.toFixed(2) }}</span>
                     </div>
-                    <div v-if="loras.groupB.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
+                    <div v-if="loras.groupB.length === 0" style="font-size:11px; color:var(--text-dim); padding:8px; text-align:center;">
                       No LoRAs in B group
                     </div>
                   </div>
@@ -656,10 +656,10 @@
                 <div class="framesync-title">🎯 ControlNet <span class="framesync-accent">Slots</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <span class="source" v-if="cn.source" style="font-size:10px;">
-                    <span v-if="cn.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
-                    <span v-else-if="cn.source==='cache'" style="color:#fbbf24;">● Cache</span>
-                    <span v-else-if="cn.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
-                    <span v-else style="color:#7fb3d6;">● {{ cn.source }}</span>
+                    <span v-if="cn.source==='sd-forge'" style="color:var(--success);">● Forge</span>
+                    <span v-else-if="cn.source==='cache'" style="color:var(--warn);">● Cache</span>
+                    <span v-else-if="cn.source==='placeholder'" style="color:var(--error);">● Placeholder</span>
+                    <span v-else style="color:var(--text-dim);">● {{ cn.source }}</span>
                   </span>
                   <button class="framesync-button" @click="loadControlNetModels">🔄 Refresh</button>
                 </div>
@@ -691,7 +691,7 @@
               </div>
               <div v-if="activeSlot.imageSource==='webcam'" class="framesync-stack" style="margin-top:12px;">
                 <div class="framesync-subtitle">Webcam input</div>
-                <video ref="webcamVideo" autoplay playsinline style="width:100%; max-width:320px; border-radius:6px; border:1px solid #0c3048; display:none;"></video>
+                <video ref="webcamVideo" autoplay playsinline style="width:100%; max-width:320px; border-radius:6px; border:1px solid var(--border); display:none;"></video>
                 <canvas ref="webcamCanvas" style="display:none;"></canvas>
                 <div style="display:flex; gap:8px; margin-top:8px;">
                   <button type="button" class="framesync-button" :class="{active: cn.webcamActive}" @click="toggleWebcam">{{ cn.webcamActive ? '⏹ Stop' : '▶ Start' }} Webcam</button>
@@ -714,21 +714,21 @@
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">Weight</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
+                  <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
                 </div>
                 <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">Start step</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
+                  <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
                 </div>
                 <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">End step</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
+                  <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
                 </div>
                 <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
@@ -752,7 +752,7 @@
             <div class="framesync-panel">
               <div class="framesync-header">
                 <div class="framesync-title">🎮 XY <span class="framesync-accent">Pad</span></div>
-                <span style="font-size:10px; color:#7fb3d6;">Pan X / Pan Y</span>
+                <span style="font-size:10px; color:var(--text-dim);">Pan X / Pan Y</span>
               </div>
               <div
                 class="xy-pad"
@@ -948,7 +948,7 @@
               <div class="framesync-header">
                 <div class="framesync-title">📁 Runs <span class="framesync-accent">Browser</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
-                  <span style="font-size:11px; color:#7fb3d6;">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
+                  <span style="font-size:11px; color:var(--text-dim);">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
                   <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
                 </div>
               </div>
@@ -969,7 +969,7 @@
 
               <!-- Sort controls -->
               <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                <span style="font-size:11px; color:#7fb3d6;">Sort:</span>
+                <span style="font-size:11px; color:var(--text-dim);">Sort:</span>
                 <select class="framesync-select" v-model="runsSort.field" @change="applyRunsFilters" style="max-width:140px;">
                   <option value="started_at">Date</option>
                   <option value="run_id">Run ID</option>
@@ -987,26 +987,26 @@
               </div>
 
               <!-- Runs table -->
-              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid #0c3048; border-radius:8px;">
+              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
                 <table style="width:100%; border-collapse:collapse; font-size:11px;">
-                  <thead style="position:sticky; top:0; background:#0b1526; z-index:1;">
-                    <tr style="border-bottom:1px solid #13233d;">
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Thumb</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Run ID</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Status</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Model</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Frames</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Seed</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Tag</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Date</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Actions</th>
+                  <thead style="position:sticky; top:0; background:var(--bg-1); z-index:1;">
+                    <tr style="border-bottom:1px solid var(--border);">
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Thumb</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Run ID</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Status</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Model</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Frames</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Seed</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Tag</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Date</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid #0c3048;" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
+                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid var(--border);" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
                       <td style="padding:6px;">
                         <img v-if="run.has_thumbnail" :src="`/api/runs/${run.run_id}/thumb`" style="width:48px; height:48px; object-fit:cover; border-radius:4px;" alt="">
-                        <div v-else style="width:48px; height:48px; background:#0c3048; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:10px;">No img</div>
+                        <div v-else style="width:48px; height:48px; background:var(--border); border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:10px;">No img</div>
                       </td>
                       <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.run_id }}</td>
                       <td style="padding:6px;">
@@ -1016,7 +1016,7 @@
                       <td style="padding:6px; font-size:10px;">{{ run.frame_count || run.length_frames || '-' }}</td>
                       <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.seed || '-' }}</td>
                       <td style="padding:6px; font-size:10px;">{{ run.tag || '-' }}</td>
-                      <td style="padding:6px; font-size:10px; color:#7fb3d6;">{{ formatDate(run.started_at) }}</td>
+                      <td style="padding:6px; font-size:10px; color:var(--text-dim);">{{ formatDate(run.started_at) }}</td>
                       <td style="padding:6px;">
                         <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="showRunDetails(run)" title="Details">👁</button>
                         <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="rerunRun(run)" title="Rerun">🔄</button>
@@ -1024,7 +1024,7 @@
                       </td>
                     </tr>
                     <tr v-if="runsFiltered.length === 0">
-                      <td colspan="9" style="padding:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+                      <td colspan="9" style="padding:20px; text-align:center; color:var(--text-dim); font-size:12px;">
                         No runs found. Adjust filters or refresh.
                       </td>
                     </tr>
@@ -1035,7 +1035,7 @@
           </div>
 
           <!-- Run details modal -->
-          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-1); padding:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <div class="framesync-title">📋 Run Details: <span style="font-family:monospace; font-size:12px;">{{ runsDetailView.run_id }}</span></div>
               <button class="framesync-button" @click="runsDetailView = null">✕ Close</button>
@@ -1075,11 +1075,11 @@
               </div>
               <div style="grid-column: span 2;">
                 <div class="framesync-subtitle">Positive Prompt</div>
-                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_positive || '-' }}</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:var(--text-primary);">{{ runsDetailView.prompt_positive || '-' }}</div>
               </div>
               <div style="grid-column: span 2;">
                 <div class="framesync-subtitle">Negative Prompt</div>
-                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_negative || '-' }}</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:var(--text-primary);">{{ runsDetailView.prompt_negative || '-' }}</div>
               </div>
               <div style="grid-column: span 2;">
                 <div class="framesync-subtitle">Notes</div>
@@ -1092,13 +1092,13 @@
             <div v-if="runsDetailView.frames && runsDetailView.frames.length" style="margin-top:12px;">
               <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
               <div style="display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto;">
-                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid #0c3048;" :alt="f">
+                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid var(--border);" :alt="f">
               </div>
             </div>
           </div>
 
           <!-- Comparison view -->
-          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-1); padding:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
               <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
               <div style="display:flex; gap:6px;">
@@ -1110,14 +1110,14 @@
             <div style="overflow-x:auto;">
               <table style="width:100%; border-collapse:collapse; font-size:10px;">
                 <thead>
-                  <tr style="border-bottom:1px solid #13233d;">
-                    <th style="padding:6px; text-align:left; color:#7fb3d6;">Property</th>
-                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:#7fb3d6; font-family:monospace;">{{ runId }}</th>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="padding:6px; text-align:left; color:var(--text-dim);">Property</th>
+                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:var(--text-dim); font-family:monospace;">{{ runId }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="prop in runsCompareFields" :key="prop" style="border-bottom:1px solid #0c3048;">
-                    <td style="padding:4px; color:#7fb3d6;">{{ prop }}</td>
+                  <tr v-for="prop in runsCompareFields" :key="prop" style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px; color:var(--text-dim);">{{ prop }}</td>
                     <td v-for="runId in runsSelected" :key="runId" style="padding:4px; font-family:monospace;">
                       {{ getRunProp(runId, prop) }}
                     </td>
@@ -1180,7 +1180,7 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Status</div>
-                  <div style="font-size:14px; color:#5af2a9; padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
+                  <div style="font-size:14px; color:var(--success); padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
                 </div>
               </div>
             </div>
@@ -1192,7 +1192,7 @@
               <div class="framesync-header">
                 <div class="framesync-title">🎹 Controllers <span class="framesync-accent">(WebMIDI)</span></div>
               </div>
-              <div v-if="!midi.supported" style="color:#9bc4e2; margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
+              <div v-if="!midi.supported" style="color:var(--text-secondary); margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
               <div v-else>
                 <div class="framesync-footer" style="margin-top:12px;">
                   <button class="framesync-button" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</button>
@@ -1203,7 +1203,7 @@
                   <button class="framesync-button" @click="addMidiMapping">+ Add Mapping</button>
                   <button class="framesync-button">Status: {{ midiStatus }}</button>
                 </div>
-                <div style="margin-top:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px; overflow:hidden;">
+                <div style="margin-top:12px; background:var(--bg-0); border:1px solid var(--border); border-radius:8px; overflow:hidden;">
                   <table class="table">
                     <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
                     <tbody>
@@ -1235,36 +1235,36 @@
                   <button class="framesync-button" @click="resetBindings">↺ Defaults</button>
                 </div>
               </div>
-              <div v-if="bindingLearnMode" style="margin-top:8px; padding:8px 12px; background:#1a0a2e; border:1px solid #ff53d9; border-radius:6px; font-size:12px; color:#ff53d9;">
+              <div v-if="bindingLearnMode" style="margin-top:8px; padding:8px 12px; background:rgba(127,119,221,0.08); border:1px solid var(--accent); border-radius:6px; font-size:12px; color:var(--accent-text);">
                 Learn mode active. Press a key or move a MIDI controller, then click a parameter to bind.
               </div>
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack" v-for="group in bindingGroups" :key="group.label">
                   <div class="framesync-subtitle">{{ group.label }}</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; overflow:hidden;">
+                  <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:6px; overflow:hidden;">
                     <table style="width:100%; font-size:11px; border-collapse:collapse;">
-                      <thead><tr style="color:#5a8fb8; border-bottom:1px solid #0c3048;">
+                      <thead><tr style="color:var(--text-dim); border-bottom:1px solid var(--border);">
                         <th style="text-align:left; padding:4px 8px;">Parameter</th>
                         <th style="text-align:left; padding:4px 8px;">Key</th>
                         <th style="text-align:left; padding:4px 8px;">MIDI CC</th>
                         <th style="padding:4px 8px;">Actions</th>
                       </tr></thead>
                       <tbody>
-                        <tr v-for="t in group.items" :key="t.key" style="border-bottom:1px solid #0c3048;">
-                          <td style="padding:4px 8px; color:#cfe5f5;">{{ t.label }}</td>
+                        <tr v-for="t in group.items" :key="t.key" style="border-bottom:1px solid var(--border);">
+                          <td style="padding:4px 8px; color:var(--text-primary);">{{ t.label }}</td>
                           <td style="padding:4px 8px;">
                             <span v-if="getKeyBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
-                              <kbd style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:#5af2a9;">{{ getKeyBinding(t.key) }}</kbd>
-                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
+                              <kbd style="background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:var(--success);">{{ getKeyBinding(t.key) }}</kbd>
+                              <button style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
                             </span>
-                            <span v-else style="color:#3a5a78;">—</span>
+                            <span v-else style="color:var(--text-dim);">—</span>
                           </td>
                           <td style="padding:4px 8px;">
                             <span v-if="getMidiBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
-                              <span style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-size:10px; color:#fbbf24;">CC {{ getMidiBinding(t.key) }}</span>
-                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
+                              <span style="background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-size:10px; color:var(--warn);">CC {{ getMidiBinding(t.key) }}</span>
+                              <button style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
                             </span>
-                            <span v-else style="color:#3a5a78;">—</span>
+                            <span v-else style="color:var(--text-dim);">—</span>
                           </td>
                           <td style="padding:4px 8px; text-align:center;">
                             <button v-if="bindingLearnMode" class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="bindingTargetKey=t.key">Bind here</button>
@@ -1294,11 +1294,11 @@
               </div>
               <div class="framesync-footer" style="margin-top:10px;">
                 <button class="framesync-button" @click="saveCurrentPreset">💾 Save current as preset</button>
-                <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:#ff4d6d; color:#ff4d6d;">🗑 Delete {{ currentPreset }}</button>
+                <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:var(--error); color:var(--error);">🗑 Delete {{ currentPreset }}</button>
               </div>
               <div v-if="presetStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ presetStatus }}</div>
 
-              <div class="framesync-header" style="margin-top:20px; padding-top:12px; border-top:1px solid #13233d;">
+              <div class="framesync-header" style="margin-top:20px; padding-top:12px; border-top:1px solid var(--border);">
                 <div class="framesync-title">🌐 Shared <span class="framesync-accent">Presets</span></div>
                 <button class="framesync-button" @click="refreshSharedPresets">🔄 Refresh</button>
               </div>
@@ -1318,12 +1318,12 @@
               <ul v-if="sharedPresets.length" class="framesync-list" style="margin-top:10px; font-size:11px; padding-left:16px;">
                 <li v-for="sp in sharedPresets" :key="sp.name" style="margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
                   <strong>{{ sp.name }}</strong>
-                  <span style="color:#7fb3d6;">by {{ sp.sharedBy }}</span>
+                  <span style="color:var(--text-dim);">by {{ sp.sharedBy }}</span>
                   <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="loadSharedPreset(sp.name)">Load</button>
-                  <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:#ff4d6d; color:#ff4d6d;" @click="deleteSharedPreset(sp.name)">Delete</button>
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="deleteSharedPreset(sp.name)">Delete</button>
                 </li>
               </ul>
-              <div v-else style="margin-top:10px; font-size:11px; color:#7fb3d6;">No shared presets yet.</div>
+              <div v-else style="margin-top:10px; font-size:11px; color:var(--text-dim);">No shared presets yet.</div>
               <div v-if="sharedPresetsStatus" class="framesync-subtitle" style="margin-top:8px;">{{ sharedPresetsStatus }}</div>
             </div>
           </div>
@@ -1350,18 +1350,18 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Healthy / total</div>
-                  <div style="font-size:13px; color:#5af2a9; padding:6px 0;">{{ gpuPool.healthyNodes }} / {{ gpuPool.nodes.length }}</div>
+                  <div style="font-size:13px; color:var(--success); padding:6px 0;">{{ gpuPool.healthyNodes }} / {{ gpuPool.nodes.length }}</div>
                 </div>
                 <div class="framesync-stack" style="justify-content:flex-end;">
                   <button class="framesync-button" @click="refreshGpuPool(true)" :disabled="gpuPool.loading">🔄 Refresh stats</button>
                 </div>
               </div>
-              <p style="font-size:11px; color:#7fb3d6; margin:12px 0 0;">
+              <p style="font-size:11px; color:var(--text-dim); margin:12px 0 0;">
                 Add SD-Forge (A1111 API) or ComfyUI instances. Disable a node to edit or remove it.
                 Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum.
               </p>
 
-              <div class="gpu-pool-add" style="margin-top:14px; padding:12px; border:1px solid #13233d; border-radius:10px;">
+              <div class="gpu-pool-add" style="margin-top:14px; padding:12px; border:1px solid var(--border); border-radius:10px;">
                 <div class="framesync-subtitle">Add instance (saved disabled — enable after editing)</div>
                 <div class="framesync-row" style="grid-template-columns: 2fr 1fr 1fr; gap:8px; margin-top:8px;">
                   <input class="framesync-input" v-model="gpuPool.draft.url" placeholder="http://host:7860 or :8188" :disabled="gpuPool.loading">
@@ -1398,7 +1398,7 @@
                           <input class="framesync-input" v-model="gpuPool.editDraft.url" style="font-size:10px;">
                         </template>
                         <template v-else>{{ n.name }}</template>
-                        <div style="font-size:9px; color:#5a8fb8; word-break:break-all;">{{ n.url }}</div>
+                        <div style="font-size:9px; color:var(--text-dim); word-break:break-all;">{{ n.url }}</div>
                       </td>
                       <td>
                         <template v-if="gpuPool.editId === n.id">
@@ -1423,7 +1423,7 @@
                             <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="enableGpuNode(n)">Enable</button>
                             <button v-if="gpuPool.editId !== n.id" class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="startEditGpuNode(n)">Edit</button>
                             <button v-else class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="saveGpuNodeEdit(n)">Save</button>
-                            <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:#ff4d6d; color:#ff4d6d;" @click="removeGpuNode(n)">Remove</button>
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="removeGpuNode(n)">Remove</button>
                           </template>
                         </div>
                       </td>
@@ -1431,7 +1431,7 @@
                   </tbody>
                 </table>
               </div>
-              <div v-else style="margin-top:14px; font-size:12px; color:#7fb3d6;">No GPU instances configured.</div>
+              <div v-else style="margin-top:14px; font-size:12px; color:var(--text-dim);">No GPU instances configured.</div>
               <div v-if="gpuPool.status" class="framesync-subtitle" style="margin-top:10px;">{{ gpuPool.status }}</div>
             </div>
           </div>
@@ -1457,10 +1457,10 @@
               <ul v-if="collab.users.length" class="framesync-list" style="font-size:11px; padding-left:16px; margin-top:6px;">
                 <li v-for="u in collab.users" :key="u.id">
                   {{ u.name }}
-                  <span v-if="u.lockedParams && u.lockedParams.length" style="color:#fbbf24;"> — locks: {{ u.lockedParams.join(', ') }}</span>
+                  <span v-if="u.lockedParams && u.lockedParams.length" style="color:var(--warn);"> — locks: {{ u.lockedParams.join(', ') }}</span>
                 </li>
               </ul>
-              <div v-else style="font-size:11px; color:#7fb3d6; margin-top:6px;">Only you (open another browser tab to test multi-user).</div>
+              <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">Only you (open another browser tab to test multi-user).</div>
               <div class="framesync-subtitle" style="margin-top:14px;">Session recording</div>
               <div class="framesync-footer" style="margin-top:8px;">
                 <button class="framesync-button" :class="{active: collab.recording}" @click="toggleSessionRecording">
@@ -1474,15 +1474,15 @@
                   <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="playbackSessionRecording(r.filename)">Play</button>
                 </li>
               </ul>
-              <div v-if="collab.status" class="framesync-subtitle" style="margin-top:10px; color:#5af2a9;">{{ collab.status }}</div>
+              <div v-if="collab.status" class="framesync-subtitle" style="margin-top:10px; color:var(--success);">{{ collab.status }}</div>
               <div class="framesync-subtitle" style="margin-top:14px;">Parameter locks (click param label in LIVE drawer)</div>
               <div v-if="Object.keys(collab.locks).length" style="font-size:11px; margin-top:6px;">
                 <span v-for="(who, param) in collab.locks" :key="param" class="pill" style="margin:2px 4px 2px 0;">
                   {{ param }} → {{ who }}
-                  <button type="button" style="border:none;background:transparent;color:#ff4d6d;cursor:pointer;margin-left:4px;" @click="unlockParam(param)">✕</button>
+                  <button type="button" style="border:none;background:transparent;color:var(--error);cursor:pointer;margin-left:4px;" @click="unlockParam(param)">✕</button>
                 </span>
               </div>
-              <div v-else style="font-size:11px; color:#7fb3d6; margin-top:6px;">No active locks.</div>
+              <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">No active locks.</div>
             </div>
           </div>
           </div>
@@ -1571,17 +1571,17 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Calculated</div>
-                  <div style="font-size:12px; color:#5af2a9; padding:6px 0;">{{ sequencerCalculatedDuration }}s</div>
+                  <div style="font-size:12px; color:var(--success); padding:6px 0;">{{ sequencerCalculatedDuration }}s</div>
                 </div>
               </div>
               <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
               <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
-              <div v-if="Number(sequencer.durationSec) > 0" style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;" title="Scene markers (click to jump)">
+              <div v-if="Number(sequencer.durationSec) > 0" style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:var(--bg-0); border:1px solid var(--border); overflow:visible;" title="Scene markers (click to jump)">
                 <div style="position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;"></div>
                 <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mk-'+mi+'-'+(m.t || 0)" style="position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;" :style="{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }">
                   <button type="button" class="framesync-button" style="padding:2px 6px; font-size:9px; white-space:nowrap;" @click="jumpToSequencerMarker(m)">{{ m.name }}</button>
                 </div>
-                <div v-if="sortedSequencerMarkers.length === 0" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:11px;">
+                <div v-if="sortedSequencerMarkers.length === 0" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11px;">
                   No markers yet
                 </div>
                 <div style="position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:3; pointer-events:none;" :style="{ left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }"></div>
@@ -1591,8 +1591,8 @@
                 <input type="text" class="framesync-input" style="max-width:160px; font-size:11px;" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
                 <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
               </div>
-              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
-                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:#031b2d; border-radius:4px;">
+              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:var(--text-dim);">
+                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:var(--bg-0); border-radius:4px;">
                   <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
                   <select class="framesync-input" style="font-size:10px; max-width:100px; padding:2px 4px;" :value="m.action || 'jump'" @change="setMarkerAction(m, $event.target.value)">
                     <option value="jump">↦ Jump</option>
@@ -1603,10 +1603,10 @@
                     <option value="pause">⏸ Pause</option>
                   </select>
                   <input v-if="m.action && m.action !== 'jump' && m.action !== 'generate' && m.action !== 'pause'" type="text" class="framesync-input" style="font-size:10px; max-width:140px; padding:2px 4px;" :value="m.target || ''" :placeholder="markerActionPlaceholder(m.action)" @change="setMarkerTarget(m, $event.target.value)" :title="markerActionTitle(m.action)">
-                  <span v-if="m.action === 'jump'" style="font-size:9px; color:#5a8fb8;">jump to time</span>
-                  <span v-if="m.action === 'generate'" style="font-size:9px; color:#5a8fb8;">trigger generation</span>
-                  <span v-if="m.action === 'pause'" style="font-size:9px; color:#5a8fb8;">pause playback</span>
-                  <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
+                  <span v-if="m.action === 'jump'" style="font-size:9px; color:var(--text-dim);">jump to time</span>
+                  <span v-if="m.action === 'generate'" style="font-size:9px; color:var(--text-dim);">trigger generation</span>
+                  <span v-if="m.action === 'pause'" style="font-size:9px; color:var(--text-dim);">pause playback</span>
+                  <button type="button" style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
                 </div>
               </div>
               <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
@@ -1621,8 +1621,8 @@
                 </select>
               </div>
               <div class="framesync-subtitle" style="margin-top:14px;">Tracks</div>
-              <div v-if="sequencer.tracks.length" style="margin-top:8px; border:1px solid #0c3048; border-radius:8px; background:#031b2d; overflow:hidden;">
-                <div style="padding:6px 10px; font-size:10px; color:#5a8fb8; border-bottom:1px solid #0c3048; display:flex; justify-content:space-between; align-items:center;">
+              <div v-if="sequencer.tracks.length" style="margin-top:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg-0); overflow:hidden;">
+                <div style="padding:6px 10px; font-size:10px; color:var(--text-dim); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
                   <span>TIMELINE</span>
                   <span>{{ sequencer.tracks.length }} track{{ sequencer.tracks.length > 1 ? 's' : '' }} · {{ sequencer.durationSec }}s</span>
                 </div>
@@ -1640,15 +1640,15 @@
                 <input type="number" class="framesync-input" style="width:100px; font-size:11px;" v-model.number="sequencerKeyframeVal" step="any">
                 <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
               </div>
-              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;">
+              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--bg-0);">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="color:#ff8a1a; font-size:13px;">{{ tr.param }}</strong>
-                  <label style="font-size:11px; color:#9bc4e2;">
+                  <strong style="color:var(--warn); font-size:13px;">{{ tr.param }}</strong>
+                  <label style="font-size:11px; color:var(--text-secondary);">
                     <input type="radio" :value="tr.id" v-model="sequencerSelectedTrackId"> edit
                   </label>
                   <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
                 </div>
-                <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
+                <div style="font-size:11px; color:var(--text-dim); margin-top:6px;">
                   <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
                     t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
                     <select class="framesync-input" style="font-size:10px; max-width:110px; padding:2px 4px;" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
@@ -1657,12 +1657,12 @@
                       <option value="easeOut">easeOut</option>
                       <option value="easeInOut">easeInOut</option>
                     </select>
-                    <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
+                    <button type="button" style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
                   </span>
                   <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
                 </div>
               </div>
-              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:#5af2a9;">{{ sequencerStatus }}</div>
+              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:var(--success);">{{ sequencerStatus }}</div>
             </div>
           </div>
 
@@ -1708,7 +1708,7 @@
                   <button class="framesync-button" @click="storyResultCollapsed = !storyResultCollapsed">{{ storyResultCollapsed ? '▼ Show' : '▲ Hide' }}</button>
                 </div>
                 <div v-if="!storyResultCollapsed">
-                  <img v-if="generator.lastPath" :src="generator.lastPath" style="width:100%; border-radius:8px; border:1px solid #0c3048;">
+                  <img v-if="generator.lastPath" :src="generator.lastPath" style="width:100%; border-radius:8px; border:1px solid var(--border);">
                 </div>
               </div>
             </div>
