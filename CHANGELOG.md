@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.7] - 2026-05-26
+
+## What's Changed
+
+- Cursor/web UI tour readme (#45) (38788c9)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.6...v0.6.7
+
+
 ## [0.6.6] - 2026-05-26
 
 ## What's Changed
