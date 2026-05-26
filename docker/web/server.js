@@ -863,6 +863,7 @@ async function start(opts = {}) {
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 120000);
+      const t0 = Date.now();
       const response = await fetch(`${forgeUrl}/deforum_api/batches`, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -870,6 +871,10 @@ async function start(opts = {}) {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      const genDuration = Date.now() - t0;
+      if (target.node) {
+        gpuPool.logNodeRequest(target.node.id, { type: "generate", path: "/deforum_api/batches", statusCode: response.status, durationMs: genDuration, ok: response.ok || response.status === 202 });
+      }
       if (response.status !== 202 && !response.ok) {
         const text = await response.text();
         return res.status(502).json({
@@ -1261,6 +1266,7 @@ async function start(opts = {}) {
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 600000);
+      const t0 = Date.now();
       const response = await fetch(`${forgeUrl}/sdapi/v1/txt2img`, {
         method: "POST",
         headers: { Accept: "application/json", "Content-Type": "application/json" },
@@ -1268,6 +1274,9 @@ async function start(opts = {}) {
         signal: controller.signal,
       });
       clearTimeout(timeout);
+      if (target.node) {
+        gpuPool.logNodeRequest(target.node.id, { type: "generate", path: "/sdapi/v1/txt2img", statusCode: response.status, durationMs: Date.now() - t0, ok: response.ok });
+      }
       if (!response.ok) {
         const text = await response.text();
         return res.status(502).json({ error: "Forge txt2img failed", status: response.status, detail: text.slice(0, 500) });
