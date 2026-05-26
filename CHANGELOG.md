@@ -3,6 +3,60 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.6] - 2026-05-26
+
+## What's Changed
+
+- Update README.md (564a22a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.5...v0.6.6
+
+
+## [0.6.5] - 2026-05-26
+
+## What's Changed
+
+- Add files via upload (4e64490)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.4...v0.6.5
+
+
+## [0.6.4] - 2026-05-26
+
+## What's Changed
+
+- Rename live-tab.png to main.png (8446fb5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.3...v0.6.4
+
+
+## [0.6.3] - 2026-05-26
+
+## What's Changed
+
+- feat(web): finish browser UI pass and refresh docs (#44) (653c7fb)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.2...v0.6.3
+
+
+## [0.6.2] - 2026-05-26
+
+## What's Changed
+
+- feat(web): finish browser UI pass and refresh docs (#43) (9b28141)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.1...v0.6.2
+
+
+## [0.6.1] - 2026-05-26
+
+## What's Changed
+
+- fix: split ROOT assignment and cd to fix unbound variable error under set -u (4b2d19a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.0...v0.6.1
+
+
 ## [0.6.0] - 2026-05-26
 
 ## What's Changed
