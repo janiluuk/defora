@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.5.3] - 2026-05-26
+
+## What's Changed
+
+- Update README.md (20710d2)
+- chore: bump version to 0.5.2 [skip ci] (13ec6d5)
+- Mediator merge (#38) (fab76ef)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.5.2...v0.5.3
+
+
 ## [0.5.2] - 2026-05-26
 
 ## What's Changed
