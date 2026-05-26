@@ -6,15 +6,19 @@
       :title="playing ? 'Pause Deforum' : 'Play Deforum animation'"
       @click="$emit('toggle-play')"
     >
-      {{ playing ? '⏸' : '▶' }}<span class="ss-label">Anim</span>
+      <UiIcon class="ss-icon" :name="playing ? 'pause' : 'play'" />
+      <span class="ss-label">Anim</span>
     </button>
-    <button class="ss-btn ss-btn--ghost" title="Stop animation" @click="$emit('stop-play')">⏹</button>
+    <button class="ss-btn ss-btn--ghost" title="Stop animation" @click="$emit('stop-play')">
+      <UiIcon class="ss-icon" name="stop" />
+    </button>
     <button
       class="ss-btn ss-btn--ghost"
       :class="{ 'ss-btn--recording': recording }"
       @click="$emit('toggle-record')"
     >
-      {{ recording ? '⏹' : '●' }}<span class="ss-label">Rec</span>
+      <UiIcon class="ss-icon" :name="recording ? 'stop' : 'record'" />
+      <span class="ss-label">Rec</span>
     </button>
 
     <div
@@ -51,8 +55,11 @@
 </template>
 
 <script>
+import UiIcon from './UiIcon.vue'
+
 export default {
   name: 'StatusStrip',
+  components: { UiIcon },
   emits: ['toggle-play', 'stop-play', 'toggle-record'],
   props: {
     playing:       { type: Boolean, default: false },
@@ -90,6 +97,9 @@ export default {
   cursor: pointer;
   transition: color 0.12s, border-color 0.12s, box-shadow 0.12s;
   white-space: nowrap;
+}
+.ss-icon {
+  font-size: 13px;
 }
 .ss-label { font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
 .ss-btn--ghost { background: transparent; border-color: transparent; }
