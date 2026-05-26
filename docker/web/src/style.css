@@ -1124,6 +1124,108 @@
       padding: 2px 6px;
       color: var(--text-primary);
     }
+    /* ── P2 fix: modulation-lfo-card BEM — was missing, causing elements to jam ── */
+    .modulation-lfo-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; }
+    .modulation-lfo-card {
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px;
+      background: var(--bg-2);
+      box-shadow: 0 8px 18px rgba(0,0,0,0.28);
+      cursor: pointer;
+      display: grid;
+      gap: 8px;
+    }
+    .modulation-lfo-card--active { border-color: var(--live); }
+    .modulation-lfo-card--selected { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+    .modulation-lfo-card__header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .modulation-lfo-card__switch { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px; color: var(--text-secondary); }
+    .modulation-lfo-card__title { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+    .modulation-lfo-card__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
+    .modulation-lfo-card--active .modulation-lfo-card__dot { background: var(--live); box-shadow: 0 0 6px var(--live); }
+    .modulation-lfo-card__meta { font-size: 11px; color: var(--text-dim); }
+    .modulation-lfo-card__waveform { border-radius: 4px; background: var(--bg-1); }
+    .modulation-lfo-card__controls { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .modulation-lfo-card__control { display: grid; gap: 4px; }
+    .modulation-lfo-card__footer { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+    .modulation-route-pill {
+      display: inline-flex;
+      align-items: center;
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--live);
+      color: var(--live-text);
+      background: rgba(29, 158, 117, 0.08);
+    }
+    .modulation-route-pill--idle { border-color: var(--border); color: var(--text-dim); background: transparent; }
+    .modulation-lfo-card__route-button { margin-left: auto; font-size: 10px; }
+    .modulation-target-board { margin-top: 12px; }
+    .modulation-target-board__header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+    .modulation-target-board__hint { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
+    .modulation-target-board__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 4px; }
+
+    /* ── P2 fix: generate-sequencer — was missing, causing Loop/BPM Sync to run together ── */
+    .generate-sequencer__status { font-size: 10px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); }
+    .generate-sequencer__status--live { border-color: var(--live); color: var(--live-text); }
+    .generate-sequencer__transport { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-top: 12px; }
+    .generate-sequencer__transport--secondary { background: var(--bg-1); border: 1px solid var(--border); border-radius: 8px; padding: 8px; margin-top: 8px; }
+    .generate-sequencer__field { display: grid; gap: 4px; min-width: 80px; flex: 1; }
+    .generate-sequencer__field--calc { align-content: end; }
+    .generate-sequencer__toggle { display: grid; gap: 4px; min-width: 130px; }
+    .generate-sequencer__timeline-tools { display: flex; gap: 8px; align-items: flex-end; margin-top: 12px; }
+    .generate-sequencer__playhead { flex: 1; display: grid; gap: 4px; }
+    .generate-sequencer__marker-tools { display: flex; gap: 6px; align-items: flex-end; }
+    .generate-sequencer__actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: flex-start; }
+    .generate-sequencer__track-builder { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; }
+    .generate-sequencer__transport-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+    .generate-sequencer__track-list { margin-top: 12px; display: grid; gap: 8px; }
+    .generate-sequencer__markers { margin-top: 12px; display: grid; gap: 8px; }
+    .generate-sequencer__empty-markers { font-size: 11px; color: var(--text-dim); padding: 8px 0; }
+    .generate-sequencer__status-text { margin-top: 8px; font-size: 11px; color: var(--live-text); }
+
+    /* ── P1: LIVE stage — full-bleed video with floating HUD panels ── */
+    .layout--live { grid-template-columns: 1fr; }
+    .layout--live .preview { position: relative; }
+    .layout--live .video-wrap { aspect-ratio: 16/9; width: 100%; border-radius: 8px; overflow: hidden; }
+    /* HUD strip floats at bottom of video-wrap when inside it */
+    .video-wrap > .live-hud-strip {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      right: 8px;
+      z-index: 5;
+      margin-top: 0;
+    }
+    /* Right column slides in as a fixed overlay drawer in LIVE mode */
+    .live-right-column {
+      position: fixed;
+      top: 54px;
+      right: 0;
+      width: 380px;
+      bottom: 0;
+      overflow-y: auto;
+      z-index: 200;
+      background: var(--bg-1);
+      border-left: 1px solid var(--border);
+      padding: 10px;
+      box-shadow: -8px 0 24px rgba(0,0,0,0.4);
+    }
+    /* Floating toggle button inside video overlay */
+    .live-overlay-btn {
+      background: rgba(8, 9, 13, 0.65);
+      border: 1px solid var(--border-strong);
+      color: var(--text-primary);
+      border-radius: 6px;
+      padding: 3px 8px;
+      font-size: 11px;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      white-space: nowrap;
+    }
+    .live-overlay-btn:hover { border-color: var(--accent); color: var(--accent-text); }
+
     @media (max-width: 1100px) {
       .layout { grid-template-columns: 1fr; }
       .context { grid-column: 1; }

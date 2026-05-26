@@ -20,7 +20,7 @@
       />
     </header>
 
-    <div class="layout">
+    <div class="layout" :class="{ 'layout--live': currentTab === 'LIVE' }">
       <!-- Left: video + mini timeline -->
       <div class="preview">
         <div class="video-wrap">
@@ -30,10 +30,40 @@
               <div class="timecode">{{ timecode }}</div>
               <div style="font-size:11px; color:var(--text-secondary);">Seed {{ hud.seed }}</div>
             </div>
-            <div style="text-align:right;">
-              <div>{{ stats.fps }} fps</div>
-              <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
+            <div style="display:flex; align-items:flex-start; gap:8px; text-align:right;">
+              <button v-if="currentTab === 'LIVE'" type="button" class="live-overlay-btn" @click="liveDrawerOpen = !liveDrawerOpen" :title="liveDrawerOpen ? 'Close controls' : 'Open controls'">
+                {{ liveDrawerOpen ? '✕ Close' : '⚙ Controls' }}
+              </button>
+              <div>
+                <div>{{ stats.fps }} fps</div>
+                <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
+              </div>
             </div>
+          </div>
+          <!-- LIVE HUD panels float at bottom of video — modulating left, morph right -->
+          <div v-if="currentTab === 'LIVE'" class="live-hud-strip">
+            <GlassPanel size="sm" class="live-hud-modulating">
+              <template #header>Modulating now</template>
+              <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
+              <LiveParamRow
+                v-for="p in liveModulating"
+                :key="p.key"
+                :label="p.label"
+                :param-key="p.key"
+                :value="p.val"
+                :min="p.min"
+                :max="p.max"
+                :source="p.source"
+                :modulated="true"
+              />
+            </GlassPanel>
+            <GlassPanel size="sm" class="live-hud-morph">
+              <template #header>Morph</template>
+              <Crossfader
+                :model-value="performance.crossfader"
+                @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+              />
+            </GlassPanel>
           </div>
         </div>
 
@@ -156,35 +186,10 @@
           <div v-else class="recent-runs-rail__empty">No recent runs yet.</div>
         </div>
 
-        <!-- LIVE HUD strip — docked below video -->
-        <div v-if="currentTab === 'LIVE'" class="live-hud-strip">
-          <GlassPanel size="sm" class="live-hud-morph">
-            <template #header>Morph</template>
-            <Crossfader
-              :model-value="performance.crossfader"
-              @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
-            />
-          </GlassPanel>
-          <GlassPanel size="sm" class="live-hud-modulating">
-            <template #header>Modulating now</template>
-            <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
-            <LiveParamRow
-              v-for="p in liveModulating"
-              :key="p.key"
-              :label="p.label"
-              :param-key="p.key"
-              :value="p.val"
-              :min="p.min"
-              :max="p.max"
-              :source="p.source"
-              :modulated="true"
-            />
-          </GlassPanel>
-        </div>
       </div>
 
-      <!-- Right: control rack per tab -->
-      <div>
+      <!-- Right: control rack per tab (fixed drawer overlay in LIVE mode) -->
+      <div v-if="currentTab !== 'LIVE' || liveDrawerOpen" :class="{ 'live-right-column': currentTab === 'LIVE' }">
         <div v-if="currentTab==='LIVE'">
           <div class="rack performance-deck">
             <div class="framesync-panel">
@@ -273,12 +278,11 @@
                 </div>
 
                 <div class="crossfade-center" style="margin-top:16px;">
-                  <div class="framesync-subtitle" style="text-align:center;">Crossfader</div>
+                  <div class="framesync-subtitle" style="text-align:center;">Crossfader — {{ ((1 - performance.crossfader) * 100).toFixed(0) }}% A / {{ (performance.crossfader * 100).toFixed(0) }}% B</div>
                   <div class="framesync-gradient-bar"></div>
-                  <input type="range" min="0" max="1" step="0.01" v-model.number="performance.crossfader" class="framesync-input" data-testid="performance-crossfader" @input="onCrossfaderInput">
                   <div class="crossfade-labels">
-                    <span>A {{ ((1 - performance.crossfader) * 100).toFixed(0) }}%</span>
-                    <span>B {{ (performance.crossfader * 100).toFixed(0) }}%</span>
+                    <span>A</span>
+                    <span>B</span>
                   </div>
                 </div>
               </div>
@@ -2045,6 +2049,7 @@ export default {
       deforumSettingsSaving: false,
        paramPanelOpen: false,
        deforumPanelOpen: false,
+       liveDrawerOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
        deforumFieldGroups: DEFORUM_FIELD_GROUPS,
        deforumSectionOpen: {},
