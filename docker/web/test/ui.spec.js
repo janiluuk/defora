@@ -199,6 +199,9 @@ describe("Deforumation Web UI", () => {
   it("shows prompt morph controls", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "PROMPTS");
+    await nextTick();
+    const promptButtonsCollapsed = [...document.querySelectorAll(".prompt-toolbar .framesync-button")].map((el) => el.textContent.trim());
+    expect(promptButtonsCollapsed).to.include("Expand");
     appVm.morphCollapsed = false;
     await nextTick();
     await nextTick();
@@ -363,18 +366,42 @@ describe("Deforumation Web UI behavior", () => {
     if (!global.window) {
       global.window = {};
     }
-    global.window.localStorage = {
+    const localStorageMock = {
       getItem: (key) => testStorage[key] || null,
       setItem: (key, value) => { testStorage[key] = value; },
       removeItem: (key) => { delete testStorage[key]; },
       clear: () => { testStorage = {}; Object.keys(testStorage).forEach(k => delete testStorage[k]); }
     };
+    Object.defineProperty(global.window, "localStorage", {
+      value: localStorageMock,
+      configurable: true,
+      writable: true,
+    });
+    global.localStorage = localStorageMock;
   });
 
   it("defaults prompts to the image subtab", () => {
     const instance = instantiate(appDef);
     expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
     expect(instance.img2img.show).to.equal(true);
+  });
+
+  it("openGpuSettings jumps to settings GPUS", () => {
+    const instance = instantiate(appDef);
+
+    instance.openGpuSettings();
+
+    expect(instance.currentTab).to.equal("SETTINGS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("GPUS");
+  });
+
+  it("reports GPU status counts from the pool state", () => {
+    const instance = instantiate(appDef);
+    instance.gpuPool.healthyNodes = 2;
+    instance.gpuPool.nodes = [{ id: "gpu-1" }, { id: "gpu-2" }, { id: "gpu-3" }];
+
+    expect(instance.gpuActiveCount).to.equal(2);
+    expect(instance.gpuTotalCount).to.equal(3);
   });
 
   it("setSource updates state and dispatches payload", () => {
@@ -756,6 +783,50 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.deforumSettings.cn_2_weight).to.equal("0:(1)");
     expect(instance.deforumSettings.cn_2_guidance_start).to.equal("0:(0.0)");
     expect(instance.deforumSettings.cn_2_guidance_end).to.equal("0:(1.0)");
+  });
+
+  it("onDeforumFieldInput persists updated deforum settings into session storage", () => {
+    const instance = instantiate(appDef);
+    instance.queueDeforumSettingsSave = () => {};
+    instance.pushDeforumLivePatch = () => {};
+    instance.scheduleDeforumPreview = () => {};
+
+    instance.onDeforumFieldInput("steps", 14, "number");
+
+    const saved = JSON.parse(testStorage[instance.sessionStorageKey()]);
+    expect(saved.deforumSettings.steps).to.equal(14);
+  });
+
+  it("loadDeforumSettings preserves session-restored settings on startup", async () => {
+    const instance = instantiate(appDef);
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      deforumSettings: {
+        steps: 18,
+        sampler: "Euler a",
+        sd_model_name: "local-model.safetensors",
+      },
+      lastModel: "local-model.safetensors",
+    });
+    instance.loadSessionState();
+
+    global.fetch = async () => ({
+      ok: true,
+      json: async () => ({
+        settings: {
+          steps: 4,
+          sampler: "DPM++ 2M",
+          sd_model_name: "server-model.safetensors",
+        },
+      }),
+    });
+
+    await instance.loadDeforumSettings({ syncServerModel: false });
+
+    expect(instance.deforumSettings.steps).to.equal(18);
+    expect(instance.deforumSettings.sampler).to.equal("Euler a");
+    expect(instance.deforumSettings.sd_model_name).to.equal("local-model.safetensors");
+    expect(instance.deforumSettingsStatus).to.equal("Loaded local session");
+    delete global.fetch;
   });
 
   it("disposeLiveAudioAnalyser is safe when nothing is wired", () => {
