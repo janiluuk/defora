@@ -159,44 +159,91 @@
             <div class="framesync-title">img2img <span class="framesync-accent">(Forge)</span></div>
             <button class="framesync-button" @click="img2img.show = !img2img.show">{{ img2img.show ? 'Hide' : 'Show' }}</button>
           </div>
-          <div v-if="img2img.show">
-            <div class="framesync-subtitle" style="margin-top:8px;">
-              Reference image → <code>/api/img2img</code> (SD-Forge). Optional <strong>mask</strong> enables inpainting (white = repaint, black = keep). Output under <code>/uploads/</code>.
+          <div v-if="img2img.show" class="img2img-panel">
+            <div class="framesync-subtitle img2img-panel__summary">
+              Use an <strong>input image</strong> with optional <strong>mask</strong> for inpainting. Drag files into the boxes below or click to browse.
             </div>
-            <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
-              <div class="framesync-stack">
-                <div class="framesync-subtitle">Reference image</div>
-                <input type="file" accept="image/*" @change="onImg2imgFile" class="framesync-input">
-              </div>
-              <div class="framesync-stack">
-                <div class="framesync-subtitle">Mask image (optional)</div>
-                <input type="file" accept="image/*" @change="onImg2imgMaskFile" class="framesync-input">
-              </div>
+            <div class="img2img-dropgrid">
+              <label
+                class="img2img-dropzone"
+                :class="{ 'img2img-dropzone--filled': !!img2img.dataUrl }"
+                @dragover.prevent
+                @dragenter.prevent
+                @drop.prevent="handleImg2imgDrop($event, 'input')"
+              >
+                <input type="file" accept="image/*" class="img2img-dropzone__input" @change="handleImg2imgFile">
+                <div v-if="img2img.dataUrl" class="img2img-dropzone__preview">
+                  <img :src="img2img.dataUrl" alt="Input preview" class="img2img-dropzone__image">
+                </div>
+                <div v-else class="img2img-dropzone__empty">
+                  <div class="img2img-dropzone__title">Input image</div>
+                  <div class="img2img-dropzone__hint">Drag and drop an image here</div>
+                  <div class="img2img-dropzone__meta">or click to browse</div>
+                </div>
+              </label>
+              <label
+                class="img2img-dropzone img2img-dropzone--mask"
+                :class="{ 'img2img-dropzone--filled': !!img2img.maskDataUrl }"
+                @dragover.prevent
+                @dragenter.prevent
+                @drop.prevent="handleImg2imgDrop($event, 'mask')"
+              >
+                <input type="file" accept="image/*" class="img2img-dropzone__input" @change="handleImg2imgMask">
+                <div v-if="img2img.maskDataUrl" class="img2img-dropzone__preview">
+                  <img :src="img2img.maskDataUrl" alt="Mask preview" class="img2img-dropzone__image">
+                </div>
+                <div v-else class="img2img-dropzone__empty">
+                  <div class="img2img-dropzone__title">Mask image</div>
+                  <div class="img2img-dropzone__hint">Optional inpaint mask</div>
+                  <div class="img2img-dropzone__meta">white repaints, black keeps</div>
+                </div>
+              </label>
             </div>
-            <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:10px;">
-              <div class="framesync-stack">
+            <div class="img2img-dropgrid__actions">
+              <button class="framesync-button" :disabled="!img2img.dataUrl" @click="clearImg2imgInput">Clear input</button>
+              <button class="framesync-button" :disabled="!img2img.maskDataUrl" @click="clearImg2imgMask">Clear mask</button>
+            </div>
+            <div class="img2img-controls-grid">
+              <div class="img2img-control-card img2img-control-card--primary">
+                <div class="framesync-subtitle">Denoising strength</div>
+                <div class="img2img-control-card__value">{{ img2img.denoisingStrength.toFixed(2) }}</div>
+                <input type="range" min="0" max="1" step="0.01" :value="img2img.denoisingStrength" class="framesync-input img2img-control-card__slider" @input="img2img.denoisingStrength=parseFloat($event.target.value)">
+              </div>
+              <div class="img2img-control-card">
+                <div class="framesync-subtitle">Width</div>
+                <input type="number" class="framesync-input img2img-control-card__input" v-model.number="img2img.width" min="64" max="2048" step="64">
+              </div>
+              <div class="img2img-control-card">
+                <div class="framesync-subtitle">Height</div>
+                <input type="number" class="framesync-input img2img-control-card__input" v-model.number="img2img.height" min="64" max="2048" step="64">
+              </div>
+              <div v-if="img2img.maskDataUrl" class="img2img-control-card">
                 <div class="framesync-subtitle">Mask blur</div>
-                <input type="number" class="framesync-input" v-model.number="img2img.maskBlur" min="0" max="64">
+                <div class="img2img-control-card__value">{{ img2img.maskBlur }}</div>
+                <input type="range" min="0" max="64" step="1" :value="img2img.maskBlur" class="framesync-input img2img-control-card__slider" @input="img2img.maskBlur=parseInt($event.target.value, 10)">
               </div>
-              <div class="framesync-stack">
+              <div v-if="img2img.maskDataUrl" class="img2img-control-card">
                 <div class="framesync-subtitle">Inpainting fill</div>
-                <select class="framesync-select" v-model.number="img2img.inpaintingFill">
+                <select class="framesync-select img2img-control-card__input" v-model.number="img2img.inpaintingFill">
                   <option value="0">Fill</option>
                   <option value="1">Original</option>
                   <option value="2">Latent noise</option>
                   <option value="3">Latent nothing</option>
                 </select>
               </div>
-              <div class="framesync-stack">
-                <div class="framesync-subtitle">Denoising strength</div>
-                <input type="number" class="framesync-input" v-model.number="img2img.denoisingStrength" min="0" max="1" step="0.01">
+              <div v-if="img2img.maskDataUrl" class="img2img-control-card">
+                <div class="framesync-subtitle">Masked area</div>
+                <div class="framesync-buttons">
+                  <button class="framesync-button" :class="{active: img2img.inpaintFullRes}" @click="img2img.inpaintFullRes = true">Full res</button>
+                  <button class="framesync-button" :class="{active: !img2img.inpaintFullRes}" @click="img2img.inpaintFullRes = false">Whole image</button>
+                </div>
               </div>
             </div>
-            <div class="framesync-footer" style="margin-top:10px;">
-              <button class="framesync-button" @click="runImg2img">Run img2img</button>
+            <div class="framesync-footer img2img-panel__actions">
+              <button class="framesync-button" @click="runImg2img">{{ img2img.loading ? 'Running…' : 'Run img2img' }}</button>
             </div>
-            <div v-if="img2img.status" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ img2img.status }}</div>
-            <div v-if="img2img.lastPath" class="framesync-subtitle" style="margin-top:4px; text-align:center;">
+            <div v-if="img2img.status" class="framesync-subtitle img2img-panel__status">{{ img2img.status }}</div>
+            <div v-if="img2img.lastPath" class="framesync-subtitle img2img-panel__output">
               Output: <a :href="img2img.lastPath" target="_blank" style="color:var(--warn);">{{ img2img.lastPath }}</a>
             </div>
           </div>
