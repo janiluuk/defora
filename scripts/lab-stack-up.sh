@@ -80,12 +80,13 @@ if [[ "${RSYNC_DELETE:-}" == "1" ]]; then
 fi
 
 echo "==> Remote: stop Defora host processes and tear down old stack"
-ssh_remote "${REMOTE_USER}@${HOST}" 'bash -s' <<EOF
+REMOTE_KILL_PATTERNS_Q=$(printf '%q' "$REMOTE_KILL_PATTERNS")
+REMOTE_PATH_Q=$(printf '%q' "$REMOTE_PATH")
+COMPOSE_FILE_Q=$(printf '%q' "$COMPOSE_FILE")
+ssh_remote "${REMOTE_USER}@${HOST}" \
+  "REMOTE_KILL_PATTERNS=${REMOTE_KILL_PATTERNS_Q} REMOTE_PATH=${REMOTE_PATH_Q} COMPOSE_FILE=${COMPOSE_FILE_Q} bash -s" <<'EOF'
 set -eu
-patterns=$(cat <<'PATTERNS'
-${REMOTE_KILL_PATTERNS}
-PATTERNS
-)
+patterns="$REMOTE_KILL_PATTERNS"
 matches=$(
   printf '%s\n' "\$patterns" | while IFS= read -r pattern; do
     [ -n "\$pattern" ] || continue
@@ -102,9 +103,9 @@ if [ -n "\$matches" ]; then
     kill -0 "\$pid" 2>/dev/null && kill -KILL "\$pid" 2>/dev/null || true
   done
 fi
-if [ -d '${REMOTE_PATH}' ]; then
-  cd '${REMOTE_PATH}'
-  docker compose -f '${COMPOSE_FILE}' down --remove-orphans 2>/dev/null || true
+if [ -d "$REMOTE_PATH" ]; then
+  cd "$REMOTE_PATH"
+  docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
 fi
 EOF
 
