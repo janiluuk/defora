@@ -28,11 +28,11 @@
           <div class="overlay">
             <div>
               <div class="timecode">{{ timecode }}</div>
-              <div style="font-size:11px; color:var(--muted);">Seed {{ hud.seed }}</div>
+              <div style="font-size:11px; color:var(--text-secondary);">Seed {{ hud.seed }}</div>
             </div>
             <div style="text-align:right;">
               <div>{{ stats.fps }} fps</div>
-              <div style="font-size:11px; color:var(--muted);">lat {{ stats.lat }}ms</div>
+              <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
             </div>
           </div>
         </div>
@@ -1495,26 +1495,26 @@
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Navigation</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>1</kbd>–<kbd>7</kbd> Switch tabs (LIVE→GENERATE)</div>
                   </div>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">LIVE Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>Space</kbd> Generate image</div>
                     <div><kbd>R</kbd> Reset Vibe & Camera params</div>
                   </div>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">PROMPTS Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>M</kbd> Toggle prompt morphing</div>
                   </div>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">MODULATION Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>L</kbd> Toggle LFO</div>
                     <div><kbd>B</kbd> Toggle Beat Macro</div>
                   </div>
@@ -1730,13 +1730,13 @@
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
           <div style="min-width:240px;">
             <strong>Beat macros ({{ macrosRack.length }})</strong>
-            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--muted);">
+            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--text-secondary);">
               • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
             </div>
           </div>
           <div style="min-width:240px;">
             <strong>MIDI mappings</strong>
-            <div style="font-size:12px; color:var(--muted);">
+            <div style="font-size:12px; color:var(--text-secondary);">
               • LaunchControl CC21 → Vibe<br/>
               • LaunchControl CC22 → Strength<br/>
               • LaunchControl CC23 → Zoom
