@@ -5,7 +5,7 @@
 </p>
 
 Defora turns Stable Diffusion Forge + Deforumation into a playable instrument: live visuals, prompt morphing, camera motion, beat-synced controls, and a neon-styled web UI for performance.
-
+https://defora.dudeisland.eu/
 ## ✨ Feature Highlights
 
 ### 🎹 Live Performance Interface
