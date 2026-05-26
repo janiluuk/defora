@@ -235,6 +235,32 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
+    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
+    expect(subTabs.join(" ")).to.not.include("FORGE");
+  });
+
+  it("renders a forge instance editor modal from GPU pool state", async () => {
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "GPUS");
+    appVm.gpuPool.forgeModal = {
+      ...appVm.gpuPool.forgeModal,
+      open: true,
+      nodeId: "forge-1",
+      nodeName: "Forge Alpha",
+      url: "http://127.0.0.1:7860",
+      currentModel: "juggernautXL.safetensors",
+      schedulers: ["Normal"],
+      vaeList: ["vae-ft-mse"],
+      options: { scheduler: "Normal", sd_vae: "vae-ft-mse", width: 1024, height: 576, batch_size: 1 },
+    };
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Edit SD-Forge instance");
+    expect(pageText).to.include("Forge Alpha");
+    expect(pageText).to.include("Apply options");
+    expect(document.querySelector(".gpu-forge-modal")).to.exist;
   });
 
   it("shows img2img under the image subtab", async () => {
@@ -402,6 +428,24 @@ describe("Deforumation Web UI behavior", () => {
 
     expect(instance.gpuActiveCount).to.equal(2);
     expect(instance.gpuTotalCount).to.equal(3);
+  });
+
+  it("startEditGpuNode opens the forge modal for disabled sd-forge nodes", async () => {
+    const instance = instantiate(appDef);
+    let openedNode = null;
+    instance.openGpuForgeModal = async (node) => { openedNode = node; };
+
+    await instance.startEditGpuNode({
+      id: "forge-1",
+      name: "Forge Alpha",
+      url: "http://127.0.0.1:7860",
+      backend: "sd-forge",
+      enabled: false,
+    });
+
+    expect(openedNode).to.exist;
+    expect(openedNode.id).to.equal("forge-1");
+    expect(instance.gpuPool.editId).to.equal(null);
   });
 
   it("setSource updates state and dispatches payload", () => {

@@ -127,6 +127,45 @@ describe("GPU pool API", () => {
     expect(ollama.body.node.model).to.equal("llama3.1:8b");
   });
 
+  it("persists forge-specific settings per sd-forge node", async () => {
+    const add = await request.post("/api/gpu-pool/nodes").send({
+      url: "http://10.0.0.10:7860",
+      name: "Forge Node",
+      backend: "sd-forge",
+      enabled: false,
+      forgeSettings: {
+        scheduler: "Normal",
+        sd_vae: "vae-ft-mse",
+        width: 1280,
+        height: 720,
+        batch_size: 2,
+      },
+    });
+    expect(add.status).to.equal(200);
+    expect(add.body.node.forgeSettings.width).to.equal(1280);
+
+    const id = add.body.node.id;
+    const edit = await request.put(`/api/gpu-pool/nodes/${id}`).send({
+      forgeSettings: {
+        scheduler: "Karras",
+        width: 1536,
+        height: 864,
+      },
+    });
+    expect(edit.status).to.equal(200);
+    expect(edit.body.node.forgeSettings.scheduler).to.equal("Karras");
+    expect(edit.body.node.forgeSettings.width).to.equal(1536);
+    expect(edit.body.node.forgeSettings.height).to.equal(864);
+    expect(edit.body.node.forgeSettings.batch_size).to.equal(2);
+
+    const status = await request.get("/api/gpu-pool");
+    const savedNode = status.body.nodes.find((node) => node.id === id);
+    expect(savedNode).to.exist;
+    expect(savedNode.forgeSettings.scheduler).to.equal("Karras");
+    expect(savedNode.forgeSettings.sd_vae).to.equal("vae-ft-mse");
+    expect(savedNode.forgeSettings.width).to.equal(1536);
+  });
+
   it("POST /api/gpu-pool/refresh returns node stats fields", async () => {
     await request.post("/api/gpu-pool/nodes").send({
       url: "http://127.0.0.1:9",

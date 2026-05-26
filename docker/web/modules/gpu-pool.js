@@ -9,6 +9,39 @@ const path = require("path");
 
 const BACKENDS = ["sd-forge", "comfyui", "ollama"];
 const STRATEGIES = ["round_robin", "least_busy", "random", "priority"];
+const FORGE_SETTINGS_KEYS = [
+  "sampler_name",
+  "scheduler",
+  "steps",
+  "cfg_scale",
+  "width",
+  "height",
+  "batch_size",
+  "sd_vae",
+  "clip_skip",
+  "eta_ddim",
+  "eta_ancestral",
+  "sigma_churn",
+  "enable_emphasis",
+  "use_old_sampling",
+  "do_not_add_watermark",
+];
+const FORGE_NUMERIC_KEYS = new Set([
+  "steps",
+  "cfg_scale",
+  "width",
+  "height",
+  "batch_size",
+  "clip_skip",
+  "eta_ddim",
+  "eta_ancestral",
+  "sigma_churn",
+]);
+const FORGE_BOOLEAN_KEYS = new Set([
+  "enable_emphasis",
+  "use_old_sampling",
+  "do_not_add_watermark",
+]);
 
 function normalizeUrl(url) {
   let u = String(url || "").trim().replace(/\/+$/, "");
@@ -23,6 +56,25 @@ function normalizeModelName(value) {
 
 function nodeIdFromUrl(url) {
   return crypto.createHash("sha256").update(normalizeUrl(url)).digest("hex").slice(0, 16);
+}
+
+function normalizeForgeSettings(input = {}) {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const out = {};
+  for (const key of FORGE_SETTINGS_KEYS) {
+    if (raw[key] === undefined) continue;
+    if (FORGE_BOOLEAN_KEYS.has(key)) {
+      out[key] = !!raw[key];
+      continue;
+    }
+    if (FORGE_NUMERIC_KEYS.has(key)) {
+      const num = Number(raw[key]);
+      if (Number.isFinite(num)) out[key] = num;
+      continue;
+    }
+    out[key] = raw[key] == null ? null : String(raw[key]);
+  }
+  return out;
 }
 
 const NODE_LOG_MAX = 50;
@@ -49,6 +101,7 @@ function defaultNode(input = {}) {
     memoryTotalMb: input.memoryTotalMb ?? null,
     gpuUtilization: input.gpuUtilization ?? null,
     statsError: input.statsError ?? null,
+    forgeSettings: normalizeForgeSettings(input.forgeSettings),
     requestLog: [],
   };
 }
@@ -126,6 +179,7 @@ function createGpuPool(options = {}) {
         priority: n.priority,
         gpuModel: n.gpuModel,
         model: n.model,
+        forgeSettings: normalizeForgeSettings(n.forgeSettings),
       })),
     };
     await fsp.writeFile(configPath, JSON.stringify(payload, null, 2), "utf-8");
@@ -152,6 +206,7 @@ function createGpuPool(options = {}) {
       memoryTotalMb: n.memoryTotalMb,
       gpuUtilization: n.gpuUtilization,
       statsError: n.statsError,
+      forgeSettings: normalizeForgeSettings(n.forgeSettings),
       editable: !n.enabled,
       requestLog: (n.requestLog || []).slice(0, 30),
     };
@@ -257,9 +312,20 @@ function createGpuPool(options = {}) {
     );
   }
 
-  function resolveForgeTarget(req, { sdApiOnly = true } = {}) {
+  function resolveForgeTarget(req, { sdApiOnly = true, allowDirectPreferred = false } = {}) {
     const preferred = req?.body?.preferredNode || req?.query?.preferredNode;
     const preferredModel = requestedModelName(req);
+    if (allowDirectPreferred && preferred) {
+      const directNode = findNode(preferred);
+      if (directNode && (!sdApiOnly || directNode.backend === "sd-forge")) {
+        return {
+          url: directNode.url,
+          node: directNode,
+          backend: directNode.backend,
+          release: () => {},
+        };
+      }
+    }
     if (isLoadBalancing()) {
       const node = selectNode({ preferred, preferredModel, sdApiOnly });
       if (node) return wrapTarget(node);
@@ -544,6 +610,7 @@ function createGpuPool(options = {}) {
               priority: n.priority,
               gpuModel: n.gpuModel,
               model: n.model,
+              forgeSettings: n.forgeSettings,
             })
           );
           state.nodes = mapped.nodes;
@@ -562,7 +629,7 @@ function createGpuPool(options = {}) {
 
     app.post("/api/gpu-pool/nodes", async (req, res) => {
       try {
-        const { url, name, backend, priority, gpuModel, model, enabled } = req.body || {};
+        const { url, name, backend, priority, gpuModel, model, enabled, forgeSettings } = req.body || {};
         const normalized = normalizeUrl(url);
         if (!normalized) return res.status(400).json({ error: "url required" });
         if (findNode(normalized)) return res.status(409).json({ error: "node already exists" });
@@ -573,6 +640,7 @@ function createGpuPool(options = {}) {
           priority,
           gpuModel,
           model,
+          forgeSettings,
           enabled: enabled !== false,
         });
         state.nodes.push(node);
@@ -591,7 +659,7 @@ function createGpuPool(options = {}) {
         if (node.enabled) {
           return res.status(409).json({ error: "disable node before editing (only disabled nodes can be edited)" });
         }
-        const { url, name, backend, priority, gpuModel, model } = req.body || {};
+        const { url, name, backend, priority, gpuModel, model, forgeSettings } = req.body || {};
         if (url) {
           const normalized = normalizeUrl(url);
           if (!normalized) return res.status(400).json({ error: "invalid url" });
@@ -605,6 +673,12 @@ function createGpuPool(options = {}) {
         if (priority != null) node.priority = Number(priority) || 1;
         if (gpuModel !== undefined) node.gpuModel = gpuModel;
         if (model !== undefined) node.model = model || null;
+        if (forgeSettings !== undefined) {
+          node.forgeSettings = normalizeForgeSettings({
+            ...(node.forgeSettings || {}),
+            ...forgeSettings,
+          });
+        }
         await saveConfig();
         res.json({ success: true, node: publicNode(node) });
       } catch (err) {

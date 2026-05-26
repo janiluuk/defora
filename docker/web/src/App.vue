@@ -76,23 +76,6 @@
               <div style="font-size:11px; color:var(--text-secondary);">Seed {{ hud.seed }}</div>
             </div>
             <div style="display:flex; align-items:flex-start; gap:8px; text-align:right;">
-              <button
-                v-if="currentTab === 'LIVE'"
-                type="button"
-                class="live-overlay-btn"
-                :class="{ 'live-overlay-btn--open': showRightPanel }"
-                :title="rightPanelToggleTitle"
-                :aria-expanded="showRightPanel ? 'true' : 'false'"
-                @click="liveDrawerOpen = !liveDrawerOpen"
-              >
-                <span class="live-overlay-btn__arrow-wrap">
-                  <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
-                </span>
-                <span class="live-overlay-btn__copy">
-                  <span class="live-overlay-btn__label">Controls</span>
-                  <span class="live-overlay-btn__hint">{{ showRightPanel ? 'Hide menu' : 'Show menu' }}</span>
-                </span>
-              </button>
               <div>
                 <div>{{ stats.fps }} fps</div>
                 <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
@@ -441,15 +424,39 @@
 
       </div>
 
-      <!-- Right: control rack per tab (fixed drawer overlay in LIVE mode) -->
+      <div
+        v-if="currentTab === 'LIVE'"
+        class="live-drawer-shell"
+        :class="{ 'live-drawer-shell--open': liveDrawerOpen }"
+      >
+        <button
+          type="button"
+          class="live-overlay-btn live-overlay-btn--attached"
+          :class="{ 'live-overlay-btn--open': showRightPanel }"
+          :title="rightPanelToggleTitle"
+          :aria-expanded="showRightPanel ? 'true' : 'false'"
+          @click="liveDrawerOpen = !liveDrawerOpen"
+        >
+          <span class="live-overlay-btn__arrow-wrap">
+            <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+          </span>
+          <span class="live-overlay-btn__copy">
+            <span class="live-overlay-btn__label">Controls</span>
+            <span class="live-overlay-btn__hint">{{ showRightPanel ? 'Collapse' : 'Expand' }}</span>
+          </span>
+        </button>
+        <div class="live-right-column">
+          <LiveView :app="appViewModel" />
+        </div>
+      </div>
+
+      <!-- Right: control rack per tab -->
       <transition name="right-panel-slide">
-        <div v-if="showRightPanel" :class="{
-          'live-right-column': currentTab === 'LIVE',
+        <div v-if="currentTab !== 'LIVE' && showRightPanel" :class="{
           'stage-rack-overlay': currentTab === 'MOTION',
           'studio-right-column': currentTab === 'MODULATION'
         }">
-          <LiveView v-if="currentTab==='LIVE'" :app="appViewModel" />
-          <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
+          <PromptsView v-if="currentTab==='PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
           <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
           <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
@@ -602,6 +609,25 @@ export default {
         draft: { url: '', name: '', backend: 'sd-forge', priority: 1, model: '' },
         editId: null,
         editDraft: { name: '', url: '', backend: 'sd-forge', priority: 1, model: '' },
+        forgeModal: {
+          open: false,
+          nodeId: '',
+          nodeName: '',
+          url: '',
+          priority: 1,
+          model: '',
+          currentModel: '',
+          available: false,
+          loading: false,
+          saving: false,
+          applying: false,
+          status: '',
+          samplers: [],
+          schedulers: [],
+          vaeList: [],
+          modelInfo: null,
+          options: {},
+        },
         expandedLog: null,
         modelOptions: {},
       },
@@ -1679,6 +1705,7 @@ export default {
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
  },
  switchSubTab(tab, sub) {
+  if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
   if (tab === 'PROMPTS' && sub !== 'LORA') {
@@ -2664,6 +2691,210 @@ async refreshGpuEditModels() {
     this.gpuPool.status = err.message;
   }
 },
+gpuForgeOptionKeys() {
+  return [
+    'sampler_name',
+    'scheduler',
+    'steps',
+    'cfg_scale',
+    'width',
+    'height',
+    'batch_size',
+    'sd_vae',
+    'clip_skip',
+    'eta_ddim',
+    'eta_ancestral',
+    'sigma_churn',
+    'enable_emphasis',
+    'use_old_sampling',
+    'do_not_add_watermark',
+  ];
+},
+normalizeGpuForgeSettings(raw = {}, fallback = {}) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const base = fallback && typeof fallback === 'object' ? fallback : {};
+  const numericKeys = new Set(['steps', 'cfg_scale', 'width', 'height', 'batch_size', 'clip_skip', 'eta_ddim', 'eta_ancestral', 'sigma_churn']);
+  const booleanKeys = new Set(['enable_emphasis', 'use_old_sampling', 'do_not_add_watermark']);
+  const merged = {};
+  for (const key of this.gpuForgeOptionKeys()) {
+    const value = source[key] !== undefined ? source[key] : base[key];
+    if (value === undefined) continue;
+    if (booleanKeys.has(key)) {
+      merged[key] = !!value;
+      continue;
+    }
+    if (numericKeys.has(key)) {
+      const num = Number(value);
+      if (Number.isFinite(num)) merged[key] = num;
+      continue;
+    }
+    merged[key] = value == null ? null : String(value);
+  }
+  return merged;
+},
+gpuForgePreferredQuery(nodeId) {
+  return nodeId ? `?preferredNode=${encodeURIComponent(nodeId)}` : '';
+},
+closeGpuForgeModal() {
+  this.gpuPool.forgeModal = {
+    open: false,
+    nodeId: '',
+    nodeName: '',
+    url: '',
+    priority: 1,
+    model: '',
+    currentModel: '',
+    available: false,
+    loading: false,
+    saving: false,
+    applying: false,
+    status: '',
+    samplers: [],
+    schedulers: [],
+    vaeList: [],
+    modelInfo: null,
+    options: {},
+  };
+},
+async refreshGpuForgeModalOptions() {
+  const modal = this.gpuPool.forgeModal;
+  if (!modal.open || !modal.nodeId) return;
+  const query = this.gpuForgePreferredQuery(modal.nodeId);
+  const fallbackNode = (this.gpuPool.nodes || []).find((node) => node && node.id === modal.nodeId) || {};
+  modal.loading = true;
+  modal.status = 'Loading Forge instance...';
+  try {
+    const [optRes, sampRes, schedRes, vaeRes, curRes] = await Promise.all([
+      fetch(`/api/forge/options${query}`),
+      fetch(`/api/forge/samplers${query}`),
+      fetch(`/api/forge/schedulers${query}`),
+      fetch(`/api/forge/vae${query}`),
+      fetch(`/api/sd-models/current${query}`),
+    ]);
+    const [opt, samp, sched, vae, cur] = await Promise.all([
+      optRes.json(),
+      sampRes.json(),
+      schedRes.json(),
+      vaeRes.json(),
+      curRes.json(),
+    ]);
+    if (!this.gpuPool.forgeModal.open || this.gpuPool.forgeModal.nodeId !== modal.nodeId) return;
+    const fallbackOptions = this.normalizeGpuForgeSettings(
+      fallbackNode.forgeSettings || {},
+      this.forge.options || {}
+    );
+    this.gpuPool.forgeModal.available = !!opt.available;
+    this.gpuPool.forgeModal.options = this.normalizeGpuForgeSettings(opt.options || {}, fallbackOptions);
+    this.gpuPool.forgeModal.samplers = Array.isArray(samp.samplers) ? samp.samplers : [...(this.forge.samplers || [])];
+    this.gpuPool.forgeModal.schedulers = Array.isArray(sched.schedulers) ? sched.schedulers : [...(this.forge.schedulers || [])];
+    this.gpuPool.forgeModal.vaeList = Array.isArray(vae.vae) ? vae.vae : [...(this.forge.vaeList || [])];
+    const currentModel = cur && cur.model ? (cur.model.model_name || cur.model.title || '') : '';
+    this.gpuPool.forgeModal.currentModel = currentModel;
+    this.gpuPool.forgeModal.model = fallbackNode.model || currentModel || '';
+    this.gpuPool.forgeModal.modelInfo = (cur && cur.model && cur.model.metadata) || null;
+    this.gpuPool.forgeModal.status = opt.available ? 'Forge instance ready.' : (opt.error || 'Forge instance unavailable.');
+  } catch (err) {
+    this.gpuPool.forgeModal.options = this.normalizeGpuForgeSettings(
+      fallbackNode.forgeSettings || {},
+      this.forge.options || {}
+    );
+    this.gpuPool.forgeModal.samplers = [...(this.forge.samplers || [])];
+    this.gpuPool.forgeModal.schedulers = [...(this.forge.schedulers || [])];
+    this.gpuPool.forgeModal.vaeList = [...(this.forge.vaeList || [])];
+    this.gpuPool.forgeModal.currentModel = fallbackNode.currentModel || fallbackNode.model || '';
+    this.gpuPool.forgeModal.model = fallbackNode.model || fallbackNode.currentModel || '';
+    this.gpuPool.forgeModal.modelInfo = null;
+    this.gpuPool.forgeModal.available = false;
+    this.gpuPool.forgeModal.status = err.message || 'Failed to load Forge instance.';
+  } finally {
+    if (this.gpuPool.forgeModal.nodeId === modal.nodeId) {
+      this.gpuPool.forgeModal.loading = false;
+    }
+  }
+},
+async openGpuForgeModal(node) {
+  const fallbackOptions = this.normalizeGpuForgeSettings(node && node.forgeSettings || {}, this.forge.options || {});
+  this.gpuPool.editId = null;
+  this.gpuPool.forgeModal = {
+    open: true,
+    nodeId: node.id,
+    nodeName: node.name || '',
+    url: node.url || '',
+    priority: node.priority || 1,
+    model: node.model || '',
+    currentModel: node.currentModel || node.model || '',
+    available: false,
+    loading: false,
+    saving: false,
+    applying: false,
+    status: '',
+    samplers: [...(this.forge.samplers || [])],
+    schedulers: [...(this.forge.schedulers || [])],
+    vaeList: [...(this.forge.vaeList || [])],
+    modelInfo: null,
+    options: fallbackOptions,
+  };
+  await this.refreshGpuForgeModalOptions();
+},
+async persistGpuForgeModalNode() {
+  const modal = this.gpuPool.forgeModal;
+  const payload = {
+    name: modal.nodeName || modal.url,
+    url: modal.url,
+    backend: 'sd-forge',
+    priority: modal.priority || 1,
+    model: modal.model || modal.currentModel || null,
+    forgeSettings: this.normalizeGpuForgeSettings(modal.options || {}, this.forge.options || {}),
+  };
+  const { data } = await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(modal.nodeId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  }, 'save forge gpu node');
+  const savedNode = data && data.node ? data.node : null;
+  if (savedNode) {
+    this.gpuPool.forgeModal.nodeId = savedNode.id || modal.nodeId;
+    this.gpuPool.forgeModal.nodeName = savedNode.name || modal.nodeName;
+    this.gpuPool.forgeModal.url = savedNode.url || modal.url;
+    this.gpuPool.forgeModal.priority = savedNode.priority || modal.priority;
+    this.gpuPool.forgeModal.model = savedNode.model || modal.model;
+  }
+  await this.refreshGpuPool(false);
+  return savedNode;
+},
+async saveGpuForgeModal() {
+  this.gpuPool.forgeModal.saving = true;
+  try {
+    await this.persistGpuForgeModalNode();
+    this.gpuPool.forgeModal.status = 'Forge instance settings saved.';
+    this.gpuPool.status = 'Forge instance settings saved.';
+  } catch (err) {
+    this.gpuPool.forgeModal.status = err.message;
+    this.gpuPool.status = err.message;
+  } finally {
+    this.gpuPool.forgeModal.saving = false;
+  }
+},
+async applyGpuForgeModalOptions() {
+  this.gpuPool.forgeModal.applying = true;
+  try {
+    const savedNode = await this.persistGpuForgeModalNode();
+    const preferredNode = (savedNode && savedNode.id) || this.gpuPool.forgeModal.nodeId;
+    await apiFetch(`/api/forge/options${this.gpuForgePreferredQuery(preferredNode)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(this.normalizeGpuForgeSettings(this.gpuPool.forgeModal.options || {}, this.forge.options || {})),
+    }, 'apply forge node options');
+    this.gpuPool.forgeModal.status = 'Forge options applied to this instance.';
+    this.gpuPool.status = 'Forge options applied to this instance.';
+    await this.refreshGpuForgeModalOptions();
+  } catch (err) {
+    this.gpuPool.forgeModal.status = err.message;
+    this.gpuPool.status = err.message;
+  } finally {
+    this.gpuPool.forgeModal.applying = false;
+  }
+},
  async saveGpuPoolSettings() {
    try {
      await apiFetch("/api/gpu-pool", {
@@ -2702,11 +2933,15 @@ async refreshGpuEditModels() {
      this.gpuPool.status = err.message;
    }
  },
- startEditGpuNode(n) {
+async startEditGpuNode(n) {
    if (n.enabled) {
      this.gpuPool.status = "Disable the node before editing.";
      return;
    }
+  if (n.backend === 'sd-forge') {
+    await this.openGpuForgeModal(n);
+    return;
+  }
    this.gpuPool.editId = n.id;
    this.gpuPool.editDraft = {
      name: n.name,
@@ -5960,10 +6195,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    }
  },
 
- // Forge settings methods
- forgeUrl() {
-   return `http://${this.forge.host}:${this.forge.port}`;
- },
+// Forge settings methods
  async refreshForgeStatus() {
    this.forge.loading = true;
    try {
