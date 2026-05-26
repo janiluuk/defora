@@ -263,12 +263,27 @@
                 <span v-else-if="forge.lastModel" class="model-last">Last: {{ forge.lastModel }}</span>
               </div>
 
+              <div v-if="pinnedParamItems.length" class="param-group param-group--pinned">
+                <div class="framesync-subtitle">📌 Pinned</div>
+                <div class="param-group-grid">
+                  <div class="framesync-stack" v-for="p in pinnedParamItems" :key="'pin-'+p.key" :class="{'param-locked': isParamLocked(p.key)}">
+                    <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:4px;">
+                      <span>{{ p.label }}</span>
+                      <button type="button" class="param-pin-btn active" title="Unpin" @click.stop="toggleParamPin(p.key)">📌</button>
+                      <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)">🔒</button>
+                    </div>
+                    <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
+                  </div>
+                </div>
+              </div>
+
               <div v-for="group in paramPanelGroups" :key="group.label" class="param-group">
                 <div class="framesync-subtitle">{{ group.label }}</div>
                 <div class="param-group-grid">
                   <div class="framesync-stack" v-for="p in group.items" :key="p.key" :class="{'param-locked': isParamLocked(p.key)}">
-                    <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:6px;">
+                    <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:4px;">
                       <span>{{ p.label }}</span>
+                      <button type="button" class="param-pin-btn" :class="{active: isParamPinned(p.key)}" title="Pin to top" @click.stop="toggleParamPin(p.key)">📌</button>
                       <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)">🔒</button>
                     </div>
                     <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
@@ -1973,6 +1988,12 @@ export default {
         cfgscale: "Manual",
         zoom: "Beat",
       },
+      pinnedParams: (() => {
+        try {
+          const raw = typeof localStorage !== 'undefined' && localStorage.getItem('defora_pinned_params');
+          return raw ? JSON.parse(raw) : [];
+        } catch (_) { return []; }
+      })(),
       prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5, morphBlend: 0.5 },
       img2img: {
         show: false,
@@ -2233,6 +2254,12 @@ export default {
         { label: 'Style', items: this.liveVibe },
         { label: 'Camera', items: this.liveCam },
       ];
+    },
+    pinnedParamItems() {
+      const allParams = [...this.liveVibe, ...this.liveCam];
+      return this.pinnedParams
+        .map(key => allParams.find(p => p.key === key))
+        .filter(Boolean);
     },
     liveModulating() {
       const paramMap = {};
@@ -3131,6 +3158,22 @@ export default {
    } else {
      this.collab.status = `${key} is locked by ${this.collab.locks[key]}`;
    }
+ },
+ isParamPinned(key) {
+   return this.pinnedParams.includes(key);
+ },
+ toggleParamPin(key) {
+   const idx = this.pinnedParams.indexOf(key);
+   if (idx === -1) {
+     this.pinnedParams.push(key);
+   } else {
+     this.pinnedParams.splice(idx, 1);
+   }
+   try {
+     if (typeof localStorage !== 'undefined') {
+       localStorage.setItem('defora_pinned_params', JSON.stringify(this.pinnedParams));
+     }
+   } catch (_) {}
  },
  unlockParam(key) {
    this.wsSend({ type: "unlock_param", param: key });
