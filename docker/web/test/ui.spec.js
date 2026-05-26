@@ -61,6 +61,19 @@ function ensureGlobalFileAndBlob() {
 }
 ensureGlobalFileAndBlob();
 
+function ensureGlobalAnimationFrame(win) {
+  const raf = win && typeof win.requestAnimationFrame === "function"
+    ? win.requestAnimationFrame.bind(win)
+    : (cb) => setTimeout(() => cb(Date.now()), 16);
+  const caf = win && typeof win.cancelAnimationFrame === "function"
+    ? win.cancelAnimationFrame.bind(win)
+    : (id) => clearTimeout(id);
+  globalThis.requestAnimationFrame = raf;
+  globalThis.cancelAnimationFrame = caf;
+}
+
+ensureGlobalAnimationFrame(typeof window !== "undefined" ? window : null);
+
 function loadAppDefinition() {
   if (typeof global.FileReader !== "function") {
     global.FileReader = class {
@@ -118,6 +131,7 @@ describe("Deforumation Web UI", () => {
     global.HTMLElement = dom.window.HTMLElement;
     global.Element = dom.window.Element;
     global.Node = dom.window.Node;
+    ensureGlobalAnimationFrame(dom.window);
     ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
 
     const appDef = loadAppDefinition();
@@ -152,6 +166,17 @@ describe("Deforumation Web UI", () => {
     expect(overlay.textContent).to.include("Seed");
   });
 
+  it("defaults to the standby animation and can switch to the Deforum feed when ready", () => {
+    expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(false);
+    expect(appVm.showDeforumVideo).to.equal(false);
+
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.videoReady = true;
+
+    expect(appVm.showDeforumVideo).to.equal(true);
+    expect(appVm.deforumFeedStatusLabel).to.match(/live|ready/i);
+  });
+
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
@@ -174,12 +199,75 @@ describe("Deforumation Web UI", () => {
   it("shows prompt morph controls", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "PROMPTS");
+    appVm.morphCollapsed = false;
     await nextTick();
     await nextTick();
     const promptTitles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
     expect(promptTitles.join(" ")).to.include("Prompt Morphing");
+    expect(promptTitles.join(" ")).to.include("Morph Crossfader");
     const promptButtons = [...document.querySelectorAll(".prompt-toolbar .framesync-button")].map((el) => el.textContent.trim());
     expect(promptButtons.join(" ")).to.match(/Enabled|Disabled/);
+    const allButtons = [...document.querySelectorAll(".framesync-button")].map((el) => el.textContent.trim());
+    expect(allButtons.join(" ")).to.include("Manual");
+    expect(allButtons.join(" ")).to.include("LFO 1");
+  });
+
+  it("shows img2img under the image subtab", async () => {
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "IMAGE");
+    appVm.img2img.show = true;
+    await nextTick();
+    await nextTick();
+
+    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
+    expect(subTabs.join(" ")).to.include("IMAGE");
+
+    const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
+    expect(titles.join(" ")).to.include("img2img (Forge)");
+  });
+
+  it("shows active LoRAs and opens a compatible picker with +", async () => {
+    appVm.forge.currentModel = "juggernautXL";
+    appVm.forge.modelInfo = { architecture: "sdxl" };
+    appVm.loras.available = [
+      { id: "xl-1", name: "portrait-xl", path: "/loras/sdxl/portrait-xl.safetensors", family: "sdxl", strength: 1, selected: false, group: null },
+      { id: "sd15-1", name: "portrait-15", path: "/loras/sd15/portrait-15.safetensors", family: "sd15", strength: 1, selected: false, group: null },
+    ];
+    appVm.loras.groupA = [{ id: "xl-1", name: "portrait-xl", path: "/loras/sdxl/portrait-xl.safetensors", strength: 1 }];
+    appVm.loras.groupB = [{ id: "mix-b", name: "mix-b", path: "/loras/sdxl/mix-b.safetensors", strength: 0.8 }];
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "LORA");
+    await nextTick();
+    await nextTick();
+
+    expect(appVm.currentLoraModelFamily).to.equal("sdxl");
+    expect(appVm.compatibleLoraFamilies.map((family) => family.label).join(" ")).to.equal("SDXL");
+
+    const buttonsBefore = [...document.querySelectorAll(".framesync-button")].map((el) => el.textContent.trim());
+    expect(buttonsBefore.join(" ")).to.include("+");
+    expect(buttonsBefore.join(" ")).to.include("Manual");
+    expect(buttonsBefore.join(" ")).to.include("LFO 6");
+    expect([...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim()).join(" ")).to.include("LoRA Crossfader");
+    expect(document.querySelectorAll(".lora-picker-row").length).to.equal(0);
+
+    appVm.loraPickerOpen = true;
+    await nextTick();
+    expect(document.querySelectorAll(".lora-picker-row").length).to.equal(1);
+  });
+
+  it("shows a dedicated collapsed LoRA crossfader tab", async () => {
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "CROSSFADER");
+    await nextTick();
+    await nextTick();
+
+    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
+    expect(subTabs.join(" ")).to.include("CROSSFADER");
+    expect(appVm.loraCrossfaderCollapsed).to.equal(true);
+
+    const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
+    expect(titles.join(" ")).to.include("LoRA Crossfader");
+    expect(document.querySelector(".prompt-ab-summary")).to.not.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {

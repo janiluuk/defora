@@ -2,8 +2,11 @@
   <div>
     <div class="sub-pills">
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='PROMPTS'}" @click="switchSubTab('PROMPTS','PROMPTS')">PROMPTS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='IMAGE'}" @click="switchSubTab('PROMPTS','IMAGE')">IMAGE</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='LORA'}" @click="switchSubTab('PROMPTS','LORA')">LORA</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CONTROLNET'}" @click="switchSubTab('PROMPTS','CONTROLNET')">CONTROLNET</button>
+      <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CROSSFADER'}" @click="switchSubTab('PROMPTS','CROSSFADER')">CROSSFADER</button>
+      <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='STORY'}" @click="switchSubTab('PROMPTS','STORY')">STORY</button>
     </div>
     <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
       <div class="rack">
@@ -14,99 +17,142 @@
               <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">Enabled</button>
               <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">Disabled</button>
               <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? 'Show' : 'Hide' }}</button>
-              <button class="framesync-button" @click="applyLoras">Apply all</button>
             </div>
           </div>
 
           <div v-if="!morphCollapsed">
-            <div class="morph-blend-bar" style="margin-top:14px;">
-              <div class="framesync-subtitle">Prompt morph blend</div>
-              <div class="framesync-gradient-bar"></div>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                v-model.number="prompts.morphBlend"
-                class="framesync-input"
-                data-testid="prompt-morph-blend"
-                @input="onPromptMorphBlendInput"
-              />
-              <div class="morph-blend-labels">
-                <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
-                <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
-              </div>
-            </div>
             <div v-if="prompts.morphOn" class="morph-slot-weights" style="margin-top:12px;">
               <div
                 v-for="slot in morphSlots"
                 :key="'mw-' + slot.id"
                 class="morph-slot-weight-row"
-                :class="{ inactive: !slot.on || !morphSlotInRange(slot) }"
+                :class="{
+                  inactive: !slot.on,
+                  'morph-slot-weight-row--flowing': slot.on && morphSlotInRange(slot),
+                  'morph-slot-weight-row--waiting': slot.on && !morphSlotInRange(slot)
+                }"
+                :style="{ '--morph-flow-progress': `${(morphBlendInSlotRange(slot) * 100).toFixed(1)}%` }"
               >
-                <label class="morph-slot-weight-name">
-                  <input type="checkbox" v-model="slot.on" @change="applyPromptMorphing" />
-                  {{ slot.name }}
-                </label>
-                <span class="morph-slot-range">{{ slot.range }}</span>
+                <div class="morph-slot-head">
+                  <label class="morph-slot-weight-name">
+                    <input type="checkbox" v-model="slot.on" @change="applyPromptMorphing" />
+                    {{ slot.name }}
+                  </label>
+                  <div class="morph-slot-meta">
+                    <span class="morph-slot-chip morph-slot-chip--range">{{ slot.range }}</span>
+                    <span class="morph-slot-chip morph-slot-chip--weight">Weight {{ slot.weight.toFixed(2) }}</span>
+                    <span class="morph-slot-chip" :class="slot.on && morphSlotInRange(slot) ? 'morph-slot-chip--active' : 'morph-slot-chip--idle'">
+                      {{ slot.on ? (morphSlotInRange(slot) ? 'Flowing' : 'Waiting') : 'Muted' }}
+                    </span>
+                  </div>
+                </div>
+                <div class="morph-slot-flow">
+                  <label class="morph-slot-lane morph-slot-lane--a">
+                    <span class="morph-slot-editor__label">A phrase</span>
+                    <input
+                      type="text"
+                      v-model.trim="slot.a"
+                      class="framesync-input morph-slot-editor__input"
+                      :disabled="!slot.on"
+                      @input="onMorphSlotPhraseInput(slot)"
+                    />
+                  </label>
+                  <div class="morph-slot-flow__bridge">
+                    <div class="morph-slot-flow__track">
+                      <span class="morph-slot-flow__glow"></span>
+                      <span class="morph-slot-flow__marker"></span>
+                    </div>
+                    <div class="morph-slot-flow__readout">
+                      <span class="morph-slot-flow__mix">A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+                      <span class="morph-slot-flow__preview">{{ morphSlotPreview(slot) }}</span>
+                      <span class="morph-slot-flow__mix morph-slot-flow__mix--b">B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="1"
+                      step="0.01"
+                      v-model.number="slot.weight"
+                      class="framesync-input morph-slot-weight-slider"
+                      :disabled="!slot.on"
+                      @input="onMorphSlotWeightInput(slot)"
+                    />
+                  </div>
+                  <label class="morph-slot-lane morph-slot-lane--b">
+                    <span class="morph-slot-editor__label">B phrase</span>
+                    <input
+                      type="text"
+                      v-model.trim="slot.b"
+                      class="framesync-input morph-slot-editor__input"
+                      :disabled="!slot.on"
+                      @input="onMorphSlotPhraseInput(slot)"
+                    />
+                  </label>
+                </div>
+                <code class="morph-slot-preview">{{ morphSlotPreview(slot) }}</code>
+              </div>
+            </div>
+            <div class="morph-crossfader-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
+                <div class="prompt-toolbar morph-crossfader-links">
+                  <button
+                    class="framesync-button"
+                    :class="{ active: !promptMorphBlendLinkedLfo }"
+                    @click="setPromptMorphBlendLfoLink(null)"
+                  >
+                    Manual
+                  </button>
+                  <button
+                    v-for="lfo in lfos.slice(0, 4)"
+                    :key="'morph-lfo-link-' + lfo.id"
+                    class="framesync-button"
+                    :class="{ active: prompts.morphBlendLfoLink === lfo.id }"
+                    @click="setPromptMorphBlendLfoLink(lfo.id)"
+                  >
+                    {{ 'LFO ' + lfo.id }}
+                  </button>
+                </div>
+              </div>
+              <div class="morph-blend-bar" style="margin-top:14px;">
+                <div class="framesync-subtitle">Prompt morph blend</div>
+                <div class="framesync-gradient-bar"></div>
                 <input
                   type="range"
                   min="0"
                   max="1"
                   step="0.01"
-                  v-model.number="slot.weight"
-                  class="framesync-input morph-slot-weight-slider"
-                  :disabled="!slot.on"
-                  @input="onMorphSlotWeightInput(slot)"
+                  :value="prompts.morphBlend"
+                  class="framesync-input"
+                  data-testid="prompt-morph-blend"
+                  :disabled="!prompts.morphOn"
+                  @input="applyPromptMorphBlend($event.target.value, { commitBase: true })"
                 />
-                <code class="morph-slot-preview">{{ morphSlotPreview(slot) }}</code>
-              </div>
-            </div>
-            <div class="prompt-ab-summary">
-              <div class="prompt-ab-column prompt-ab-column--a">
-                <div class="prompt-ab-column__title">A Group</div>
-                <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" class="prompt-ab-card">
-                  <div class="prompt-ab-card__name">{{ lora.name }}</div>
-                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
-                  <div class="prompt-ab-card__value">{{ lora.strength.toFixed(2) }}</div>
-                </div>
-                <div v-if="loras.groupA.length === 0" class="prompt-ab-column__empty">
-                  No LoRAs in A group
-                </div>
-                <div v-else-if="loras.groupA.length > 3" class="prompt-ab-column__more">
-                  +{{ loras.groupA.length - 3 }} more
+                <div class="morph-blend-labels">
+                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
                 </div>
               </div>
-
-              <div class="framesync-stack prompt-ab-center">
-                <div class="framesync-subtitle">Crossfader</div>
-                <div class="framesync-gradient-bar"></div>
-                <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="prompts.crossfaderValue=parseFloat($event.target.value)" class="framesync-input" style="margin-top:8px;">
-                <div class="prompt-ab-center__labels">
-                  <span class="prompt-ab-center__label prompt-ab-center__label--a">A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
-                  <span class="prompt-ab-center__label prompt-ab-center__label--b">B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
-                </div>
-              </div>
-
-              <div class="prompt-ab-column prompt-ab-column--b">
-                <div class="prompt-ab-column__title">B Group</div>
-                <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" class="prompt-ab-card">
-                  <div class="prompt-ab-card__name">{{ lora.name }}</div>
-                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
-                  <div class="prompt-ab-card__value">{{ lora.strength.toFixed(2) }}</div>
-                </div>
-                <div v-if="loras.groupB.length === 0" class="prompt-ab-column__empty">
-                  No LoRAs in B group
-                </div>
-                <div v-else-if="loras.groupB.length > 3" class="prompt-ab-column__more">
-                  +{{ loras.groupB.length - 3 }} more
-                </div>
-              </div>
+              <div class="framesync-subtitle morph-crossfader-status">{{ promptMorphBlendLinkStatus }}</div>
             </div>
           </div>
         </div>
       </div>
 
+      <div class="rack">
+        <div class="framesync-panel">
+          <div class="framesync-header">
+            <div class="framesync-title">Plugins <span class="framesync-accent">Registry</span></div>
+            <button class="framesync-button" @click="refreshPlugins">Refresh</button>
+          </div>
+          <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
+            <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="currentSubTab.PROMPTS==='IMAGE'">
       <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
@@ -156,16 +202,149 @@
           </div>
         </div>
       </div>
+    </div>
 
+    <div v-else-if="currentSubTab.PROMPTS==='STORY'">
+      <div class="rack generate-story">
+        <div class="framesync-panel generate-story__panel">
+          <div class="framesync-header">
+            <div class="framesync-title">Story <span class="framesync-accent">Generator</span></div>
+            <button class="framesync-button generate-story__hero-action" :disabled="generator.isGenerating" @click="generateStory">
+              {{ generator.isGenerating ? 'Generating…' : 'Generate Story' }}
+            </button>
+          </div>
+          <div class="framesync-stack generate-story__field">
+            <div class="framesync-subtitle">Theme / Story concept</div>
+            <input class="framesync-input" v-model="generator.theme" placeholder="e.g. A Space Traveler, Ancient Forest, Cyberpunk City…">
+          </div>
+          <div class="generate-story__grid">
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Style preset</div>
+              <select class="framesync-select" v-model="generator.stylePreset">
+                <option value="Masterpiece, Realistic">Masterpiece Realistic</option>
+                <option value="Masterpiece, Cinematic">Cinematic</option>
+                <option value="Masterpiece, best quality, anime">Anime</option>
+                <option value="oil painting, impressionism">Oil Painting</option>
+                <option value="digital art, concept art, surrealistic">Surrealist</option>
+                <option value="watercolor, illustration">Watercolor</option>
+                <option value="custom">Custom…</option>
+              </select>
+            </div>
+            <div class="framesync-stack" v-if="generator.stylePreset === 'custom'">
+              <div class="framesync-subtitle">Custom style</div>
+              <input class="framesync-input" v-model="generator.customStyle" placeholder="your style keywords">
+            </div>
+          </div>
+          <div class="framesync-subtitle" style="margin-top:10px;">Story engine: {{ storyGeneratorSourceLabel }}</div>
+          <div class="framesync-footer generate-story__actions">
+            <button class="framesync-button" @click="generateStory">Generate Story</button>
+            <button class="framesync-button" @click="generateImage">Generate Image</button>
+          </div>
+          <div v-if="generator.status" class="generate-story__status">{{ generator.status }}</div>
+          <div v-if="generator.result" class="generate-story__story-result">
+            <div class="framesync-header">
+              <div class="framesync-subtitle" style="margin:0;">Story plan</div>
+              <span class="pill" v-if="generator.result.source && generator.result.source.model">{{ generator.result.source.model }}</span>
+            </div>
+            <pre class="generate-story__story-text">{{ generator.result.formatted }}</pre>
+            <div class="framesync-footer generate-story__actions">
+              <button class="framesync-button" @click="approveStory">Apply to prompts</button>
+              <button class="framesync-button" @click="rejectStory">Discard</button>
+            </div>
+          </div>
+          <div v-if="generator.lastPath" class="generate-story__result">
+            <div class="framesync-header">
+              <div class="framesync-subtitle" style="margin:0;">Result</div>
+              <button class="framesync-button" @click="storyResultCollapsed = !storyResultCollapsed">{{ storyResultCollapsed ? 'Show' : 'Hide' }}</button>
+            </div>
+            <div v-if="!storyResultCollapsed" class="generate-story__image-wrap">
+              <img v-if="generator.lastPath" :src="generator.lastPath" class="generate-story__image">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-else-if="currentSubTab.PROMPTS==='CROSSFADER'">
       <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
-            <div class="framesync-title">Plugins <span class="framesync-accent">Registry</span></div>
-            <button class="framesync-button" @click="refreshPlugins">Refresh</button>
+            <div class="framesync-title">LoRA <span class="framesync-accent">Crossfader</span></div>
+            <div class="prompt-toolbar">
+              <span class="pill" :class="{ danger: !loraCrossfaderEnabled }">
+                <span class="dot"></span>{{ loraCrossfaderStatusLabel }}
+              </span>
+              <button class="framesync-button" @click="loraCrossfaderCollapsed = !loraCrossfaderCollapsed">{{ loraCrossfaderCollapsed ? 'Show' : 'Hide' }}</button>
+            </div>
           </div>
-          <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
-            <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
-          </ul>
+          <div class="lora-crossfader-shell">
+            <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
+            <div v-if="!loraCrossfaderCollapsed" class="prompt-ab-summary">
+              <div class="prompt-ab-column prompt-ab-column--a">
+                <div class="prompt-ab-column__title">A Group</div>
+                <div v-for="lora in loras.groupA.slice(0, 3)" :key="'xfa-'+lora.id" class="prompt-ab-card">
+                  <div class="prompt-ab-card__name">{{ lora.name }}</div>
+                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
+                  <div class="prompt-ab-card__value">{{ lora.strength.toFixed(2) }}</div>
+                </div>
+                <div v-if="loras.groupA.length === 0" class="prompt-ab-column__empty">
+                  No LoRAs in A group
+                </div>
+                <div v-else-if="loras.groupA.length > 3" class="prompt-ab-column__more">
+                  +{{ loras.groupA.length - 3 }} more
+                </div>
+              </div>
+
+              <div class="framesync-stack prompt-ab-center">
+                <div class="framesync-subtitle">Crossfader</div>
+                <div class="lora-crossfader-links">
+                  <button
+                    type="button"
+                    class="framesync-button"
+                    :class="{ active: !prompts.loraCrossfaderLfoLink }"
+                    @click="setLoraCrossfaderLfoLink(null)"
+                  >
+                    Manual
+                  </button>
+                  <button
+                    v-for="lfo in lfos.slice(0, 6)"
+                    :key="'lora-crossfader-tab-lfo-' + lfo.id"
+                    type="button"
+                    class="framesync-button"
+                    :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }"
+                    @click="setLoraCrossfaderLfoLink(lfo.id)"
+                  >
+                    LFO {{ lfo.id }}
+                  </button>
+                </div>
+                <div class="framesync-gradient-bar"></div>
+                <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
+                <div class="prompt-ab-center__labels">
+                  <span class="prompt-ab-center__label prompt-ab-center__label--a">A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
+                  <span class="prompt-ab-center__label prompt-ab-center__label--b">B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
+                </div>
+                <div class="lora-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
+              </div>
+
+              <div class="prompt-ab-column prompt-ab-column--b">
+                <div class="prompt-ab-column__title">B Group</div>
+                <div v-for="lora in loras.groupB.slice(0, 3)" :key="'xfb-'+lora.id" class="prompt-ab-card">
+                  <div class="prompt-ab-card__name">{{ lora.name }}</div>
+                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
+                  <div class="prompt-ab-card__value">{{ lora.strength.toFixed(2) }}</div>
+                </div>
+                <div v-if="loras.groupB.length === 0" class="prompt-ab-column__empty">
+                  No LoRAs in B group
+                </div>
+                <div v-else-if="loras.groupB.length > 3" class="prompt-ab-column__more">
+                  +{{ loras.groupB.length - 3 }} more
+                </div>
+              </div>
+            </div>
+            <div v-if="!loraCrossfaderCollapsed" class="framesync-footer" style="margin-top:12px;">
+              <button class="framesync-button" @click="applyLoras">Apply LoRAs</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -174,8 +353,9 @@
       <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
-            <div class="framesync-title">LoRA <span class="framesync-accent">Browser</span></div>
+            <div class="framesync-title">Active <span class="framesync-accent">LoRAs</span></div>
             <div class="prompt-toolbar">
+              <span class="lora-family-pill">{{ currentLoraModelFamilyLabel }}</span>
               <span class="source" v-if="loras.source" style="font-size:10px;">
                 <span v-if="loras.source==='sd-forge'" style="color:var(--success);">● Forge</span>
                 <span v-else-if="loras.source==='cache'" style="color:var(--warn);">● Cache</span>
@@ -183,54 +363,36 @@
                 <span v-else style="color:var(--text-dim);">● {{ loras.source }}</span>
               </span>
               <button class="framesync-button" @click="refreshLoras">Refresh</button>
+              <button class="framesync-button lora-picker-trigger" @click="loraPickerOpen = !loraPickerOpen">{{ loraPickerOpen ? 'Close' : '+' }}</button>
             </div>
           </div>
-          <div class="lora-browser-grid">
-            <div v-for="lora in loras.available" :key="lora.id"
-                 class="lora-card"
-                 @click="toggleLoraSelection(lora)">
-              <div class="lora-card__media">
-                <img v-if="lora.thumbnail" :src="lora.thumbnail" class="lora-card__thumb" :alt="lora.name" />
-                <div v-else class="lora-card__placeholder">
-                  <svg viewBox="0 0 24 24" style="width:48px; height:48px; opacity:0.3;" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
-                    <circle cx="8" cy="8" r="2" fill="currentColor"/>
-                    <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
-                  </svg>
-                </div>
-                <div v-if="lora.selected" class="lora-card__selected" :class="lora.group === 'A' ? 'lora-card__selected--a' : 'lora-card__selected--b'">
-                  {{ lora.group }}
-                </div>
-              </div>
-              <div class="lora-card__body">
-                <div class="lora-card__title">
-                  {{ lora.name }}
-                </div>
-                <div class="lora-card__path">
-                  {{ lora.path }}
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Strength</div>
-                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input">
-                  <div class="lora-card__strength">{{ lora.strength.toFixed(2) }}</div>
-                </div>
-                <div class="lora-card__actions">
-                  <button class="framesync-button prompt-group-button prompt-group-button--a" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora,'A')">Assign A</button>
-                  <button class="framesync-button prompt-group-button prompt-group-button--b" :class="{active: lora.group==='B'}" @click.stop="assignLoraToGroup(lora,'B')">Assign B</button>
-                  <button class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
-                </div>
-              </div>
+          <div v-if="loraPickerOpen" class="lora-picker-panel">
+            <div class="framesync-subtitle lora-browser-summary">
+              <span v-if="currentLoraModelFamily">Select from {{ currentLoraModelFamilyLabel }}-compatible LoRAs and assign directly to A or B.</span>
+              <span v-else>Select from the compatible LoRA list and assign directly to A or B.</span>
             </div>
-          </div>
-          <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:var(--text-dim); font-size:12px;">
-            No LoRA models found. Refresh or check SD-Forge connection.
-          </div>
-        </div>
-      </div>
-      <div class="rack">
-        <div class="framesync-panel">
-          <div class="framesync-header">
-            <div class="framesync-title">Active <span class="framesync-accent">LoRAs</span></div>
+            <div class="lora-picker-families">
+              <section v-for="family in compatibleLoraFamilies" :key="'picker-' + family.key" class="lora-picker-family">
+                <div class="lora-picker-family__title">{{ family.label }}</div>
+                <div class="lora-picker-list">
+                  <div v-for="lora in family.items" :key="lora.id" class="lora-picker-row">
+                    <div class="lora-picker-row__copy">
+                      <div class="lora-picker-row__name">{{ lora.name }}</div>
+                      <div class="lora-picker-row__path">{{ lora.path }}</div>
+                    </div>
+                    <div class="lora-picker-row__actions">
+                      <button class="framesync-button prompt-group-button prompt-group-button--a" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora,'A')">A</button>
+                      <button class="framesync-button prompt-group-button prompt-group-button--b" :class="{active: lora.group==='B'}" @click.stop="assignLoraToGroup(lora,'B')">B</button>
+                      <button class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+            <div v-if="!compatibleLoraFamilies.length" class="lora-picker-empty">
+              <span v-if="currentLoraModelFamily">No {{ currentLoraModelFamilyLabel }} LoRAs found. Refresh or check SD-Forge connection.</span>
+              <span v-else>No LoRA models found. Refresh or check SD-Forge connection.</span>
+            </div>
           </div>
           <div class="lora-active-groups">
             <div class="lora-active-group lora-active-group--a">
@@ -238,8 +400,12 @@
               <div class="lora-active-group__body">
                 <div v-for="lora in loras.groupA" :key="lora.id"
                      class="lora-active-group__row">
-                  <span class="lora-active-group__name">{{ lora.name }}</span>
-                  <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
+                  <div class="lora-active-group__copy">
+                    <span class="lora-active-group__name">{{ lora.name }}</span>
+                    <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
+                  </div>
+                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" class="framesync-input lora-active-group__slider" @input="updateGroupedLoraStrength('A', lora, $event.target.value)">
+                  <button class="framesync-button lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
                 </div>
                 <div v-if="loras.groupA.length === 0" class="lora-active-group__empty">
                   No LoRAs in A group
@@ -251,14 +417,54 @@
               <div class="lora-active-group__body">
                 <div v-for="lora in loras.groupB" :key="lora.id"
                      class="lora-active-group__row">
-                  <span class="lora-active-group__name">{{ lora.name }}</span>
-                  <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
+                  <div class="lora-active-group__copy">
+                    <span class="lora-active-group__name">{{ lora.name }}</span>
+                    <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
+                  </div>
+                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" class="framesync-input lora-active-group__slider" @input="updateGroupedLoraStrength('B', lora, $event.target.value)">
+                  <button class="framesync-button lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
                 </div>
                 <div v-if="loras.groupB.length === 0" class="lora-active-group__empty">
                   No LoRAs in B group
                 </div>
               </div>
             </div>
+          </div>
+          <div class="lora-crossfader-inline">
+            <div class="lora-crossfader-inline__header">
+              <div class="framesync-title">LoRA <span class="framesync-accent">Crossfader</span></div>
+              <span class="pill" :class="{ danger: !loraCrossfaderEnabled }">
+                <span class="dot"></span>{{ loraCrossfaderStatusLabel }}
+              </span>
+            </div>
+            <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
+            <div class="lora-crossfader-links">
+              <button
+                type="button"
+                class="framesync-button"
+                :class="{ active: !prompts.loraCrossfaderLfoLink }"
+                @click="setLoraCrossfaderLfoLink(null)"
+              >
+                Manual
+              </button>
+              <button
+                v-for="lfo in lfos.slice(0, 6)"
+                :key="'lora-crossfader-inline-lfo-' + lfo.id"
+                type="button"
+                class="framesync-button"
+                :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }"
+                @click="setLoraCrossfaderLfoLink(lfo.id)"
+              >
+                LFO {{ lfo.id }}
+              </button>
+            </div>
+            <div class="framesync-gradient-bar"></div>
+            <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
+            <div class="prompt-ab-center__labels">
+              <span class="prompt-ab-center__label prompt-ab-center__label--a">A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
+              <span class="prompt-ab-center__label prompt-ab-center__label--b">B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
+            </div>
+            <div class="lora-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
           </div>
           <div class="framesync-footer" style="margin-top:12px;">
             <button class="framesync-button" @click="applyLoras">Apply LoRAs</button>
