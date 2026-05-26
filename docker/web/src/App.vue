@@ -6,23 +6,18 @@
           {{ tab.label }}
         </button>
       </div>
-      <div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap;">
-        <button class="btn" @click="sendControl('transport',{action:'toggle'})">⏯</button>
-        <button class="btn ghost" @click="sendControl('transport',{action:'stop'})">⏹</button>
-        <button class="btn ghost" @click="sendControl('transport',{action:'record'})">● Rec</button>
-        <div class="pill" :class="{'danger': apiHealth.sdForge && apiHealth.sdForge.available === false}" v-if="apiHealth.sdForge" :title="apiHealth.sdForge.lastChecked ? ('SD-Forge last check: ' + apiHealth.sdForge.lastChecked) : 'SD-Forge status'">
-          <span class="dot"></span><span>Forge</span><strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
-        </div>
-        <div class="pill" v-if="midi.supported">
-          <span class="dot"></span><span>MIDI</span><strong>{{ midi.selected ? 'on' : 'off' }}</strong>
-        </div>
-        <div class="pill">
-          <span class="dot"></span><span>WS</span><strong>{{ wsStatus }}</strong>
-        </div>
-        <div class="pill">
-          <span class="dot"></span><span>Session</span><strong>{{ session }}</strong>
-        </div>
-      </div>
+      <StatusStrip
+        :playing="deforumPlaying"
+        :recording="isRecording"
+        :api-health="apiHealth"
+        :midi-supported="midi.supported"
+        :midi-selected="midi.selected"
+        :ws-status="wsStatus"
+        :session="session"
+        @toggle-play="toggleDeforumPlay"
+        @stop-play="stopDeforumPlay"
+        @toggle-record="toggleStreamRecord"
+      />
     </header>
 
     <div class="layout">
@@ -33,11 +28,11 @@
           <div class="overlay">
             <div>
               <div class="timecode">{{ timecode }}</div>
-              <div style="font-size:11px; color:var(--muted);">Seed {{ hud.seed }}</div>
+              <div style="font-size:11px; color:var(--text-secondary);">Seed {{ hud.seed }}</div>
             </div>
             <div style="text-align:right;">
               <div>{{ stats.fps }} fps</div>
-              <div style="font-size:11px; color:var(--muted);">lat {{ stats.lat }}ms</div>
+              <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
             </div>
           </div>
         </div>
@@ -94,59 +89,292 @@
 
         <div class="video-controls-panel">
           <div class="video-controls">
-            <button class="control-btn" :class="{playing: isPlaying}" @click="togglePlayPause">
-              {{ isPlaying ? '⏸ Pause' : '▶ Play' }}
+            <button class="control-btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
+              {{ deforumPlaying ? '⏸ Pause' : '▶ Play' }}
             </button>
-            <button class="control-btn" :class="{recording: isRecording}" @click="toggleRecord">
+            <button class="control-btn" @click="generatePreviewFrame" :disabled="previewGenerating || deforumPlaying" data-testid="preview-frame">
+              {{ previewGenerating ? '⏳ Frame…' : '🖼 Frame' }}
+            </button>
+            <button class="control-btn" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
               {{ isRecording ? '⏹ Stop Rec' : '● Record' }}
             </button>
+            <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
+              {{ deforumPlaying ? 'Animating' : 'Preview' }}
+            </span>
           </div>
           <div class="stream-link">
             <a href="/hls/live/deforum.m3u8" target="_blank">📡 HLS Stream</a>
-            <span style="color:#5a8fb8;">|</span>
+            <span style="color:var(--text-dim);">|</span>
             <a href="rtmp://localhost:1935/live/deforum" target="_blank">📡 RTMP</a>
           </div>
+        </div>
+
+        <!-- LIVE HUD strip — docked below video -->
+        <div v-if="currentTab === 'LIVE'" class="live-hud-strip">
+          <GlassPanel size="sm" class="live-hud-morph">
+            <template #header>Morph</template>
+            <Crossfader
+              :model-value="performance.crossfader"
+              @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+            />
+          </GlassPanel>
+          <GlassPanel size="sm" class="live-hud-modulating">
+            <template #header>Modulating now</template>
+            <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
+            <LiveParamRow
+              v-for="p in liveModulating"
+              :key="p.key"
+              :label="p.label"
+              :param-key="p.key"
+              :value="p.val"
+              :min="p.min"
+              :max="p.max"
+              :source="p.source"
+              :modulated="true"
+            />
+          </GlassPanel>
         </div>
       </div>
 
       <!-- Right: control rack per tab -->
       <div>
         <div v-if="currentTab==='LIVE'">
-          <div class="rack">
+          <div class="rack performance-deck">
             <div class="framesync-panel">
               <div class="framesync-header">
-                <div class="framesync-title">🎨 Vibe & <span class="framesync-accent">Style</span></div>
-                <button class="framesync-button" @click="resetVibeParams">↺ Reset</button>
+                <div class="framesync-title">🎛 <span class="framesync-accent">Performance</span></div>
+                <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
+                  {{ deforumPlaying ? 'Deforum playing' : 'Single-frame preview' }}
+                </span>
               </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="p in liveVibe" :key="p.key">
-                  <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
-                  <div class="framesync-footer" style="gap:4px;">
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
+
+              <div class="framesync-stack" style="margin-top:10px;">
+                <div class="framesync-subtitle">Generic prompt</div>
+                <textarea class="framesync-input" v-model="performance.genericPrompt" rows="2" placeholder="Base prompt for this session…" @input="onPerformanceInput"></textarea>
+              </div>
+
+              <div class="crossfade-deck" style="margin-top:14px;">
+                <div class="crossfade-deck-head">
+                  <span class="framesync-subtitle" style="margin:0;">Morph slots</span>
+                  <select class="framesync-select" style="max-width:140px;" v-model="performance.newSlotType">
+                    <option v-for="st in crossfadeSlotTypes" :key="st.id" :value="st.id">{{ st.label }}</option>
+                  </select>
+                  <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add</button>
+                </div>
+
+                <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
+
+                <div v-for="slot in performance.slots" :key="slot.id" class="crossfade-slot-row">
+                  <div class="crossfade-side crossfade-side-a">
+                    <span class="crossfade-side-label">A</span>
+                    <template v-if="slot.type === 'prompt'">
+                      <input class="framesync-input" v-model="slot.valueA" placeholder="Prompt A (optional)" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'param'">
+                      <select class="framesync-select" v-model="slot.paramKey" @change="onPerformanceInput">
+                        <option v-for="t in lfoTargets" :key="'a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'lora'">
+                      <select class="framesync-select" v-model="slot.valueA" @change="onPerformanceInput">
+                        <option :value="null">— none —</option>
+                        <option v-for="l in loras.available" :key="'la-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.loraStrengthA" min="0" max="2" step="0.01" placeholder="Str A" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'controlnet'">
+                      <select class="framesync-select" v-model="slot.cnSlotId" @change="onPerformanceInput">
+                        <option v-for="s in cn.slots" :key="'cna-'+slot.id+s.id" :value="s.id">{{ s.label }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.valueA" min="0" max="2" step="0.01" placeholder="Weight A" @input="onPerformanceInput">
+                    </template>
+                  </div>
+
+                  <div class="crossfade-slot-meta">
+                    <span class="crossfade-type-pill">{{ slotTypeLabel(slot.type) }}</span>
+                    <button type="button" class="framesync-button" style="padding:2px 6px;" @click="removeCrossfadeSlot(slot.id)">✕</button>
+                  </div>
+
+                  <div class="crossfade-side crossfade-side-b">
+                    <span class="crossfade-side-label">B</span>
+                    <template v-if="slot.type === 'prompt'">
+                      <input class="framesync-input" v-model="slot.valueB" placeholder="Prompt B (optional)" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'param'">
+                      <input type="number" class="framesync-input" v-model.number="slot.valueB" step="any" placeholder="Value B" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'lora'">
+                      <select class="framesync-select" v-model="slot.valueB" @change="onPerformanceInput">
+                        <option :value="null">— none —</option>
+                        <option v-for="l in loras.available" :key="'lb-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
+                      </select>
+                      <input type="number" class="framesync-input" v-model.number="slot.loraStrengthB" min="0" max="2" step="0.01" placeholder="Str B" @input="onPerformanceInput">
+                    </template>
+                    <template v-else-if="slot.type === 'controlnet'">
+                      <input type="number" class="framesync-input" v-model.number="slot.valueB" min="0" max="2" step="0.01" placeholder="Weight B" @input="onPerformanceInput">
+                    </template>
+                  </div>
+
+                  <div class="crossfade-morphed" v-if="slotMorphedPreview(slot) !== null">
+                    <span class="framesync-subtitle" style="margin:0;font-size:9px;">→</span>
+                    <code class="crossfade-morphed-val">{{ formatMorphedPreview(slot) }}</code>
                   </div>
                 </div>
+
+                <div class="crossfade-center" style="margin-top:16px;">
+                  <div class="framesync-subtitle" style="text-align:center;">Crossfader</div>
+                  <div class="framesync-gradient-bar"></div>
+                  <input type="range" min="0" max="1" step="0.01" v-model.number="performance.crossfader" class="framesync-input" data-testid="performance-crossfader" @input="onCrossfaderInput">
+                  <div class="crossfade-labels">
+                    <span>A {{ ((1 - performance.crossfader) * 100).toFixed(0) }}%</span>
+                    <span>B {{ (performance.crossfader * 100).toFixed(0) }}%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:var(--success);">{{ performance.status }}</div>
+              <div v-if="performance.lastPreviewPath" style="margin-top:8px;">
+                <img :src="performance.lastPreviewPath" alt="Last preview frame" class="preview-frame-thumb">
               </div>
             </div>
           </div>
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📹 <span class="framesync-accent">Camera</span></div>
-                <button class="framesync-button" @click="resetCameraParams">↺ Reset</button>
+
+          <div class="rack param-drawer">
+            <button type="button" class="param-drawer-toggle" @click="paramPanelOpen = !paramPanelOpen; saveSessionState()">
+              <span>⚙️ Parameters</span>
+              <span class="model-status-pill" :class="'model-' + modelStatusKind" :title="modelStatusLabel">
+                <span class="model-status-dot"></span>
+                {{ modelStatusLabel }}
+              </span>
+              <span>{{ paramPanelOpen ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="paramPanelOpen" class="param-drawer-body">
+              <div class="model-bar">
+                <label class="framesync-subtitle">Checkpoint</label>
+                <select class="framesync-select" v-model="forge.selectedModel" :disabled="forge.switching || modelStatusKind === 'offline'" @change="onModelSelectChange">
+                  <option value="">— select model —</option>
+                  <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
+                </select>
+                <span v-if="forge.modelsSource" class="model-source-pill" :class="'src-' + forge.modelsSource" :title="'Model list from ' + forge.modelsSource">
+                  ● {{ modelSourceLabel(forge.modelsSource) }}
+                </span>
+                <span v-if="forge.switching" class="model-loading">Loading model…</span>
+                <span v-else-if="forge.lastModel" class="model-last">Last: {{ forge.lastModel }}</span>
               </div>
-              <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-                <div class="framesync-stack" v-for="p in liveCam" :key="p.key">
-                  <div class="framesync-subtitle">{{ p.label }}</div>
-                  <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" @input="updateParam(p,$event)" class="framesync-input">
-                  <div class="framesync-footer" style="gap:4px;" v-if="p.sourceable">
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Manual'}" @click="setSource(p.key,'Manual')">Manual</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='Beat'}" @click="setSource(p.key,'Beat')">🌊 Beat</button>
-                    <button class="framesync-button" :class="{active: paramSources[p.key]==='MIDI'}" @click="setSource(p.key,'MIDI')">🎛 MIDI</button>
+
+              <div v-if="pinnedParamItems.length" class="param-group param-group--pinned">
+                <div class="framesync-subtitle">📌 Pinned</div>
+                <div class="param-group-grid">
+                  <div class="framesync-stack" v-for="p in pinnedParamItems" :key="'pin-'+p.key" :class="{'param-locked': isParamLocked(p.key)}">
+                    <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:4px;">
+                      <span>{{ p.label }}</span>
+                      <button type="button" class="param-pin-btn active" title="Unpin" @click.stop="toggleParamPin(p.key)">📌</button>
+                      <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)">🔒</button>
+                    </div>
+                    <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
                   </div>
                 </div>
+              </div>
+
+              <div v-for="group in paramPanelGroups" :key="group.label" class="param-group">
+                <div class="framesync-subtitle">{{ group.label }}</div>
+                <div class="param-group-grid">
+                  <div class="framesync-stack" v-for="p in group.items" :key="p.key" :class="{'param-locked': isParamLocked(p.key)}">
+                    <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:4px;">
+                      <span>{{ p.label }}</span>
+                      <button type="button" class="param-pin-btn" :class="{active: isParamPinned(p.key)}" title="Pin to top" @click.stop="toggleParamPin(p.key)">📌</button>
+                      <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)">🔒</button>
+                    </div>
+                    <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
+                  </div>
+                </div>
+              </div>
+
+              <div class="framesync-footer" style="margin-top:10px;">
+                <button class="framesync-button" @click="resetVibeParams">↺ Reset vibe</button>
+                <button class="framesync-button" @click="resetCameraParams">↺ Reset camera</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="rack param-drawer deforum-settings-drawer" data-testid="deforum-settings-panel">
+            <button type="button" class="param-drawer-toggle" @click="deforumPanelOpen = !deforumPanelOpen; saveSessionState()">
+              <span>🎬 Deforum settings</span>
+              <span class="deforum-settings-hint">{{ deforumSettingsStatus || 'Hidden panel' }}</span>
+              <span>{{ deforumPanelOpen ? '▲' : '▼' }}</span>
+            </button>
+            <div v-show="deforumPanelOpen" class="param-drawer-body deforum-settings-body">
+              <div class="deforum-settings-toolbar">
+                <button type="button" class="framesync-button" @click="loadDeforumSettings">↻ Reload</button>
+                <button type="button" class="framesync-button" @click="saveDeforumSettings">💾 Save</button>
+                <button type="button" class="framesync-button" :disabled="previewGenerating" @click="generateDeforumPreviewFrame">🖼 Regenerate frame</button>
+                <label class="deforum-advanced-toggle">
+                  <input type="checkbox" v-model="deforumAdvancedOpen"> JSON
+                </label>
+              </div>
+
+              <div v-if="deforumAdvancedOpen" class="deforum-advanced-json">
+                <textarea
+                  class="framesync-input deforum-json-editor"
+                  v-model="deforumSettingsJson"
+                  rows="12"
+                  spellcheck="false"
+                  @blur="applyDeforumSettingsJson"
+                ></textarea>
+                <p v-if="deforumSettingsJsonError" class="deforum-json-error">{{ deforumSettingsJsonError }}</p>
+              </div>
+
+              <div v-else class="deforum-settings-groups">
+                <details
+                  v-for="group in deforumFieldGroups"
+                  :key="group.id"
+                  class="deforum-settings-group"
+                  :open="deforumSectionOpen[group.id] !== false"
+                  @toggle="onDeforumSectionToggle(group.id, $event)"
+                >
+                  <summary class="deforum-settings-group-title">{{ group.label }}</summary>
+                  <div class="deforum-settings-grid">
+                    <label
+                      v-for="field in group.fields"
+                      :key="field.key"
+                      class="deforum-field"
+                      :class="'deforum-field-' + (field.type || 'text')"
+                    >
+                      <span class="deforum-field-label">{{ field.label }}</span>
+                      <input
+                        v-if="field.type === 'number'"
+                        type="number"
+                        class="framesync-input"
+                        :min="field.min"
+                        :max="field.max"
+                        :step="field.step || 1"
+                        :value="getDeforumField(field.key)"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
+                      />
+                      <input
+                        v-else-if="field.type === 'bool'"
+                        type="checkbox"
+                        :checked="!!getDeforumField(field.key)"
+                        @change="onDeforumFieldInput(field.key, $event.target.checked, 'bool')"
+                      />
+                      <textarea
+                        v-else-if="field.type === 'textarea'"
+                        class="framesync-input"
+                        :rows="field.rows || 3"
+                        :value="getDeforumField(field.key) ?? ''"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                      />
+                      <input
+                        v-else
+                        type="text"
+                        class="framesync-input"
+                        :value="getDeforumField(field.key) ?? ''"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                      />
+                    </label>
+                  </div>
+                </details>
               </div>
             </div>
           </div>
@@ -172,18 +400,61 @@
               </div>
 
               <div v-if="!morphCollapsed">
+              <div class="morph-blend-bar" style="margin-top:14px;">
+                <div class="framesync-subtitle">Prompt morph blend</div>
+                <div class="framesync-gradient-bar"></div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  v-model.number="prompts.morphBlend"
+                  class="framesync-input"
+                  data-testid="prompt-morph-blend"
+                  @input="onPromptMorphBlendInput"
+                />
+                <div class="morph-blend-labels">
+                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+                </div>
+              </div>
+              <div v-if="prompts.morphOn" class="morph-slot-weights" style="margin-top:12px;">
+                <div
+                  v-for="slot in morphSlots"
+                  :key="'mw-' + slot.id"
+                  class="morph-slot-weight-row"
+                  :class="{ inactive: !slot.on || !morphSlotInRange(slot) }"
+                >
+                  <label class="morph-slot-weight-name">
+                    <input type="checkbox" v-model="slot.on" @change="applyPromptMorphing" />
+                    {{ slot.name }}
+                  </label>
+                  <span class="morph-slot-range">{{ slot.range }}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    v-model.number="slot.weight"
+                    class="framesync-input morph-slot-weight-slider"
+                    :disabled="!slot.on"
+                    @input="onMorphSlotWeightInput(slot)"
+                  />
+                  <code class="morph-slot-preview">{{ morphSlotPreview(slot) }}</code>
+                </div>
+              </div>
               <div style="margin-top:20px; display:grid; grid-template-columns: 1fr 2fr 1fr; gap:16px; align-items:stretch;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">A Group</div>
-                  <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;">
-                    <div style="font-size:12px; color:#cfe5f5; font-weight:600;">{{ lora.name }}</div>
+                  <div v-for="lora in loras.groupA.slice(0, 3)" :key="'a-'+lora.id" style="background:var(--bg-1); border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:6px;">
+                    <div style="font-size:12px; color:var(--text-primary); font-weight:600;">{{ lora.name }}</div>
                     <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input" style="margin-top:4px;">
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
+                    <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
                   </div>
-                  <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
+                  <div v-if="loras.groupA.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11px; text-align:center;">
                     No LoRAs in A group
                   </div>
-                  <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
+                  <div v-else-if="loras.groupA.length > 3" style="font-size:10px; color:var(--text-secondary); text-align:center; padding:4px;">
                     +{{ loras.groupA.length - 3 }} more
                   </div>
                 </div>
@@ -192,7 +463,7 @@
                   <div class="framesync-subtitle">Crossfader</div>
                   <div class="framesync-gradient-bar"></div>
                   <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="prompts.crossfaderValue=parseFloat($event.target.value)" class="framesync-input" style="margin-top:8px;">
-                  <div style="display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;">
+                  <div style="display:flex; justify-content:space-between; font-size:10px; color:var(--text-dim); margin-top:4px;">
                     <span>A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
                     <span>B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
                   </div>
@@ -200,15 +471,15 @@
 
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">B Group</div>
-                  <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" style="background:#0b1526; border:1px solid #13233d; border-radius:8px; padding:8px; margin-bottom:6px;">
-                    <div style="font-size:12px; color:#cfe5f5; font-weight:600;">{{ lora.name }}</div>
+                  <div v-for="lora in loras.groupB.slice(0, 3)" :key="'b-'+lora.id" style="background:var(--bg-1); border:1px solid var(--border); border-radius:8px; padding:8px; margin-bottom:6px;">
+                    <div style="font-size:12px; color:var(--text-primary); font-weight:600;">{{ lora.name }}</div>
                     <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input" style="margin-top:4px;">
-                    <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
+                    <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
                   </div>
-                  <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:#7fb3d6; font-size:11px; text-align:center;">
+                  <div v-if="loras.groupB.length === 0" style="flex:1; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11px; text-align:center;">
                     No LoRAs in B group
                   </div>
-                  <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:#9bc4e2; text-align:center; padding:4px;">
+                  <div v-else-if="loras.groupB.length > 3" style="font-size:10px; color:var(--text-secondary); text-align:center; padding:4px;">
                     +{{ loras.groupB.length - 3 }} more
                   </div>
                 </div>
@@ -261,7 +532,7 @@
               </div>
               <div v-if="img2img.status" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ img2img.status }}</div>
               <div v-if="img2img.lastPath" class="framesync-subtitle" style="margin-top:4px; text-align:center;">
-                Output: <a :href="img2img.lastPath" target="_blank" style="color:#ff8a1a;">{{ img2img.lastPath }}</a>
+                Output: <a :href="img2img.lastPath" target="_blank" style="color:var(--warn);">{{ img2img.lastPath }}</a>
               </div>
               </div>
             </div>
@@ -287,42 +558,42 @@
                 <div class="framesync-title">📚 LoRA <span class="framesync-accent">Browser</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <span class="source" v-if="loras.source" style="font-size:10px;">
-                    <span v-if="loras.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
-                    <span v-else-if="loras.source==='cache'" style="color:#fbbf24;">● Cache</span>
-                    <span v-else-if="loras.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
-                    <span v-else style="color:#7fb3d6;">● {{ loras.source }}</span>
+                    <span v-if="loras.source==='sd-forge'" style="color:var(--success);">● Forge</span>
+                    <span v-else-if="loras.source==='cache'" style="color:var(--warn);">● Cache</span>
+                    <span v-else-if="loras.source==='placeholder'" style="color:var(--error);">● Placeholder</span>
+                    <span v-else style="color:var(--text-dim);">● {{ loras.source }}</span>
                   </span>
                   <button class="framesync-button" @click="refreshLoras">🔄 Refresh</button>
                 </div>
               </div>
               <div style="margin-top:12px; display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px; max-height:400px; overflow-y:auto;">
                 <div v-for="lora in loras.available" :key="lora.id"
-                     style="background:#0b1526; border:1px solid #13233d; border-radius:10px; overflow:hidden; cursor:pointer;"
+                     style="background:var(--bg-1); border:1px solid var(--border); border-radius:10px; overflow:hidden; cursor:pointer;"
                      @click="toggleLoraSelection(lora)">
-                  <div style="position:relative; width:100%; height:180px; background:#031b2d;">
+                  <div style="position:relative; width:100%; height:180px; background:var(--bg-0);">
                     <img v-if="lora.thumbnail" :src="lora.thumbnail" style="width:100%; height:100%; object-fit:cover;" :alt="lora.name" />
-                    <div v-else style="display:flex; align-items:center; justify-content:center; height:100%; color:#7fb3d6;">
+                    <div v-else style="display:flex; align-items:center; justify-content:center; height:100%; color:var(--text-dim);">
                       <svg viewBox="0 0 24 24" style="width:48px; height:48px; opacity:0.3;" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
                         <circle cx="8" cy="8" r="2" fill="currentColor"/>
                         <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
                       </svg>
                     </div>
-                    <div v-if="lora.selected" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid #ff8a1a; border-radius:4px; padding:4px 8px; font-size:10px; color:#ff8a1a; font-weight:700;">
+                    <div v-if="lora.selected" style="position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.8); border:1px solid var(--warn); border-radius:4px; padding:4px 8px; font-size:10px; color:var(--warn); font-weight:700;">
                       ✓ {{ lora.group }}
                     </div>
                   </div>
                   <div style="padding:10px;">
-                    <div style="font-size:13px; color:#cfe5f5; font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                    <div style="font-size:13px; color:var(--text-primary); font-weight:600; margin-bottom:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                       {{ lora.name }}
                     </div>
-                    <div style="font-size:10px; color:#7fb3d6; margin-bottom:8px;">
+                    <div style="font-size:10px; color:var(--text-dim); margin-bottom:8px;">
                       {{ lora.path }}
                     </div>
                     <div class="framesync-stack">
                       <div class="framesync-subtitle">Strength</div>
                       <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input">
-                      <div style="font-size:10px; color:#7fb3d6; margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
+                      <div style="font-size:10px; color:var(--text-dim); margin-top:2px;">{{ lora.strength.toFixed(2) }}</div>
                     </div>
                     <div class="framesync-footer" style="margin-top:8px;">
                       <button class="framesync-button" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora,'A')">A</button>
@@ -332,7 +603,7 @@
                   </div>
                 </div>
               </div>
-              <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+              <div v-if="loras.available.length === 0" style="margin-top:20px; text-align:center; color:var(--text-dim); font-size:12px;">
                 No LoRA models found. Refresh or check SD-Forge connection.
               </div>
             </div>
@@ -344,27 +615,27 @@
               </div>
               <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:12px;">
                 <div>
-                  <div style="font-size:12px; color:#5af2a9; margin-bottom:8px; font-weight:600;">A GROUP ({{ loras.groupA.length }})</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;">
+                  <div style="font-size:12px; color:var(--success); margin-bottom:8px; font-weight:600;">A GROUP ({{ loras.groupA.length }})</div>
+                  <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:8px; padding:8px;">
                     <div v-for="lora in loras.groupA" :key="lora.id"
-                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;">
-                      <span style="font-size:12px; color:#cfe5f5;">{{ lora.name }}</span>
-                      <span style="font-size:10px; color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
+                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
+                      <span style="font-size:12px; color:var(--text-primary);">{{ lora.name }}</span>
+                      <span style="font-size:10px; color:var(--text-dim);">{{ lora.strength.toFixed(2) }}</span>
                     </div>
-                    <div v-if="loras.groupA.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
+                    <div v-if="loras.groupA.length === 0" style="font-size:11px; color:var(--text-dim); padding:8px; text-align:center;">
                       No LoRAs in A group
                     </div>
                   </div>
                 </div>
                 <div>
-                  <div style="font-size:12px; color:#2de2ff; margin-bottom:8px; font-weight:600;">B GROUP ({{ loras.groupB.length }})</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:8px; padding:8px;">
+                  <div style="font-size:12px; color:var(--accent-text); margin-bottom:8px; font-weight:600;">B GROUP ({{ loras.groupB.length }})</div>
+                  <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:8px; padding:8px;">
                     <div v-for="lora in loras.groupB" :key="lora.id"
-                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid #0c3048;">
-                      <span style="font-size:12px; color:#cfe5f5;">{{ lora.name }}</span>
-                      <span style="font-size:10px; color:#7fb3d6;">{{ lora.strength.toFixed(2) }}</span>
+                         style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
+                      <span style="font-size:12px; color:var(--text-primary);">{{ lora.name }}</span>
+                      <span style="font-size:10px; color:var(--text-dim);">{{ lora.strength.toFixed(2) }}</span>
                     </div>
-                    <div v-if="loras.groupB.length === 0" style="font-size:11px; color:#7fb3d6; padding:8px; text-align:center;">
+                    <div v-if="loras.groupB.length === 0" style="font-size:11px; color:var(--text-dim); padding:8px; text-align:center;">
                       No LoRAs in B group
                     </div>
                   </div>
@@ -385,10 +656,10 @@
                 <div class="framesync-title">🎯 ControlNet <span class="framesync-accent">Slots</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
                   <span class="source" v-if="cn.source" style="font-size:10px;">
-                    <span v-if="cn.source==='sd-forge'" style="color:#5af2a9;">● Forge</span>
-                    <span v-else-if="cn.source==='cache'" style="color:#fbbf24;">● Cache</span>
-                    <span v-else-if="cn.source==='placeholder'" style="color:#ff4d6d;">● Placeholder</span>
-                    <span v-else style="color:#7fb3d6;">● {{ cn.source }}</span>
+                    <span v-if="cn.source==='sd-forge'" style="color:var(--success);">● Forge</span>
+                    <span v-else-if="cn.source==='cache'" style="color:var(--warn);">● Cache</span>
+                    <span v-else-if="cn.source==='placeholder'" style="color:var(--error);">● Placeholder</span>
+                    <span v-else style="color:var(--text-dim);">● {{ cn.source }}</span>
                   </span>
                   <button class="framesync-button" @click="loadControlNetModels">🔄 Refresh</button>
                 </div>
@@ -409,28 +680,55 @@
                   <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
                 </select>
               </div>
+              <div class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Image source</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                  <button type="button" class="framesync-button" :class="{active: activeSlot.imageSource==='file'}" @click="activeSlot.imageSource='file'">📁 File</button>
+                  <button type="button" class="framesync-button" :class="{active: activeSlot.imageSource==='webcam'}" @click="activeSlot.imageSource='webcam'">📷 Webcam</button>
+                  <button type="button" class="framesync-button" :class="{active: activeSlot.imageSource==='screen'}" @click="activeSlot.imageSource='screen'">🖥️ Screen</button>
+                </div>
+                <input ref="cnImageInput" type="file" accept="image/*" style="display:none;" @change="onControlNetFileSelected">
+              </div>
+              <div v-if="activeSlot.imageSource==='webcam'" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Webcam input</div>
+                <video ref="webcamVideo" autoplay playsinline style="width:100%; max-width:320px; border-radius:6px; border:1px solid var(--border); display:none;"></video>
+                <canvas ref="webcamCanvas" style="display:none;"></canvas>
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                  <button type="button" class="framesync-button" :class="{active: cn.webcamActive}" @click="toggleWebcam">{{ cn.webcamActive ? '⏹ Stop' : '▶ Start' }} Webcam</button>
+                  <select class="framesync-input" v-model.number="webcamCaptureRate" style="max-width:120px; font-size:11px;">
+                    <option :value="1000">1 fps</option>
+                    <option :value="500">2 fps</option>
+                    <option :value="200">5 fps</option>
+                    <option :value="100">10 fps</option>
+                  </select>
+                </div>
+              </div>
+              <div v-if="activeSlot.imageSource==='screen'" class="framesync-stack" style="margin-top:12px;">
+                <div class="framesync-subtitle">Screen capture</div>
+                <button type="button" class="framesync-button" @click="startScreenCapture">🖥️ Start screen capture</button>
+              </div>
               <div class="framesync-footer" style="margin-top:10px;">
-                <button class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Change image</button>
-                <button class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
+                <button type="button" class="framesync-button" @click="uploadControlNetImage(activeSlot)">📁 Upload image</button>
+                <button type="button" class="framesync-button" :class="{active: activeSlot.enabled}" @click="activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">Weight</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
+                  <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
                 </div>
                 <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">Start step</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
+                  <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.start.toFixed(2) }}</span>
                 </div>
                 <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.start" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
               <div class="framesync-stack" style="margin-top:12px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div class="framesync-subtitle">End step</div>
-                  <span style="color:#cfe5f5; font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
+                  <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.end.toFixed(2) }}</span>
                 </div>
                 <input type="range" min="0" max="1" step="0.01" v-model.number="activeSlot.end" @input="updateControlNet(activeSlot)" class="framesync-input">
               </div>
@@ -450,6 +748,30 @@
               </div>
             </div>
           </div>
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🎮 XY <span class="framesync-accent">Pad</span></div>
+                <span style="font-size:10px; color:var(--text-dim);">Pan X / Pan Y</span>
+              </div>
+              <div
+                class="xy-pad"
+                :style="{ width: xyPad.padSize + 'px', height: xyPad.padSize + 'px' }"
+                @mousedown="xyPadMouseDown"
+                @mousemove="xyPadMouseMove"
+                @mouseup="xyPadMouseUp"
+                @mouseleave="xyPadMouseUp"
+                @touchstart.prevent="xyPadMouseDown"
+                @touchmove.prevent="xyPadMouseMove"
+                @touchend.prevent="xyPadMouseUp"
+              >
+                <div
+                  class="xy-dot framesync"
+                  :style="{ left: (xyPad.x - 6) + 'px', top: (xyPad.y - 6) + 'px' }"
+                ></div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else-if="currentTab==='MODULATION'">
@@ -464,11 +786,10 @@
               </div>
               <div class="lfo-grid" style="margin-top:12px;">
                 <div class="lfo-card" v-for="lfo in lfos" :key="'lfo-'+lfo.id">
-                  <h4>
+                  <div class="lfo-card-head">
                     <label class="switch"><input type="checkbox" v-model="lfo.on"> LFO {{ lfo.id }}</label>
-                    <canvas :ref="el => lfoCanvasRefs[lfo.id] = el" width="200" height="60" style="width:100%; height:60px; border-radius:4px; background:#031b2d;"></canvas>
-                  </h4>
-                  <div class="meta">Targets: {{ lfo.targets.join(', ') || 'none' }}</div>
+                    <Waveform :shape="lfo.shape" :depth="lfo.depth" :active="lfo.on" :width="160" :height="40" class="lfo-waveform" />
+                  </div>
                   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
                     <div>
                       <div class="framesync-subtitle">Shape</div>
@@ -491,8 +812,16 @@
                   </div>
                   <div style="margin-top:8px;">
                     <div class="framesync-subtitle">Targets</div>
-                    <div style="display:flex; flex-wrap:wrap; gap:4px;">
-                      <button class="framesync-button" v-for="t in lfoTargets" :key="'lt-'+t.key" :class="{active: lfo.targets.includes(t.key)}" @click="toggleLfoTarget(lfo, t.key)" style="padding:2px 6px; font-size:9px;">{{ t.label }}</button>
+                    <div class="lfo-target-grid">
+                      <TargetCell
+                        v-for="t in lfoTargets"
+                        :key="'tc-'+lfo.id+t.key"
+                        :label="t.label"
+                        :param-key="t.key"
+                        :selected="lfo.targets.includes(t.key)"
+                        :owners="targetOwners[t.key] || []"
+                        @toggle="toggleLfoTarget(lfo, t.key)"
+                      />
                     </div>
                   </div>
                 </div>
@@ -510,10 +839,10 @@
               </div>
               <div class="lfo-grid" style="margin-top:12px;">
                 <div class="lfo-card" v-for="(m, idx) in macrosRack" :key="'mac'+idx">
-                  <h4>
+                  <div class="lfo-card-head">
                     <label class="switch"><input type="checkbox" v-model="m.on"> Macro {{ idx+1 }}</label>
-                  </h4>
-                  <div class="meta">Target: {{ m.target || 'none' }} · {{ m.shape }}</div>
+                    <Waveform :shape="m.shape" :depth="m.depth" :active="m.on" :width="100" :height="36" class="lfo-waveform" />
+                  </div>
                   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:6px;">
                     <div>
                       <div class="framesync-subtitle">Target</div>
@@ -619,7 +948,7 @@
               <div class="framesync-header">
                 <div class="framesync-title">📁 Runs <span class="framesync-accent">Browser</span></div>
                 <div style="display:flex; gap:8px; align-items:center;">
-                  <span style="font-size:11px; color:#7fb3d6;">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
+                  <span style="font-size:11px; color:var(--text-dim);">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
                   <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
                 </div>
               </div>
@@ -640,7 +969,7 @@
 
               <!-- Sort controls -->
               <div style="margin-top:8px; display:flex; gap:8px; align-items:center;">
-                <span style="font-size:11px; color:#7fb3d6;">Sort:</span>
+                <span style="font-size:11px; color:var(--text-dim);">Sort:</span>
                 <select class="framesync-select" v-model="runsSort.field" @change="applyRunsFilters" style="max-width:140px;">
                   <option value="started_at">Date</option>
                   <option value="run_id">Run ID</option>
@@ -658,26 +987,26 @@
               </div>
 
               <!-- Runs table -->
-              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid #0c3048; border-radius:8px;">
+              <div style="margin-top:12px; max-height:500px; overflow-y:auto; border:1px solid var(--border); border-radius:8px;">
                 <table style="width:100%; border-collapse:collapse; font-size:11px;">
-                  <thead style="position:sticky; top:0; background:#0b1526; z-index:1;">
-                    <tr style="border-bottom:1px solid #13233d;">
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Thumb</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Run ID</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Status</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Model</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Frames</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Seed</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Tag</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Date</th>
-                      <th style="padding:8px; text-align:left; color:#7fb3d6; font-weight:600;">Actions</th>
+                  <thead style="position:sticky; top:0; background:var(--bg-1); z-index:1;">
+                    <tr style="border-bottom:1px solid var(--border);">
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Thumb</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Run ID</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Status</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Model</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Frames</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Seed</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Tag</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Date</th>
+                      <th style="padding:8px; text-align:left; color:var(--text-dim); font-weight:600;">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid #0c3048;" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
+                    <tr v-for="run in runsFiltered" :key="run.run_id" style="border-bottom:1px solid var(--border);" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
                       <td style="padding:6px;">
                         <img v-if="run.has_thumbnail" :src="`/api/runs/${run.run_id}/thumb`" style="width:48px; height:48px; object-fit:cover; border-radius:4px;" alt="">
-                        <div v-else style="width:48px; height:48px; background:#0c3048; border-radius:4px; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:10px;">No img</div>
+                        <div v-else style="width:48px; height:48px; background:var(--border); border-radius:4px; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:10px;">No img</div>
                       </td>
                       <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.run_id }}</td>
                       <td style="padding:6px;">
@@ -687,7 +1016,7 @@
                       <td style="padding:6px; font-size:10px;">{{ run.frame_count || run.length_frames || '-' }}</td>
                       <td style="padding:6px; font-family:monospace; font-size:10px;">{{ run.seed || '-' }}</td>
                       <td style="padding:6px; font-size:10px;">{{ run.tag || '-' }}</td>
-                      <td style="padding:6px; font-size:10px; color:#7fb3d6;">{{ formatDate(run.started_at) }}</td>
+                      <td style="padding:6px; font-size:10px; color:var(--text-dim);">{{ formatDate(run.started_at) }}</td>
                       <td style="padding:6px;">
                         <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="showRunDetails(run)" title="Details">👁</button>
                         <button class="framesync-button" style="padding:2px 6px; font-size:9px;" @click.stop="rerunRun(run)" title="Rerun">🔄</button>
@@ -695,7 +1024,7 @@
                       </td>
                     </tr>
                     <tr v-if="runsFiltered.length === 0">
-                      <td colspan="9" style="padding:20px; text-align:center; color:#7fb3d6; font-size:12px;">
+                      <td colspan="9" style="padding:20px; text-align:center; color:var(--text-dim); font-size:12px;">
                         No runs found. Adjust filters or refresh.
                       </td>
                     </tr>
@@ -706,7 +1035,7 @@
           </div>
 
           <!-- Run details modal -->
-          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
+          <div v-if="runsDetailView" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-1); padding:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <div class="framesync-title">📋 Run Details: <span style="font-family:monospace; font-size:12px;">{{ runsDetailView.run_id }}</span></div>
               <button class="framesync-button" @click="runsDetailView = null">✕ Close</button>
@@ -746,11 +1075,11 @@
               </div>
               <div style="grid-column: span 2;">
                 <div class="framesync-subtitle">Positive Prompt</div>
-                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_positive || '-' }}</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:var(--text-primary);">{{ runsDetailView.prompt_positive || '-' }}</div>
               </div>
               <div style="grid-column: span 2;">
                 <div class="framesync-subtitle">Negative Prompt</div>
-                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:#cfe5f5;">{{ runsDetailView.prompt_negative || '-' }}</div>
+                <div style="max-height:80px; overflow-y:auto; font-size:10px; color:var(--text-primary);">{{ runsDetailView.prompt_negative || '-' }}</div>
               </div>
               <div style="grid-column: span 2;">
                 <div class="framesync-subtitle">Notes</div>
@@ -763,28 +1092,32 @@
             <div v-if="runsDetailView.frames && runsDetailView.frames.length" style="margin-top:12px;">
               <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
               <div style="display:flex; flex-wrap:wrap; gap:4px; max-height:200px; overflow-y:auto;">
-                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid #0c3048;" :alt="f">
+                <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" style="width:64px; height:64px; object-fit:cover; border-radius:4px; border:1px solid var(--border);" :alt="f">
               </div>
             </div>
           </div>
 
           <!-- Comparison view -->
-          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid #0c3048; border-radius:8px; background:#0b1526; padding:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+          <div v-if="runsSelected.length >= 2" style="margin-top:12px; border:1px solid var(--border); border-radius:8px; background:var(--bg-1); padding:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
               <div class="framesync-title">⚖️ Compare Runs ({{ runsSelected.length }})</div>
-              <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+              <div style="display:flex; gap:6px;">
+                <button class="framesync-button" style="padding:4px 10px; font-size:10px;" @click="exportRunComparison('json')">📥 JSON</button>
+                <button class="framesync-button" style="padding:4px 10px; font-size:10px;" @click="exportRunComparison('csv')">📥 CSV</button>
+                <button class="framesync-button" @click="runsSelected = []">✕ Clear</button>
+              </div>
             </div>
             <div style="overflow-x:auto;">
               <table style="width:100%; border-collapse:collapse; font-size:10px;">
                 <thead>
-                  <tr style="border-bottom:1px solid #13233d;">
-                    <th style="padding:6px; text-align:left; color:#7fb3d6;">Property</th>
-                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:#7fb3d6; font-family:monospace;">{{ runId }}</th>
+                  <tr style="border-bottom:1px solid var(--border);">
+                    <th style="padding:6px; text-align:left; color:var(--text-dim);">Property</th>
+                    <th v-for="runId in runsSelected" :key="runId" style="padding:6px; text-align:left; color:var(--text-dim); font-family:monospace;">{{ runId }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="prop in ['status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag']" :key="prop" style="border-bottom:1px solid #0c3048;">
-                    <td style="padding:4px; color:#7fb3d6;">{{ prop }}</td>
+                  <tr v-for="prop in runsCompareFields" :key="prop" style="border-bottom:1px solid var(--border);">
+                    <td style="padding:4px; color:var(--text-dim);">{{ prop }}</td>
                     <td v-for="runId in runsSelected" :key="runId" style="padding:4px; font-family:monospace;">
                       {{ getRunProp(runId, prop) }}
                     </td>
@@ -802,6 +1135,8 @@
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">🖥️ GPUS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">👥 COLLAB</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
           <div v-if="currentSubTab.SETTINGS==='ENGINE'">
@@ -845,7 +1180,7 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Status</div>
-                  <div style="font-size:14px; color:#5af2a9; padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
+                  <div style="font-size:14px; color:var(--success); padding:6px 0;">{{ apiHealth.sdForge?.available ? '✅ Connected' : '❌ Disconnected' }}</div>
                 </div>
               </div>
             </div>
@@ -857,7 +1192,7 @@
               <div class="framesync-header">
                 <div class="framesync-title">🎹 Controllers <span class="framesync-accent">(WebMIDI)</span></div>
               </div>
-              <div v-if="!midi.supported" style="color:#9bc4e2; margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
+              <div v-if="!midi.supported" style="color:var(--text-secondary); margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
               <div v-else>
                 <div class="framesync-footer" style="margin-top:12px;">
                   <button class="framesync-button" v-for="d in midi.devices" :key="d.id" :class="{active: midi.selected===d.id}" @click="midi.selected=d.id">{{ d.name }}</button>
@@ -868,7 +1203,7 @@
                   <button class="framesync-button" @click="addMidiMapping">+ Add Mapping</button>
                   <button class="framesync-button">Status: {{ midiStatus }}</button>
                 </div>
-                <div style="margin-top:12px; background:#031b2d; border:1px solid #0c3048; border-radius:8px; overflow:hidden;">
+                <div style="margin-top:12px; background:var(--bg-0); border:1px solid var(--border); border-radius:8px; overflow:hidden;">
                   <table class="table">
                     <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
                     <tbody>
@@ -900,36 +1235,36 @@
                   <button class="framesync-button" @click="resetBindings">↺ Defaults</button>
                 </div>
               </div>
-              <div v-if="bindingLearnMode" style="margin-top:8px; padding:8px 12px; background:#1a0a2e; border:1px solid #ff53d9; border-radius:6px; font-size:12px; color:#ff53d9;">
+              <div v-if="bindingLearnMode" style="margin-top:8px; padding:8px 12px; background:rgba(127,119,221,0.08); border:1px solid var(--accent); border-radius:6px; font-size:12px; color:var(--accent-text);">
                 Learn mode active. Press a key or move a MIDI controller, then click a parameter to bind.
               </div>
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack" v-for="group in bindingGroups" :key="group.label">
                   <div class="framesync-subtitle">{{ group.label }}</div>
-                  <div style="background:#031b2d; border:1px solid #0c3048; border-radius:6px; overflow:hidden;">
+                  <div style="background:var(--bg-0); border:1px solid var(--border); border-radius:6px; overflow:hidden;">
                     <table style="width:100%; font-size:11px; border-collapse:collapse;">
-                      <thead><tr style="color:#5a8fb8; border-bottom:1px solid #0c3048;">
+                      <thead><tr style="color:var(--text-dim); border-bottom:1px solid var(--border);">
                         <th style="text-align:left; padding:4px 8px;">Parameter</th>
                         <th style="text-align:left; padding:4px 8px;">Key</th>
                         <th style="text-align:left; padding:4px 8px;">MIDI CC</th>
                         <th style="padding:4px 8px;">Actions</th>
                       </tr></thead>
                       <tbody>
-                        <tr v-for="t in group.items" :key="t.key" style="border-bottom:1px solid #0c3048;">
-                          <td style="padding:4px 8px; color:#cfe5f5;">{{ t.label }}</td>
+                        <tr v-for="t in group.items" :key="t.key" style="border-bottom:1px solid var(--border);">
+                          <td style="padding:4px 8px; color:var(--text-primary);">{{ t.label }}</td>
                           <td style="padding:4px 8px;">
                             <span v-if="getKeyBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
-                              <kbd style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:#5af2a9;">{{ getKeyBinding(t.key) }}</kbd>
-                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
+                              <kbd style="background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:var(--success);">{{ getKeyBinding(t.key) }}</kbd>
+                              <button style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
                             </span>
-                            <span v-else style="color:#3a5a78;">—</span>
+                            <span v-else style="color:var(--text-dim);">—</span>
                           </td>
                           <td style="padding:4px 8px;">
                             <span v-if="getMidiBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
-                              <span style="background:#13233d; border:1px solid #2a4a6b; border-radius:3px; padding:2px 6px; font-size:10px; color:#fbbf24;">CC {{ getMidiBinding(t.key) }}</span>
-                              <button style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
+                              <span style="background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-size:10px; color:var(--warn);">CC {{ getMidiBinding(t.key) }}</span>
+                              <button style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
                             </span>
-                            <span v-else style="color:#3a5a78;">—</span>
+                            <span v-else style="color:var(--text-dim);">—</span>
                           </td>
                           <td style="padding:4px 8px; text-align:center;">
                             <button v-if="bindingLearnMode" class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="bindingTargetKey=t.key">Bind here</button>
@@ -959,9 +1294,195 @@
               </div>
               <div class="framesync-footer" style="margin-top:10px;">
                 <button class="framesync-button" @click="saveCurrentPreset">💾 Save current as preset</button>
-                <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:#ff4d6d; color:#ff4d6d;">🗑 Delete {{ currentPreset }}</button>
+                <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:var(--error); color:var(--error);">🗑 Delete {{ currentPreset }}</button>
               </div>
               <div v-if="presetStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ presetStatus }}</div>
+
+              <div class="framesync-header" style="margin-top:20px; padding-top:12px; border-top:1px solid var(--border);">
+                <div class="framesync-title">🌐 Shared <span class="framesync-accent">Presets</span></div>
+                <button class="framesync-button" @click="refreshSharedPresets">🔄 Refresh</button>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Share as</div>
+                  <input class="framesync-input" v-model="sharedPresetName" placeholder="shared-preset-name">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Your name</div>
+                  <input class="framesync-input" v-model="collab.userName" placeholder="Performer" @change="saveCollabUserName">
+                </div>
+              </div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" @click="shareCurrentPreset">📤 Share current state</button>
+              </div>
+              <ul v-if="sharedPresets.length" class="framesync-list" style="margin-top:10px; font-size:11px; padding-left:16px;">
+                <li v-for="sp in sharedPresets" :key="sp.name" style="margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                  <strong>{{ sp.name }}</strong>
+                  <span style="color:var(--text-dim);">by {{ sp.sharedBy }}</span>
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="loadSharedPreset(sp.name)">Load</button>
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="deleteSharedPreset(sp.name)">Delete</button>
+                </li>
+              </ul>
+              <div v-else style="margin-top:10px; font-size:11px; color:var(--text-dim);">No shared presets yet.</div>
+              <div v-if="sharedPresetsStatus" class="framesync-subtitle" style="margin-top:8px;">{{ sharedPresetsStatus }}</div>
+            </div>
+          </div>
+          </div>
+          <div v-else-if="currentSubTab.SETTINGS==='GPUS'">
+          <div class="rack">
+            <div class="framesync-panel" data-testid="gpu-pool-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">🖥️ GPU <span class="framesync-accent">Pool</span></div>
+                <label class="gpu-pool-enable">
+                  <input type="checkbox" v-model="gpuPool.enabled" @change="saveGpuPoolSettings">
+                  Load balancing
+                </label>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Strategy</div>
+                  <select class="framesync-select" v-model="gpuPool.strategy" @change="saveGpuPoolSettings" :disabled="gpuPool.loading">
+                    <option value="round_robin">Round robin</option>
+                    <option value="least_busy">Least busy</option>
+                    <option value="priority">Priority</option>
+                    <option value="random">Random</option>
+                  </select>
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Healthy / total</div>
+                  <div style="font-size:13px; color:var(--success); padding:6px 0;">{{ gpuPool.healthyNodes }} / {{ gpuPool.nodes.length }}</div>
+                </div>
+                <div class="framesync-stack" style="justify-content:flex-end;">
+                  <button class="framesync-button" @click="refreshGpuPool(true)" :disabled="gpuPool.loading">🔄 Refresh stats</button>
+                </div>
+              </div>
+              <p style="font-size:11px; color:var(--text-dim); margin:12px 0 0;">
+                Add SD-Forge (A1111 API) or ComfyUI instances. Disable a node to edit or remove it.
+                Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum.
+              </p>
+
+              <div class="gpu-pool-add" style="margin-top:14px; padding:12px; border:1px solid var(--border); border-radius:10px;">
+                <div class="framesync-subtitle">Add instance (saved disabled — enable after editing)</div>
+                <div class="framesync-row" style="grid-template-columns: 2fr 1fr 1fr; gap:8px; margin-top:8px;">
+                  <input class="framesync-input" v-model="gpuPool.draft.url" placeholder="http://host:7860 or :8188" :disabled="gpuPool.loading">
+                  <input class="framesync-input" v-model="gpuPool.draft.name" placeholder="Name" :disabled="gpuPool.loading">
+                  <select class="framesync-select" v-model="gpuPool.draft.backend" :disabled="gpuPool.loading">
+                    <option value="sd-forge">SD-Forge</option>
+                    <option value="comfyui">ComfyUI</option>
+                  </select>
+                </div>
+                <div class="framesync-footer" style="margin-top:8px;">
+                  <button class="framesync-button" @click="addGpuNode" :disabled="gpuPool.loading || !gpuPool.draft.url">+ Add instance</button>
+                </div>
+              </div>
+
+              <div v-if="gpuPool.nodes.length" class="gpu-pool-table-wrap" style="margin-top:14px;">
+                <table class="gpu-pool-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Backend</th>
+                      <th>Status</th>
+                      <th>Model</th>
+                      <th>VRAM</th>
+                      <th>GPU %</th>
+                      <th>Jobs</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr v-for="n in gpuPool.nodes" :key="n.id" :class="{ 'gpu-row-disabled': !n.enabled }">
+                      <td>
+                        <template v-if="gpuPool.editId === n.id">
+                          <input class="framesync-input" v-model="gpuPool.editDraft.name" style="font-size:11px; margin-bottom:4px;">
+                          <input class="framesync-input" v-model="gpuPool.editDraft.url" style="font-size:10px;">
+                        </template>
+                        <template v-else>{{ n.name }}</template>
+                        <div style="font-size:9px; color:var(--text-dim); word-break:break-all;">{{ n.url }}</div>
+                      </td>
+                      <td>
+                        <template v-if="gpuPool.editId === n.id">
+                          <select class="framesync-select" v-model="gpuPool.editDraft.backend" style="font-size:11px;">
+                            <option value="sd-forge">SD-Forge</option>
+                            <option value="comfyui">ComfyUI</option>
+                          </select>
+                        </template>
+                        <span v-else>{{ n.backend }}</span>
+                      </td>
+                      <td><span class="gpu-status-pill" :class="'st-' + (n.enabled ? n.status : 'disabled')">{{ n.enabled ? n.status : 'disabled' }}</span></td>
+                      <td style="max-width:140px; overflow:hidden; text-overflow:ellipsis;" :title="n.currentModel || ''">{{ n.currentModel || '—' }}</td>
+                      <td>{{ formatGpuMemory(n) }}</td>
+                      <td>{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</td>
+                      <td>{{ n.activeJobs }}</td>
+                      <td>
+                        <div class="framesync-footer" style="flex-wrap:wrap; gap:4px;">
+                          <template v-if="n.enabled">
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="disableGpuNode(n)">Disable</button>
+                          </template>
+                          <template v-else>
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="enableGpuNode(n)">Enable</button>
+                            <button v-if="gpuPool.editId !== n.id" class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="startEditGpuNode(n)">Edit</button>
+                            <button v-else class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="saveGpuNodeEdit(n)">Save</button>
+                            <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="removeGpuNode(n)">Remove</button>
+                          </template>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+              <div v-else style="margin-top:14px; font-size:12px; color:var(--text-dim);">No GPU instances configured.</div>
+              <div v-if="gpuPool.status" class="framesync-subtitle" style="margin-top:10px;">{{ gpuPool.status }}</div>
+            </div>
+          </div>
+          </div>
+          <div v-else-if="currentSubTab.SETTINGS==='COLLAB'">
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">👥 <span class="framesync-accent">Collaboration</span></div>
+                <span class="pill" :style="wsStatus === 'connected' ? { color: 'var(--success)', borderColor: 'rgba(90,242,169,0.4)' } : {}">{{ wsStatus === 'connected' ? 'WS connected' : 'WS ' + wsStatus }}</span>
+              </div>
+              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Display name</div>
+                  <input class="framesync-input" v-model="collab.userName" @change="saveCollabUserName; collabIdentify()">
+                </div>
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">Your session ID</div>
+                  <input class="framesync-input" :value="collab.userId || '—'" readonly>
+                </div>
+              </div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Connected users ({{ collab.users.length }})</div>
+              <ul v-if="collab.users.length" class="framesync-list" style="font-size:11px; padding-left:16px; margin-top:6px;">
+                <li v-for="u in collab.users" :key="u.id">
+                  {{ u.name }}
+                  <span v-if="u.lockedParams && u.lockedParams.length" style="color:var(--warn);"> — locks: {{ u.lockedParams.join(', ') }}</span>
+                </li>
+              </ul>
+              <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">Only you (open another browser tab to test multi-user).</div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Session recording</div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button class="framesync-button" :class="{active: collab.recording}" @click="toggleSessionRecording">
+                  {{ collab.recording ? '⏹ Stop recording' : '● Start recording' }}
+                </button>
+                <button class="framesync-button" @click="listSessionRecordings">📂 List recordings</button>
+              </div>
+              <ul v-if="collab.recordings.length" class="framesync-list" style="margin-top:8px; font-size:11px; padding-left:16px;">
+                <li v-for="r in collab.recordings" :key="r.filename" style="display:flex; gap:8px; align-items:center;">
+                  {{ r.filename }}
+                  <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="playbackSessionRecording(r.filename)">Play</button>
+                </li>
+              </ul>
+              <div v-if="collab.status" class="framesync-subtitle" style="margin-top:10px; color:var(--success);">{{ collab.status }}</div>
+              <div class="framesync-subtitle" style="margin-top:14px;">Parameter locks (click param label in LIVE drawer)</div>
+              <div v-if="Object.keys(collab.locks).length" style="font-size:11px; margin-top:6px;">
+                <span v-for="(who, param) in collab.locks" :key="param" class="pill" style="margin:2px 4px 2px 0;">
+                  {{ param }} → {{ who }}
+                  <button type="button" style="border:none;background:transparent;color:var(--error);cursor:pointer;margin-left:4px;" @click="unlockParam(param)">✕</button>
+                </span>
+              </div>
+              <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">No active locks.</div>
             </div>
           </div>
           </div>
@@ -974,26 +1495,26 @@
               <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Navigation</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>1</kbd>–<kbd>7</kbd> Switch tabs (LIVE→GENERATE)</div>
                   </div>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">LIVE Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>Space</kbd> Generate image</div>
                     <div><kbd>R</kbd> Reset Vibe & Camera params</div>
                   </div>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">PROMPTS Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>M</kbd> Toggle prompt morphing</div>
                   </div>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">MODULATION Tab</div>
-                  <div style="font-size:12px; color:var(--muted); line-height:1.8;">
+                  <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
                     <div><kbd>L</kbd> Toggle LFO</div>
                     <div><kbd>B</kbd> Toggle Beat Macro</div>
                   </div>
@@ -1050,17 +1571,17 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Calculated</div>
-                  <div style="font-size:12px; color:#5af2a9; padding:6px 0;">{{ sequencerCalculatedDuration }}s</div>
+                  <div style="font-size:12px; color:var(--success); padding:6px 0;">{{ sequencerCalculatedDuration }}s</div>
                 </div>
               </div>
               <div class="framesync-subtitle" style="margin-top:12px;">Playhead (s)</div>
               <input type="range" class="framesync-input" style="width:100%;" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
-              <div v-if="Number(sequencer.durationSec) > 0" style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:#031b2d; border:1px solid #0c3048; overflow:visible;" title="Scene markers (click to jump)">
+              <div v-if="Number(sequencer.durationSec) > 0" style="position:relative; min-height:40px; margin-top:8px; border-radius:6px; background:var(--bg-0); border:1px solid var(--border); overflow:visible;" title="Scene markers (click to jump)">
                 <div style="position:absolute; inset:0; border-radius:6px; background:linear-gradient(90deg, rgba(45,226,255,0.06), rgba(255,83,217,0.06)); pointer-events:none;"></div>
                 <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mk-'+mi+'-'+(m.t || 0)" style="position:absolute; top:4px; bottom:4px; width:0; transform:translateX(-50%); z-index:2;" :style="{ left: (100 * (m.t / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }">
                   <button type="button" class="framesync-button" style="padding:2px 6px; font-size:9px; white-space:nowrap;" @click="jumpToSequencerMarker(m)">{{ m.name }}</button>
                 </div>
-                <div v-if="sortedSequencerMarkers.length === 0" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#3a5a78; font-size:11px;">
+                <div v-if="sortedSequencerMarkers.length === 0" style="position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:var(--text-dim); font-size:11px;">
                   No markers yet
                 </div>
                 <div style="position:absolute; top:0; bottom:0; width:2px; background:#fff; z-index:3; pointer-events:none;" :style="{ left: (100 * (sequencerPlayhead / Math.max(1e-6, Number(sequencer.durationSec)))) + '%' }"></div>
@@ -1070,8 +1591,8 @@
                 <input type="text" class="framesync-input" style="max-width:160px; font-size:11px;" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
                 <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
               </div>
-              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:#7fb3d6;">
-                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:#031b2d; border-radius:4px;">
+              <div v-if="sortedSequencerMarkers.length" style="font-size:11px; color:var(--text-dim);">
+                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" style="display:flex; align-items:center; gap:6px; margin-bottom:4px; flex-wrap:wrap; padding:4px 6px; background:var(--bg-0); border-radius:4px;">
                   <button type="button" class="framesync-button" style="font-size:10px; padding:2px 6px;" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
                   <select class="framesync-input" style="font-size:10px; max-width:100px; padding:2px 4px;" :value="m.action || 'jump'" @change="setMarkerAction(m, $event.target.value)">
                     <option value="jump">↦ Jump</option>
@@ -1082,10 +1603,10 @@
                     <option value="pause">⏸ Pause</option>
                   </select>
                   <input v-if="m.action && m.action !== 'jump' && m.action !== 'generate' && m.action !== 'pause'" type="text" class="framesync-input" style="font-size:10px; max-width:140px; padding:2px 4px;" :value="m.target || ''" :placeholder="markerActionPlaceholder(m.action)" @change="setMarkerTarget(m, $event.target.value)" :title="markerActionTitle(m.action)">
-                  <span v-if="m.action === 'jump'" style="font-size:9px; color:#5a8fb8;">jump to time</span>
-                  <span v-if="m.action === 'generate'" style="font-size:9px; color:#5a8fb8;">trigger generation</span>
-                  <span v-if="m.action === 'pause'" style="font-size:9px; color:#5a8fb8;">pause playback</span>
-                  <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
+                  <span v-if="m.action === 'jump'" style="font-size:9px; color:var(--text-dim);">jump to time</span>
+                  <span v-if="m.action === 'generate'" style="font-size:9px; color:var(--text-dim);">trigger generation</span>
+                  <span v-if="m.action === 'pause'" style="font-size:9px; color:var(--text-dim);">pause playback</span>
+                  <button type="button" style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0;" title="Remove" @click="removeSequencerMarker(mi)">✕</button>
                 </div>
               </div>
               <div v-else class="framesync-list" style="font-size:11px; font-style:italic;">No markers yet</div>
@@ -1100,8 +1621,8 @@
                 </select>
               </div>
               <div class="framesync-subtitle" style="margin-top:14px;">Tracks</div>
-              <div v-if="sequencer.tracks.length" style="margin-top:8px; border:1px solid #0c3048; border-radius:8px; background:#031b2d; overflow:hidden;">
-                <div style="padding:6px 10px; font-size:10px; color:#5a8fb8; border-bottom:1px solid #0c3048; display:flex; justify-content:space-between; align-items:center;">
+              <div v-if="sequencer.tracks.length" style="margin-top:8px; border:1px solid var(--border); border-radius:8px; background:var(--bg-0); overflow:hidden;">
+                <div style="padding:6px 10px; font-size:10px; color:var(--text-dim); border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;">
                   <span>TIMELINE</span>
                   <span>{{ sequencer.tracks.length }} track{{ sequencer.tracks.length > 1 ? 's' : '' }} · {{ sequencer.durationSec }}s</span>
                 </div>
@@ -1119,15 +1640,15 @@
                 <input type="number" class="framesync-input" style="width:100px; font-size:11px;" v-model.number="sequencerKeyframeVal" step="any">
                 <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
               </div>
-              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid #0c3048; border-radius:8px; padding:10px; margin-bottom:8px; background:#031b2d;">
+              <div v-for="tr in sequencer.tracks" :key="tr.id" style="border:1px solid var(--border); border-radius:8px; padding:10px; margin-bottom:8px; background:var(--bg-0);">
                 <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <strong style="color:#ff8a1a; font-size:13px;">{{ tr.param }}</strong>
-                  <label style="font-size:11px; color:#9bc4e2;">
+                  <strong style="color:var(--warn); font-size:13px;">{{ tr.param }}</strong>
+                  <label style="font-size:11px; color:var(--text-secondary);">
                     <input type="radio" :value="tr.id" v-model="sequencerSelectedTrackId"> edit
                   </label>
                   <button type="button" class="framesync-button" style="padding:4px 8px; font-size:10px;" @click="removeSequencerTrack(tr.id)">Remove track</button>
                 </div>
-                <div style="font-size:11px; color:#7fb3d6; margin-top:6px;">
+                <div style="font-size:11px; color:var(--text-dim); margin-top:6px;">
                   <span v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" style="display:inline-flex; align-items:center; gap:4px; margin-right:10px; flex-wrap:wrap;">
                     t={{ kf.t.toFixed(2) }} → {{ kf.v.toFixed(3) }}
                     <select class="framesync-input" style="font-size:10px; max-width:110px; padding:2px 4px;" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
@@ -1136,12 +1657,12 @@
                       <option value="easeOut">easeOut</option>
                       <option value="easeInOut">easeInOut</option>
                     </select>
-                    <button type="button" style="border:none; background:transparent; color:#ff4d6d; cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
+                    <button type="button" style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0;" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">✕</button>
                   </span>
                   <span v-if="!tr.keyframes.length" style="font-style:italic;">No keyframes</span>
                 </div>
               </div>
-              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:#5af2a9;">{{ sequencerStatus }}</div>
+              <div v-if="sequencerStatus" class="framesync-list" style="margin-top:8px; color:var(--success);">{{ sequencerStatus }}</div>
             </div>
           </div>
 
@@ -1187,7 +1708,7 @@
                   <button class="framesync-button" @click="storyResultCollapsed = !storyResultCollapsed">{{ storyResultCollapsed ? '▼ Show' : '▲ Hide' }}</button>
                 </div>
                 <div v-if="!storyResultCollapsed">
-                  <img v-if="generator.lastPath" :src="generator.lastPath" style="width:100%; border-radius:8px; border:1px solid #0c3048;">
+                  <img v-if="generator.lastPath" :src="generator.lastPath" style="width:100%; border-radius:8px; border:1px solid var(--border);">
                 </div>
               </div>
             </div>
@@ -1199,17 +1720,23 @@
     <!-- Bottom context panel -->
     <div class="context">
       <div v-if="currentTab==='LIVE'">
-        <h4>Beat & MIDI status</h4>
+        <h4>Performance</h4>
+        <div class="chips">
+          <span class="chip">Crossfader: {{ performance.crossfader.toFixed(2) }}</span>
+          <span class="chip">Slots: {{ performance.slots.length }}</span>
+          <span class="chip">Model: {{ modelStatusLabel }}</span>
+        </div>
+        <h4 style="margin-top:12px;">Beat & MIDI status</h4>
         <div style="display:flex; gap:12px; flex-wrap:wrap;">
           <div style="min-width:240px;">
             <strong>Beat macros ({{ macrosRack.length }})</strong>
-            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--muted);">
+            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--text-secondary);">
               • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
             </div>
           </div>
           <div style="min-width:240px;">
             <strong>MIDI mappings</strong>
-            <div style="font-size:12px; color:var(--muted);">
+            <div style="font-size:12px; color:var(--text-secondary);">
               • LaunchControl CC21 → Vibe<br/>
               • LaunchControl CC22 → Strength<br/>
               • LaunchControl CC23 → Zoom
@@ -1314,14 +1841,77 @@
 
 <script>
 import './style.css'
+import {
+  CROSSFADE_SLOT_TYPES,
+  morphSlotValue,
+  smoothstep,
+} from './morph-utils.js'
+import {
+  DEFORUM_DEFAULT_SETTINGS,
+  DEFORUM_FIELD_GROUPS,
+  getNestedValue,
+  setNestedValue,
+  patchFromKeyPath,
+  mergeDeforumSettings,
+} from './deforum-settings-schema.js'
+import { apiFetch, modelSourceLabel } from './api-utils.js'
+import StatusStrip from './components/StatusStrip.vue'
+import GlassPanel from './components/GlassPanel.vue'
+import Crossfader from './components/Crossfader.vue'
+import LiveParamRow from './components/LiveParamRow.vue'
+import Waveform from './components/Waveform.vue'
+import TargetCell from './components/TargetCell.vue'
 
 export default {
   name: 'App',
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, Waveform, TargetCell },
   data() {
     return {
        showFrames: true,
        isPlaying: false,
        isRecording: false,
+       deforumPlaying: false,
+       previewGenerating: false,
+       previewDebounceTimer: null,
+       framesRefreshBackoffMs: 5000,
+       apiHealthBackoffMs: 15000,
+       paramPanelOpen: false,
+       deforumPanelOpen: false,
+       deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
+       deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+       deforumSectionOpen: {},
+       deforumAdvancedOpen: false,
+       deforumSettingsJson: '',
+       deforumSettingsJsonError: '',
+       deforumSettingsStatus: '',
+       deforumSaveTimer: null,
+       deforumPreviewTimer: null,
+       crossfadeSlotTypes: CROSSFADE_SLOT_TYPES,
+       performance: {
+         genericPrompt: '',
+         crossfader: 0.5,
+         newSlotType: 'prompt',
+         slots: [],
+         status: '',
+         lastPreviewPath: null,
+       },
+       forge: {
+         host: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_HOST ? process.env.SD_FORGE_HOST : '192.168.2.102',
+         port: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_PORT ? process.env.SD_FORGE_PORT : '7860',
+         available: false,
+         loading: false,
+         switching: false,
+         models: [],
+         modelsSource: '',
+         currentModel: '',
+         selectedModel: '',
+         lastModel: '',
+         modelInfo: null,
+         samplers: [],
+         schedulers: [],
+         vaeList: [],
+         options: {},
+       },
        streamUrl: "",
        lfoOn: true,
       beatMacroOn: true,
@@ -1331,6 +1921,30 @@ export default {
       currentPreset: null,
       newPresetName: '',
       presetStatus: '',
+      sharedPresets: [],
+      sharedPresetName: '',
+      sharedPresetBy: '',
+      sharedPresetsStatus: '',
+      collab: {
+        userId: null,
+        userName: typeof localStorage !== 'undefined' ? (localStorage.getItem('defora_user_name') || 'Performer') : 'Performer',
+        users: [],
+        locks: {},
+        recording: false,
+        recordings: [],
+        status: '',
+      },
+      gpuPool: {
+        enabled: false,
+        strategy: 'round_robin',
+        healthyNodes: 0,
+        nodes: [],
+        loading: false,
+        status: '',
+        draft: { url: '', name: '', backend: 'sd-forge', priority: 1 },
+        editId: null,
+        editDraft: { name: '', url: '', backend: 'sd-forge', priority: 1 },
+      },
       generator: {
         theme: '',
         stylePreset: 'Masterpiece, Realistic',
@@ -1374,7 +1988,13 @@ export default {
         cfgscale: "Manual",
         zoom: "Beat",
       },
-      prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5 },
+      pinnedParams: (() => {
+        try {
+          const raw = typeof localStorage !== 'undefined' && localStorage.getItem('defora_pinned_params');
+          return raw ? JSON.parse(raw) : [];
+        } catch (_) { return []; }
+      })(),
+      prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5, morphBlend: 0.5 },
       img2img: {
         show: false,
         dataUrl: null,
@@ -1390,9 +2010,9 @@ export default {
       },
       pluginsRegistry: [],
       morphSlots: [
-        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00" },
-        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60" },
-        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80" },
+        { id: 1, on: true, name: "clean → mad", a: "clean evil", b: "mad clown", range: "0.40–1.00", weight: 1 },
+        { id: 2, on: true, name: "box → tunnel", a: "small box", b: "neon tunnel", range: "0.00–0.60", weight: 1 },
+        { id: 3, on: false, name: "style fade", a: "photographic", b: "anime render", range: "0.20–0.80", weight: 1 },
       ],
       loras: {
         available: [],
@@ -1510,16 +2130,22 @@ export default {
       },
       cn: {
         slots: [
-          { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true },
-          { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false },
-          { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false },
+          { id: "CN1", label: "CN1", model: "Canny", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN2", label: "CN2 •", model: "Depth", weight: 0.4, start: 0, end: 0.9, enabled: true, imageSource: "file" },
+          { id: "CN3", label: "CN3", model: "Pose", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN4", label: "CN4", model: "Tile", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
+          { id: "CN5", label: "CN5", model: "Control", weight: 0.4, start: 0, end: 0.9, enabled: false, imageSource: "file" },
         ],
         active: "CN2",
         availableModels: [],
         source: "unknown",
+        webcamActive: false,
+        webcamStream: null,
+        webcamVideo: null,
+        webcamCanvas: null,
+        webcamCaptureInterval: null,
       },
+      webcamCaptureRate: 500,
       midi: {
         supported: typeof navigator !== 'undefined' && !!navigator.requestMIDIAccess,
         devices: [],
@@ -1593,11 +2219,87 @@ export default {
        runsFilter: { search: "", status: "", tag: "", model: "" },
        runsSort: { field: "started_at", order: "desc" },
        runsSelected: [],
+       runsCompareFields: [
+         'status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag',
+         'prompt_positive', 'prompt_negative', 'notes',
+       ],
        runsDetailView: null,
        runsStatus: "",
+       genData: {
+         defaultThemes: ['A journey through light', 'Neon cathedral', 'Ocean depths'],
+         sceneDescriptors: { opening: ['ethereal', 'quiet'], buildup: ['rising', 'vivid'], climax: ['intense', 'surreal'], closing: ['soft', 'fading'] },
+         environments: [['forest', 'meadow'], ['city', 'alley'], ['space', 'nebula']],
+         lighting: ['golden hour', 'neon rim light', 'moonlit'],
+         quality: ['masterpiece', 'best quality'],
+         techSpecs: ['8k', 'sharp focus'],
+         artists: { default: ['artgerm', 'greg rutkowski'], 'Masterpiece, Realistic': ['photorealistic'] },
+         negatives: ['blurry', 'low quality'],
+         cameraBehaviors: ['STATIC', 'ORBIT', 'TUNNEL'],
+       },
      };
   },
   computed: {
+    modelStatusKind() {
+      if (this.forge.switching || this.forge.loading) return 'loading';
+      if (this.forge.available || (this.apiHealth.sdForge && this.apiHealth.sdForge.available)) return 'ready';
+      return 'offline';
+    },
+    modelStatusLabel() {
+      if (this.modelStatusKind === 'loading') return 'Loading';
+      if (this.modelStatusKind === 'ready') return 'Ready';
+      return 'Offline';
+    },
+    paramPanelGroups() {
+      return [
+        { label: 'Style', items: this.liveVibe },
+        { label: 'Camera', items: this.liveCam },
+      ];
+    },
+    pinnedParamItems() {
+      const allParams = [...this.liveVibe, ...this.liveCam];
+      return this.pinnedParams
+        .map(key => allParams.find(p => p.key === key))
+        .filter(Boolean);
+    },
+    liveModulating() {
+      const paramMap = {};
+      [...this.liveVibe, ...this.liveCam].forEach(p => { paramMap[p.key] = p; });
+      this.lfoTargets.forEach(t => {
+        if (!paramMap[t.key]) paramMap[t.key] = { key: t.key, label: t.label, val: t.default || 0, min: t.min || 0, max: t.max || 1 };
+      });
+      const modulated = {};
+      this.lfos.filter(l => l.on && l.targets.length).forEach(l => {
+        l.targets.forEach(key => {
+          if (!modulated[key]) modulated[key] = { key, sources: [] };
+          modulated[key].sources.push(`LFO ${l.id}`);
+        });
+      });
+      this.macrosRack.filter(m => m.on && m.target).forEach(m => {
+        const key = m.target;
+        if (!modulated[key]) modulated[key] = { key, sources: [] };
+        modulated[key].sources.push('Macro');
+      });
+      return Object.values(modulated).map(entry => {
+        const p = paramMap[entry.key] || { key: entry.key, label: entry.key, val: 0, min: 0, max: 1 };
+        return { ...p, source: entry.sources.join(' + ') };
+      });
+    },
+    targetOwners() {
+      const map = {};
+      this.lfos.forEach(l => {
+        if (!l.on) return;
+        l.targets.forEach(key => {
+          if (!map[key]) map[key] = [];
+          map[key].push(`LFO ${l.id}`);
+        });
+      });
+      this.macrosRack.forEach((m, idx) => {
+        if (!m.on || !m.target) return;
+        if (!map[m.target]) map[m.target] = [];
+        map[m.target].push(`Macro ${idx + 1}`);
+      });
+      return map;
+    },
     activeSlot() {
       return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
     },
@@ -1658,21 +2360,47 @@ export default {
     sequencerPlayhead() {
       this.$nextTick(() => this.drawTimeline());
     },
+    'performance.crossfader'() {
+      this.applyCrossfadeMorph();
+      this.saveSessionState();
+    },
+    session() {
+      this.saveSessionState();
+    },
   },
   mounted() {
+    this.loadSessionState();
+    this.applyCrossfadeMorph();
     this.loadMotionStyles();
     this.loadBindings();
     this.refreshPresets();
+    this.refreshSharedPresets();
+    this.refreshGpuPool(false);
     this.refreshLoras();
     this.loadControlNetModels();
     this.refreshPlugins();
-    this.refreshForgeAll();
+    this.syncDeforumSettingsJson();
+    this.loadDeforumSettings();
+    this.refreshForgeAll().then(() => {
+      this.restoreLastModel();
+      if (!this.deforumPlaying) this.schedulePreviewFrame();
+    });
     this.scanMidi();
     this.connectWebSocket();
     this.initHls();
     if (typeof fetch === "function") {
-      this.framesTimer = setInterval(() => this.refreshFrames(), 5000);
-      this.apiStatusTimer = setInterval(() => this.refreshApiHealth(), 15000);
+      const scheduleFramesPoll = () => {
+        this.refreshFrames().finally(() => {
+          this.framesTimer = setTimeout(scheduleFramesPoll, this.framesRefreshBackoffMs || 5000);
+        });
+      };
+      scheduleFramesPoll();
+      const scheduleHealthPoll = () => {
+        this.refreshApiHealth().finally(() => {
+          this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
+        });
+      };
+      scheduleHealthPoll();
     }
     this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
     this.lfoTimer = setInterval(() => this.runLfos(), 120);
@@ -1688,11 +2416,12 @@ export default {
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
     this.stopSequencerPlayback();
-    if (this.framesTimer) clearInterval(this.framesTimer);
-    if (this.apiStatusTimer) clearInterval(this.apiStatusTimer);
+    if (this.framesTimer) clearTimeout(this.framesTimer);
+    if (this.apiStatusTimer) clearTimeout(this.apiStatusTimer);
     if (this.playbackTimer) clearInterval(this.playbackTimer);
     if (this.lfoTimer) clearInterval(this.lfoTimer);
     if (this.beatTimer) clearInterval(this.beatTimer);
+    if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
     this.stopLfoAnimation();
     if (this.playerEl && this.timeHandler) {
       this.playerEl.removeEventListener("timeupdate", this.timeHandler);
@@ -1710,13 +2439,18 @@ export default {
     if (typeof fetch !== "function") return;
     try {
       const res = await fetch("/api/status");
-      if (!res.ok) return;
+      if (!res.ok) {
+        this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
+        return;
+      }
       const j = await res.json();
       if (j && j.sdForge) {
         this.apiHealth = { sdForge: { ...j.sdForge } };
+        this.forge.available = !!j.sdForge.available;
       }
+      this.apiHealthBackoffMs = 15000;
     } catch (_e) {
-      /* ignore */
+      this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
     }
   },
   async refreshRuns() {
@@ -1838,7 +2572,51 @@ export default {
   },
   getRunProp(runId, prop) {
     const run = this.runsAll.find(r => r.run_id === runId);
-    return run ? (run[prop] !== undefined ? run[prop] : '-') : '-';
+    if (!run) return '-';
+    const val = run[prop];
+    if (val === undefined || val === null || val === '') return '-';
+    if ((prop === 'prompt_positive' || prop === 'prompt_negative') && String(val).length > 80) {
+      return String(val).slice(0, 80) + '…';
+    }
+    return val;
+  },
+  async exportRunComparison(format) {
+    if (this.runsSelected.length < 2) {
+      this.runsStatus = 'Select at least 2 runs to compare';
+      return;
+    }
+    try {
+      const res = await fetch('/api/runs/compare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ run_ids: this.runsSelected, format }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `HTTP ${res.status}`);
+      }
+      if (format === 'csv') {
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'runs_comparison.csv';
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const data = await res.json();
+        const blob = new Blob([JSON.stringify(data.comparison, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'runs_comparison.json';
+        a.click();
+        URL.revokeObjectURL(url);
+      }
+      this.runsStatus = `Exported comparison (${this.runsSelected.length} runs)`;
+    } catch (err) {
+      this.runsStatus = err.message || 'Compare export failed';
+    }
   },
   formatDate(dateStr) {
     if (!dateStr) return '-';
@@ -1858,42 +2636,73 @@ export default {
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
  },
  togglePlayPause() {
-   const video = this.playerEl || document.getElementById("player");
-   if (!video) return;
-   if (video.paused) {
-     video.play()
-       .then(() => { this.isPlaying = true; })
-       .catch(e => {
-         console.error("Play failed:", e);
-         this.isPlaying = false;
-       });
-   } else {
-     video.pause();
-     this.isPlaying = false;
-   }
+   this.toggleDeforumPlay();
  },
  stopVideo() {
-   const video = this.playerEl || document.getElementById("player");
-   if (!video) return;
-   video.pause();
-   video.currentTime = 0;
+   this.stopDeforumPlay();
+ },
+ toggleDeforumPlay() {
+   if (this.deforumPlaying) {
+     this.pauseDeforumAnimation();
+   } else {
+     this.startDeforumAnimation();
+   }
+ },
+ startDeforumAnimation() {
+   this.applyCrossfadeMorph();
+   const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
+   this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
+   this.deforumPlaying = true;
+   this.performance.status = 'Deforum animation playing';
+   this.isPlaying = true;
+ },
+ pauseDeforumAnimation() {
+   this.sendControl('liveParam', { is_paused_rendering: 1 });
+   this.deforumPlaying = false;
+   this.performance.status = 'Animation paused — parameter changes update preview';
    this.isPlaying = false;
  },
- async toggleRecord() {
-   if (this.isRecording) {
-     // Stop recording
-     this.isRecording = false;
-     this.sendControl('record', { action: 'stop' });
-   } else {
-     // Start recording
-     this.isRecording = true;
-     this.sendControl('record', { action: 'start' });
-     // Generate unique stream URL with timestamp and random component
-     const streamId = 'stream_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-     this.streamUrl = window.location.origin + '/stream/' + streamId;
-     // In production, you would get this from the server response
-     console.log('Recording started. Stream URL:', this.streamUrl);
+ stopDeforumPlay() {
+   this.sendControl('liveParam', { is_paused_rendering: 1, should_resume: 0 });
+   this.deforumPlaying = false;
+   this.performance.status = '';
+   this.isPlaying = false;
+   const video = this.playerEl || document.getElementById("player");
+   if (video) {
+     video.pause();
+     video.currentTime = 0;
    }
+ },
+ async toggleStreamRecord() {
+   if (this.isRecording) {
+     this.isRecording = false;
+     try {
+       const res = await fetch('/api/stream/stop-record', { method: 'POST' });
+       const data = await res.json();
+       this.performance.status = data.success ? 'Recording stopped' : (data.error || 'Stop failed');
+     } catch (e) {
+       this.performance.status = 'Stop record failed';
+     }
+   } else {
+     this.isRecording = true;
+     const output = `/tmp/defora_rec_${Date.now()}.mp4`;
+     try {
+       const res = await fetch('/api/stream/record', {
+         method: 'POST',
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({ output, fps: 24 }),
+       });
+       const data = await res.json();
+       this.performance.status = data.success ? `Recording → ${output}` : (data.error || 'Record failed');
+       if (!data.success) this.isRecording = false;
+     } catch (e) {
+       this.isRecording = false;
+       this.performance.status = 'Record failed';
+     }
+   }
+ },
+ async toggleRecord() {
+   return this.toggleStreamRecord();
  },
  attachPlayer() {
    const video = document.getElementById("player");
@@ -2246,33 +3055,331 @@ export default {
    // Fallback: if no BPM (or BPM is 0/invalid), trigger on every beat
    return true;
  },
- setupWS() {
+ connectWebSocket() {
    const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
    const connect = () => {
      this.ws = new WebSocket(url);
      this.ws.onopen = () => {
        this.wsStatus = "connected";
-       console.log("WS connected");
+       this.collabIdentify();
      };
      this.ws.onclose = () => {
        this.wsStatus = "disconnected";
+       this.collab.userId = null;
        setTimeout(connect, 1000);
      };
      this.ws.onmessage = (evt) => {
        try {
          const msg = JSON.parse(evt.data);
-         if (msg.type === "event") console.log(msg.msg || "event");
-         if (msg.type === "stream" && msg.src) {
-           this.streamSrc = msg.src + "?t=" + Date.now();
-           this.attachPlayer();
-         }
-         if (msg.type === "frame") {
-           this.refreshFrames();
-         }
+         this.handleWsMessage(msg);
        } catch (_) {}
      };
    };
    connect();
+ },
+ handleWsMessage(msg) {
+   if (msg.type === "hello" && msg.userId) {
+     this.collab.userId = msg.userId;
+     this.collabIdentify();
+   }
+   if (msg.type === "presence" && Array.isArray(msg.users)) {
+     this.collab.users = msg.users;
+     const locks = {};
+     msg.users.forEach((u) => {
+       (u.lockedParams || []).forEach((param) => {
+         locks[param] = u.name;
+       });
+     });
+     this.collab.locks = locks;
+   }
+   if (msg.type === "shared_preset") {
+     this.sharedPresetsStatus = `Shared preset ${msg.action}: ${msg.name}`;
+     this.refreshSharedPresets();
+     setTimeout(() => { this.sharedPresetsStatus = ""; }, 3000);
+   }
+   if (msg.type === "recording") {
+     this.collab.recording = msg.status === "started";
+     this.collab.status = msg.status === "started" ? "Session recording…" : "Recording saved on server";
+   }
+   if (msg.type === "recordings" && Array.isArray(msg.files)) {
+     this.collab.recordings = msg.files;
+   }
+   if (msg.type === "playback") {
+     this.collab.status = `Playback started (${msg.events || 0} events)`;
+   }
+   if (msg.type === "error") {
+     console.error("[Defora WS]", msg.msg || msg, msg.locked || "");
+     this.collab.status = msg.msg || "WebSocket error";
+   }
+   if (msg.type === "event") {
+     if (msg.msg) console.log("[Defora event]", msg.msg);
+   }
+   if (msg.type === "stream" && msg.src) {
+     this.streamSrc = msg.src + "?t=" + Date.now();
+     this.attachPlayer();
+   }
+   if (msg.type === "frame") {
+     this.refreshFrames();
+   }
+ },
+ collabIdentify() {
+   if (!this.ws || this.ws.readyState !== 1) return;
+   this.wsSend({ type: "identify", name: this.collab.userName || "Performer" });
+ },
+ saveCollabUserName() {
+   try {
+     localStorage.setItem("defora_user_name", this.collab.userName || "Performer");
+   } catch (_) {}
+ },
+ wsSend(payload) {
+   if (!this.ws || this.ws.readyState !== 1) return;
+   this.ws.send(JSON.stringify(payload));
+ },
+ modelSourceLabel(source) {
+   return modelSourceLabel(source);
+ },
+ isParamLocked(key) {
+   return Boolean(this.collab.locks[key]);
+ },
+ isParamLockedByMe(key) {
+   const who = this.collab.locks[key];
+   return who && who === (this.collab.userName || "Performer");
+ },
+ paramLockTitle(key) {
+   if (!this.collab.locks[key]) return "Lock parameter for collaboration";
+   if (this.isParamLockedByMe(key)) return "Unlock (you hold this lock)";
+   return `Locked by ${this.collab.locks[key]}`;
+ },
+ toggleParamLock(key) {
+   if (this.isParamLockedByMe(key)) {
+     this.unlockParam(key);
+   } else if (!this.isParamLocked(key)) {
+     this.wsSend({ type: "lock_param", param: key });
+   } else {
+     this.collab.status = `${key} is locked by ${this.collab.locks[key]}`;
+   }
+ },
+ isParamPinned(key) {
+   return this.pinnedParams.includes(key);
+ },
+ toggleParamPin(key) {
+   const idx = this.pinnedParams.indexOf(key);
+   if (idx === -1) {
+     this.pinnedParams.push(key);
+   } else {
+     this.pinnedParams.splice(idx, 1);
+   }
+   try {
+     if (typeof localStorage !== 'undefined') {
+       localStorage.setItem('defora_pinned_params', JSON.stringify(this.pinnedParams));
+     }
+   } catch (_) {}
+ },
+ unlockParam(key) {
+   this.wsSend({ type: "unlock_param", param: key });
+ },
+ toggleSessionRecording() {
+   if (this.collab.recording) {
+     this.wsSend({ type: "stop_recording" });
+   } else {
+     this.wsSend({ type: "start_recording" });
+   }
+ },
+ listSessionRecordings() {
+   this.wsSend({ type: "list_recordings" });
+ },
+ playbackSessionRecording(filename) {
+   this.wsSend({ type: "playback_recording", recordingFile: filename });
+ },
+ async refreshSharedPresets() {
+   try {
+     const { data } = await apiFetch("/api/shared-presets", {}, "shared-presets list");
+     this.sharedPresets = data.presets || [];
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async shareCurrentPreset() {
+   const name = (this.sharedPresetName || this.newPresetName || this.currentPreset || "shared").replace(/[^a-zA-Z0-9_-]/g, "") || "shared";
+   const preset = {
+     liveVibe: this.liveVibe,
+     liveCam: this.liveCam,
+     audio: { bpm: this.audio.bpm, track: this.audio.track },
+     cn: { slots: this.cn.slots, active: this.cn.active },
+     loras: { groupA: this.loras.groupA, groupB: this.loras.groupB },
+     prompts: {
+       pos: this.prompts.pos,
+       neg: this.prompts.neg,
+       morphOn: this.prompts.morphOn,
+       crossfaderValue: this.prompts.crossfaderValue,
+     },
+     lfos: this.lfos,
+     macrosRack: this.macrosRack,
+     paramSources: this.paramSources,
+   };
+   try {
+     await apiFetch("/api/shared-presets", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         name,
+         preset,
+         sharedBy: this.collab.userName || "anonymous",
+         description: `Shared from web UI`,
+       }),
+     }, "share preset");
+     this.sharedPresetsStatus = `Shared as ${name}`;
+     this.sharedPresetName = name;
+     await this.refreshSharedPresets();
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async loadSharedPreset(name) {
+   try {
+     const { data } = await apiFetch(`/api/shared-presets/${encodeURIComponent(name)}`, {}, "load shared preset");
+     const preset = data.preset || data;
+     if (preset.liveVibe) this.liveVibe = preset.liveVibe;
+     if (preset.liveCam) this.liveCam = preset.liveCam;
+     if (preset.audio) Object.assign(this.audio, preset.audio);
+     if (preset.cn) Object.assign(this.cn, preset.cn);
+     if (preset.lfos) this.lfos = preset.lfos;
+     if (preset.macrosRack) this.macrosRack = preset.macrosRack;
+     if (preset.prompts) Object.assign(this.prompts, preset.prompts);
+     if (preset.loras) {
+       this.loras.groupA = preset.loras.groupA || [];
+       this.loras.groupB = preset.loras.groupB || [];
+       await this.refreshLoras();
+     }
+     this.sharedPresetsStatus = `Loaded shared preset: ${name}`;
+     setTimeout(() => { this.sharedPresetsStatus = ""; }, 3000);
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async deleteSharedPreset(name) {
+   if (!confirm(`Delete shared preset "${name}"?`)) return;
+   try {
+     await apiFetch(`/api/shared-presets/${encodeURIComponent(name)}`, { method: "DELETE" }, "delete shared preset");
+     await this.refreshSharedPresets();
+     this.sharedPresetsStatus = `Deleted ${name}`;
+   } catch (err) {
+     this.sharedPresetsStatus = err.message;
+   }
+ },
+ async refreshGpuPool(refreshStats = false) {
+   this.gpuPool.loading = true;
+   try {
+     if (refreshStats) {
+       await apiFetch("/api/gpu-pool/refresh", { method: "POST" }, "gpu pool refresh");
+     }
+     const { data } = await apiFetch("/api/gpu-pool", {}, "gpu pool status");
+     this.gpuPool.enabled = !!data.enabled;
+     this.gpuPool.strategy = data.strategy || "round_robin";
+     this.gpuPool.healthyNodes = data.healthyNodes ?? 0;
+     this.gpuPool.nodes = data.nodes || [];
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   } finally {
+     this.gpuPool.loading = false;
+   }
+ },
+ async saveGpuPoolSettings() {
+   try {
+     await apiFetch("/api/gpu-pool", {
+       method: "PUT",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         enabled: this.gpuPool.enabled,
+         strategy: this.gpuPool.strategy,
+       }),
+     }, "gpu pool settings");
+     this.gpuPool.status = this.gpuPool.enabled ? "Load balancing enabled" : "Load balancing disabled";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async addGpuNode() {
+   const url = (this.gpuPool.draft.url || "").trim();
+   if (!url) return;
+   try {
+     await apiFetch("/api/gpu-pool/nodes", {
+       method: "POST",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify({
+         url,
+         name: this.gpuPool.draft.name || url,
+         backend: this.gpuPool.draft.backend,
+         enabled: false,
+         priority: this.gpuPool.draft.priority || 1,
+       }),
+     }, "add gpu node");
+     this.gpuPool.draft = { url: "", name: "", backend: "sd-forge", priority: 1 };
+     await this.refreshGpuPool(false);
+     this.gpuPool.status = "Instance added (disabled). Edit if needed, then enable.";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ startEditGpuNode(n) {
+   if (n.enabled) {
+     this.gpuPool.status = "Disable the node before editing.";
+     return;
+   }
+   this.gpuPool.editId = n.id;
+   this.gpuPool.editDraft = {
+     name: n.name,
+     url: n.url,
+     backend: n.backend,
+     priority: n.priority || 1,
+   };
+ },
+ async saveGpuNodeEdit(n) {
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}`, {
+       method: "PUT",
+       headers: { "Content-Type": "application/json" },
+       body: JSON.stringify(this.gpuPool.editDraft),
+     }, "edit gpu node");
+     this.gpuPool.editId = null;
+     await this.refreshGpuPool(false);
+     this.gpuPool.status = "Node updated.";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async disableGpuNode(n) {
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}/disable`, { method: "POST" }, "disable gpu");
+     await this.refreshGpuPool(false);
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async enableGpuNode(n) {
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}/enable`, { method: "POST" }, "enable gpu");
+     await this.refreshGpuPool(true);
+     this.gpuPool.status = `${n.name} enabled.`;
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ async removeGpuNode(n) {
+   if (!confirm(`Remove GPU instance "${n.name}"?`)) return;
+   try {
+     await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(n.id)}`, { method: "DELETE" }, "remove gpu");
+     await this.refreshGpuPool(false);
+     this.gpuPool.status = "Node removed.";
+   } catch (err) {
+     this.gpuPool.status = err.message;
+   }
+ },
+ formatGpuMemory(n) {
+   if (n.memoryUsedMb == null && n.memoryTotalMb == null) return "—";
+   const used = n.memoryUsedMb != null ? `${n.memoryUsedMb}` : "?";
+   const total = n.memoryTotalMb != null ? `${n.memoryTotalMb}` : "?";
+   return `${used} / ${total} MB`;
  },
  sendControl(controlType, payload) {
    if (!this.ws || this.ws.readyState !== 1) return;
@@ -2280,9 +3387,14 @@ export default {
    this.ws.send(JSON.stringify(msg));
  },
  updateParam(p, evt) {
+   if (this.isParamLocked(p.key) && !this.isParamLockedByMe(p.key)) {
+     console.warn(`[Defora] Parameter "${p.key}" is locked by ${this.collab.locks[p.key]}`);
+     return;
+   }
    const val = parseFloat(evt.target.value);
    p.val = val;
    this.queueLiveParam(p.key, val);
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  setSource(key, source) {
    this.paramSources[key] = source;
@@ -2355,8 +3467,11 @@ export default {
           e.preventDefault();
           break;
         case " ":
-          if (self.currentTab === "GENERATE") {
-            self.generateImage();
+          if (self.currentTab === "LIVE") {
+            self.generatePreviewFrame();
+            e.preventDefault();
+          } else if (self.currentTab === "GENERATE") {
+            self.generatePreviewFrame();
             e.preventDefault();
           }
           break;
@@ -2404,17 +3519,65 @@ export default {
      this.applyPromptMorphing();
    }
  },
+ parseMorphRange(range) {
+   const m = String(range || "0–1").match(/([0-9.]+)\s*[–\-]\s*([0-9.]+)/);
+   if (!m) return { min: 0, max: 1 };
+   const min = Math.min(parseFloat(m[1]), parseFloat(m[2]));
+   const max = Math.max(parseFloat(m[1]), parseFloat(m[2]));
+   return { min, max };
+ },
+ morphSlotInRange(slot) {
+   const { min, max } = this.parseMorphRange(slot.range);
+   const t = this.prompts.morphBlend ?? 0.5;
+   return t >= min && t <= max;
+ },
+ morphBlendInSlotRange(slot) {
+   const { min, max } = this.parseMorphRange(slot.range);
+   const t = this.prompts.morphBlend ?? 0.5;
+   if (max <= min) return t;
+   return Math.max(0, Math.min(1, (t - min) / (max - min)));
+ },
+ morphSlotPreview(slot) {
+   if (!slot.on || !this.morphSlotInRange(slot)) return "—";
+   const phrase = morphSlotValue(
+     { type: "prompt", valueA: slot.a, valueB: slot.b },
+     this.morphBlendInSlotRange(slot)
+   );
+   if (!phrase) return "—";
+   const w = slot.weight != null ? slot.weight : 1;
+   return w < 0.99 ? `${phrase} ×${w.toFixed(2)}` : phrase;
+ },
+ onPromptMorphBlendInput() {
+   this.applyPromptMorphing();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ onMorphSlotWeightInput(_slot) {
+   this.applyPromptMorphing();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
  applyPromptMorphing() {
    if (!this.prompts.morphOn) return;
-   const activeSlots = this.morphSlots.filter(s => s.on);
-   if (!activeSlots.length) return;
-   let morphedPrompt = this.prompts.pos || "";
-   activeSlots.forEach(slot => {
-     // TODO: Add slider or auto-calculation for blend weight
-     // For now using simple concatenation approach
-     morphedPrompt += `, ${slot.a} to ${slot.b} blend`;
+   const base = (this.prompts.pos || "").trim();
+   const parts = base ? [base] : [];
+   for (const slot of this.morphSlots) {
+     if (!slot.on || !this.morphSlotInRange(slot)) continue;
+     const phrase = morphSlotValue(
+       { type: "prompt", valueA: slot.a, valueB: slot.b },
+       this.morphBlendInSlotRange(slot)
+     );
+     if (!phrase) continue;
+     const w = Math.max(0, Math.min(1, slot.weight != null ? slot.weight : 1));
+     if (w >= 0.99) parts.push(phrase);
+     else parts.push(`(${phrase}:${w.toFixed(2)})`);
+   }
+   const morphedPrompt = parts.join(", ").trim();
+   if (!morphedPrompt) return;
+   this.prompts.pos = morphedPrompt;
+   this.sendControl("prompt", {
+     positive: morphedPrompt,
+     negative: this.prompts.neg,
+     morphBlend: this.prompts.morphBlend,
    });
-   this.sendControl("prompt", { positive: morphedPrompt, negative: this.prompts.neg });
  },
  sendPrompts() {
    this.sendControl("prompt", { positive: this.prompts.pos, negative: this.prompts.neg });
@@ -2639,7 +3802,10 @@ export default {
    if (typeof fetch !== "function") return;
    try {
      const res = await fetch("/api/frames?limit=10", { cache: "no-store" });
-     if (!res.ok) return;
+     if (!res.ok) {
+       this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
+       return;
+     }
      const json = await res.json();
      if (Array.isArray(json.items)) {
        this.thumbs = json.items.map((item) => {
@@ -2652,8 +3818,10 @@ export default {
          return { src, name, frame };
        });
      }
+     this.framesRefreshBackoffMs = 5000;
    } catch (e) {
      console.warn("frames fetch failed", e);
+     this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
    }
  },
  parseFrameNumber(name) {
@@ -2846,12 +4014,9 @@ export default {
  // Preset management methods
  async refreshPresets() {
    try {
-     const res = await fetch("/api/presets");
-     const data = await res.json();
+     const { data } = await apiFetch("/api/presets", {}, "presets list");
      this.availablePresets = data.presets || [];
-   } catch (err) {
-     console.error("Failed to load presets", err);
-   }
+   } catch (_) {}
  },
  async loadPreset(name) {
    try {
@@ -3302,13 +4467,10 @@ export default {
  // ControlNet methods
  async loadControlNetModels() {
    try {
-     const res = await fetch("/api/controlnet/models");
-     const data = await res.json();
+     const { data } = await apiFetch("/api/controlnet/models", {}, "controlnet models");
      this.cn.availableModels = data.models || [];
      this.cn.source = data.source || "unknown";
-   } catch (err) {
-     console.error("Failed to load ControlNet models", err);
-   }
+   } catch (_) {}
  },
  updateControlNet(slot) {
    // Send ControlNet parameters to mediator
@@ -3324,10 +4486,121 @@ export default {
    console.log("Updated ControlNet slot:", slot.id, payload);
  },
  uploadControlNetImage(slot) {
-   // Placeholder for image upload functionality
-   // In a real implementation, this would open a file picker and upload the image
-   console.log("Upload image for slot:", slot.id);
-   alert("Image upload functionality not yet implemented. Use SD-Forge UI for now.");
+   this.cn.active = slot.id;
+   const input = this.$refs.cnImageInput;
+   if (input) input.click();
+ },
+ onControlNetFileSelected(evt) {
+   const file = evt.target.files && evt.target.files[0];
+   if (!file) return;
+   const formData = new FormData();
+   formData.append("image", file);
+   formData.append("slot", this.cn.active);
+   fetch("/api/controlnet/upload-image", { method: "POST", body: formData })
+     .then((r) => r.json())
+     .then((data) => {
+       if (data.error) console.error("ControlNet upload:", data.error);
+     })
+     .catch((err) => console.error("ControlNet upload failed", err));
+   evt.target.value = "";
+ },
+ async toggleWebcam() {
+   if (this.cn.webcamActive) this.stopWebcam();
+   else await this.startWebcam();
+ },
+ async startWebcam() {
+   try {
+     const stream = await navigator.mediaDevices.getUserMedia({
+       video: { width: 512, height: 512, facingMode: "user" },
+     });
+     this.cn.webcamStream = stream;
+     this.cn.webcamActive = true;
+     const videoEl = this.$refs.webcamVideo;
+     if (videoEl) {
+       videoEl.srcObject = stream;
+       videoEl.style.display = "block";
+       this.cn.webcamVideo = videoEl;
+     }
+     const canvasEl = this.$refs.webcamCanvas;
+     if (canvasEl) {
+       this.cn.webcamCanvas = canvasEl;
+       canvasEl.width = 512;
+       canvasEl.height = 512;
+     }
+     this.cn.webcamCaptureInterval = setInterval(() => this.captureWebcamFrame(), this.webcamCaptureRate);
+   } catch (err) {
+     console.error("Failed to start webcam:", err);
+     alert("Could not access webcam. Check browser permissions.");
+   }
+ },
+ stopWebcam() {
+   if (this.cn.webcamCaptureInterval) {
+     clearInterval(this.cn.webcamCaptureInterval);
+     this.cn.webcamCaptureInterval = null;
+   }
+   if (this.cn.webcamStream) {
+     this.cn.webcamStream.getTracks().forEach((t) => t.stop());
+     this.cn.webcamStream = null;
+   }
+   const videoEl = this.$refs.webcamVideo;
+   if (videoEl) {
+     videoEl.style.display = "none";
+     videoEl.srcObject = null;
+   }
+   this.cn.webcamActive = false;
+ },
+ captureWebcamFrame() {
+   const video = this.cn.webcamVideo;
+   const canvas = this.cn.webcamCanvas;
+   if (!video || !canvas || video.readyState < 2) return;
+   const ctx = canvas.getContext("2d");
+   ctx.drawImage(video, 0, 0, 512, 512);
+   canvas.toBlob(async (blob) => {
+     if (!blob) return;
+     const activeSlot = this.cn.slots.find((s) => s.id === this.cn.active);
+     if (!activeSlot || activeSlot.imageSource !== "webcam") return;
+     const formData = new FormData();
+     formData.append("image", blob, "webcam_frame.png");
+     formData.append("slot", this.cn.active);
+     try {
+       await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
+     } catch (err) {
+       console.error("Webcam frame upload failed:", err);
+     }
+   }, "image/png");
+ },
+ async startScreenCapture() {
+   try {
+     const stream = await navigator.mediaDevices.getDisplayMedia({ video: { width: 512, height: 512 } });
+     const video = document.createElement("video");
+     video.srcObject = stream;
+     video.autoplay = true;
+     video.playsInline = true;
+     const canvas = document.createElement("canvas");
+     canvas.width = 512;
+     canvas.height = 512;
+     const captureInterval = setInterval(() => {
+       if (video.readyState < 2) return;
+       canvas.getContext("2d").drawImage(video, 0, 0, 512, 512);
+       canvas.toBlob(async (blob) => {
+         if (!blob) return;
+         const activeSlot = this.cn.slots.find((s) => s.id === this.cn.active);
+         if (!activeSlot || activeSlot.imageSource !== "screen") return;
+         const formData = new FormData();
+         formData.append("image", blob, "screen_capture.png");
+         formData.append("slot", this.cn.active);
+         try {
+           await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
+         } catch (err) {
+           console.error("Screen capture upload failed:", err);
+         }
+       }, "image/png");
+     }, this.webcamCaptureRate);
+     stream.getVideoTracks()[0].onended = () => clearInterval(captureInterval);
+   } catch (err) {
+     console.error("Failed to start screen capture:", err);
+     alert("Could not start screen capture. Check browser permissions.");
+   }
  },
  handleMidi(input, msg) {
    const [status, cc, value] = msg.data;
@@ -3945,12 +5218,12 @@ export default {
    const translation_y = normY * TRANSLATION_RANGE;
    this.queueLiveParam("translation_x", translation_x);
    this.queueLiveParam("translation_y", translation_y);
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
  async refreshLoras() {
    try {
-     const res = await fetch("/api/loras");
-     const data = await res.json();
+     const { data } = await apiFetch("/api/loras", {}, "loras list");
      if (data.loras) {
        this.loras.available = data.loras.map((lora) => ({
          id: lora.id || lora.name,
@@ -4266,6 +5539,393 @@ export default {
    }
  },
 
+ // ─── Performance deck (crossfader, preview, session) ─────────────────
+ sessionStorageKey() {
+   return `defora_session_${this.session || 'default'}`;
+ },
+ loadSessionState() {
+   try {
+     const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
+     if (!raw) return;
+     const s = JSON.parse(raw);
+     if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
+     if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
+     if (Array.isArray(s.slots)) this.performance.slots = s.slots;
+     if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
+     if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
+     if (s.deforumSettings && typeof s.deforumSettings === 'object') {
+       this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
+       this.syncDeforumSettingsJson();
+     }
+     if (s.lastModel) {
+       this.forge.lastModel = s.lastModel;
+       this.forge.selectedModel = s.lastModel;
+     }
+     if (s.prompts) Object.assign(this.prompts, s.prompts);
+   } catch (_e) { /* ignore */ }
+ },
+ saveSessionState() {
+   try {
+     if (!window.localStorage) return;
+     const blob = {
+       crossfader: this.performance.crossfader,
+       genericPrompt: this.performance.genericPrompt,
+       slots: this.performance.slots,
+       paramPanelOpen: this.paramPanelOpen,
+       deforumPanelOpen: this.deforumPanelOpen,
+       deforumSettings: this.deforumSettings,
+       lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
+       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+     };
+     window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
+   } catch (_e) { /* ignore */ }
+ },
+ restoreLastModel() {
+   const name = this.forge.lastModel || this.forge.selectedModel;
+   if (!name || this.forge.switching) return;
+   if (this.forge.currentModel && this.forge.currentModel === name) return;
+   this.forge.selectedModel = name;
+   this.switchForgeModel();
+ },
+ async onModelSelectChange() {
+   await this.switchForgeModel();
+   this.saveSessionState();
+ },
+ slotTypeLabel(type) {
+   const t = this.crossfadeSlotTypes.find((x) => x.id === type);
+   return t ? t.label : type;
+ },
+ newSlotId() {
+   return `slot_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+ },
+ addCrossfadeSlot() {
+   const type = this.performance.newSlotType || 'prompt';
+   const slot = {
+     id: this.newSlotId(),
+     type,
+     valueA: type === 'param' ? 0 : (type === 'prompt' ? '' : null),
+     valueB: type === 'param' ? 0 : (type === 'prompt' ? '' : null),
+     paramKey: 'cfg',
+     loraStrengthA: 1,
+     loraStrengthB: 1,
+     cnSlotId: this.cn.active || 'CN1',
+   };
+   this.performance.slots.push(slot);
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+ },
+ removeCrossfadeSlot(id) {
+   this.performance.slots = this.performance.slots.filter((s) => s.id !== id);
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+ },
+ slotMorphedPreview(slot) {
+   return morphSlotValue(this.normalizeSlotForMorph(slot), this.performance.crossfader);
+ },
+ formatMorphedPreview(slot) {
+   const v = this.slotMorphedPreview(slot);
+   if (v == null) return '—';
+   if (typeof v === 'object') return JSON.stringify(v);
+   if (typeof v === 'number') return Number(v).toFixed(3);
+   const s = String(v);
+   return s.length > 48 ? s.slice(0, 48) + '…' : s;
+ },
+ normalizeSlotForMorph(slot) {
+   if (slot.type === 'lora') {
+     const pack = (name, str) => (name ? { name, strength: Number(str) || 1 } : null);
+     return {
+       ...slot,
+       valueA: pack(slot.valueA, slot.loraStrengthA),
+       valueB: pack(slot.valueB, slot.loraStrengthB),
+     };
+   }
+   if (slot.type === 'controlnet') {
+     const pack = (weight) => ({
+       slotId: slot.cnSlotId,
+       weight: Number(weight),
+       start: 0,
+       end: 0.9,
+       enabled: true,
+     });
+     return {
+       ...slot,
+       valueA: slot.valueA != null && slot.valueA !== '' ? pack(slot.valueA) : null,
+       valueB: slot.valueB != null && slot.valueB !== '' ? pack(slot.valueB) : null,
+     };
+   }
+   if (slot.type === 'param') {
+     return { ...slot, valueA: slot.valueA, valueB: slot.valueB };
+   }
+   return slot;
+ },
+ buildMorphedPrompt() {
+   const parts = [];
+   const base = (this.performance.genericPrompt || '').trim();
+   if (base) parts.push(base);
+   for (const slot of this.performance.slots) {
+     if (slot.type !== 'prompt') continue;
+     const m = morphSlotValue(this.normalizeSlotForMorph(slot), this.performance.crossfader);
+     if (m) parts.push(String(m));
+   }
+   const merged = parts.join(', ').trim();
+   if (merged) return merged;
+   return (this.prompts.pos || '').trim();
+ },
+ applyCrossfadeMorph() {
+   const t = this.performance.crossfader;
+   const live = {};
+   const loraA = [];
+   const loraB = [];
+   for (const slot of this.performance.slots) {
+     const norm = this.normalizeSlotForMorph(slot);
+     const v = morphSlotValue(norm, t);
+     if (v == null) continue;
+     if (slot.type === 'prompt') continue;
+     if (slot.type === 'param' && slot.paramKey) {
+       live[slot.paramKey] = v;
+       const p = this.liveVibe.find((x) => x.key === slot.paramKey) || this.liveCam.find((x) => x.key === slot.paramKey);
+       if (p) p.val = v;
+     } else if (slot.type === 'lora' && v && v.name) {
+       const entry = { name: v.name, path: v.name, strength: v.strength ?? 1 };
+       if (smoothstep(t) < 0.5) loraA.push(entry);
+       else loraB.push(entry);
+     } else if (slot.type === 'controlnet' && v) {
+       const cnSlot = this.cn.slots.find((s) => s.id === v.slotId);
+       if (cnSlot) {
+         cnSlot.weight = v.weight;
+         cnSlot.start = v.start;
+         cnSlot.end = v.end;
+         cnSlot.enabled = v.enabled;
+         this.updateControlNet(cnSlot);
+       }
+     }
+   }
+   const positive = this.buildMorphedPrompt();
+   const negative = (this.prompts.neg || '').trim();
+   this.prompts.pos = positive;
+   this.sendControl('prompt', { positive, negative });
+   if (Object.keys(live).length) this.sendControl('liveParam', live);
+   if (loraA.length || loraB.length) {
+     this.sendControl('loras', {
+       groupA: loraA,
+       groupB: loraB,
+       crossfaderValue: t,
+     });
+   }
+   this.prompts.crossfaderValue = t;
+ },
+ onCrossfaderInput() {
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ onPerformanceInput() {
+   this.applyCrossfadeMorph();
+   this.saveSessionState();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ schedulePreviewFrame() {
+   if (this.deforumPlaying) return;
+   clearTimeout(this.previewDebounceTimer);
+   this.previewDebounceTimer = setTimeout(() => this.generatePreviewFrame(), 900);
+ },
+ scheduleDeforumPreview() {
+   if (this.deforumPlaying) return;
+   clearTimeout(this.deforumPreviewTimer);
+   this.deforumPreviewTimer = setTimeout(() => this.generateDeforumPreviewFrame(), 1200);
+ },
+ getDeforumField(keyPath) {
+   return getNestedValue(this.deforumSettings, keyPath);
+ },
+ onDeforumSectionToggle(groupId, evt) {
+   this.deforumSectionOpen[groupId] = evt.target.open;
+ },
+ onDeforumFieldInput(keyPath, raw, kind) {
+   let value = raw;
+   if (kind === 'number') {
+     const n = parseFloat(raw);
+     value = Number.isFinite(n) ? n : 0;
+   } else if (kind === 'bool') {
+     value = !!raw;
+   } else if (keyPath === 'init_image' && raw === '') {
+     value = null;
+   }
+   setNestedValue(this.deforumSettings, keyPath, value);
+   if (keyPath === 'prompts.0') {
+     const p0 = String(value || '');
+     const negSplit = p0.split(/\s+--neg\s+/i);
+     if (negSplit.length > 1) {
+       this.prompts.pos = negSplit[0].trim();
+       this.prompts.neg = negSplit.slice(1).join(' --neg ').trim();
+     } else {
+       this.prompts.pos = p0.trim();
+     }
+   }
+   if (keyPath === 'negative_prompts') {
+     this.prompts.neg = String(value || '');
+   }
+   if (keyPath === 'seed' && Number.isFinite(value)) {
+     this.hud.seed = value;
+   }
+   this.syncDeforumSettingsJson();
+   this.pushDeforumLivePatch(keyPath, value);
+   this.queueDeforumSettingsSave();
+   if (!this.deforumPlaying) this.scheduleDeforumPreview();
+ },
+ pushDeforumLivePatch(keyPath, value) {
+   const patch = patchFromKeyPath(keyPath, value);
+   this.sendControl('liveParam', patch);
+ },
+ syncDeforumSettingsJson() {
+   try {
+     this.deforumSettingsJson = JSON.stringify(this.deforumSettings, null, 2);
+     this.deforumSettingsJsonError = '';
+   } catch (e) {
+     this.deforumSettingsJsonError = String(e.message || e);
+   }
+ },
+ applyDeforumSettingsJson() {
+   try {
+     const parsed = JSON.parse(this.deforumSettingsJson);
+     if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
+     this.deforumSettings = parsed;
+     this.deforumSettingsJsonError = '';
+     this.queueDeforumSettingsSave();
+     if (!this.deforumPlaying) this.scheduleDeforumPreview();
+   } catch (e) {
+     this.deforumSettingsJsonError = String(e.message || e);
+   }
+ },
+ async loadDeforumSettings() {
+   try {
+     const res = await fetch('/api/deforum/settings');
+     const data = await res.json();
+     if (data.settings && typeof data.settings === 'object') {
+       this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
+     }
+     this.syncDeforumSettingsJson();
+     this.deforumSettingsStatus = 'Loaded';
+   } catch (e) {
+     this.deforumSettingsStatus = 'Load failed';
+     console.error('loadDeforumSettings', e);
+   }
+ },
+ queueDeforumSettingsSave() {
+   clearTimeout(this.deforumSaveTimer);
+   this.deforumSaveTimer = setTimeout(() => this.saveDeforumSettings(), 800);
+ },
+ async saveDeforumSettings() {
+   try {
+     const res = await fetch('/api/deforum/settings', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ settings: this.deforumSettings }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.deforumSettingsStatus = data.error || 'Save failed';
+       return;
+     }
+     this.deforumSettingsStatus = 'Saved';
+   } catch (e) {
+     this.deforumSettingsStatus = 'Save failed';
+   }
+ },
+ async generateDeforumPreviewFrame() {
+   if (this.deforumPlaying) {
+     this.performance.status = 'Stop animation to preview single frames';
+     return false;
+   }
+   if (this.previewGenerating) return false;
+   this.applyCrossfadeMorph();
+   this.previewGenerating = true;
+   this.performance.status = 'Rendering Deforum frame…';
+   this.deforumSettingsStatus = 'Rendering…';
+   try {
+     const res = await fetch('/api/deforum/preview', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ settings: this.deforumSettings }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.performance.status = data.error || 'Deforum preview failed';
+       this.deforumSettingsStatus = 'Preview failed';
+       return false;
+     }
+     this.performance.lastPreviewPath = data.path;
+     this.generator.lastPath = data.path;
+     this.performance.status = 'Deforum frame ready';
+     this.deforumSettingsStatus = 'Frame ready';
+     this.refreshFrames();
+     return true;
+   } catch (err) {
+     this.performance.status = String(err.message || err);
+     this.deforumSettingsStatus = 'Preview failed';
+     return false;
+   } finally {
+     this.previewGenerating = false;
+   }
+ },
+ async generatePreviewFrame() {
+   if (this.deforumPanelOpen) {
+     const ok = await this.generateDeforumPreviewFrame();
+     if (!ok) await this.generateImage();
+   } else {
+     await this.generateImage();
+   }
+ },
+ async generateImage() {
+   if (this.deforumPlaying) {
+     this.performance.status = 'Stop animation to preview single frames';
+     return;
+   }
+   if (this.previewGenerating) return;
+   this.applyCrossfadeMorph();
+   this.previewGenerating = true;
+   this.performance.status = 'Generating preview frame…';
+   const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
+   const strength = this.liveVibe.find((p) => p.key === 'strength');
+   const w = this.deforumSettings.W || 1024;
+   const h = this.deforumSettings.H || 576;
+   const steps = this.deforumSettings.steps || 12;
+   const seed = this.deforumSettings.seed != null ? this.deforumSettings.seed : this.hud.seed;
+   const sampler = this.deforumSettings.sampler || 'Euler a';
+   const neg = this.deforumSettings.negative_prompts || this.prompts.neg || '';
+   const prompt =
+     getNestedValue(this.deforumSettings, 'prompts.0') ||
+     this.buildMorphedPrompt();
+   try {
+     const res = await fetch('/api/txt2img', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({
+         prompt,
+         negative_prompt: neg,
+         steps,
+         cfg_scale: cfg ? cfg.val : 7,
+         width: w,
+         height: h,
+         seed,
+         sampler_name: sampler,
+       }),
+     });
+     const data = await res.json();
+     if (!res.ok || data.error) {
+       this.performance.status = data.error || 'Preview failed';
+       return;
+     }
+     this.performance.lastPreviewPath = data.path;
+     this.generator.lastPath = data.path;
+     this.performance.status = 'Preview frame ready';
+     this.refreshFrames();
+   } catch (err) {
+     this.performance.status = String(err.message || err);
+   } finally {
+     this.previewGenerating = false;
+   }
+ },
+
  // Forge settings methods
  forgeUrl() {
    return `http://${this.forge.host}:${this.forge.port}`;
@@ -4301,11 +5961,11 @@ export default {
  },
  async refreshForgeModels() {
    try {
-     const res = await fetch('/api/sd-models');
-     const data = await res.json();
+     const { data } = await apiFetch('/api/sd-models', {}, 'sd-models list');
      this.forge.models = data.models || [];
-   } catch (err) {
-     console.error('Failed to load models', err);
+     this.forge.modelsSource = data.source || '';
+   } catch (_) {
+     this.forge.modelsSource = '';
    }
  },
  async switchForgeModel() {
@@ -4320,9 +5980,12 @@ export default {
      const data = await res.json();
      if (data.success) {
        this.forge.currentModel = this.forge.selectedModel;
+       this.forge.lastModel = this.forge.selectedModel;
        if (data.model && data.model.metadata) {
          this.forge.modelInfo = data.model.metadata;
        }
+       this.saveSessionState();
+       if (!this.deforumPlaying) this.schedulePreviewFrame();
      }
    } catch (err) {
      console.error('Failed to switch model', err);

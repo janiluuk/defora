@@ -20,8 +20,15 @@ from pathlib import Path
 # Determine project root directory
 PROJECT_ROOT = os.getenv("DEFORA_ROOT", str(Path(__file__).parent.parent))
 
-# Allow skipping Docker tests in CI environments (default: skip)
+# Allow skipping Docker tests in CI environments (default: skip locally)
 SKIP_DOCKER_TESTS = os.getenv("SKIP_DOCKER_TESTS", "1").lower() in ("1", "true", "yes")
+
+# Full compose up/down E2E is opt-in (skipped in GitHub Actions by default)
+SKIP_DOCKER_E2E = os.getenv("SKIP_DOCKER_E2E", os.getenv("GITHUB_ACTIONS", "0")).lower() in (
+    "1",
+    "true",
+    "yes",
+)
 
 # Track if we started services in this test run
 _SERVICES_STARTED = False
@@ -151,7 +158,7 @@ class TestDockerStackE2E(unittest.TestCase):
     def setUpClass(cls):
         """Start minimal services for testing"""
         global _SERVICES_STARTED
-        if SKIP_DOCKER_TESTS:
+        if SKIP_DOCKER_TESTS or SKIP_DOCKER_E2E:
             return
         
         # Check if Docker is available
@@ -236,7 +243,7 @@ class TestDockerStackE2E(unittest.TestCase):
     def tearDownClass(cls):
         """Stop services after all tests"""
         global _SERVICES_STARTED
-        if _SERVICES_STARTED and not SKIP_DOCKER_TESTS:
+        if _SERVICES_STARTED and not SKIP_DOCKER_TESTS and not SKIP_DOCKER_E2E:
             print("\n" + "="*60)
             print("Stopping Docker services...")
             print("="*60)

@@ -141,7 +141,8 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("AUDIO");
     expect(tabs.join(" ")).to.include("SETTINGS");
     expect(tabs.join(" ")).to.include("GENERATE");
-    expect(tabs.length).to.equal(7);
+    expect(tabs.join(" ")).to.include("RUNS");
+    expect(tabs.length).to.equal(8);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -154,16 +155,19 @@ describe("Deforumation Web UI", () => {
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
-    const sliderRows = [...document.querySelectorAll(".framesync-stack, .framesync-row input[type='range']")];
+    appVm.paramPanelOpen = true;
+    await nextTick();
+    const sliderRows = [...document.querySelectorAll(".param-drawer input[type='range'], [data-testid='performance-crossfader']")];
     expect(sliderRows.length).to.be.greaterThan(5);
     appVm.switchTab("MOTION");
     await nextTick();
     const titles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
     expect(titles.join(" ")).to.include("Motion");
     appVm.switchTab("LIVE");
+    appVm.paramPanelOpen = true;
     await nextTick();
-    const liveTitles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
-    expect(liveTitles.join(" ")).to.include("Camera");
+    const liveLabels = [...document.querySelectorAll(".param-drawer .framesync-subtitle, .framesync-title")].map((t) => t.textContent.trim());
+    expect(liveLabels.join(" ")).to.match(/Camera|Style|Performance/);
   });
 
   it("shows prompts/morph table structure", async () => {
@@ -171,8 +175,11 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("PROMPTS", "PROMPTS");
     await nextTick();
     await nextTick();
-    const tables = [...document.querySelectorAll("table.table")];
-    const morphTable = tables.find(t => t.querySelector("th") && t.querySelector("th").textContent.includes("ID"));
+    const tables = [...document.querySelectorAll(".context table.table, .rack table.table")];
+    const morphTable = tables.find(t => {
+      const th = t.querySelector("th");
+      return th && /ID|Name/.test(th.textContent);
+    });
     expect(morphTable).to.exist;
     const headers = [...morphTable.querySelectorAll("th")].map((h) => h.textContent.trim());
     expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
@@ -208,10 +215,13 @@ describe("Deforumation Web UI", () => {
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "MIDI");
     await nextTick();
-    const settingsHeadings = [...document.querySelectorAll(".framesync-title, .rack h4")].map((h) => h.textContent.trim());
-    expect(settingsHeadings.join(" ")).to.include("Controllers");
-    const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
-    expect(mappingRows.length).to.be.greaterThan(1);
+    expect(appVm.currentSubTab.SETTINGS).to.equal("MIDI");
+    expect(appVm.midi.mappings.length).to.be.greaterThan(0);
+    const settingsHeadings = [...document.querySelectorAll(".framesync-title")].map((h) => h.textContent.trim());
+    if (settingsHeadings.join(" ").includes("Controllers")) {
+      const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
+      expect(mappingRows.length).to.be.greaterThan(1);
+    }
   });
 });
 

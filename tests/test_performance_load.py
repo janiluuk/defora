@@ -177,16 +177,41 @@ class TestAPIEndpointPerformance(unittest.TestCase):
             self.skipTest("Performance tests disabled via SKIP_PERF_TESTS environment variable")
     
     def test_health_endpoint_response_time(self):
-        """Test health endpoint response time"""
-        # This test assumes the web server is running
-        # In a real deployment, you'd use requests library
-        pass  # Placeholder for actual implementation
-    
+        """Test health endpoint response time via spawned server.js (audit A-09)."""
+        try:
+            import httpx
+        except ImportError:
+            self.skipTest("httpx not installed")
+        from web_server_harness import NodeWebServer, web_stack_ready
+
+        if not web_stack_ready():
+            self.skipTest("node and docker/web/node_modules required")
+
+        with NodeWebServer() as srv:
+            t0 = time.time()
+            r = httpx.get(f"{srv.base}/api/health", timeout=5)
+            elapsed = time.time() - t0
+            self.assertEqual(r.status_code, 200)
+            self.assertLess(elapsed, 2.0, f"health took {elapsed:.2f}s")
+
     def test_concurrent_api_requests(self):
-        """Test handling of concurrent API requests"""
-        # This would test the web server's ability to handle multiple
-        # simultaneous requests
-        pass  # Placeholder for actual implementation
+        """Concurrent /api/status requests (audit A-09)."""
+        try:
+            import httpx
+        except ImportError:
+            self.skipTest("httpx not installed")
+        from web_server_harness import NodeWebServer, web_stack_ready
+
+        if not web_stack_ready():
+            self.skipTest("node and docker/web/node_modules required")
+
+        with NodeWebServer() as srv:
+            def one():
+                return httpx.get(f"{srv.base}/api/status", timeout=5).status_code
+
+            with ThreadPoolExecutor(max_workers=8) as ex:
+                codes = [f.result() for f in as_completed([ex.submit(one) for _ in range(8)])]
+            self.assertTrue(all(c == 200 for c in codes))
 
 
 class TestMemoryUsage(unittest.TestCase):
