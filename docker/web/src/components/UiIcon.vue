@@ -66,6 +66,10 @@
       <path d="M15.5 7.5L10.5 12L15.5 16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M11 12H19" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
     </template>
+    <template v-else-if="name === 'arrow-right'">
+      <path d="M8.5 7.5L13.5 12L8.5 16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M13 12H5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </template>
   </svg>
 </template>
 

@@ -81,9 +81,13 @@
                 :aria-expanded="showRightPanel ? 'true' : 'false'"
                 @click="liveDrawerOpen = !liveDrawerOpen"
               >
-                <UiIcon class="live-overlay-btn__lead" name="sliders" />
-                <span class="live-overlay-btn__label">Right panel</span>
-                <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+                <span class="live-overlay-btn__arrow-wrap">
+                  <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+                </span>
+                <span class="live-overlay-btn__copy">
+                  <span class="live-overlay-btn__label">Controls</span>
+                  <span class="live-overlay-btn__hint">{{ showRightPanel ? 'Hide menu' : 'Show menu' }}</span>
+                </span>
               </button>
               <div>
                 <div>{{ stats.fps }} fps</div>
@@ -964,10 +968,10 @@ export default {
       return this.currentTab !== 'LIVE' || this.liveDrawerOpen;
     },
     rightPanelToggleIcon() {
-      return this.showRightPanel ? 'close' : 'arrow-left';
+      return this.showRightPanel ? 'arrow-right' : 'arrow-left';
     },
     rightPanelToggleTitle() {
-      return this.showRightPanel ? 'Hide right panel' : 'Show right panel';
+      return this.showRightPanel ? 'Hide controls menu' : 'Show controls menu';
     },
     showDeforumVideo() {
       return !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo && this.videoReady);
