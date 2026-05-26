@@ -198,3 +198,115 @@ describe("web server frames API", () => {
     expect(exists).to.equal(true);
   });
 });
+
+describe("distributed Forge sync", () => {
+  let svc;
+  let tmp;
+  let uploads;
+  let sequencers;
+  let gpuPoolPath;
+  let request;
+  let fetchCalls;
+  let originalFetch;
+
+  beforeEach(async () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
+    uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencers = fs.mkdtempSync(path.join(os.tmpdir(), "seq-"));
+    gpuPoolPath = path.join(os.tmpdir(), `gpu-pool-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(
+      gpuPoolPath,
+      JSON.stringify(
+        {
+          enabled: true,
+          strategy: "least_busy",
+          nodes: [
+            { url: "http://node-a:7860", name: "node-a", backend: "sd-forge", enabled: true, priority: 1 },
+            { url: "http://node-b:7860", name: "node-b", backend: "sd-forge", enabled: true, priority: 2 },
+          ],
+        },
+        null,
+        2
+      )
+    );
+    fetchCalls = [];
+    originalFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      fetchCalls.push({ url: String(url), method: opts.method || "GET", body: opts.body || null });
+      if (String(url).endsWith("/docs")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "<html>ok</html>",
+        };
+      }
+      if (String(url).endsWith("/sdapi/v1/options")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "{}",
+          json: async () => ({}),
+        };
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+    svc = await start({
+      port: 0,
+      framesDir: tmp,
+      uploadsDir: uploads,
+      sequencersDir: sequencers,
+      gpuPoolPath,
+      enableMq: false,
+    });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+  });
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    if (svc && svc.close) {
+      await svc.close();
+    }
+    [tmp, uploads, sequencers].forEach((dir) => {
+      if (dir && fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+    if (gpuPoolPath && fs.existsSync(gpuPoolPath)) {
+      fs.unlinkSync(gpuPoolPath);
+    }
+  });
+
+  it("switches models across all enabled Forge nodes", async () => {
+    const res = await request.post("/api/sd-models/switch").send({ model_name: "sdxl_turbo.safetensors" });
+
+    expect(res.status).to.equal(200);
+    const posts = fetchCalls.filter((call) => call.method === "POST" && call.url.endsWith("/sdapi/v1/options"));
+    expect(posts.map((call) => call.url)).to.deep.equal([
+      "http://node-a:7860/sdapi/v1/options",
+      "http://node-b:7860/sdapi/v1/options",
+    ]);
+    expect(posts.map((call) => JSON.parse(call.body).sd_model_checkpoint)).to.deep.equal([
+      "sdxl_turbo.safetensors",
+      "sdxl_turbo.safetensors",
+    ]);
+    expect(res.body.sync.successes).to.equal(2);
+    expect(res.body.model.metadata.type).to.equal("SDXL Turbo");
+  });
+
+  it("updates forge options across all enabled Forge nodes", async () => {
+    const res = await request.post("/api/forge/options").send({
+      sampler_name: "Euler a",
+      cfg_scale: 1,
+      steps: 2,
+    });
+
+    expect(res.status).to.equal(200);
+    const posts = fetchCalls.filter((call) => call.method === "POST" && call.url.endsWith("/sdapi/v1/options"));
+    const payloads = posts.map((call) => JSON.parse(call.body));
+    expect(posts).to.have.lengthOf(2);
+    expect(payloads.every((payload) => payload.sampler_name === "Euler a")).to.equal(true);
+    expect(payloads.every((payload) => payload.cfg_scale === 1)).to.equal(true);
+    expect(payloads.every((payload) => payload.steps === 2)).to.equal(true);
+    expect(res.body.sync.successes).to.equal(2);
+  });
+});

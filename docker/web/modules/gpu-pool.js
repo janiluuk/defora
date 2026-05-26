@@ -65,7 +65,7 @@ function createGpuPool(options = {}) {
 
   const state = {
     enabled: env.DISTRIBUTED_ENABLED === "true",
-    strategy: STRATEGIES.includes(env.DISTRIBUTED_STRATEGY) ? env.DISTRIBUTED_STRATEGY : "round_robin",
+    strategy: STRATEGIES.includes(env.DISTRIBUTED_STRATEGY) ? env.DISTRIBUTED_STRATEGY : "least_busy",
     nodes: parseEnvNodes(env),
     currentIndex: 0,
     healthCheckInterval: parseInt(env.DISTRIBUTED_HEALTH_CHECK_INTERVAL, 10) || 30,

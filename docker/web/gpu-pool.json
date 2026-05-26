@@ -1,6 +1,6 @@
 {
   "enabled": true,
-  "strategy": "round_robin",
+  "strategy": "least_busy",
   "healthCheckInterval": 30,
   "timeout": 300,
   "retryAttempts": 2,
