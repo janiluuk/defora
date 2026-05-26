@@ -40,7 +40,6 @@ PROXY_JUMP="${SSH_PROXY_JUMP:-}"
 WEB_PORT="${WEB_PORT:-8080}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
 COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge sd-forge}"
-<<<<<<< HEAD
 REMOTE_KILL_PATTERNS="${REMOTE_KILL_PATTERNS:-python /app/mediator.py
 python3 /app/mediator.py
 python -m defora_cli.control_bridge
@@ -81,7 +80,6 @@ if [[ "${RSYNC_DELETE:-}" == "1" ]]; then
 fi
 
 echo "==> Remote: stop Defora host processes and tear down old stack"
-<<<<<<< HEAD
 REMOTE_KILL_PATTERNS_Q=$(printf '%q' "$REMOTE_KILL_PATTERNS")
 REMOTE_PATH_Q=$(printf '%q' "$REMOTE_PATH")
 COMPOSE_FILE_Q=$(printf '%q' "$COMPOSE_FILE")
@@ -90,19 +88,19 @@ ssh_remote "${REMOTE_USER}@${HOST}" \
 set -eu
 patterns="$REMOTE_KILL_PATTERNS"
 matches=$(
-  printf '%s\n' "\$patterns" | while IFS= read -r pattern; do
-    [ -n "\$pattern" ] || continue
-    ps -eo pid=,cmd= | grep -F "\$pattern" | grep -v -F "grep -F" || true
+  printf '%s\n' "$patterns" | while IFS= read -r pattern; do
+    [ -n "$pattern" ] || continue
+    ps -eo pid=,cmd= | grep -F "$pattern" | grep -v -F "grep -F" || true
   done
 )
-pids=\$(printf '%s\n' "\$matches" | awk '{print \$1}' | xargs 2>/dev/null || true)
-if [ -n "\$matches" ]; then
+pids=$(printf '%s\n' "$matches" | awk '{print $1}' | xargs 2>/dev/null || true)
+if [ -n "$matches" ]; then
   echo '==> Killing remote Defora processes:'
-  printf '%s\n' "\$matches"
-  kill -TERM \$pids 2>/dev/null || true
+  printf '%s\n' "$matches"
+  kill -TERM $pids 2>/dev/null || true
   sleep 2
-  for pid in \$pids; do
-    kill -0 "\$pid" 2>/dev/null && kill -KILL "\$pid" 2>/dev/null || true
+  for pid in $pids; do
+    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
   done
 fi
 if [ -d "$REMOTE_PATH" ]; then
@@ -110,28 +108,6 @@ if [ -d "$REMOTE_PATH" ]; then
   docker compose -f "$COMPOSE_FILE" down --remove-orphans 2>/dev/null || true
 fi
 EOF
-=======
-# shellcheck disable=SC2029
-ssh_remote "${REMOTE_USER}@${HOST}" \
-  "set -eu
-   regex='${REMOTE_KILL_REGEX}'
-   self=\$\$
-   matches=\$(ps -eo pid=,cmd= | awk -v self=\"\$self\" -v re=\"\$regex\" '\$0 ~ re && \$1 != self { print \$0 }')
-   pids=\$(printf '%s\n' \"\$matches\" | awk '{print \$1}' | xargs 2>/dev/null || true)
-   if [ -n \"\$matches\" ]; then
-     echo '==> Killing remote Defora processes:'
-     printf '%s\n' \"\$matches\"
-     kill -TERM \$pids 2>/dev/null || true
-     sleep 2
-     for pid in \$pids; do
-       kill -0 \"\$pid\" 2>/dev/null && kill -KILL \"\$pid\" 2>/dev/null || true
-     done
-   fi
-   if [ -d '${REMOTE_PATH}' ]; then
-     cd '${REMOTE_PATH}'
-     docker compose -f '${COMPOSE_FILE}' down --remove-orphans 2>/dev/null || true
-   fi"
->>>>>>> 60515bb (Cursor/live preview loading deforum defaults (#40))
 
 echo "==> Sync → ${REMOTE_USER}@${HOST}:${REMOTE_PATH}"
 ssh_remote "${REMOTE_USER}@${HOST}" "mkdir -p '${REMOTE_PATH}'"
