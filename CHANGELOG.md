@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.8] - 2026-05-26
+
+## What's Changed
+
+- feat(web): reorganize the UI and speed up preview feedback (#46) (e019dce)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.7...v0.6.8
+
+
 ## [0.6.7] - 2026-05-26
 
 ## What's Changed
