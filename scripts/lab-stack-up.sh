@@ -86,15 +86,14 @@ if [[ -n "$NO_CACHE" ]]; then
   BUILD_CMD+=" --no-cache"
 fi
 
-echo "==> Remote: verify vendored deforumation, build, up (${COMPOSE_SERVICES})"
+echo "==> Remote: ensure deforumation submodule, build, up (${COMPOSE_SERVICES})"
 # shellcheck disable=SC2029
 ssh_remote "${REMOTE_USER}@${HOST}" \
   "set -e
    cd '${REMOTE_PATH}'
    if [ ! -f deforumation/mediator.py ]; then
-     echo 'Missing deforumation/mediator.py on remote host.' >&2
-     echo 'Sync this repo with submodules checked out (actions/checkout submodules: recursive or git submodule update --init --recursive) before deploy.' >&2
-     exit 1
+     echo '==> Cloning deforumation submodule on host...'
+     ./scripts/clone_deforumation.sh
    fi
    if [ -f .env ]; then set -a; . ./.env; set +a; fi
    ${BUILD_CMD}

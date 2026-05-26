@@ -154,6 +154,7 @@ Map any MIDI controller to live parameters:
 git clone https://github.com/janiluuk/defora.git
 cd defora
 git submodule update --init --recursive
+# or: ./scripts/clone_deforumation.sh
 pip install -r requirements.txt
 ```
 
