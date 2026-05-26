@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.4] - 2026-05-26
+
+## What's Changed
+
+- Rename live-tab.png to main.png (8446fb5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.3...v0.6.4
+
+
 ## [0.6.3] - 2026-05-26
 
 ## What's Changed
