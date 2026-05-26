@@ -3,6 +3,43 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.5.0] - 2026-05-26
+
+## What's Changed
+
+- feat(web): Step 8 — remove legacy token aliases from :root (aad3e00)
+- feat(web): Step 7 — token consistency pass for inline styles in App.vue (e0efa64)
+- feat(web): Step 6 — token consistency pass, all hex replaced in style.css (46f0b79)
+- feat(web): Step 5 — pinned params (📌) in LIVE Parameters drawer (2fc48eb)
+- feat(web): Step 4 — MODULATION view adopts Waveform + TargetCell (4ebed58)
+- feat(web): Step 3 — LIVE HUD strip docked below video (e40c9a2)
+- feat(web): Step 2 — design tokens, shared components, header restyle (8b34861)
+- docs: add UI_MIGRATION_NOTES.md for instrument redesign (§0 discovery) (0c68514)
+- fix(ci): align Playwright install and writable frames dir for smoke (3ce855b)
+- fix(web): keep utils as ESM for Vite, inline them in app-definition (1da919d)
+- fix(web): use CommonJS for utils required by app-definition tests (17e2c04)
+- fix(tests): spawn Node server for API perf tests (097f551)
+- chore: gitignore docker/web/uploads generated previews (7229c93)
+- feat(roadmap): runs compare export, GPU pool forge routing, nightly E2E (5ae990d)
+- feat(gpu-pool): multi-GPU load balancing and control panel (2ae6aa2)
+- feat(web): post-audit polish — shared presets, collab UI, apiFetch (3936e27)
+- fix(tests): run web server live smoke against Node server.js (5ca1a39)
+- feat: close remaining audit items and CI hardening (93fe7eb)
+- ci: add Sparkki-style production deploy workflow and scripts (21af41b)
+- feat: audit remediation, Deforum settings panel, and refreshed UI screenshots (b06e197)
+- feat: add DMX lighting control integration (c992de2)
+- feat: implement advanced synchronization, VR/AR, and cloud GPU integration (4157917)
+- feat: add WebRTC support for ultra-low latency streaming (86d3545)
+- feat: add prompt strength scheduling over time (56cc860)
+- feat: add shared presets and settings for collaborative features (953d487)
+- feat: add frame interpolation for smoother output (f35c928)
+- feat: add local LLM settings section with model management (19e8184)
+- feat: implement advanced streaming, mobile support, and AI-assisted workflows (3515b4a)
+- feat: implement roadmap items - plugin system, collaborative features, img2img enhancements (3912d4a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.4.1...v0.5.0
+
+
 ## [0.4.1] - 2026-05-23
 
 ## What's Changed
