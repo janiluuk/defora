@@ -223,6 +223,23 @@ describe("Deforumation Web UI", () => {
       expect(mappingRows.length).to.be.greaterThan(1);
     }
   });
+
+  it("renders a recent runs rail on LIVE from shared runs data", async () => {
+    appVm.switchTab("LIVE");
+    appVm.runsAll = [
+      { run_id: "run-001", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
+      { run_id: "run-002", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
+      { run_id: "run-003", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false },
+      { run_id: "run-004", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false },
+      { run_id: "run-005", started_at: "2026-05-26T13:00:00Z", has_thumbnail: false },
+    ];
+    await nextTick();
+
+    const railItems = [...document.querySelectorAll(".recent-runs-rail__item")];
+    expect(railItems.length).to.equal(4);
+    expect(railItems[0].textContent).to.include("run-005");
+    expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
+  });
 });
 
 describe("Deforumation Web UI behavior", () => {
@@ -391,6 +408,34 @@ describe("Deforumation Web UI behavior", () => {
     delete global.fetch;
   });
 
+  it("applyAudioBandPreset updates one audio mapping with the chosen band", () => {
+    const instance = instantiate(appDef);
+    instance.audioMappings = [{ param: "cfg", freq_min: 20, freq_max: 40, out_min: 0, out_max: 1 }];
+
+    instance.applyAudioBandPreset(0, "bass");
+
+    expect(instance.audioMappings[0].freq_min).to.equal(60);
+    expect(instance.audioMappings[0].freq_max).to.equal(250);
+  });
+
+  it("recentRunsRail sorts the shared runs source and limits to four items", () => {
+    const instance = instantiate(appDef);
+    instance.runsAll = [
+      { run_id: "run-a", started_at: "2026-05-26T09:00:00Z" },
+      { run_id: "run-b", started_at: "2026-05-26T12:00:00Z" },
+      { run_id: "run-c", started_at: "2026-05-26T11:00:00Z" },
+      { run_id: "run-d", started_at: "2026-05-26T08:00:00Z" },
+      { run_id: "run-e", started_at: "2026-05-26T10:00:00Z" },
+    ];
+
+    expect(instance.recentRunsRail.map((run) => run.run_id)).to.deep.equal([
+      "run-b",
+      "run-c",
+      "run-e",
+      "run-a",
+    ]);
+  });
+
   it("onModelSelectChange keeps deforum settings model aligned with Forge selection", async () => {
     const instance = instantiate(appDef);
     let queuedSave = 0;
@@ -442,6 +487,50 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.forge.currentModel).to.equal("server-model.safetensors");
     expect(instance.forge.selectedModel).to.equal("server-model.safetensors");
     expect(instance.deforumSettings.sd_model_name).to.equal("server-model.safetensors");
+    delete global.fetch;
+  });
+
+  it("onModelSelectChange applies SDXL Turbo optimized defaults", async () => {
+    const instance = instantiate(appDef);
+    global.fetch = async (_url, opts) => ({
+      ok: true,
+      json: async () => ({
+        success: true,
+        model: {
+          model_name: JSON.parse(opts.body).model_name,
+          title: JSON.parse(opts.body).model_name,
+          metadata: {
+            type: "SDXL Turbo",
+            variant: "turbo",
+            recommended_steps: 2,
+            recommended_sampler: "Euler a",
+            recommended_cfg_scale: 1.0,
+            recommended_strength: 0.4,
+            base_resolution: 1024,
+          },
+        },
+      }),
+    });
+    instance.forge.currentModel = "old-model.safetensors";
+    instance.forge.selectedModel = "sdxl_turbo.safetensors";
+    instance.deforumSettings.sd_model_name = "old-model.safetensors";
+    instance.deforumSettings.steps = 10;
+    instance.deforumSettings.W = 1920;
+    instance.deforumSettings.H = 540;
+    const cfgParam = instance.liveVibe.find((param) => param.key === "cfgscale");
+    const strengthParam = instance.liveVibe.find((param) => param.key === "strength");
+
+    await instance.onModelSelectChange();
+
+    expect(instance.deforumSettings.sd_model_name).to.equal("sdxl_turbo.safetensors");
+    expect(instance.deforumSettings.steps).to.equal(2);
+    expect(instance.deforumSettings.sampler).to.equal("Euler a");
+    expect(instance.deforumSettings.W).to.equal(1024);
+    expect(instance.deforumSettings.H).to.equal(1024);
+    expect(instance.deforumSettings.cfg_scale_schedule).to.equal("0:(1)");
+    expect(instance.deforumSettings.strength_schedule).to.equal("0: (0.4)");
+    expect(cfgParam.val).to.equal(1);
+    expect(strengthParam.val).to.equal(0.4);
     delete global.fetch;
   });
 

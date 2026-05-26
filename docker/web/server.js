@@ -124,6 +124,78 @@ async function start(opts = {}) {
     return forgeTarget(req).url;
   }
 
+  function writableForgeTargets() {
+    const nodes = Array.isArray(gpuPool.state?.nodes)
+      ? gpuPool.state.nodes.filter((node) => node.enabled && node.backend === "sd-forge")
+      : [];
+    if (gpuPool.state?.enabled && nodes.length) {
+      return nodes.map((node) => ({ url: node.url, node }));
+    }
+    const host = process.env.SD_FORGE_HOST || "192.168.2.101";
+    const port = process.env.SD_FORGE_PORT || "7860";
+    return [{ url: `http://${host}:${port}`, node: null }];
+  }
+
+  async function postForgeOptionsToTarget(target, updates, timeoutMs) {
+    if (typeof fetch === "undefined") {
+      throw new Error("fetch not available");
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${target.url}/sdapi/v1/options`, {
+        method: "POST",
+        signal: controller.signal,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(updates),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
+      }
+      return {
+        ok: true,
+        url: target.url,
+        node: target.node ? { name: target.node.name, id: target.node.id } : null,
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function applyForgeOptionsAcrossTargets(updates, timeoutMs = 10000) {
+    const targets = writableForgeTargets();
+    const results = await Promise.all(
+      targets.map(async (target) => {
+        try {
+          return await postForgeOptionsToTarget(target, updates, timeoutMs);
+        } catch (err) {
+          return {
+            ok: false,
+            url: target.url,
+            node: target.node ? { name: target.node.name, id: target.node.id } : null,
+            error: err.message,
+          };
+        }
+      })
+    );
+    const successes = results.filter((result) => result.ok);
+    const failures = results.filter((result) => !result.ok);
+    if (!successes.length) {
+      throw new Error(failures[0]?.error || "No Forge nodes accepted the update");
+    }
+    return {
+      success: true,
+      partial: failures.length > 0,
+      results,
+      successes: successes.length,
+      failures: failures.length,
+    };
+  }
+
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
   async function probeSdForge() {
     if (typeof fetch === "undefined") return;
@@ -1461,50 +1533,24 @@ async function start(opts = {}) {
     if (!nextModel) {
       throw new Error("model_name is required");
     }
-    if (apiStatus.currentModel && apiStatus.currentModel.model_name === nextModel) {
-      return { success: true, skipped: true, model: apiStatus.currentModel };
-    }
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
-    try {
-      if (typeof fetch === "undefined") {
-        throw new Error("fetch not available");
-      }
-
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      try {
-        const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
-          method: "POST",
-          signal: controller.signal,
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({
-            sd_model_checkpoint: nextModel,
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`API returned ${response.status}: ${error}`);
-        }
-      } finally {
-        clearTimeout(timeout);
-      }
-
-      apiStatus.currentModel = { model_name: nextModel, title: nextModel };
-      console.log(`[sd-models] Switched to model: ${nextModel}`);
-      broadcast({ type: "sd_model", action: "switched", model: apiStatus.currentModel });
-      return {
-        success: true,
-        message: `Switched to ${nextModel}`,
-        model: apiStatus.currentModel,
-      };
-    } finally {
-      target.release();
-    }
+    const sync = await applyForgeOptionsAcrossTargets(
+      { sd_model_checkpoint: nextModel },
+      30000
+    );
+    apiStatus.currentModel = {
+      model_name: nextModel,
+      title: nextModel,
+      metadata: extractModelMetadata({ model_name: nextModel, title: nextModel }),
+    };
+    console.log(`[sd-models] Switched to model across ${sync.successes} node(s): ${nextModel}`);
+    broadcast({ type: "sd_model", action: "switched", model: apiStatus.currentModel, sync });
+    return {
+      success: true,
+      partial: sync.partial,
+      message: `Switched to ${nextModel}`,
+      model: apiStatus.currentModel,
+      sync,
+    };
   }
 
   // Get current SD model
@@ -1530,6 +1576,10 @@ async function start(opts = {}) {
         const currentModel = {
           model_name: options.sd_model_checkpoint || "Unknown",
           title: options.sd_model_checkpoint || "Unknown",
+          metadata: extractModelMetadata({
+            model_name: options.sd_model_checkpoint || "Unknown",
+            title: options.sd_model_checkpoint || "Unknown",
+          }),
         };
         
         apiStatus.currentModel = currentModel;
@@ -1574,13 +1624,39 @@ async function start(opts = {}) {
     const name = (model.title || model.model_name || "").toLowerCase();
     const metadata = {
       type: "Unknown",
+      variant: "standard",
       recommended_steps: 24,
       recommended_sampler: "DPM++ 2M Karras",
+      recommended_cfg_scale: 7,
+      recommended_strength: 0.7,
       base_resolution: 512,
     };
     
     // Detect model type from name
-    if (name.includes('sdxl') || name.includes('xl')) {
+    if (name.includes("turbo")) {
+      metadata.variant = "turbo";
+      metadata.recommended_sampler = "Euler a";
+      metadata.recommended_cfg_scale = 1.0;
+      if (name.includes("sdxl") || name.includes("xl")) {
+        metadata.type = "SDXL Turbo";
+        metadata.recommended_steps = 2;
+        metadata.recommended_strength = 0.4;
+        metadata.base_resolution = 1024;
+      } else {
+        metadata.type = "SD Turbo";
+        metadata.recommended_steps = 1;
+        metadata.recommended_strength = 0.3;
+        metadata.base_resolution = 512;
+      }
+    } else if (name.includes("lightning")) {
+      metadata.variant = "lightning";
+      metadata.type = name.includes("sdxl") || name.includes("xl") ? "SDXL Lightning" : "Lightning";
+      metadata.recommended_steps = 2;
+      metadata.recommended_sampler = "Euler";
+      metadata.recommended_cfg_scale = 1.0;
+      metadata.recommended_strength = 0.45;
+      metadata.base_resolution = name.includes("sdxl") || name.includes("xl") ? 1024 : 512;
+    } else if (name.includes('sdxl') || name.includes('xl')) {
       metadata.type = "SDXL";
       metadata.recommended_steps = 30;
       metadata.base_resolution = 1024;
@@ -1593,6 +1669,7 @@ async function start(opts = {}) {
       metadata.recommended_steps = 20;
       metadata.base_resolution = 1024;
       metadata.recommended_sampler = "Euler";
+      metadata.recommended_cfg_scale = 1.0;
     } else if (name.includes('1.5') || name.includes('v1-5')) {
       metadata.type = "SD 1.5";
       metadata.recommended_steps = 24;
@@ -1743,32 +1820,15 @@ async function start(opts = {}) {
   });
 
   app.post("/api/forge/options", async (req, res) => {
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
     const updates = req.body;
     if (!updates || typeof updates !== 'object') {
       return res.status(400).json({ error: "Invalid options" });
     }
     try {
-      if (typeof fetch === 'undefined') throw new Error('fetch not available');
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000);
-      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify(updates)
-      });
-      clearTimeout(timeout);
-      if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`HTTP ${response.status}: ${text.slice(0, 200)}`);
-      }
-      return res.json({ success: true });
+      const sync = await applyForgeOptionsAcrossTargets(updates, 10000);
+      return res.json({ success: true, partial: sync.partial, sync });
     } catch (err) {
       return res.status(502).json({ error: "Failed to update options", message: err.message });
-    } finally {
-      target.release();
     }
   });
 

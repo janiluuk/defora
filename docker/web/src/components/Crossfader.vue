@@ -20,7 +20,10 @@
     <div class="crossfader-actions">
       <button class="crossfader-snap crossfader-snap--a" :disabled="disabled"
         @click="$emit('update:modelValue', 0); $emit('snap-a')">Snap A</button>
-      <button class="crossfader-randomize" :disabled="disabled" @click="onRandomize" title="Randomize">~</button>
+      <button class="crossfader-randomize" :disabled="disabled" @click="onRandomize" title="Randomize">
+        <UiIcon class="crossfader-randomize-icon" name="shuffle" />
+        <span class="crossfader-randomize-label">Rand</span>
+      </button>
       <button class="crossfader-snap crossfader-snap--b" :disabled="disabled"
         @click="$emit('update:modelValue', 1); $emit('snap-b')">Snap B</button>
     </div>
@@ -28,8 +31,11 @@
 </template>
 
 <script>
+import UiIcon from './UiIcon.vue'
+
 export default {
   name: 'Crossfader',
+  components: { UiIcon },
   emits: ['update:modelValue', 'snap-a', 'snap-b', 'randomize'],
   props: {
     modelValue: { type: Number, default: 0.5 },
@@ -121,14 +127,23 @@ export default {
 .crossfader-snap--a { color: var(--a-group); border-color: rgba(55, 138, 221, 0.35); }
 .crossfader-snap--b { color: var(--b-group); border-color: rgba(232, 121, 176, 0.35); }
 .crossfader-randomize {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   padding: 4px 10px;
   border-radius: var(--radius-pill);
   border: 0.5px solid var(--border);
   background: var(--bg-2);
-  font-size: 13px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
   cursor: pointer;
   color: var(--text-dim);
 }
+.crossfader-randomize-icon { font-size: 12px; }
+.crossfader-randomize-label { line-height: 1; }
 .crossfader-snap:disabled,
 .crossfader-randomize:disabled { opacity: 0.38; cursor: not-allowed; }
 </style>
