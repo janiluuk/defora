@@ -93,7 +93,12 @@
               {{ deforumPlaying ? '⏸ Pause' : '▶ Play' }}
             </button>
             <button class="control-btn" @click="generatePreviewFrame" :disabled="previewGenerating || deforumPlaying" data-testid="preview-frame">
-              {{ previewGenerating ? '⏳ Frame…' : '🖼 Frame' }}
+              <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Frame</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <template v-else>🖼 Frame</template>
             </button>
             <button class="control-btn" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
               {{ isRecording ? '⏹ Stop Rec' : '● Record' }}
@@ -233,7 +238,14 @@
                 </div>
               </div>
 
-              <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:var(--success);">{{ performance.status }}</div>
+              <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:var(--success);">
+                <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--subtle">
+                  <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                  <span>{{ performance.status }}</span>
+                  <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                </span>
+                <template v-else>{{ performance.status }}</template>
+              </div>
               <div v-if="performance.lastPreviewPath" style="margin-top:8px;">
                 <img :src="performance.lastPreviewPath" alt="Last preview frame" class="preview-frame-thumb">
               </div>
@@ -259,7 +271,13 @@
                 <span v-if="forge.modelsSource" class="model-source-pill" :class="'src-' + forge.modelsSource" :title="'Model list from ' + forge.modelsSource">
                   ● {{ modelSourceLabel(forge.modelsSource) }}
                 </span>
-                <span v-if="forge.switching" class="model-loading">Loading model…</span>
+                <span v-if="forge.switching || forge.loading" class="model-loading">
+                  <span class="lazy-loading-indicator lazy-loading-indicator--subtle">
+                    <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                    <span>{{ forge.switching ? 'Loading model' : 'Loading Forge data' }}</span>
+                    <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                  </span>
+                </span>
                 <span v-else-if="forge.lastModel" class="model-last">Last: {{ forge.lastModel }}</span>
               </div>
 
@@ -306,9 +324,27 @@
             </button>
             <div v-show="deforumPanelOpen" class="param-drawer-body deforum-settings-body">
               <div class="deforum-settings-toolbar">
-                <button type="button" class="framesync-button" @click="loadDeforumSettings">↻ Reload</button>
-                <button type="button" class="framesync-button" @click="saveDeforumSettings">💾 Save</button>
-                <button type="button" class="framesync-button" :disabled="previewGenerating" @click="generateDeforumPreviewFrame">🖼 Regenerate frame</button>
+                <button type="button" class="framesync-button" :disabled="deforumSettingsLoading" @click="loadDeforumSettings">
+                  <span v-if="deforumSettingsLoading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                    <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                    <span>Reload</span>
+                  </span>
+                  <template v-else>↻ Reload</template>
+                </button>
+                <button type="button" class="framesync-button" :disabled="deforumSettingsSaving" @click="saveDeforumSettings">
+                  <span v-if="deforumSettingsSaving" class="lazy-loading-indicator lazy-loading-indicator--button">
+                    <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                    <span>Save</span>
+                  </span>
+                  <template v-else>💾 Save</template>
+                </button>
+                <button type="button" class="framesync-button" :disabled="previewGenerating" @click="generateDeforumPreviewFrame">
+                  <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
+                    <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                    <span>Regenerate frame</span>
+                  </span>
+                  <template v-else>🖼 Regenerate frame</template>
+                </button>
                 <label class="deforum-advanced-toggle">
                   <input type="checkbox" v-model="deforumAdvancedOpen"> JSON
                 </label>
@@ -2442,6 +2478,7 @@ export default {
   },
   async refreshRuns() {
     if (typeof fetch !== "function") return;
+    this.runsLoading = true;
     try {
       const res = await fetch("/api/runs");
       if (!res.ok) return;
@@ -2450,6 +2487,8 @@ export default {
       this.applyRunsFilters();
     } catch (_e) {
       this.runsStatus = "Failed to load runs";
+    } finally {
+      this.runsLoading = false;
     }
   },
   applyRunsFilters() {
@@ -3179,11 +3218,14 @@ export default {
    this.wsSend({ type: "playback_recording", recordingFile: filename });
  },
  async refreshSharedPresets() {
+  this.sharedPresetsLoading = true;
    try {
      const { data } = await apiFetch("/api/shared-presets", {}, "shared-presets list");
      this.sharedPresets = data.presets || [];
    } catch (err) {
      this.sharedPresetsStatus = err.message;
+  } finally {
+    this.sharedPresetsLoading = false;
    }
  },
  async shareCurrentPreset() {
@@ -3626,6 +3668,7 @@ export default {
  },
  async refreshPlugins() {
    if (typeof fetch !== "function") return;
+  this.pluginsLoading = true;
    try {
      const res = await fetch("/api/plugins");
      if (!res.ok) return;
@@ -3633,6 +3676,8 @@ export default {
      this.pluginsRegistry = Array.isArray(j.plugins) ? j.plugins : [];
    } catch (_) {
      this.pluginsRegistry = [];
+  } finally {
+    this.pluginsLoading = false;
    }
  },
  async submitImg2img() {
@@ -3640,6 +3685,7 @@ export default {
      this.img2img.status = "Choose an init image first";
      return;
    }
+  this.img2img.loading = true;
    this.img2img.status = "Submitting…";
    try {
      const body = {
@@ -3667,8 +3713,13 @@ export default {
      this.img2img.status = j.path ? `OK → ${j.path}` : "OK";
    } catch (e) {
      this.img2img.status = String(e.message || e);
+  } finally {
+    this.img2img.loading = false;
    }
  },
+runImg2img() {
+  return this.submitImg2img();
+},
  addLfo() {
    const nextId = this.lfos.length ? Math.max(...this.lfos.map((l) => l.id)) + 1 : 1;
    this.lfos.push({
@@ -3699,6 +3750,9 @@ export default {
    lfo.phase = 0;
    lfo.on = false;
  },
+resetLfos() {
+  this.lfos.forEach((_, index) => this.resetLfo(index));
+},
  addLfoTarget(lfoIdx) {
    const pick = this.lfoTargetPick[lfoIdx];
    if (!pick) return;
@@ -3855,6 +3909,9 @@ export default {
      this.audioStatus = String(err);
    }
  },
+startAudioStream() {
+  return this.runAudioMod();
+},
  frameLabel(t) {
    if (!t) return "?";
    if (t.frame != null && !isNaN(t.frame)) return t.frame;
@@ -4000,10 +4057,14 @@ export default {
  },
  // Preset management methods
  async refreshPresets() {
+  this.presetsLoading = true;
    try {
      const { data } = await apiFetch("/api/presets", {}, "presets list");
      this.availablePresets = data.presets || [];
-   } catch (_) {}
+  } catch (_) {
+  } finally {
+    this.presetsLoading = false;
+  }
  },
  async loadPreset(name) {
    try {
@@ -4426,6 +4487,9 @@ export default {
      this.disposeLiveAudioAnalyser();
    }
  },
+onAudioUpload(evt) {
+  return this.handleAudioUpload(evt);
+},
  clearAudioFile() {
    this.disposeLiveAudioAnalyser();
    this.invalidateAudioSpectrogram();
@@ -5209,6 +5273,7 @@ export default {
  },
  // LoRA management methods
  async refreshLoras() {
+  this.lorasLoading = true;
    try {
      const { data } = await apiFetch("/api/loras", {}, "loras list");
      if (data.loras) {
@@ -5243,6 +5308,8 @@ export default {
      }
    } catch (err) {
      console.error("Failed to load LoRAs", err);
+  } finally {
+    this.lorasLoading = false;
    }
  },
  toggleLoraSelection(lora) {
@@ -5784,6 +5851,7 @@ export default {
    }
  },
  async loadDeforumSettings() {
+  this.deforumSettingsLoading = true;
    try {
      const res = await fetch('/api/deforum/settings');
      const data = await res.json();
@@ -5795,6 +5863,8 @@ export default {
    } catch (e) {
      this.deforumSettingsStatus = 'Load failed';
      console.error('loadDeforumSettings', e);
+  } finally {
+    this.deforumSettingsLoading = false;
    }
  },
  queueDeforumSettingsSave() {
@@ -5802,6 +5872,7 @@ export default {
    this.deforumSaveTimer = setTimeout(() => this.saveDeforumSettings(), 800);
  },
  async saveDeforumSettings() {
+  this.deforumSettingsSaving = true;
    try {
      const res = await fetch('/api/deforum/settings', {
        method: 'POST',
@@ -5816,6 +5887,8 @@ export default {
      this.deforumSettingsStatus = 'Saved';
    } catch (e) {
      this.deforumSettingsStatus = 'Save failed';
+  } finally {
+    this.deforumSettingsSaving = false;
    }
  },
  async generateDeforumPreviewFrame() {
