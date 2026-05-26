@@ -21,19 +21,21 @@
       <span class="ss-label">Rec</span>
     </button>
 
-    <div
-      v-if="apiHealth && apiHealth.sdForge"
-      class="ss-pill"
+    <button
+      type="button"
+      class="ss-pill ss-pill--button"
       :class="{
-        'ss-pill--live':  apiHealth.sdForge.available === true,
-        'ss-pill--error': apiHealth.sdForge.available === false,
+        'ss-pill--live': gpuActiveCount > 0,
+        'ss-pill--error': gpuTotalCount > 0 && gpuActiveCount === 0,
+        'ss-pill--warn': gpuTotalCount === 0,
       }"
-      :title="apiHealth.sdForge.lastChecked ? 'SD-Forge last check: ' + apiHealth.sdForge.lastChecked : 'SD-Forge status'"
+      title="Open GPU pool settings"
+      @click="$emit('open-gpus')"
     >
       <span class="ss-dot"></span>
-      <span class="ss-key">Forge</span>
-      <strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
-    </div>
+      <span class="ss-key">GPU</span>
+      <strong>{{ gpuActiveCount }}({{ gpuTotalCount }})</strong>
+    </button>
 
     <button
       v-if="midiSupported"
@@ -76,11 +78,13 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record', 'toggle-ws', 'open-midi'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'toggle-ws', 'open-midi', 'open-gpus'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
     apiHealth:     { type: Object,  default: () => ({}) },
+    gpuActiveCount:{ type: Number,  default: 0 },
+    gpuTotalCount: { type: Number,  default: 0 },
     midiSupported: { type: Boolean, default: false },
     midiSelected:  { default: null },
     wsStatus:      { type: String,  default: 'disconnected' },
