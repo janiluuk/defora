@@ -237,6 +237,9 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Optimize for model");
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.not.include("FORGE");
+    expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
+    expect(subTabs.join(" ")).to.not.include("BINDINGS");
+    expect(subTabs.join(" ")).to.not.include("PRESETS");
   });
 
   it("renders a forge instance editor modal from GPU pool state", async () => {
@@ -356,6 +359,10 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(appVm.currentSubTab.SETTINGS).to.equal("MIDI");
     expect(appVm.midi.mappings.length).to.be.greaterThan(0);
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Controllers");
+    expect(pageText).to.include("Parameter Bindings");
+    expect(pageText).to.include("Preset Management");
     const settingsHeadings = [...document.querySelectorAll(".framesync-title")].map((h) => h.textContent.trim());
     if (appVm.midi.supported && settingsHeadings.join(" ").includes("Controllers")) {
       const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
@@ -419,6 +426,16 @@ describe("Deforumation Web UI behavior", () => {
 
     expect(instance.currentTab).to.equal("SETTINGS");
     expect(instance.currentSubTab.SETTINGS).to.equal("GPUS");
+  });
+
+  it("redirects legacy settings subtabs for bindings and presets into MIDI", () => {
+    const instance = instantiate(appDef);
+
+    instance.switchSubTab("SETTINGS", "BINDINGS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
+
+    instance.switchSubTab("SETTINGS", "PRESETS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
   });
 
   it("reports GPU status counts from the pool state", () => {

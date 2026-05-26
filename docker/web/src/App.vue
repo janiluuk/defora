@@ -1706,6 +1706,7 @@ export default {
  },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
+  if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
   if (tab === 'PROMPTS' && sub !== 'LORA') {

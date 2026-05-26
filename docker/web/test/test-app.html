@@ -1020,9 +1020,7 @@
         <div v-else-if="currentTab==='SETTINGS'">
           <div class="sub-pills">
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">🔗 BINDINGS</button>
-            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+            <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
             <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">⌨️ KEYS</button>
           </div>
           <div v-if="currentSubTab.SETTINGS==='ENGINE'">
@@ -1056,7 +1054,7 @@
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
-                <div class="framesync-title">🎹 Controllers <span class="framesync-accent">(WebMIDI)</span></div>
+                <div class="framesync-title">🎹 Controllers <span class="framesync-accent">/ MIDI</span></div>
               </div>
               <div v-if="!midi.supported" style="color:#9bc4e2; margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
               <div v-else>
@@ -1091,7 +1089,6 @@
             </div>
           </div>
           </div>
-          <div v-else-if="currentSubTab.SETTINGS==='BINDINGS'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -1144,7 +1141,6 @@
             </div>
           </div>
           </div>
-          <div v-else-if="currentSubTab.SETTINGS==='PRESETS'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">

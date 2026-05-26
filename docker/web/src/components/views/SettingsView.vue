@@ -2,9 +2,7 @@
   <div class="settings-tab-shell">
     <div class="sub-pills">
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">MIDI</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='BINDINGS'}" @click="switchSubTab('SETTINGS','BINDINGS')">BINDINGS</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PRESETS'}" @click="switchSubTab('SETTINGS','PRESETS')">PRESETS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='RUNS'}" @click="switchSubTab('SETTINGS','RUNS')">RUNS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
@@ -301,7 +299,7 @@
       <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
-            <div class="framesync-title">Controllers <span class="framesync-accent">(WebMIDI)</span></div>
+            <div class="framesync-title">Controllers <span class="framesync-accent">/ MIDI</span></div>
           </div>
           <div v-if="!midi.supported" style="color:var(--text-secondary); margin-top:12px; font-size:12px;">WebMIDI not supported or not enabled.</div>
           <div v-else>
@@ -335,9 +333,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <div v-else-if="currentSubTab.SETTINGS==='BINDINGS'">
       <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
@@ -389,9 +384,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <div v-else-if="currentSubTab.SETTINGS==='PRESETS'">
       <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">

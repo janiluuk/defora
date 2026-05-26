@@ -25,9 +25,9 @@ try {
   }
   await page.getByRole('button', { name: 'PROMPTS', exact: true }).click();
   await page.waitForTimeout(400);
-  const showMorph = page.locator('button.framesync-button').filter({ hasText: 'Show' });
-  if ((await showMorph.count()) > 0) {
-    await showMorph.first().click();
+  const expandMorph = page.locator('button.framesync-button').filter({ hasText: /^(Expand|Show)$/ });
+  if ((await expandMorph.count()) > 0) {
+    await expandMorph.first().click();
     await page.waitForTimeout(300);
   }
   const morphBlend = page.locator('[data-testid="prompt-morph-blend"]');
