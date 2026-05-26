@@ -160,12 +160,14 @@ describe("Video Controls E2E Tests", () => {
       expect(css).to.include('video::-webkit-media-controls { display: none !important; }');
     });
 
-    it("should have placeholder SVG for thumbnails", () => {
+    it("should render a single frame rail under the preview", () => {
       const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
-      expect(html).to.include('thumb-placeholder');
-      expect(html).to.include('viewBox="0 0 24 24"');
-      expect(html).to.include('stroke="currentColor"');
+      expect(html).to.include('class="frame-rail"');
+      expect(html).to.include('class="frame-rail__list"');
+      expect(html).to.include('@click="stepFrameSelection(-1)"');
+      expect(html).to.include('@click="stepFrameSelection(1)"');
+      expect(html).to.include('@input="selectFrame(Number($event.target.value))"');
     });
 
     it("should display stream link when recording", () => {
@@ -175,12 +177,11 @@ describe("Video Controls E2E Tests", () => {
       expect(html).to.include('/hls/live/deforum.m3u8');
     });
     
-    it("should have preview bar with hide/show toggle", () => {
+    it("should remove the duplicate preview bar", () => {
       const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
       
-      expect(html).to.include('class="preview-bar-container"');
-      expect(html).to.include('class="preview-bar-toggle"');
-      expect(html).to.include('@click="showFrames = !showFrames"');
+      expect(html).to.not.include('class="preview-bar-container"');
+      expect(html).to.not.include('class="preview-bar-toggle"');
     });
   });
 

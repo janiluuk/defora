@@ -446,3 +446,125 @@ describe("distributed Forge sync", () => {
     expect(res.body.sync.successes).to.equal(2);
   });
 });
+
+describe("ollama story generator", () => {
+  let svc;
+  let tmp;
+  let uploads;
+  let sequencers;
+  let gpuPoolPath;
+  let request;
+  let fetchCalls;
+  let originalFetch;
+
+  beforeEach(async () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
+    uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencers = fs.mkdtempSync(path.join(os.tmpdir(), "seq-"));
+    gpuPoolPath = path.join(os.tmpdir(), `gpu-pool-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(
+      gpuPoolPath,
+      JSON.stringify(
+        {
+          enabled: true,
+          strategy: "least_busy",
+          nodes: [
+            { url: "http://ollama-a:11434", name: "ollama-a", backend: "ollama", enabled: true, priority: 1, model: "llama3.1:8b" },
+          ],
+        },
+        null,
+        2
+      )
+    );
+    fetchCalls = [];
+    originalFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      fetchCalls.push({ url: String(url), method: opts.method || "GET", body: opts.body || null });
+      if (String(url).endsWith("/api/tags")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ models: [{ name: "llama3.1:8b" }, { name: "mistral:7b" }] }),
+        };
+      }
+      if (String(url).endsWith("/api/generate")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({
+            response: JSON.stringify({
+              theme: "Sky temples",
+              style: "Cinematic",
+              summary: "A floating-city flythrough",
+              scenes: {
+                "0": "wide aerial shot of floating temples above storm clouds",
+                "24": "closer pass through luminous archways",
+                "48": "descending toward a central altar with lightning around it",
+                "72": "final reveal over the glowing city core",
+              },
+              motion: {
+                Zoom: "0:(1.0), 96:(1.03)",
+                "Translation X": "0:(0), 96:(1.2)",
+              },
+            }),
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    svc = await start({
+      port: 0,
+      framesDir: tmp,
+      uploadsDir: uploads,
+      sequencersDir: sequencers,
+      gpuPoolPath,
+      enableMq: false,
+    });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+  });
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    if (svc && svc.close) {
+      await svc.close();
+    }
+    [tmp, uploads, sequencers].forEach((dir) => {
+      if (dir && fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+    if (gpuPoolPath && fs.existsSync(gpuPoolPath)) {
+      fs.unlinkSync(gpuPoolPath);
+    }
+  });
+
+  it("lists models from an ollama instance", async () => {
+    const res = await request.get("/api/ollama/models").query({ url: "http://ollama-a:11434" });
+
+    expect(res.status).to.equal(200);
+    expect(res.body.models.map((model) => model.name)).to.deep.equal(["llama3.1:8b", "mistral:7b"]);
+  });
+
+  it("generates story plans through configured ollama nodes", async () => {
+    const res = await request.post("/api/story/generate").send({
+      theme: "Sky temples",
+      style: "Cinematic",
+      width: 1024,
+      height: 576,
+      fps: 24,
+      totalFrames: 96,
+      numScenes: 4,
+    });
+
+    expect(res.status).to.equal(200);
+    expect(res.body.source.backend).to.equal("ollama");
+    expect(res.body.source.model).to.equal("llama3.1:8b");
+    expect(res.body.scenes["0"]).to.include("floating temples");
+    expect(res.body.motion.Zoom).to.equal("0:(1.0), 96:(1.03)");
+
+    const generateCall = fetchCalls.find((call) => call.url.endsWith("/api/generate"));
+    expect(generateCall).to.exist;
+    expect(JSON.parse(generateCall.body).model).to.equal("llama3.1:8b");
+  });
+});

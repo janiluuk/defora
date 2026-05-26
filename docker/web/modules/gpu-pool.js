@@ -7,7 +7,7 @@ const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
 
-const BACKENDS = ["sd-forge", "comfyui"];
+const BACKENDS = ["sd-forge", "comfyui", "ollama"];
 const STRATEGIES = ["round_robin", "least_busy", "random", "priority"];
 
 function normalizeUrl(url) {
@@ -36,9 +36,11 @@ function defaultNode(input = {}) {
     totalJobs: Number(input.totalJobs) || 0,
     priority: Number(input.priority) || 1,
     gpuModel: input.gpuModel || null,
+    model: input.model || null,
     lastHealthCheck: input.lastHealthCheck || null,
     responseTime: input.responseTime || null,
-    currentModel: input.currentModel ?? null,
+    currentModel: input.currentModel ?? input.model ?? null,
+    availableModels: Array.isArray(input.availableModels) ? input.availableModels.filter(Boolean) : [],
     memoryUsedMb: input.memoryUsedMb ?? null,
     memoryTotalMb: input.memoryTotalMb ?? null,
     gpuUtilization: input.gpuUtilization ?? null,
@@ -119,6 +121,7 @@ function createGpuPool(options = {}) {
         enabled: n.enabled,
         priority: n.priority,
         gpuModel: n.gpuModel,
+        model: n.model,
       })),
     };
     await fsp.writeFile(configPath, JSON.stringify(payload, null, 2), "utf-8");
@@ -136,9 +139,11 @@ function createGpuPool(options = {}) {
       totalJobs: n.totalJobs,
       priority: n.priority,
       gpuModel: n.gpuModel,
+      model: n.model,
       lastHealthCheck: n.lastHealthCheck,
       responseTime: n.responseTime,
       currentModel: n.currentModel,
+      availableModels: Array.isArray(n.availableModels) ? [...n.availableModels] : [],
       memoryUsedMb: n.memoryUsedMb,
       memoryTotalMb: n.memoryTotalMb,
       gpuUtilization: n.gpuUtilization,
@@ -153,16 +158,17 @@ function createGpuPool(options = {}) {
     return state.nodes.find((n) => n.id === key || n.url === key);
   }
 
-  function eligibleNodes({ sdApiOnly = false } = {}) {
+  function eligibleNodes({ sdApiOnly = false, backend = null } = {}) {
     return state.nodes.filter((n) => {
       if (!n.enabled || n.status !== "healthy") return false;
       if (sdApiOnly && n.backend !== "sd-forge") return false;
+      if (backend && n.backend !== backend) return false;
       return true;
     });
   }
 
-  function selectNode({ preferred, sdApiOnly = false } = {}) {
-    const healthy = eligibleNodes({ sdApiOnly });
+  function selectNode({ preferred, sdApiOnly = false, backend = null } = {}) {
+    const healthy = eligibleNodes({ sdApiOnly, backend });
     if (!healthy.length) return null;
 
     if (preferred) {
@@ -183,7 +189,12 @@ function createGpuPool(options = {}) {
         while (attempts < state.nodes.length) {
           const node = state.nodes[state.currentIndex];
           state.currentIndex = (state.currentIndex + 1) % state.nodes.length;
-          if (node.enabled && node.status === "healthy" && (!sdApiOnly || node.backend === "sd-forge")) {
+          if (
+            node.enabled &&
+            node.status === "healthy" &&
+            (!sdApiOnly || node.backend === "sd-forge") &&
+            (!backend || node.backend === backend)
+          ) {
             return node;
           }
           attempts++;
@@ -234,6 +245,38 @@ function createGpuPool(options = {}) {
     };
   }
 
+  async function listOllamaModels(baseUrl) {
+    const url = normalizeUrl(baseUrl);
+    if (!url) return [];
+    const res = await fetchJson(`${url}/api/tags`, { headers: { Accept: "application/json" } }, 8000);
+    if (!res.ok) {
+      throw new Error(`Ollama model list failed (${res.status})`);
+    }
+    return (Array.isArray(res.data?.models) ? res.data.models : [])
+      .map((model) => ({
+        name: model?.name || "",
+        size: model?.size ?? null,
+        modified_at: model?.modified_at || null,
+      }))
+      .filter((model) => model.name);
+  }
+
+  function resolveOllamaTarget(req = {}) {
+    const preferred = req?.body?.preferredNode || req?.body?.preferredLlmNode || req?.query?.preferredNode || req?.query?.preferredLlmNode;
+    if (eligibleNodes({ backend: "ollama" }).length) {
+      const node = selectNode({ preferred, backend: "ollama" });
+      if (node) return wrapTarget(node);
+    }
+    const baseUrl = normalizeUrl(env.OLLAMA_BASE_URL || "http://192.168.2.104:11434");
+    return {
+      url: baseUrl,
+      node: null,
+      backend: "ollama",
+      model: env.OLLAMA_MODEL || null,
+      release: () => {},
+    };
+  }
+
   async function fetchJson(url, init = {}, timeoutMs = 5000) {
     if (typeof fetch === "undefined") throw new Error("fetch not available");
     const controller = new AbortController();
@@ -259,12 +302,21 @@ function createGpuPool(options = {}) {
       return { url: node.url, healthy: false, reason: "disabled", backend: node.backend };
     }
     const base = node.url;
-    const probePath = node.backend === "comfyui" ? "/system_stats" : "/docs";
+    const probePath =
+      node.backend === "comfyui"
+        ? "/system_stats"
+        : node.backend === "ollama"
+          ? "/api/tags"
+          : "/docs";
     const start = Date.now();
     try {
       const res = await fetchJson(
         `${base}${probePath}`,
-        { headers: { Accept: node.backend === "comfyui" ? "application/json" : "text/html" } },
+        {
+          headers: {
+            Accept: node.backend === "sd-forge" ? "text/html" : "application/json",
+          },
+        },
         5000
       );
       const durationMs = Date.now() - start;
@@ -290,7 +342,9 @@ function createGpuPool(options = {}) {
   async function refreshNodeStats(node) {
     node.statsError = null;
     if (!node.enabled) {
+      node.model = node.model || null;
       node.currentModel = null;
+      node.availableModels = [];
       return;
     }
     const base = node.url;
@@ -313,6 +367,28 @@ function createGpuPool(options = {}) {
         node.currentModel = res.data?.system?.comfyui_version
           ? `ComfyUI ${res.data.system.comfyui_version}`
           : "ComfyUI";
+        return;
+      }
+
+      if (node.backend === "ollama") {
+        const t0 = Date.now();
+        const res = await fetchJson(`${base}/api/tags`, { headers: { Accept: "application/json" } }, 8000);
+        pushNodeLog(node, { type: "stats", path: "/api/tags", statusCode: res.status, durationMs: Date.now() - t0, ok: res.ok });
+        if (!res.ok) throw new Error(`/api/tags HTTP ${res.status}`);
+        const models = (Array.isArray(res.data?.models) ? res.data.models : [])
+          .map((model) => model?.name || "")
+          .filter(Boolean);
+        node.availableModels = models;
+        if (node.model && !models.includes(node.model)) {
+          node.model = models[0] || null;
+        } else if (!node.model) {
+          node.model = models[0] || null;
+        }
+        node.currentModel = node.model || models[0] || "Ollama";
+        node.gpuModel = node.gpuModel || "Ollama";
+        node.memoryUsedMb = null;
+        node.memoryTotalMb = null;
+        node.gpuUtilization = null;
         return;
       }
 
@@ -438,6 +514,7 @@ function createGpuPool(options = {}) {
               enabled: n.enabled !== false,
               priority: n.priority,
               gpuModel: n.gpuModel,
+              model: n.model,
             })
           );
           state.nodes = mapped.nodes;
@@ -456,7 +533,7 @@ function createGpuPool(options = {}) {
 
     app.post("/api/gpu-pool/nodes", async (req, res) => {
       try {
-        const { url, name, backend, priority, gpuModel, enabled } = req.body || {};
+        const { url, name, backend, priority, gpuModel, model, enabled } = req.body || {};
         const normalized = normalizeUrl(url);
         if (!normalized) return res.status(400).json({ error: "url required" });
         if (findNode(normalized)) return res.status(409).json({ error: "node already exists" });
@@ -466,6 +543,7 @@ function createGpuPool(options = {}) {
           backend: backend || "sd-forge",
           priority,
           gpuModel,
+          model,
           enabled: enabled !== false,
         });
         state.nodes.push(node);
@@ -484,7 +562,7 @@ function createGpuPool(options = {}) {
         if (node.enabled) {
           return res.status(409).json({ error: "disable node before editing (only disabled nodes can be edited)" });
         }
-        const { url, name, backend, priority, gpuModel } = req.body || {};
+        const { url, name, backend, priority, gpuModel, model } = req.body || {};
         if (url) {
           const normalized = normalizeUrl(url);
           if (!normalized) return res.status(400).json({ error: "invalid url" });
@@ -497,6 +575,7 @@ function createGpuPool(options = {}) {
         if (backend && BACKENDS.includes(backend)) node.backend = backend;
         if (priority != null) node.priority = Number(priority) || 1;
         if (gpuModel !== undefined) node.gpuModel = gpuModel;
+        if (model !== undefined) node.model = model || null;
         await saveConfig();
         res.json({ success: true, node: publicNode(node) });
       } catch (err) {
@@ -600,6 +679,17 @@ function createGpuPool(options = {}) {
           gpuUtilization: n.gpuUtilization,
         })),
       });
+    });
+
+    app.get("/api/ollama/models", async (req, res) => {
+      try {
+        const url = normalizeUrl(req.query?.url || env.OLLAMA_BASE_URL || "http://192.168.2.104:11434");
+        if (!url) return res.status(400).json({ error: "url is required" });
+        const models = await listOllamaModels(url);
+        res.json({ ok: true, url, models });
+      } catch (err) {
+        res.status(502).json({ error: err.message });
+      }
     });
 
     const distributedDisable = async (req, res) => {
@@ -708,6 +798,7 @@ function createGpuPool(options = {}) {
     attachRoutes,
     selectNode,
     resolveForgeTarget,
+    resolveOllamaTarget,
     isLoadBalancing,
     trackJobStart,
     trackJobEnd,
@@ -717,6 +808,7 @@ function createGpuPool(options = {}) {
     findNode,
     saveConfig,
     eligibleNodes,
+    listOllamaModels,
     close,
     logNodeRequest,
     BACKENDS,

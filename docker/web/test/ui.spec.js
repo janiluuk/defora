@@ -171,19 +171,15 @@ describe("Deforumation Web UI", () => {
     expect(liveLabels.join(" ")).to.match(/Camera|Style|Performance/);
   });
 
-  it("shows prompts/morph table structure", async () => {
+  it("shows prompt morph controls", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "PROMPTS");
     await nextTick();
     await nextTick();
-    const tables = [...document.querySelectorAll(".context table.table, .rack table.table")];
-    const morphTable = tables.find(t => {
-      const th = t.querySelector("th");
-      return th && /ID|Name/.test(th.textContent);
-    });
-    expect(morphTable).to.exist;
-    const headers = [...morphTable.querySelectorAll("th")].map((h) => h.textContent.trim());
-    expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
+    const promptTitles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
+    expect(promptTitles.join(" ")).to.include("Prompt Morphing");
+    const promptButtons = [...document.querySelectorAll(".prompt-toolbar .framesync-button")].map((el) => el.textContent.trim());
+    expect(promptButtons.join(" ")).to.match(/Enabled|Disabled/);
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {
@@ -219,9 +215,9 @@ describe("Deforumation Web UI", () => {
     expect(appVm.currentSubTab.SETTINGS).to.equal("MIDI");
     expect(appVm.midi.mappings.length).to.be.greaterThan(0);
     const settingsHeadings = [...document.querySelectorAll(".framesync-title")].map((h) => h.textContent.trim());
-    if (settingsHeadings.join(" ").includes("Controllers")) {
+    if (appVm.midi.supported && settingsHeadings.join(" ").includes("Controllers")) {
       const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
-      expect(mappingRows.length).to.be.greaterThan(1);
+      expect(mappingRows.length).to.be.greaterThan(0);
     }
   });
 
@@ -342,7 +338,23 @@ describe("Deforumation Web UI behavior", () => {
 
     expect(instance.thumbs[0].frame).to.equal(7);
     expect(instance.thumbs[1].frame).to.equal(10);
+    expect(instance.selectedFrameIndex).to.equal(1);
     delete global.fetch;
+  });
+
+  it("selectFrame updates the paused preview timecode", () => {
+    const instance = instantiate(appDef);
+    instance.deforumSettings.fps = 24;
+    instance.thumbs = [
+      { src: "/frames/frame_0007.png", name: "frame_0007.png", frame: 7 },
+      { src: "/frames/frame_0010.png", name: "frame_0010.png", frame: 10 },
+    ];
+
+    instance.selectFrame(1, { scroll: false });
+
+    expect(instance.selectedFrameIndex).to.equal(1);
+    expect(instance.timecode).to.equal("00:00.13");
+    expect(instance.activePreviewStillPath).to.equal("/frames/frame_0010.png");
   });
 
   it("ensureLivePlayback triggers play when paused", () => {

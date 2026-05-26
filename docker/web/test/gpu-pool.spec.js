@@ -102,7 +102,7 @@ describe("GPU pool API", () => {
     expect(status.body.strategy).to.equal("least_busy");
   });
 
-  it("accepts sd-forge and comfyui backends", async () => {
+  it("accepts sd-forge, comfyui, and ollama backends", async () => {
     const forge = await request.post("/api/gpu-pool/nodes").send({
       url: "http://10.0.0.1:7860",
       backend: "sd-forge",
@@ -116,6 +116,15 @@ describe("GPU pool API", () => {
       enabled: false,
     });
     expect(comfy.body.node.backend).to.equal("comfyui");
+
+    const ollama = await request.post("/api/gpu-pool/nodes").send({
+      url: "http://10.0.0.3:11434",
+      backend: "ollama",
+      model: "llama3.1:8b",
+      enabled: false,
+    });
+    expect(ollama.body.node.backend).to.equal("ollama");
+    expect(ollama.body.node.model).to.equal("llama3.1:8b");
   });
 
   it("POST /api/gpu-pool/refresh returns node stats fields", async () => {

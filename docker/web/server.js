@@ -72,6 +72,189 @@ async function start(opts = {}) {
     });
   }
 
+  function stripCodeFence(text) {
+    const raw = String(text || "").trim();
+    if (!raw.startsWith("```")) return raw;
+    return raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "")
+      .trim();
+  }
+
+  function parseLooseJson(text) {
+    const raw = stripCodeFence(text);
+    if (!raw) throw new Error("empty JSON response");
+    try {
+      return JSON.parse(raw);
+    } catch (_err) {
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      if (start >= 0 && end > start) {
+        return JSON.parse(raw.slice(start, end + 1));
+      }
+      throw new Error(`invalid JSON payload: ${raw.slice(0, 240)}`);
+    }
+  }
+
+  function fallbackStoryScene(theme, style, idx, total) {
+    const phase =
+      idx === 0
+        ? "opening"
+        : idx >= total - 1
+          ? "closing"
+          : idx < Math.ceil(total / 2)
+            ? "buildup"
+            : "climax";
+    return `${style}, ${phase} scene from ${theme}, cinematic composition, detailed atmosphere, coherent character continuity`;
+  }
+
+  function normalizeStoryScenes(sceneMap, { theme, style, numScenes, frameStarts }) {
+    const input = sceneMap && typeof sceneMap === "object" ? sceneMap : {};
+    const scenes = {};
+    frameStarts.forEach((frame, idx) => {
+      const prompt =
+        input[String(frame)] ||
+        input[frame] ||
+        input[String(idx)] ||
+        input[idx] ||
+        fallbackStoryScene(theme, style, idx, numScenes);
+      scenes[String(frame)] = String(prompt || fallbackStoryScene(theme, style, idx, numScenes)).trim();
+    });
+    return scenes;
+  }
+
+  function normalizeStoryMotion(motion, totalFrames) {
+    const cleaned = {};
+    if (motion && typeof motion === "object" && !Array.isArray(motion)) {
+      Object.entries(motion).forEach(([key, value]) => {
+        if (!key || value == null) return;
+        const normalized = String(value).trim();
+        if (normalized) cleaned[String(key)] = normalized;
+      });
+    }
+    if (!Object.keys(cleaned).length) {
+      cleaned.Zoom = `0:(1.0025), ${Math.max(totalFrames - 1, 1)}:(1.0)`;
+    }
+    return cleaned;
+  }
+
+  function formatStoryResult(result) {
+    const lines = [
+      `Theme: ${result.theme}`,
+      `Style: ${result.style}`,
+      `Resolution: ${result.width}x${result.height}`,
+      `FPS: ${result.fps}`,
+      `Total frames: ${result.totalFrames}`,
+      "",
+      JSON.stringify(result.scenes, null, 2),
+      "",
+      "Motion Settings:",
+    ];
+    Object.entries(result.motion || {}).forEach(([key, value]) => lines.push(`${key}: ${value}`));
+    return lines.join("\n");
+  }
+
+  async function generateStoryWithOllama(body = {}) {
+    const theme = String(body.theme || "").trim() || "Cinematic visual journey";
+    const style = String(body.style || "Masterpiece, Realistic").trim() || "Masterpiece, Realistic";
+    const width = Math.max(64, parseInt(body.width, 10) || 1024);
+    const height = Math.max(64, parseInt(body.height, 10) || 576);
+    const fps = Math.max(1, parseInt(body.fps, 10) || 24);
+    const totalFrames = Math.max(8, parseInt(body.totalFrames, 10) || 96);
+    const numScenes = Math.max(2, parseInt(body.numScenes, 10) || 4);
+    const framesPerScene = Math.max(1, Math.floor(totalFrames / numScenes));
+    const frameStarts = Array.from({ length: numScenes }, (_, idx) => idx * framesPerScene);
+    const target = gpuPool.resolveOllamaTarget({ body });
+    try {
+      let model = body.model || target.node?.model || target.model || process.env.OLLAMA_MODEL || "";
+      if (!model) {
+        const models = await gpuPool.listOllamaModels(target.url);
+        model = models[0]?.name || "";
+        if (target.node && model) target.node.model = model;
+      }
+      if (!model) {
+        throw new Error("No Ollama model configured. Add an Ollama node and choose a model in the GPU pool.");
+      }
+      if (target.node) {
+        target.node.model = model;
+        target.node.currentModel = model;
+      }
+      const prompt = [
+        "Create a Deforum-ready story plan as JSON only.",
+        `Theme: ${theme}`,
+        `Style: ${style}`,
+        `Canvas: ${width}x${height}`,
+        `FPS: ${fps}`,
+        `Total frames: ${totalFrames}`,
+        `Scenes: ${numScenes}`,
+        `Frame starts: ${frameStarts.join(", ")}`,
+        "Return an object with keys: theme, style, summary, scenes, motion.",
+        `The "scenes" object must contain exactly these frame keys: ${frameStarts.join(", ")}.`,
+        "Each scene value should be a concise SD/Deforum prompt fragment with continuity across scenes.",
+        'The "motion" object should include a few useful Deforum schedules like Zoom, Translation X, Translation Y, Rotation Z, or Transform Center X/Y when appropriate.',
+        "Values in motion must be schedule strings such as 0:(1.0), 24:(1.02), 96:(1.0).",
+        "Do not include markdown or code fences.",
+      ].join("\n");
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 60000);
+      let response;
+      try {
+        response = await fetch(`${target.url}/api/generate`, {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            stream: false,
+            format: "json",
+            options: { temperature: 0.7 },
+            prompt,
+            system:
+              "You are a cinematic prompt planner for Deforum animations. Respond with valid JSON only and keep prompts production-ready.",
+          }),
+        });
+      } finally {
+        clearTimeout(timer);
+      }
+      const rawText = await response.text();
+      let payload = {};
+      try {
+        payload = rawText ? JSON.parse(rawText) : {};
+      } catch (_err) {
+        payload = { response: rawText };
+      }
+      if (!response.ok) {
+        throw new Error(payload?.error || `Ollama generate failed (${response.status})`);
+      }
+      const parsed = parseLooseJson(payload?.response || payload?.message?.content || "");
+      const result = {
+        theme: String(parsed.theme || theme),
+        style: String(parsed.style || style),
+        width,
+        height,
+        fps,
+        totalFrames,
+        numScenes,
+        summary: String(parsed.summary || ""),
+        scenes: normalizeStoryScenes(parsed.scenes, { theme, style, numScenes, frameStarts }),
+        motion: normalizeStoryMotion(parsed.motion, totalFrames),
+        source: {
+          backend: "ollama",
+          url: target.url,
+          model,
+          node: target.node ? { id: target.node.id, name: target.node.name, url: target.node.url } : null,
+        },
+      };
+      result.formatted = formatStoryResult(result);
+      return result;
+    } finally {
+      target.release();
+    }
+  }
+
   let framesIndexCache = { items: [], builtAt: 0, dirMtime: 0 };
   const FRAMES_INDEX_MIN_ITEMS = 50;
   const FRAME_FILE_RE = /^frame_(\d+)\.(png|jpg|jpeg|webp)$/i;
@@ -2716,11 +2899,20 @@ async function start(opts = {}) {
     }
   });
 
+  app.post("/api/story/generate", async (req, res) => {
+    try {
+      const story = await generateStoryWithOllama(req.body || {});
+      res.json(story);
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    }
+  });
+
   // Local LLM API endpoints
   let llmState = {
-    type: "llama.cpp",
-    serverUrl: "http://localhost:8080",
-    loadedModel: null,
+    type: process.env.LLM_TYPE || "ollama",
+    serverUrl: process.env.OLLAMA_BASE_URL || "http://192.168.2.104:11434",
+    loadedModel: process.env.OLLAMA_MODEL || null,
     running: false,
     childProcess: null,
     params: {
@@ -2767,8 +2959,18 @@ async function start(opts = {}) {
   });
 
   app.get("/api/llm/models", async (_req, res) => {
-    const modelsDir = path.join(__dirname, "llm-models");
     try {
+      if (llmState.type === "ollama") {
+        const target = `${String(llmState.serverUrl || "").replace(/\/+$/, "")}/api/tags`;
+        const response = await fetch(target, { method: "GET", signal: AbortSignal.timeout(5000) });
+        const payload = await response.json();
+        const models = (payload.models || []).map((model) => ({
+          name: model.name,
+          size: model.size != null ? `${(model.size / (1024 * 1024 * 1024)).toFixed(2)} GB` : "",
+        }));
+        return res.json({ models });
+      }
+      const modelsDir = path.join(__dirname, "llm-models");
       if (!require('fs').existsSync(modelsDir)) {
         return res.json({ models: [] });
       }
@@ -2816,7 +3018,11 @@ async function start(opts = {}) {
     const { url } = req.body || {};
     const testUrl = url || llmState.serverUrl;
     try {
-      const response = await fetch(testUrl, { method: "GET", signal: AbortSignal.timeout(3000) });
+      const target =
+        llmState.type === "ollama"
+          ? `${String(testUrl || "").replace(/\/+$/, "")}/api/tags`
+          : testUrl;
+      const response = await fetch(target, { method: "GET", signal: AbortSignal.timeout(3000) });
       res.json({ success: response.ok, message: response.ok ? "Connection successful" : "Connection failed" });
     } catch (err) {
       res.json({ success: false, error: err.message });

@@ -29,13 +29,13 @@
       <div class="preview">
         <div class="video-wrap" :class="{ 'video-wrap--preview-loading': previewGenerating }">
           <img
-            v-if="!deforumPlaying && (performance.lastPreviewPath || generator.lastPath)"
-            :src="performance.lastPreviewPath || generator.lastPath"
+            v-if="!deforumPlaying && activePreviewStillPath"
+            :src="activePreviewStillPath"
             alt="Generated preview"
             class="video-still-preview"
           />
           <video
-            v-show="deforumPlaying || !(performance.lastPreviewPath || generator.lastPath)"
+            v-show="deforumPlaying || !activePreviewStillPath"
             id="player"
             ref="videoEl"
             autoplay
@@ -275,52 +275,49 @@
           </GlassPanel>
         </div>
         <template v-else>
-          <div class="timeline" style="margin-top: 4px;">
-            <template v-if="audio.objectUrl">
-              <div class="thumbs">
-                <div class="thumb-card" v-for="f in thumbs.slice(0, 12)" :key="f.name">
-                  <img class="thumb" :src="f.src || f.url" :alt="f.name" />
-                  <div class="thumb-label">{{ f.name }}</div>
-                </div>
+          <div class="frame-rail" style="margin-top: 4px;">
+            <div class="frame-rail__header">
+              <div class="frame-rail__title-wrap">
+                <span class="frame-rail__title">Frames</span>
+                <span class="frame-rail__meta" v-if="frameStripThumbs.length">
+                  {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} loaded
+                </span>
+                <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
               </div>
-            </template>
-            <template v-else>
-              <div class="thumbs">
-                <div class="thumb-card" v-for="i in 6" :key="i">
-                  <div class="thumb-placeholder">
-                    <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
-                      <circle cx="8" cy="8" r="2" fill="currentColor"/>
-                      <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
-                    </svg>
-                  </div>
-                </div>
+              <div class="frame-rail__controls" v-if="frameStripThumbs.length">
+                <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
+                <input
+                  class="frame-rail__scrubber"
+                  type="range"
+                  min="0"
+                  :max="Math.max(0, frameStripThumbs.length - 1)"
+                  :value="Math.max(0, selectedFrameIndex)"
+                  @input="selectFrame(Number($event.target.value))"
+                >
+                <button
+                  type="button"
+                  class="frame-rail__step"
+                  @click="stepFrameSelection(1)"
+                  :disabled="selectedFrameIndex >= frameStripThumbs.length - 1"
+                >Next</button>
               </div>
-            </template>
-          </div>
-
-          <!-- Custom video controls -->
-          <div class="preview-bar-container">
-            <div class="preview-bar-header">
-              <span class="preview-bar-title">Frames</span>
-              <button class="preview-bar-toggle" @click="showFrames = !showFrames">
-                <UiIcon class="preview-bar-toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
+            </div>
+            <div v-if="frameStripThumbs.length" ref="frameRail" class="frame-rail__list">
+              <button
+                v-for="(f, idx) in frameStripThumbs"
+                :key="'frame-rail-' + (f.name || idx)"
+                type="button"
+                class="frame-rail__item"
+                :class="{ 'frame-rail__item--active': idx === selectedFrameIndex }"
+                :data-frame-index="idx"
+                @click="selectFrame(idx)"
+              >
+                <img class="frame-rail__thumb" :src="f.src || f.url" :alt="f.name || ('Frame ' + idx)" />
+                <span class="frame-rail__label">{{ frameLabel(f) }}</span>
               </button>
             </div>
-            <div class="preview-bar" :class="{collapsed: !showFrames}">
-              <div class="thumb-card" v-for="f in thumbs" :key="'bar-'+f.name">
-                <img class="thumb" :src="f.src || f.url" :alt="f.name" />
-                <div class="thumb-label">{{ f.name }}</div>
-              </div>
-              <div v-if="!thumbs.length" class="thumb-card">
-                <div class="thumb-placeholder">
-                  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <rect x="3" y="3" width="18" height="18" stroke="currentColor" stroke-width="2" rx="2"/>
-                    <circle cx="8" cy="8" r="2" fill="currentColor"/>
-                    <path d="M3 15 L8 10 L12 14 L17 9 L21 13 V21 H3 Z" fill="currentColor" opacity="0.5"/>
-                  </svg>
-                </div>
-              </div>
+            <div v-else class="frame-rail__empty">
+              Rendered frames will appear here in a single scrub row once the preview or animation produces them.
             </div>
           </div>
         </template>
@@ -493,14 +490,6 @@
                   </div>
                 </div>
 
-                <div class="crossfade-center" style="margin-top:16px;">
-                  <div class="framesync-subtitle" style="text-align:center;">Crossfader — {{ ((1 - performance.crossfader) * 100).toFixed(0) }}% A / {{ (performance.crossfader * 100).toFixed(0) }}% B</div>
-                  <div class="framesync-gradient-bar"></div>
-                  <div class="crossfade-labels">
-                    <span>A</span>
-                    <span>B</span>
-                  </div>
-                </div>
               </div>
 
               <div v-if="performance.status" class="framesync-subtitle" style="margin-top:10px;text-align:center;color:var(--success);">
@@ -1145,7 +1134,7 @@
                     </label>
                     <code class="modulation-lfo-card__meta">{{ lfo.shape }} · {{ lfo.bpm }}</code>
                   </div>
-                  <Waveform :shape="lfo.shape" :phase="lfo.renderPhase != null ? lfo.renderPhase : lfo.phase" :depth="lfo.depth" :active="lfo.on" :width="240" :height="48" class="modulation-lfo-card__waveform" />
+                  <Waveform :shape="lfo.shape" :phase="lfo.renderPhase != null ? lfo.renderPhase : lfo.phase" :depth="lfo.depth" :active="lfo.on" :width="240" :height="72" class="modulation-lfo-card__waveform" />
                   <div class="modulation-lfo-card__controls">
                     <label class="modulation-lfo-card__control">
                       <span class="framesync-subtitle">Shape</span>
@@ -1837,19 +1826,27 @@
                 </div>
               </div>
               <p style="font-size:11px; color:var(--text-dim); margin:12px 0 0;">
-                Add SD-Forge (A1111 API) or ComfyUI instances. Disable a node to edit or remove it.
-                Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum.
+                Add SD-Forge (A1111 API), ComfyUI, or Ollama instances. Disable a node to edit or remove it.
+                Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum, while the story generator uses configured <strong>Ollama</strong> nodes.
               </p>
 
               <div class="gpu-pool-add" style="margin-top:14px; padding:12px; border:1px solid var(--border); border-radius:10px;">
                 <div class="framesync-subtitle">Add instance (saved disabled — enable after editing)</div>
                 <div class="framesync-row" style="grid-template-columns: 2fr 1fr 1fr; gap:8px; margin-top:8px;">
-                  <input class="framesync-input" v-model="gpuPool.draft.url" placeholder="http://host:7860 or :8188" :disabled="gpuPool.loading">
+                  <input class="framesync-input" v-model="gpuPool.draft.url" placeholder="http://host:7860, :8188, or :11434" :disabled="gpuPool.loading">
                   <input class="framesync-input" v-model="gpuPool.draft.name" placeholder="Name" :disabled="gpuPool.loading">
                   <select class="framesync-select" v-model="gpuPool.draft.backend" :disabled="gpuPool.loading">
                     <option value="sd-forge">SD-Forge</option>
                     <option value="comfyui">ComfyUI</option>
+                    <option value="ollama">Ollama</option>
                   </select>
+                </div>
+                <div v-if="gpuPool.draft.backend === 'ollama'" class="framesync-footer" style="margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <select class="framesync-select" v-model="gpuPool.draft.model" :disabled="gpuPool.loading" style="min-width:220px;">
+                    <option value="">Select Ollama model…</option>
+                    <option v-for="model in ollamaModelOptions(gpuPool.draft.url)" :key="'draft-'+model" :value="model">{{ model }}</option>
+                  </select>
+                  <button class="framesync-button" @click="refreshGpuDraftModels" :disabled="gpuPool.loading || !gpuPool.draft.url">Load models</button>
                 </div>
                 <div class="framesync-footer" style="margin-top:8px;">
                   <button class="framesync-button" @click="addGpuNode" :disabled="gpuPool.loading || !gpuPool.draft.url">+ Add instance</button>
@@ -1868,16 +1865,18 @@
                         <select class="framesync-select" v-model="gpuPool.editDraft.backend" style="font-size:11px; width:100px;">
                           <option value="sd-forge">SD-Forge</option>
                           <option value="comfyui">ComfyUI</option>
+                          <option value="ollama">Ollama</option>
                         </select>
                       </template>
                       <template v-else>
                         <strong style="font-size:12px;">{{ n.name }}</strong>
                         <span style="font-size:10px; color:var(--text-dim);">{{ n.url }}</span>
                         <span style="font-size:10px; color:var(--text-dim);">{{ n.backend }}</span>
+                        <span v-if="n.backend === 'ollama' && (n.model || n.currentModel)" style="font-size:10px; color:var(--text-dim);">model: {{ n.model || n.currentModel }}</span>
                       </template>
                     </div>
                     <div class="gpu-node-card__stats">
-                      <span title="Current model" style="font-size:10px; color:var(--text-secondary); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.currentModel || '—' }}</span>
+                      <span title="Current model" style="font-size:10px; color:var(--text-secondary); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ n.model || n.currentModel || '—' }}</span>
                       <span title="VRAM" style="font-size:10px; color:var(--text-dim);">{{ formatGpuMemory(n) }}</span>
                       <span title="GPU utilization" style="font-size:10px; color:var(--text-dim);">{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</span>
                       <span title="Active jobs" style="font-size:10px; color:var(--text-dim);">{{ n.activeJobs }} jobs</span>
@@ -1896,6 +1895,13 @@
                         {{ gpuPool.expandedLog === n.id ? 'Hide log' : 'Log' }}{{ n.requestLog && n.requestLog.length ? ' (' + n.requestLog.length + ')' : '' }}
                       </button>
                     </div>
+                  </div>
+                  <div v-if="gpuPool.editId === n.id && gpuPool.editDraft.backend === 'ollama'" class="framesync-footer" style="margin:8px 0 0; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <select class="framesync-select" v-model="gpuPool.editDraft.model" style="min-width:220px;">
+                      <option value="">Select Ollama model…</option>
+                      <option v-for="model in ollamaModelOptions(gpuPool.editDraft.url)" :key="'edit-'+n.id+'-'+model" :value="model">{{ model }}</option>
+                    </select>
+                    <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="refreshGpuEditModels">Load models</button>
                   </div>
                   <!-- Per-node request log -->
                   <div v-if="gpuPool.expandedLog === n.id" class="gpu-node-log">
@@ -2038,11 +2044,23 @@
                   <input class="framesync-input" v-model="generator.customStyle" placeholder="your style keywords">
                 </div>
               </div>
+              <div class="framesync-subtitle" style="margin-top:10px;">Story engine: {{ storyGeneratorSourceLabel }}</div>
               <div class="framesync-footer generate-story__actions">
                 <button class="framesync-button" @click="generateStory">Generate Story</button>
                 <button class="framesync-button" @click="generateImage">Generate Image</button>
               </div>
               <div v-if="generator.status" class="generate-story__status">{{ generator.status }}</div>
+              <div v-if="generator.result" class="generate-story__story-result">
+                <div class="framesync-header">
+                  <div class="framesync-subtitle" style="margin:0;">Story plan</div>
+                  <span class="pill" v-if="generator.result.source && generator.result.source.model">{{ generator.result.source.model }}</span>
+                </div>
+                <pre class="generate-story__story-text">{{ generator.result.formatted }}</pre>
+                <div class="framesync-footer generate-story__actions">
+                  <button class="framesync-button" @click="approveStory">Apply to prompts</button>
+                  <button class="framesync-button" @click="rejectStory">Discard</button>
+                </div>
+              </div>
               <div v-if="generator.lastPath" class="generate-story__result">
                 <div class="framesync-header">
                   <div class="framesync-subtitle" style="margin:0;">Result</div>
@@ -2058,125 +2076,6 @@
       </div>
     </div>
 
-    <!-- Bottom context panel -->
-    <div class="context">
-      <div v-if="currentTab==='LIVE'">
-        <h4>Performance</h4>
-        <div class="chips">
-          <span class="chip">Crossfader: {{ performance.crossfader.toFixed(2) }}</span>
-          <span class="chip">Slots: {{ performance.slots.length }}</span>
-          <span class="chip">Model: {{ modelStatusLabel }}</span>
-        </div>
-        <h4 style="margin-top:12px;">Beat & MIDI status</h4>
-        <div style="display:flex; gap:12px; flex-wrap:wrap;">
-          <div style="min-width:240px;">
-            <strong>Beat macros ({{ macrosRack.length }})</strong>
-            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--text-secondary);">
-              • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
-            </div>
-          </div>
-          <div style="min-width:240px;">
-            <strong>MIDI mappings</strong>
-            <div style="font-size:12px; color:var(--text-secondary);">
-              • LaunchControl CC21 → Vibe<br/>
-              • LaunchControl CC22 → Strength<br/>
-              • LaunchControl CC23 → Zoom
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='PROMPTS'">
-        <h4>Prompts & Parameters</h4>
-        <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
-          <table class="table">
-            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
-            <tbody>
-              <tr v-for="slot in morphSlots" :key="slot.id">
-                <td>{{ slot.id }}</td>
-                <td>{{ slot.on ? '●' : '○' }}</td>
-                <td>{{ slot.name }}</td>
-                <td>{{ slot.a }}</td>
-                <td>{{ slot.b }}</td>
-                <td>{{ slot.range }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='LORA'">
-          <div class="chips">
-            <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
-            <span class="chip">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>
-          </div>
-        </div>
-        <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
-          <div class="chips">
-            <span class="chip">ControlNet: {{ cn.active }}</span>
-            <span class="chip">Slots: {{ cn.slots.length }}</span>
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MOTION'">
-        <h4>Sequencer status</h4>
-        <div class="chips">
-          <span class="chip" v-for="(s, name) in motionStylesSaved" :key="'ctx-saved-'+name">💾 {{ name }}</span>
-          <span class="chip">Tracks: {{ sequencer.tracks.length }}</span>
-          <span class="chip">Markers: {{ sequencer.markers?.length || 0 }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='MODULATION'">
-        <h4>Modulation</h4>
-        <div class="chips">
-          <span class="chip" v-for="(m, idx) in macrosRack.filter(x => x.on)" :key="'ctx-mac'+idx">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>
-          <span class="chip">LFOs: {{ lfos.filter(l => l.on).length }}/{{ lfos.length }}</span>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='AUDIO'">
-        <h4>Audio</h4>
-        <div v-if="audio.uploadedFile" style="margin-top:8px;">
-          <div class="chips">
-            <span class="chip">File: {{ audio.uploadedFile }}</span>
-            <span class="chip">BPM: {{ audio.bpm }}</span>
-          </div>
-          <div style="margin-top:8px;">
-            <img v-if="audioSpectrogramDataUrl" :src="audioSpectrogramDataUrl" class="spectral-preview" alt="Spectrogram">
-          </div>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='SETTINGS'">
-        <h4>Settings</h4>
-        <div v-if="currentSubTab.SETTINGS==='MIDI'">
-          <table class="table">
-            <thead><tr><th>Control</th><th>CC</th><th>Target</th></tr></thead>
-            <tbody>
-              <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
-                <td>{{ m.control }}</td>
-                <td>{{ m.cc }}</td>
-                <td>
-                  <select class="select" v-model="m.key" @change="updateMidiMapping(m)">
-                    <option value="">None</option>
-                    <option v-for="t in lfoTargets" :key="'map'+t.key" :value="t.key">{{ t.label }}</option>
-                  </select>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      <div v-else-if="currentTab==='GENERATE'">
-        <h4>Generator</h4>
-        <div class="chips">
-          <span class="chip">Theme: {{ generator.theme || '—' }}</span>
-          <span class="chip">Style: {{ generator.stylePreset }}</span>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -2292,18 +2191,24 @@ export default {
         nodes: [],
         loading: false,
         status: '',
-        draft: { url: '', name: '', backend: 'sd-forge', priority: 1 },
+        draft: { url: '', name: '', backend: 'sd-forge', priority: 1, model: '' },
         editId: null,
-        editDraft: { name: '', url: '', backend: 'sd-forge', priority: 1 },
+        editDraft: { name: '', url: '', backend: 'sd-forge', priority: 1, model: '' },
         expandedLog: null,
+        modelOptions: {},
       },
       generator: {
         theme: '',
         stylePreset: 'Masterpiece, Realistic',
         customStyle: '',
+        fps: 24,
+        resolution: '1024x576',
+        totalFrames: 96,
+        numScenes: 4,
         isGenerating: false,
         status: '',
         lastPath: null,
+        result: null,
       },
       session: "clown_set_01",
       tabs: [
@@ -2563,6 +2468,7 @@ export default {
       sequencerMarkerName: "Scene",
       sequencerSelectedTrackId: null,
       generateDockExpanded: false,
+      selectedFrameIndex: -1,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
       timelineCanvasCtx: null,
@@ -2603,6 +2509,38 @@ export default {
         ? window.location.hostname
         : '192.168.2.100';
       return `rtmp://${host}:1935/live/deforum`;
+    },
+    frameStripThumbs() {
+      return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
+    },
+    selectedFrameThumb() {
+      if (!this.frameStripThumbs.length) return null;
+      if (!Number.isFinite(Number(this.selectedFrameIndex))) return this.frameStripThumbs[this.frameStripThumbs.length - 1] || null;
+      const index = Math.min(this.frameStripThumbs.length - 1, Math.max(0, Number(this.selectedFrameIndex)));
+      return this.frameStripThumbs[index] || null;
+    },
+    selectedFrameLabel() {
+      return this.selectedFrameThumb ? `Frame ${this.frameLabel(this.selectedFrameThumb)}` : 'No frames';
+    },
+    activePreviewStillPath() {
+      if (!this.deforumPlaying && this.currentTab !== 'GENERATE' && this.selectedFrameThumb) {
+        return this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '';
+      }
+      return this.performance.lastPreviewPath || this.generator.lastPath || '';
+    },
+    availableOllamaNodes() {
+      return (this.gpuPool.nodes || []).filter((node) => node && node.enabled && node.backend === 'ollama');
+    },
+    storyGeneratorSourceLabel() {
+      const activeResult = this.generator && this.generator.result && this.generator.result.source;
+      if (activeResult && activeResult.model) {
+        return `Ollama ${activeResult.model}${activeResult.node && activeResult.node.name ? ' on ' + activeResult.node.name : ''}`;
+      }
+      const firstNode = this.availableOllamaNodes[0];
+      if (firstNode) {
+        return `Ollama ${firstNode.model || firstNode.currentModel || firstNode.name}`;
+      }
+      return 'Local fallback';
     },
     modelStatusKind() {
       if (this.forge.switching || this.forge.loading) return 'loading';
@@ -2886,6 +2824,10 @@ export default {
   },
   methods: {
 
+  cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  },
+
   async refreshApiHealth() {
     if (typeof fetch !== "function") return;
     try {
@@ -3134,6 +3076,7 @@ export default {
      video.pause();
      video.currentTime = 0;
    }
+  this.syncFrameSelectionFromPlayback(0);
  },
  async toggleStreamRecord() {
    if (this.isRecording) {
@@ -3197,10 +3140,9 @@ export default {
    }
    this.timeHandler = () => {
      if (!isNaN(video.currentTime)) {
-       const t = video.currentTime;
-       const m = Math.floor(t / 60);
-       const s = (t % 60).toFixed(2).padStart(5, "0");
-       this.timecode = `${String(m).padStart(2, "0")}:${s}`;
+      const t = video.currentTime;
+      this.timecode = this.formatPlaybackTime(t);
+      this.syncFrameSelectionFromPlayback(t);
      }
      this.syncReferenceAudioToVideo(video);
    };
@@ -3290,6 +3232,12 @@ export default {
  getNow() {
    return (typeof performance !== "undefined" && performance.now) ? performance.now() : Date.now();
  },
+formatPlaybackTime(seconds) {
+  const t = Math.max(0, Number(seconds) || 0);
+  const m = Math.floor(t / 60);
+  const s = (t % 60).toFixed(2).padStart(5, "0");
+  return `${String(m).padStart(2, "0")}:${s}`;
+},
 lfoRateRadPerSec(lfo) {
   const bpm = Number((lfo && lfo.bpm) || this.lfoBpm || 120);
   const speed = Number((lfo && lfo.speed) || 1);
@@ -3793,12 +3741,59 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
      this.gpuPool.strategy = data.strategy || "round_robin";
      this.gpuPool.healthyNodes = data.healthyNodes ?? 0;
      this.gpuPool.nodes = data.nodes || [];
+    const modelOptions = { ...(this.gpuPool.modelOptions || {}) };
+    this.gpuPool.nodes.forEach((node) => {
+      if (node && node.url && Array.isArray(node.availableModels) && node.availableModels.length) {
+        modelOptions[node.url] = [...node.availableModels];
+      }
+    });
+    this.gpuPool.modelOptions = modelOptions;
    } catch (err) {
      this.gpuPool.status = err.message;
    } finally {
      this.gpuPool.loading = false;
    }
  },
+ollamaModelOptions(url) {
+  const map = this.gpuPool.modelOptions || {};
+  const normalized = String(url || '').trim().replace(/\/+$/, '');
+  return (map[url] || map[normalized] || []).filter(Boolean);
+},
+async loadOllamaModels(url) {
+  const normalized = (url || '').trim();
+  if (!normalized) {
+    this.gpuPool.status = 'Enter an Ollama URL first.';
+    return [];
+  }
+  const { data } = await apiFetch(`/api/ollama/models?url=${encodeURIComponent(normalized)}`, {}, 'ollama models');
+  const models = (data.models || [])
+    .map((entry) => (entry && typeof entry === 'object' ? entry.name : entry))
+    .filter(Boolean);
+  const key = data && data.url ? data.url : normalized;
+  this.gpuPool.modelOptions = {
+    ...(this.gpuPool.modelOptions || {}),
+    [key]: models,
+  };
+  return models;
+},
+async refreshGpuDraftModels() {
+  try {
+    const models = await this.loadOllamaModels(this.gpuPool.draft.url);
+    if (!this.gpuPool.draft.model && models.length) this.gpuPool.draft.model = models[0];
+    this.gpuPool.status = models.length ? `Loaded ${models.length} Ollama models.` : 'No Ollama models found.';
+  } catch (err) {
+    this.gpuPool.status = err.message;
+  }
+},
+async refreshGpuEditModels() {
+  try {
+    const models = await this.loadOllamaModels(this.gpuPool.editDraft.url);
+    if (!this.gpuPool.editDraft.model && models.length) this.gpuPool.editDraft.model = models[0];
+    this.gpuPool.status = models.length ? `Loaded ${models.length} Ollama models.` : 'No Ollama models found.';
+  } catch (err) {
+    this.gpuPool.status = err.message;
+  }
+},
  async saveGpuPoolSettings() {
    try {
      await apiFetch("/api/gpu-pool", {
@@ -3827,9 +3822,10 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
          backend: this.gpuPool.draft.backend,
          enabled: false,
          priority: this.gpuPool.draft.priority || 1,
+        model: this.gpuPool.draft.backend === 'ollama' ? (this.gpuPool.draft.model || null) : null,
        }),
      }, "add gpu node");
-     this.gpuPool.draft = { url: "", name: "", backend: "sd-forge", priority: 1 };
+    this.gpuPool.draft = { url: "", name: "", backend: "sd-forge", priority: 1, model: "" };
      await this.refreshGpuPool(false);
      this.gpuPool.status = "Instance added (disabled). Edit if needed, then enable.";
    } catch (err) {
@@ -3847,6 +3843,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
      url: n.url,
      backend: n.backend,
      priority: n.priority || 1,
+    model: n.model || '',
    };
  },
  async saveGpuNodeEdit(n) {
@@ -4366,14 +4363,15 @@ toggleLfoTarget(lfo, targetKey) {
  async refreshFrames() {
    if (typeof fetch !== "function") return;
    try {
-     const res = await fetch("/api/frames?limit=10", { cache: "no-store" });
+    const previousSelectedSrc = this.selectedFrameThumb ? (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '') : '';
+    const res = await fetch("/api/frames?limit=48", { cache: "no-store" });
      if (!res.ok) {
        this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
        return;
      }
      const json = await res.json();
      if (Array.isArray(json.items)) {
-       this.thumbs = json.items.map((item) => {
+      this.thumbs = json.items.map((item) => {
          if (typeof item === "string") {
            return { src: item, name: item.split("/").pop(), frame: this.parseFrameNumber(item) };
          }
@@ -4381,7 +4379,13 @@ toggleLfoTarget(lfo, targetKey) {
          const name = item.name || src.split("/").pop();
          const frame = item.frame != null ? item.frame : this.parseFrameNumber(name || src);
          return { src, name, frame };
-       });
+      }).sort((a, b) => {
+        const aFrame = Number(a && a.frame);
+        const bFrame = Number(b && b.frame);
+        if (Number.isFinite(aFrame) && Number.isFinite(bFrame)) return aFrame - bFrame;
+        return String(a && a.name || '').localeCompare(String(b && b.name || ''));
+      });
+      this.updateFrameSelection(previousSelectedSrc);
      }
      this.framesRefreshBackoffMs = 5000;
    } catch (e) {
@@ -4442,6 +4446,85 @@ startAudioStream() {
    if (t.name) return t.name.replace(/\.[^.]+$/, "");
    return t.src || "?";
  },
+scrollSelectedFrameIntoView(index = this.selectedFrameIndex) {
+  if (typeof window === "undefined") return;
+  const rail = this.$refs && this.$refs.frameRail;
+  if (!rail || typeof rail.querySelector !== "function") return;
+  const item = rail.querySelector(`[data-frame-index="${index}"]`);
+  if (item && typeof item.scrollIntoView === "function") {
+    item.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }
+},
+selectFrame(index, { scroll = true } = {}) {
+  if (!this.frameStripThumbs.length) {
+    this.selectedFrameIndex = -1;
+    return;
+  }
+  const clamped = Math.min(this.frameStripThumbs.length - 1, Math.max(0, Number(index) || 0));
+  this.selectedFrameIndex = clamped;
+  const thumb = this.frameStripThumbs[clamped];
+  if (thumb) {
+    const fps = Math.max(1, Number(this.deforumSettings.fps || this.sequencer?.fps || 24) || 24);
+    const firstFrame = Number(this.frameStripThumbs[0] && this.frameStripThumbs[0].frame);
+    const currentFrame = Number(thumb.frame);
+    if (Number.isFinite(firstFrame) && Number.isFinite(currentFrame)) {
+      this.timecode = this.formatPlaybackTime((currentFrame - firstFrame) / fps);
+    }
+  }
+  if (scroll) this.$nextTick(() => this.scrollSelectedFrameIntoView(clamped));
+},
+stepFrameSelection(direction) {
+  if (!this.frameStripThumbs.length) return;
+  const current = Number.isFinite(Number(this.selectedFrameIndex))
+    ? Number(this.selectedFrameIndex)
+    : this.frameStripThumbs.length - 1;
+  this.selectFrame(current + Number(direction || 0));
+},
+frameIndexForTime(seconds) {
+  if (!this.frameStripThumbs.length) return -1;
+  const fps = Math.max(1, Number(this.deforumSettings.fps || this.sequencer?.fps || 24) || 24);
+  const baseFrame = Number(this.frameStripThumbs[0] && this.frameStripThumbs[0].frame);
+  if (!Number.isFinite(baseFrame)) return -1;
+  const targetFrame = baseFrame + Math.round(Math.max(0, Number(seconds) || 0) * fps);
+  let bestIndex = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  this.frameStripThumbs.forEach((thumb, idx) => {
+    const frame = Number(thumb && thumb.frame);
+    if (!Number.isFinite(frame)) return;
+    const distance = Math.abs(frame - targetFrame);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestIndex = idx;
+    }
+  });
+  return bestIndex;
+},
+syncFrameSelectionFromPlayback(seconds) {
+  const index = this.frameIndexForTime(seconds);
+  if (index >= 0) this.selectFrame(index, { scroll: false });
+},
+updateFrameSelection(preferredSrc = '') {
+  if (!this.frameStripThumbs.length) {
+    this.selectedFrameIndex = -1;
+    return;
+  }
+  if (preferredSrc) {
+    const existingIndex = this.frameStripThumbs.findIndex((thumb) => (thumb.src || thumb.url || thumb.path || '') === preferredSrc);
+    if (existingIndex >= 0) {
+      this.selectFrame(existingIndex, { scroll: false });
+      return;
+    }
+  }
+  if (this.deforumPlaying && this.playerEl && Number.isFinite(Number(this.playerEl.currentTime))) {
+    const playbackIndex = this.frameIndexForTime(this.playerEl.currentTime);
+    if (playbackIndex >= 0) {
+      this.selectFrame(playbackIndex, { scroll: false });
+      return;
+    }
+  }
+  if (this.selectedFrameIndex >= 0 && this.selectedFrameIndex < this.frameStripThumbs.length) return;
+  this.selectFrame(this.frameStripThumbs.length - 1, { scroll: false });
+},
 audioBandWindowStyle(mapping) {
   const minHz = 20;
   const maxHz = 16000;
@@ -5961,6 +6044,25 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  _genRnd(arr) {
    return arr[Math.floor(Math.random() * arr.length)];
  },
+generatorRequestBody() {
+  const style = this.generator.stylePreset === 'custom'
+    ? (this.generator.customStyle.trim() || 'Masterpiece, Realistic')
+    : this.generator.stylePreset;
+  const width = Number(this.deforumSettings && this.deforumSettings.W) || Number((this.generator.resolution || '1024x576').split('x')[0]) || 1024;
+  const height = Number(this.deforumSettings && this.deforumSettings.H) || Number((this.generator.resolution || '1024x576').split('x')[1]) || 576;
+  const fps = Number(this.sequencer && this.sequencer.fps) || Number(this.framesync && this.framesync.fps) || Number(this.generator.fps) || 24;
+  const totalFrames = Number(this.deforumSettings && this.deforumSettings.max_frames) || Number(this.framesync && this.framesync.frameCount) || Number(this.generator.totalFrames) || 96;
+  const numScenes = Math.max(2, Number(this.generator.numScenes) || 4);
+  return {
+    theme: this.generator.theme.trim() || this._genRnd(this.genData.defaultThemes),
+    style,
+    width,
+    height,
+    fps,
+    totalFrames,
+    numScenes,
+  };
+},
  _buildScene(theme, style, idx, total) {
    const r = (a) => this._genRnd(a);
    const g = this.genData;
@@ -6018,49 +6120,59 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    if (tcyParts.length > 1) motion['Transform Center Y'] = tcyParts.join(', ');
    return motion;
  },
- generateStory() {
-   const g = this.generator;
-   const gd = this.genData;
-   g.isGenerating = true;
-   g.status = 'Generating…';
-   g.result = null;
-   // Run async so the UI can update
-   setTimeout(() => {
-     try {
-       const theme = g.theme.trim() || this._genRnd(gd.defaultThemes);
-       const style = g.stylePreset === 'custom' ? (g.customStyle.trim() || 'Masterpiece, Realistic') : g.stylePreset;
-       const fps = g.fps;
-       const [width, height] = g.resolution.split('x').map(Number);
-       const totalFrames = g.totalFrames;
-       const numScenes = g.numScenes;
-       const framesPerScene = Math.floor(totalFrames / numScenes);
-       const scenes = {};
-       for (let i = 0; i < numScenes; i++) {
-         scenes[String(i * framesPerScene)] = this._buildScene(theme, style, i, numScenes);
-       }
-       const motion = this._buildMotion(numScenes, framesPerScene, totalFrames);
-       // Format output
-       const lines = [
-         `Theme: ${theme}`,
-         `Style: ${style}`,
-         `Resolution: ${width}x${height}`,
-         `FPS: ${fps}`,
-         `Total frames: ${totalFrames}`,
-         '',
-         JSON.stringify(scenes, null, 2),
-         '',
-         'Motion Settings:',
-       ];
-       for (const [k, v] of Object.entries(motion)) lines.push(`${k}: ${v}`);
-       g.result = { theme, style, width, height, fps, totalFrames, scenes, motion, formatted: lines.join('\n') };
-       g.status = 'Story ready — review and approve below!';
-     } catch (err) {
-       g.status = `Error: ${err.message}`;
-     } finally {
-       g.isGenerating = false;
-       setTimeout(() => { g.status = ''; }, 4000);
-     }
-   }, 30);
+buildLocalStoryResult() {
+  const payload = this.generatorRequestBody();
+  const framesPerScene = Math.max(1, Math.floor(payload.totalFrames / payload.numScenes));
+  const scenes = {};
+  for (let i = 0; i < payload.numScenes; i++) {
+    scenes[String(i * framesPerScene)] = this._buildScene(payload.theme, payload.style, i, payload.numScenes);
+  }
+  const motion = this._buildMotion(payload.numScenes, framesPerScene, payload.totalFrames);
+  const lines = [
+    `Theme: ${payload.theme}`,
+    `Style: ${payload.style}`,
+    `Resolution: ${payload.width}x${payload.height}`,
+    `FPS: ${payload.fps}`,
+    `Total frames: ${payload.totalFrames}`,
+    '',
+    JSON.stringify(scenes, null, 2),
+    '',
+    'Motion Settings:',
+  ];
+  for (const [key, value] of Object.entries(motion)) lines.push(`${key}: ${value}`);
+  return {
+    ...payload,
+    scenes,
+    motion,
+    formatted: lines.join('\n'),
+    source: { backend: 'local', model: '' },
+  };
+},
+async generateStory() {
+  const g = this.generator;
+  g.isGenerating = true;
+  g.status = 'Generating story…';
+  g.result = null;
+  try {
+    const payload = this.generatorRequestBody();
+    try {
+      const { data } = await apiFetch('/api/story/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }, 'generate story');
+      g.result = data;
+      const source = data && data.source && data.source.model ? ` via ${data.source.model}` : '';
+      g.status = `Story ready${source} — review and apply below.`;
+    } catch (err) {
+      g.result = this.buildLocalStoryResult();
+      g.status = `Story ready via local fallback (${err.message})`;
+    }
+  } catch (err) {
+    g.status = `Error: ${err.message}`;
+  } finally {
+    g.isGenerating = false;
+  }
  },
  approveStory() {
    if (!this.generator.result) return;
