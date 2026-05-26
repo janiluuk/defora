@@ -6,7 +6,7 @@
   "retryAttempts": 2,
   "nodes": [
     {
-      "url": "http://192.168.2.102:7860",
+      "url": "http://192.168.2.101:7860",
       "name": "vimage2",
       "backend": "sd-forge",
       "enabled": true,

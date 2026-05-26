@@ -213,7 +213,7 @@ function createGpuPool(options = {}) {
       const node = selectNode({ preferred, sdApiOnly });
       if (node) return wrapTarget(node);
     }
-    const host = env.SD_FORGE_HOST || "192.168.2.102";
+    const host = env.SD_FORGE_HOST || "192.168.2.101";
     const port = env.SD_FORGE_PORT || "7860";
     return {
       url: `http://${host}:${port}`,

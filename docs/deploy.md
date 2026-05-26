@@ -40,7 +40,8 @@ Workflow: [`.github/workflows/deploy-production.yml`](../.github/workflows/deplo
 - Manual: **Actions → Deploy production → Run workflow**
 - Automatic: after **CI** succeeds on a **push to `main`**
 
-**Required secret:** `DEPLOY_SSH_PRIVATE_KEY` (same key as Sparkki if both deploy to `192.168.2.100`).
+**Deploy secret:** `DEPLOY_SSH_PRIVATE_KEY` (same key as Sparkki if both deploy to `192.168.2.100`).
+If it is not configured, the GitHub Actions deploy workflow now warns and skips deployment instead of failing the run.
 
 **Optional repository variables:** `DEPLOY_JUMP_HOST`, `DEPLOY_JUMP_PORT`, `DEPLOY_HOST`, `DEPLOY_PATH`, `DEPLOY_APP_PORT`.
 

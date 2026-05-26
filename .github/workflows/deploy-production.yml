@@ -79,16 +79,20 @@ jobs:
             echo "SSH_PROXY_JUMP=${jump_user}@${jump_host}:${jump_port}"
           } >> "$GITHUB_ENV"
 
-      - name: Require deploy key
+      - name: Check deploy key
+        id: deploy_key
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
         run: |
           if [ -z "${DEPLOY_KEY}" ]; then
-            echo "::error::Set repository secret DEPLOY_SSH_PRIVATE_KEY (see workflow header)."
-            exit 1
+            echo "::warning::Skipping deploy because DEPLOY_SSH_PRIVATE_KEY is not configured."
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Configure SSH agent
+        if: steps.deploy_key.outputs.enabled == 'true'
         run: |
           install -m 700 -d ~/.ssh
           printf '%s\n' "${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}" > ~/.ssh/deploy_key
@@ -119,6 +123,7 @@ jobs:
           chmod 600 ~/.ssh/config
 
       - name: Trust SSH host keys
+        if: steps.deploy_key.outputs.enabled == 'true'
         run: |
           set -euo pipefail
           touch ~/.ssh/known_hosts
@@ -127,11 +132,13 @@ jobs:
           ssh deploy-jump "ssh-keyscan -H '${DEPLOY_HOST}'" >> ~/.ssh/known_hosts
 
       - name: Verify jumphost and production SSH
+        if: steps.deploy_key.outputs.enabled == 'true'
         run: |
           ssh deploy-jump 'echo "jumphost ok"'
           ssh deploy-prod "test -d '${DEPLOY_PATH}' && echo 'production ok'"
 
       - name: Deploy stack
+        if: steps.deploy_key.outputs.enabled == 'true'
         env:
           SSH_PROXY_JUMP: ${{ env.SSH_PROXY_JUMP }}
           DEPLOY_HOST: ${{ env.DEPLOY_HOST }}
@@ -150,5 +157,6 @@ jobs:
           fi
 
       - name: Health check
+        if: steps.deploy_key.outputs.enabled == 'true'
         run: |
           ssh deploy-prod "curl -sfS http://127.0.0.1:${DEPLOY_APP_PORT}/api/health"

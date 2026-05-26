@@ -991,7 +991,7 @@ class DeforaTUI:
         h, w = self.stdscr.getmaxyx()
         self.stdscr.addnstr(3, 1, "FORGE CONNECTION", w - 2, curses.A_BOLD)
         forge = [
-            f"Host: 192.168.2.102  Port: 7860",
+            f"Host: 192.168.2.101  Port: 7860",
             f"Status: {'Connected' if self.bridge.connected else 'Disconnected'}",
             "",
             "MODEL:",

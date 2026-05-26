@@ -401,6 +401,30 @@
                         :value="getDeforumField(field.key) ?? ''"
                         @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
                       />
+                      <select
+                        v-else-if="field.key === 'sd_model_name' && forge.models.length"
+                        class="framesync-select"
+                        :value="getDeforumField(field.key) ?? ''"
+                        :disabled="forge.switching || modelStatusKind === 'offline'"
+                        @change="onDeforumModelCommit($event.target.value)"
+                      >
+                        <option value="">— select model —</option>
+                        <option
+                          v-for="m in forge.models"
+                          :key="m.model_name || m.title"
+                          :value="m.model_name || m.title"
+                        >
+                          {{ m.title || m.model_name }}
+                        </option>
+                      </select>
+                      <input
+                        v-else-if="field.key === 'sd_model_name'"
+                        type="text"
+                        class="framesync-input"
+                        :value="getDeforumField(field.key) ?? ''"
+                        @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                        @blur="onDeforumModelCommit($event.target.value)"
+                      />
                       <input
                         v-else
                         type="text"
@@ -1918,7 +1942,7 @@ export default {
          lastPreviewPath: null,
        },
        forge: {
-         host: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_HOST ? process.env.SD_FORGE_HOST : '192.168.2.102',
+         host: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_HOST ? process.env.SD_FORGE_HOST : '192.168.2.101',
          port: typeof process !== 'undefined' && process.env && process.env.SD_FORGE_PORT ? process.env.SD_FORGE_PORT : '7860',
          available: false,
          loading: false,
@@ -1938,7 +1962,7 @@ export default {
        lfoOn: true,
       beatMacroOn: true,
       apiHealth: { sdForge: null },
-      forgeHost: process.env.SD_FORGE_HOST || '192.168.2.102',
+      forgeHost: process.env.SD_FORGE_HOST || '192.168.2.101',
       availablePresets: [],
       currentPreset: null,
       newPresetName: '',
@@ -2399,12 +2423,12 @@ export default {
     this.refreshPresets();
     this.refreshSharedPresets();
     this.refreshGpuPool(false);
-    this.refreshLoras();
     this.loadControlNetModels();
     this.refreshPlugins();
     this.syncDeforumSettingsJson();
-    this.loadDeforumSettings();
-    this.refreshForgeAll().then(() => {
+    const deforumSettingsPromise = this.loadDeforumSettings({ syncServerModel: false });
+    const forgeRefreshPromise = this.refreshForgeAll();
+    Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
       this.restoreLastModel();
       if (!this.deforumPlaying) this.schedulePreviewFrame();
     });
@@ -2660,6 +2684,9 @@ export default {
  switchSubTab(tab, sub) {
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
+   if (tab === 'PROMPTS' && sub === 'LORA' && !this.lorasLoading && !this.loras.available.length) {
+     this.refreshLoras();
+   }
  },
  togglePlayPause() {
    this.toggleDeforumPlay();
@@ -3147,6 +3174,13 @@ export default {
    if (msg.type === "frame") {
      this.refreshFrames();
    }
+  if (msg.type === "deforum_settings") {
+    this.loadDeforumSettings({ syncServerModel: false });
+  }
+  if (msg.type === "sd_model" && msg.model) {
+    const modelName = msg.model.model_name || msg.model.title || '';
+    this.applyLoadedModelSelection(modelName, { queueDeforumSave: false });
+  }
  },
  collabIdentify() {
    if (!this.ws || this.ws.readyState !== 1) return;
@@ -5634,17 +5668,71 @@ onAudioUpload(evt) {
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
    } catch (_e) { /* ignore */ }
  },
+normalizeModelName(name) {
+  const normalized = typeof name === 'string' ? name.trim() : '';
+  if (!normalized || normalized.toLowerCase() === 'unknown') return '';
+  return normalized;
+},
+findForgeModelEntry(modelName) {
+  const normalized = this.normalizeModelName(modelName);
+  if (!normalized) return null;
+  return (this.forge.models || []).find((model) => {
+    const candidates = [model && model.model_name, model && model.title]
+      .map((value) => this.normalizeModelName(value))
+      .filter(Boolean);
+    return candidates.includes(normalized);
+  }) || null;
+},
+applyLoadedModelSelection(modelName, { syncDeforumSettings = true, queueDeforumSave = false, saveSession = true } = {}) {
+  const normalized = this.normalizeModelName(modelName);
+  if (!normalized) return '';
+  this.forge.currentModel = normalized;
+  this.forge.selectedModel = normalized;
+  this.forge.lastModel = normalized;
+  const matchedModel = this.findForgeModelEntry(normalized);
+  if (matchedModel && matchedModel.metadata) {
+    this.forge.modelInfo = matchedModel.metadata;
+  }
+  if (syncDeforumSettings && this.deforumSettings && this.deforumSettings.sd_model_name !== normalized) {
+    this.deforumSettings.sd_model_name = normalized;
+    this.syncDeforumSettingsJson();
+    if (queueDeforumSave) this.queueDeforumSettingsSave();
+  }
+  if (saveSession) this.saveSessionState();
+  return normalized;
+},
+syncSelectedModelFromDeforumSettings() {
+  const desired = this.normalizeModelName(this.deforumSettings && this.deforumSettings.sd_model_name);
+  if (desired) this.forge.selectedModel = desired;
+  return desired;
+},
  restoreLastModel() {
-   const name = this.forge.lastModel || this.forge.selectedModel;
-   if (!name || this.forge.switching) return;
-   if (this.forge.currentModel && this.forge.currentModel === name) return;
+  const name = this.syncSelectedModelFromDeforumSettings() || this.normalizeModelName(this.forge.lastModel) || this.normalizeModelName(this.forge.selectedModel);
+  if (!name || this.forge.switching) return false;
+  if (this.normalizeModelName(this.forge.currentModel) === name) {
+    this.applyLoadedModelSelection(name, { queueDeforumSave: false });
+    return true;
+  }
    this.forge.selectedModel = name;
-   this.switchForgeModel();
+  return this.switchForgeModel(name, { persistDeforumSettings: false });
  },
  async onModelSelectChange() {
-   await this.switchForgeModel();
+  await this.switchForgeModel(this.forge.selectedModel, { persistDeforumSettings: true });
    this.saveSessionState();
  },
+async onDeforumModelCommit(rawValue) {
+  const nextModel = this.normalizeModelName(rawValue != null ? rawValue : this.deforumSettings && this.deforumSettings.sd_model_name);
+  if (!nextModel) return;
+  if (this.deforumSettings && this.deforumSettings.sd_model_name !== nextModel) {
+    this.deforumSettings.sd_model_name = nextModel;
+    this.syncDeforumSettingsJson();
+  }
+  this.forge.selectedModel = nextModel;
+  const switched = await this.switchForgeModel(nextModel, { persistDeforumSettings: true });
+  if (!switched && this.forge.currentModel) {
+    this.applyLoadedModelSelection(this.forge.currentModel, { queueDeforumSave: true });
+  }
+},
  slotTypeLabel(type) {
    const t = this.crossfadeSlotTypes.find((x) => x.id === type);
    return t ? t.label : type;
@@ -5821,6 +5909,9 @@ onAudioUpload(evt) {
    if (keyPath === 'seed' && Number.isFinite(value)) {
      this.hud.seed = value;
    }
+  if (keyPath === 'sd_model_name') {
+    this.forge.selectedModel = this.normalizeModelName(value);
+  }
    this.syncDeforumSettingsJson();
    this.pushDeforumLivePatch(keyPath, value);
    this.queueDeforumSettingsSave();
@@ -5844,13 +5935,18 @@ onAudioUpload(evt) {
      if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
      this.deforumSettings = parsed;
      this.deforumSettingsJsonError = '';
-     this.queueDeforumSettingsSave();
+    const desiredModel = this.syncSelectedModelFromDeforumSettings();
+    if (desiredModel) {
+      void this.switchForgeModel(desiredModel, { persistDeforumSettings: true });
+    } else {
+      this.queueDeforumSettingsSave();
+    }
      if (!this.deforumPlaying) this.scheduleDeforumPreview();
    } catch (e) {
      this.deforumSettingsJsonError = String(e.message || e);
    }
  },
- async loadDeforumSettings() {
+async loadDeforumSettings({ syncServerModel = true } = {}) {
   this.deforumSettingsLoading = true;
    try {
      const res = await fetch('/api/deforum/settings');
@@ -5858,8 +5954,12 @@ onAudioUpload(evt) {
      if (data.settings && typeof data.settings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
      }
+    this.syncSelectedModelFromDeforumSettings();
      this.syncDeforumSettingsJson();
      this.deforumSettingsStatus = 'Loaded';
+    if (syncServerModel) {
+      await this.restoreLastModel();
+    }
    } catch (e) {
      this.deforumSettingsStatus = 'Load failed';
      console.error('loadDeforumSettings', e);
@@ -5884,6 +5984,10 @@ onAudioUpload(evt) {
        this.deforumSettingsStatus = data.error || 'Save failed';
        return;
      }
+    if (data.modelSync && data.modelSync.success && data.modelSync.model) {
+      const modelName = data.modelSync.model.model_name || data.modelSync.model.title || '';
+      this.applyLoadedModelSelection(modelName, { queueDeforumSave: false });
+    }
      this.deforumSettingsStatus = 'Saved';
    } catch (e) {
      this.deforumSettingsStatus = 'Save failed';
@@ -6028,27 +6132,37 @@ onAudioUpload(evt) {
      this.forge.modelsSource = '';
    }
  },
- async switchForgeModel() {
-   if (!this.forge.selectedModel) return;
+async switchForgeModel(modelName = this.forge.selectedModel, { persistDeforumSettings = false } = {}) {
+  const requestedModel = this.normalizeModelName(modelName);
+  if (!requestedModel) return false;
+  this.forge.selectedModel = requestedModel;
+  if (this.normalizeModelName(this.forge.currentModel) === requestedModel) {
+    this.applyLoadedModelSelection(requestedModel, { queueDeforumSave: persistDeforumSettings });
+    if (!this.deforumPlaying) this.schedulePreviewFrame();
+    return true;
+  }
    this.forge.switching = true;
    try {
      const res = await fetch('/api/sd-models/switch', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ model_name: this.forge.selectedModel }),
+      body: JSON.stringify({ model_name: requestedModel }),
      });
      const data = await res.json();
      if (data.success) {
-       this.forge.currentModel = this.forge.selectedModel;
-       this.forge.lastModel = this.forge.selectedModel;
+      const resolvedModel = this.normalizeModelName((data.model && (data.model.model_name || data.model.title)) || requestedModel);
+      this.applyLoadedModelSelection(resolvedModel, { queueDeforumSave: persistDeforumSettings });
        if (data.model && data.model.metadata) {
          this.forge.modelInfo = data.model.metadata;
        }
-       this.saveSessionState();
        if (!this.deforumPlaying) this.schedulePreviewFrame();
+      return true;
      }
+    throw new Error(data.error || data.message || 'Failed to switch model');
    } catch (err) {
      console.error('Failed to switch model', err);
+    this.deforumSettingsStatus = `Model sync failed: ${err.message || err}`;
+    return false;
    } finally {
      this.forge.switching = false;
    }
@@ -6073,7 +6187,8 @@ onAudioUpload(evt) {
      this.forge.schedulers = sched.schedulers || [];
      this.forge.vaeList = vae.vae || [];
      if (cur.model) {
-       this.forge.currentModel = cur.model.model_name || cur.model.title || '';
+      const currentModel = cur.model.model_name || cur.model.title || '';
+      this.applyLoadedModelSelection(currentModel, { queueDeforumSave: false, saveSession: false });
      }
 
      const o = opt.options || {};

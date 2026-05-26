@@ -391,6 +391,60 @@ describe("Deforumation Web UI behavior", () => {
     delete global.fetch;
   });
 
+  it("onModelSelectChange keeps deforum settings model aligned with Forge selection", async () => {
+    const instance = instantiate(appDef);
+    let queuedSave = 0;
+    let savedSession = 0;
+    global.fetch = async (_url, opts) => ({
+      ok: true,
+      json: async () => ({
+        success: true,
+        model: { model_name: JSON.parse(opts.body).model_name, title: JSON.parse(opts.body).model_name },
+      }),
+    });
+    instance.queueDeforumSettingsSave = () => {
+      queuedSave += 1;
+    };
+    instance.saveSessionState = () => {
+      savedSession += 1;
+    };
+    instance.forge.currentModel = "old-model.safetensors";
+    instance.forge.selectedModel = "new-model.safetensors";
+    instance.deforumSettings.sd_model_name = "old-model.safetensors";
+
+    await instance.onModelSelectChange();
+
+    expect(instance.forge.currentModel).to.equal("new-model.safetensors");
+    expect(instance.forge.lastModel).to.equal("new-model.safetensors");
+    expect(instance.deforumSettings.sd_model_name).to.equal("new-model.safetensors");
+    expect(queuedSave).to.equal(1);
+    expect(savedSession).to.be.greaterThan(0);
+    delete global.fetch;
+  });
+
+  it("refreshForgeOptions mirrors the server loaded model into deforum settings", async () => {
+    const instance = instantiate(appDef);
+    const responses = {
+      "/api/forge/options": { available: true, options: {} },
+      "/api/forge/samplers": { samplers: [] },
+      "/api/forge/schedulers": { schedulers: [] },
+      "/api/forge/vae": { vae: [] },
+      "/api/sd-models/current": { model: { model_name: "server-model.safetensors", title: "server-model.safetensors" } },
+    };
+    global.fetch = async (url) => ({
+      ok: true,
+      json: async () => responses[url],
+    });
+    instance.deforumSettings.sd_model_name = "stale-model.safetensors";
+
+    await instance.refreshForgeOptions();
+
+    expect(instance.forge.currentModel).to.equal("server-model.safetensors");
+    expect(instance.forge.selectedModel).to.equal("server-model.safetensors");
+    expect(instance.deforumSettings.sd_model_name).to.equal("server-model.safetensors");
+    delete global.fetch;
+  });
+
   it("disposeLiveAudioAnalyser is safe when nothing is wired", () => {
     const instance = instantiate(appDef);
     instance.disposeLiveAudioAnalyser();

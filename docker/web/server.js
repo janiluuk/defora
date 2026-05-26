@@ -33,6 +33,7 @@ async function start(opts = {}) {
     sdForgeAvailable: false,
     lastChecked: null,
     forgeCacheValidUntil: 0,
+    loraCacheValidUntil: 0,
     controlNetModels: null,
     loraModels: null,
     sdModels: null,
@@ -729,9 +730,19 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "settings object required" });
     }
     try {
+      let modelSync = null;
       await fsp.writeFile(deforumSettingsFile, JSON.stringify(settings, null, 2), "utf-8");
+      const requestedModel = typeof settings.sd_model_name === "string" ? settings.sd_model_name.trim() : "";
+      if (requestedModel) {
+        try {
+          modelSync = await switchSdModelOnForge(req, requestedModel);
+        } catch (modelErr) {
+          modelSync = { success: false, error: modelErr.message };
+          console.warn("[api] deforum settings model sync warning", modelErr.message);
+        }
+      }
       broadcast({ type: "deforum_settings", action: "updated" });
-      res.json({ ok: true });
+      res.json({ ok: true, modelSync });
     } catch (err) {
       console.error("[api] deforum settings save error", err);
       res.status(500).json({ error: "could not save deforum settings" });
@@ -1315,7 +1326,7 @@ async function start(opts = {}) {
       const imageBuffer = req.file.buffer;
       
       try {
-        const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
+        const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.101";
         const forgePort = process.env.SD_FORGE_PORT || "7860";
         const forgeUrl = `http://${forgeHost}:${forgePort}`;
         
@@ -1445,6 +1456,57 @@ async function start(opts = {}) {
     }
   });
 
+  async function switchSdModelOnForge(req, modelName) {
+    const nextModel = typeof modelName === "string" ? modelName.trim() : "";
+    if (!nextModel) {
+      throw new Error("model_name is required");
+    }
+    if (apiStatus.currentModel && apiStatus.currentModel.model_name === nextModel) {
+      return { success: true, skipped: true, model: apiStatus.currentModel };
+    }
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    try {
+      if (typeof fetch === "undefined") {
+        throw new Error("fetch not available");
+      }
+
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      try {
+        const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            sd_model_checkpoint: nextModel,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`API returned ${response.status}: ${error}`);
+        }
+      } finally {
+        clearTimeout(timeout);
+      }
+
+      apiStatus.currentModel = { model_name: nextModel, title: nextModel };
+      console.log(`[sd-models] Switched to model: ${nextModel}`);
+      broadcast({ type: "sd_model", action: "switched", model: apiStatus.currentModel });
+      return {
+        success: true,
+        message: `Switched to ${nextModel}`,
+        model: apiStatus.currentModel,
+      };
+    } finally {
+      target.release();
+    }
+  }
+
   // Get current SD model
   app.get("/api/sd-models/current", async (req, res) => {
     const target = forgeTarget(req);
@@ -1489,8 +1551,6 @@ async function start(opts = {}) {
 
   // Switch SD model
   app.post("/api/sd-models/switch", async (req, res) => {
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
     const { model_name } = req.body;
     
     if (!model_name) {
@@ -1498,46 +1558,14 @@ async function start(opts = {}) {
     }
     
     try {
-      if (typeof fetch === 'undefined') {
-        throw new Error('fetch not available');
-      }
-      
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000); // 30 seconds for model loading
-      
-      const response = await fetch(`${forgeUrl}/sdapi/v1/options`, {
-        method: 'POST',
-        signal: controller.signal,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({
-          sd_model_checkpoint: model_name
-        })
-      });
-      clearTimeout(timeout);
-      
-      if (response.ok) {
-        apiStatus.currentModel = { model_name, title: model_name };
-        console.log(`[sd-models] Switched to model: ${model_name}`);
-        return res.json({ 
-          success: true, 
-          message: `Switched to ${model_name}`,
-          model: { model_name, title: model_name }
-        });
-      } else {
-        const error = await response.text();
-        throw new Error(`API returned ${response.status}: ${error}`);
-      }
+      const result = await switchSdModelOnForge(req, model_name);
+      return res.json(result);
     } catch (err) {
       console.log(`[sd-models] Failed to switch model: ${err.message}`);
       return res.status(500).json({ 
         error: "Failed to switch model", 
         message: err.message 
       });
-    } finally {
-      target.release();
     }
   });
 
@@ -1589,6 +1617,10 @@ async function start(opts = {}) {
     const target = forgeTarget(req);
     const forgeUrl = target.url;
     try {
+    if (apiStatus.loraModels && apiStatus.loraCacheValidUntil > Date.now()) {
+      const cacheAge = Math.floor((apiStatus.loraCacheValidUntil - Date.now()) / 1000);
+      return res.json({ loras: apiStatus.loraModels, source: 'cache', cached: true, cacheAge });
+    }
     // Fallback placeholder LoRAs for development/demo
     const placeholderLoras = [
       {
@@ -1665,13 +1697,17 @@ async function start(opts = {}) {
             strength: 1.0,
           };
         });
-        
+        apiStatus.loraModels = formattedLoras;
+        apiStatus.loraCacheValidUntil = Date.now() + 5 * 60 * 1000;
         console.log(`[loras] Fetched ${formattedLoras.length} LoRAs from SD-Forge`);
         return res.json({ loras: formattedLoras, source: 'sd-forge' });
       }
     } catch (err) {
       // API unavailable or timeout - fall back to placeholder
-      console.log(`[loras] SD-Forge API unavailable, using placeholder LoRAs: ${err.message}`);
+      console.log(`[loras] SD-Forge API unavailable, using ${apiStatus.loraModels ? 'cached' : 'placeholder'} LoRAs: ${err.message}`);
+      if (apiStatus.loraModels) {
+        return res.json({ loras: apiStatus.loraModels, source: 'cache', cached: true });
+      }
     }
     
     res.json({ loras: placeholderLoras, source: 'placeholder' });

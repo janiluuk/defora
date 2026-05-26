@@ -78,7 +78,6 @@ services:
       - "1935:1935"
     extra_hosts:
       - "vimage2:${VIMAGE2_IP:-192.168.2.101}"
-      - "vimage3:${VIMAGE3_IP:-192.168.2.102}"
       - "vimage5:${VIMAGE5_IP:-192.168.2.104}"
     volumes:
       - frames:/data/frames:ro
