@@ -46,4 +46,4 @@ Workflow: [`.github/workflows/deploy-production.yml`](../.github/workflows/deplo
 
 ## Submodule
 
-Deploy runs `./scripts/clone_deforumation.sh` on the remote host if `deforumation/mediator.py` is missing. CI/checkout should use `submodules: recursive` so rsync includes vendored `deforumation/`.
+Deploy expects `deforumation/` to already be present in the checked-out repo. CI and local clones should use recursive submodule checkout so rsync includes vendored `deforumation/` (`actions/checkout` with `submodules: recursive`, or `git submodule update --init --recursive` locally).
