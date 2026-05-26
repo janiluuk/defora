@@ -1186,8 +1186,20 @@
 
     /* ── P1: LIVE stage — full-bleed video with floating HUD panels ── */
     .layout--live { grid-template-columns: 1fr; }
-    .layout--live .preview { position: relative; }
-    .layout--live .video-wrap { aspect-ratio: 16/9; width: 100%; border-radius: 8px; overflow: hidden; }
+    .layout--live .preview {
+      position: relative;
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+    }
+    .layout--live .video-wrap {
+      aspect-ratio: 16/9;
+      width: 100%;
+      max-width: 980px;
+      margin: 0 auto;
+      border-radius: 8px;
+      overflow: hidden;
+    }
     /* HUD strip floats at bottom of video-wrap when inside it */
     .video-wrap > .live-hud-strip {
       position: absolute;
