@@ -15,7 +15,7 @@ These screenshots were recaptured from the current web UI after generating fresh
 <tr>
 <td width="50%">
 <h4>LIVE</h4>
-<img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
+<img src="screenshots/main.png" alt="Web UI Live Tab" width="100%" />
 <p>The stage-first performance view keeps the latest render front and center, with floating morph and modulation HUDs for quick changes during playback.</p>
 </td>
 <td width="50%">
