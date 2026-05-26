@@ -35,11 +35,18 @@
       <strong>{{ apiHealth.sdForge.available == null ? '…' : (apiHealth.sdForge.available ? 'up' : 'down') }}</strong>
     </div>
 
-    <div v-if="midiSupported" class="ss-pill" :class="{ 'ss-pill--live': midiSelected }">
+    <button
+      v-if="midiSupported"
+      type="button"
+      class="ss-pill ss-pill--button"
+      :class="{ 'ss-pill--live': midiSelected }"
+      title="Open MIDI settings"
+      @click="$emit('open-midi')"
+    >
       <span class="ss-dot"></span>
       <span class="ss-key">MIDI</span>
       <strong>{{ midiSelected ? 'on' : 'off' }}</strong>
-    </div>
+    </button>
 
     <div class="ss-pill" :class="{ 'ss-pill--live': wsStatus === 'connected', 'ss-pill--warn': wsStatus !== 'connected' }">
       <span class="ss-dot"></span>
@@ -60,7 +67,7 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'open-midi'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
@@ -127,6 +134,10 @@ export default {
   background: var(--bg-2);
   font-size: 11px;
   white-space: nowrap;
+}
+.ss-pill--button {
+  cursor: pointer;
+  color: inherit;
 }
 .ss-pill--live  { border-color: rgba(29, 158, 117, 0.4); }
 .ss-pill--error { border-color: rgba(226, 75, 74, 0.4); }

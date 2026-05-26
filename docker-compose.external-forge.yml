@@ -5,48 +5,23 @@ services:
       - sh
       - -c
       - |
-          until ls /data/frames/frame_00001.png >/dev/null 2>&1; do
-            echo 'Waiting for frames in /data/frames ...';
-            sleep 2;
-          done;
-
           QUALITY_PRESET="$${ENCODER_QUALITY:-medium}";
 
           case "$$QUALITY_PRESET" in
             low)
-              BITRATE=500k
-              MAXRATE=750k
-              BUFSIZE=1M
-              PRESET=veryfast
-              CRF=28
+              BITRATE=500k; MAXRATE=750k; BUFSIZE=1M; PRESET=veryfast; CRF=28
               ;;
             medium)
-              BITRATE=1500k
-              MAXRATE=2250k
-              BUFSIZE=3M
-              PRESET=veryfast
-              CRF=23
+              BITRATE=1500k; MAXRATE=2250k; BUFSIZE=3M; PRESET=veryfast; CRF=23
               ;;
             high)
-              BITRATE=3500k
-              MAXRATE=5000k
-              BUFSIZE=7M
-              PRESET=fast
-              CRF=20
+              BITRATE=3500k; MAXRATE=5000k; BUFSIZE=7M; PRESET=fast; CRF=20
               ;;
             ultra)
-              BITRATE=6000k
-              MAXRATE=9000k
-              BUFSIZE=12M
-              PRESET=medium
-              CRF=18
+              BITRATE=6000k; MAXRATE=9000k; BUFSIZE=12M; PRESET=medium; CRF=18
               ;;
             *)
-              BITRATE=1500k
-              MAXRATE=2250k
-              BUFSIZE=3M
-              PRESET=veryfast
-              CRF=23
+              BITRATE=1500k; MAXRATE=2250k; BUFSIZE=3M; PRESET=veryfast; CRF=23
               ;;
           esac
 
@@ -54,12 +29,41 @@ services:
           echo "  Bitrate: $$BITRATE | Max: $$MAXRATE | Buffer: $$BUFSIZE";
           echo "  Preset: $$PRESET | CRF: $$CRF";
 
-          ffmpeg -re -framerate "$${FPS:-24}" -pattern_type glob -i '/data/frames/frame_*.png' \
-            -vf "scale=$${RESOLUTION:-960:540}" \
-            -c:v libx264 -preset "$$PRESET" -tune zerolatency \
-            -b:v "$$BITRATE" -maxrate "$$MAXRATE" -bufsize "$$BUFSIZE" -crf "$$CRF" \
-            -g $$(( $${FPS:-24} * 2 )) \
-            -f flv rtmp://web:1935/live/deforum
+          while true; do
+            until ls /data/frames/frame_00001.png >/dev/null 2>&1; do
+              echo 'Waiting for frames in /data/frames ...';
+              sleep 2;
+            done;
+
+            COUNT=$(ls -1 /data/frames/frame_*.png 2>/dev/null | wc -l);
+
+            if [ "$$COUNT" -eq 1 ]; then
+              CUR_FPS=1;
+            else
+              CUR_FPS="$${FPS:-24}";
+            fi;
+
+            echo "Streaming $$COUNT frame(s) at $$CUR_FPS fps...";
+
+            ffmpeg -re -framerate "$$CUR_FPS" -pattern_type glob -loop 1               -i '/data/frames/frame_*.png'               -vf "scale=$${RESOLUTION:-960:540}"               -c:v libx264 -preset "$$PRESET" -tune zerolatency               -b:v "$$BITRATE" -maxrate "$$MAXRATE" -bufsize "$$BUFSIZE" -crf "$$CRF"               -g "$(( CUR_FPS * 2 ))"               -f flv rtmp://web:1935/live/deforum &
+            PID=$$!;
+            PREV_COUNT=$$COUNT;
+
+            while sleep 3; do
+              NEW_COUNT=$(ls -1 /data/frames/frame_*.png 2>/dev/null | wc -l);
+              if [ "$$NEW_COUNT" -ne "$$PREV_COUNT" ]; then
+                echo "Frame count changed ($$PREV_COUNT -> $$NEW_COUNT), restarting...";
+                break;
+              fi;
+              if ! kill -0 "$$PID" 2>/dev/null; then
+                echo 'ffmpeg died, restarting...';
+                break;
+              fi;
+            done;
+
+            kill "$$PID" 2>/dev/null; wait "$$PID" 2>/dev/null;
+            sleep 1;
+          done
     volumes:
       - frames:/data/frames
     environment:
@@ -103,6 +107,7 @@ services:
       - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
       - DEF_MEDIATOR_HOST=${DEF_MEDIATOR_HOST:-vimage2}
       - DEF_MEDIATOR_PORT=${DEF_MEDIATOR_PORT:-8766}
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.2.104:11434}
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/api/health || exit 1"]
       interval: 30s
@@ -122,7 +127,7 @@ services:
       - MEDIATOR_DEFORUM_PORT=8765
       - MEDIATOR_DEFORUMATION_ADDRESS=0.0.0.0
       - MEDIATOR_DEFORUMATION_PORT=8766
-      - DEFORUMATION_ADDRESS=${DEFORUMATION_ADDRESS:-host.docker.internal}
+      - DEFORUMATION_ADDRESS=${DEFORUMATION_ADDRESS:-vimage2}
       - DEFORUMATION_PORT=${DEFORUMATION_PORT:-8767}
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import socket; s=socket.socket(); s.settimeout(2); s.connect(('localhost',8765)); s.close(); s2=socket.socket(); s2.settimeout(2); s2.connect(('localhost',8766)); s2.close()\""]

@@ -20,6 +20,15 @@
       "enabled": true,
       "priority": 2,
       "gpuModel": null
+    },
+    {
+      "url": "http://192.168.2.104:11434",
+      "name": "ollama-vimage5",
+      "backend": "ollama",
+      "enabled": true,
+      "priority": 3,
+      "gpuModel": "Ollama",
+      "model": null
     }
   ]
 }

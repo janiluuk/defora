@@ -5,7 +5,11 @@
 <script>
 import * as THREE from 'three'
 
-const LFO_COLORS = ['#7f77dd', '#2de2ff', '#ef9f27', '#e879b0', '#1d9e75', '#cecbf6']
+function lfoColors() {
+  const s = getComputedStyle(document.documentElement)
+  const v = (name) => s.getPropertyValue(name).trim()
+  return [v('--accent'), '#2de2ff', v('--warn'), v('--b-group'), v('--live'), v('--accent-text')]
+}
 
 function clamp01(value) {
   const n = Number(value)
@@ -132,7 +136,8 @@ export default {
     },
     createLfoGroups() {
       this.lfoGroups = Array.from({ length: 6 }).map((_, index) => {
-        const color = new THREE.Color(LFO_COLORS[index % LFO_COLORS.length])
+        const colors = lfoColors()
+        const color = new THREE.Color(colors[index % colors.length])
         const group = new THREE.Group()
 
         const ring = new THREE.Mesh(

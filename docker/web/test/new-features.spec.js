@@ -34,7 +34,7 @@ describe("New Features Tests", () => {
 
   beforeEach(async () => {
     appVm.currentTab = "LIVE";
-    appVm.currentSubTab = { PROMPTS: 'PROMPTS', SETTINGS: 'ENGINE' };
+    appVm.currentSubTab = { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
     await nextTick();
   });
 

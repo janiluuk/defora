@@ -44,7 +44,7 @@ export default {
   position: relative;
   border-radius: 8px;
   overflow: hidden;
-  background: #000;
+  background: var(--media-bg);
   aspect-ratio: 16 / 9;
   width: 100%;
 }
@@ -53,7 +53,7 @@ video {
   width: 100%;
   height: 100%;
   display: block;
-  background: #000;
+  background: var(--media-bg);
   object-fit: contain;
 }
 
@@ -68,6 +68,6 @@ video {
   background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent);
   font-size: 13px;
   font-weight: 600;
-  color: #fff;
+  color: var(--media-text);
 }
 </style>

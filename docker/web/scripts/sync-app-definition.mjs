@@ -14,6 +14,17 @@ const outPath = join(root, 'src', 'app-definition.js');
 
 const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js'];
 
+function extractVueTemplate(src, label) {
+  const templateOpen = src.indexOf('<template>');
+  const scriptOpen = src.indexOf('<script>');
+  if (templateOpen < 0 || scriptOpen < 0 || templateOpen > scriptOpen) {
+    throw new Error(`Could not parse template for ${label}`);
+  }
+  return src
+    .slice(templateOpen + '<template>'.length, src.lastIndexOf('</template>', scriptOpen))
+    .trim();
+}
+
 function esmToInlineCjs(src) {
   return src
     .replace(/^export\s+(async\s+)?function\s+/gm, '$1function ')
@@ -63,24 +74,40 @@ if (inlinedUtils) inlinedUtils += '\n';
 
 const componentStubs = [];
 script = script.replace(
-  /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"]\.\/components\/[^'"]+\.vue['"];?\s*$/gm,
-  (_, name) => {
-    componentStubs.push(name);
+  /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
+  (_, name, relPath) => {
+    if (relPath.includes('/views/')) {
+      const componentPath = join(root, 'src', relPath.replace(/^\.\//, ''));
+      const componentSrc = readFileSync(componentPath, 'utf8');
+      const componentTemplate = extractVueTemplate(componentSrc, relPath);
+      componentStubs.push(
+        `const ${name} = { props: ['app'], setup(props) { return props.app; }, template: ${JSON.stringify(componentTemplate)} };`
+      );
+      return '';
+    }
+    componentStubs.push(`const ${name} = { template: '<div></div>' };`);
     return '';
   }
 );
 const stubBlock = componentStubs.length
-  ? `${componentStubs.map((name) => `const ${name} = { template: '<div></div>' };`).join('\n')}\n\n`
+  ? `${componentStubs.join('\n')}\n\n`
   : '';
 
-script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '');
-script = script.replace(/export\s+default\s+/, '').trim();
-const inner = script.startsWith('{') && script.endsWith('}')
-  ? script.slice(1, -1).trim()
-  : script;
+script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '').trim();
+const exportDefaultIndex = script.indexOf('export default');
+if (exportDefaultIndex < 0) {
+  console.error('Could not locate export default in App.vue script');
+  process.exit(1);
+}
+const preamble = script.slice(0, exportDefaultIndex).trim();
+const componentObject = script.slice(exportDefaultIndex).replace(/export\s+default\s+/, '').trim();
+const inner = componentObject.startsWith('{') && componentObject.endsWith('}')
+  ? componentObject.slice(1, -1).trim()
+  : componentObject;
+const preambleBlock = preamble ? `${preamble}\n\n` : '';
 
 const header = `// Auto-generated from App.vue — run: npm run sync-app-definition (audit A-01)\n\n`;
-const body = `${header}${inlinedUtils}${stubBlock}module.exports = {
+const body = `${header}${inlinedUtils}${stubBlock}${preambleBlock}module.exports = {
   template: ${JSON.stringify(template)},
   ${inner}
 };
