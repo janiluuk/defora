@@ -197,8 +197,69 @@
         <div class="framesync-panel">
           <div class="framesync-header">
             <div class="framesync-title"><span class="framesync-accent">Engine</span></div>
+            <span class="model-status-pill" :class="'model-' + modelStatusKind">
+              <span class="model-status-dot"></span>
+              {{ modelStatusLabel }}
+            </span>
           </div>
-          <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
+          <div class="engine-main-summary">
+            <div class="engine-main-card engine-main-card--wide">
+              <div class="framesync-subtitle">Current model</div>
+              <div class="engine-main-card__value engine-main-card__value--model">{{ engineCurrentModelName || '—' }}</div>
+              <div class="engine-main-card__meta">{{ engineOptimizedProfileLabel }} · {{ engineCurrentModelFamilyLabel }}</div>
+            </div>
+            <div class="engine-main-card">
+              <div class="framesync-subtitle">Current CFG</div>
+              <div class="engine-main-card__value">{{ engineCurrentCfgScale.toFixed(1) }}</div>
+            </div>
+            <div class="engine-main-card">
+              <div class="framesync-subtitle">Current steps</div>
+              <div class="engine-main-card__value">{{ engineCurrentSteps }}</div>
+            </div>
+            <div class="engine-main-card">
+              <div class="framesync-subtitle">Sampler</div>
+              <div class="engine-main-card__value engine-main-card__value--small">{{ deforumSettings.sampler || '—' }}</div>
+            </div>
+          </div>
+          <div class="framesync-row engine-main-grid" style="grid-template-columns: 1.6fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
+            <div class="framesync-stack engine-main-grid__model">
+              <div class="framesync-subtitle">Checkpoint</div>
+              <select
+                v-if="forge.models.length"
+                class="framesync-select"
+                :value="engineCurrentModelName"
+                :disabled="forge.switching || modelStatusKind === 'offline'"
+                @change="onDeforumModelCommit($event.target.value)"
+              >
+                <option value="">— select model —</option>
+                <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
+              </select>
+              <input
+                v-else
+                type="text"
+                class="framesync-input"
+                :value="engineCurrentModelName"
+                :disabled="forge.switching"
+                placeholder="Checkpoint name"
+                @change="onDeforumModelCommit($event.target.value)"
+              >
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Sampler</div>
+              <select class="framesync-select" :value="deforumSettings.sampler" @change="onEngineSamplerChange($event.target.value)">
+                <option v-for="sampler in engineSamplerOptions" :key="'engine-sampler-' + sampler" :value="sampler">{{ sampler }}</option>
+              </select>
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Steps</div>
+              <input type="number" class="framesync-input" :value="engineCurrentSteps" min="1" max="150" step="1" @input="onEngineStepsChange($event.target.value)">
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">CFG</div>
+              <input type="number" class="framesync-input" :value="engineCurrentCfgScale" min="0" max="30" step="0.1" @input="onEngineCfgScaleChange($event.target.value)">
+            </div>
+          </div>
+          <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Resolution</div>
               <select class="framesync-select" :value="deforumSettings.W + 'x' + deforumSettings.H" @change="onEngineResolutionChange($event.target.value)">
@@ -217,24 +278,21 @@
               </select>
             </div>
             <div class="framesync-stack">
-              <div class="framesync-subtitle">Steps</div>
-              <select class="framesync-select" :value="deforumSettings.steps" @change="onDeforumFieldInput('steps', +$event.target.value, 'number')">
-                <option :value="2">2</option>
-                <option :value="4">4</option>
-                <option :value="6">6</option>
-                <option :value="8">8</option>
-                <option :value="10">10</option>
-                <option :value="12">12</option>
-                <option :value="15">15</option>
-                <option :value="20">20</option>
-                <option :value="30">30</option>
-              </select>
+              <div class="framesync-subtitle">Model source</div>
+              <span class="model-source-pill" :class="'src-' + (forge.modelsSource || 'placeholder')">
+                {{ forge.modelsSource || 'unknown' }}
+              </span>
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Status</div>
+              <div class="engine-main-inline-status">{{ deforumSettingsStatus || 'Idle' }}</div>
             </div>
           </div>
           <div class="framesync-footer" style="margin-top:12px;">
+            <button class="framesync-button" :disabled="forge.switching || !engineCurrentModelName" @click="reapplyEngineModelDefaults()">Optimize for model</button>
             <button class="framesync-button" @click="onDeforumFieldInput('seed', Math.floor(Math.random() * 2147483647), 'number')">Seed: {{ deforumSettings.seed }}</button>
-            <span class="framesync-button" style="cursor:default;">Sampler: {{ deforumSettings.sampler }}</span>
-            <span class="framesync-button" style="cursor:default;">{{ deforumSettings.W }}×{{ deforumSettings.H }}</span>
+            <span class="framesync-button" style="cursor:default;">{{ deforumSettings.W }}×{{ deforumSettings.H }} @ {{ deforumSettings.fps }} fps</span>
+            <span class="framesync-button" style="cursor:default;">Profile: {{ engineOptimizedProfileLabel }}</span>
           </div>
         </div>
       </div>
@@ -267,7 +325,6 @@
           <div class="framesync-footer" style="margin-top:12px;">
             <button class="framesync-button" :disabled="forge.loading" @click="refreshForgeAll">Refresh Forge</button>
             <button class="framesync-button" :disabled="forge.loading" @click="saveForgeConnection">Save connection</button>
-            <button class="framesync-button" :disabled="forge.switching || !forge.selectedModel" @click="switchForgeModel(forge.selectedModel, { persistDeforumSettings: true })">Sync model</button>
             <button class="framesync-button" :disabled="forge.loading" @click="applyForgeOptions">Apply options</button>
           </div>
           <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
@@ -282,20 +339,10 @@
               </span>
             </div>
           </div>
-          <div class="framesync-row" style="grid-template-columns: 1.2fr 1fr 1fr 1fr; gap:10px; margin-top:12px;">
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">Checkpoint</div>
-              <select class="framesync-select" v-model="forge.selectedModel" :disabled="forge.switching">
-                <option value="">— select model —</option>
-                <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
-              </select>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">Sampler</div>
-              <select class="framesync-select" v-model="forge.options.sampler_name">
-                <option v-for="sampler in forge.samplers" :key="'forge-s-'+sampler" :value="sampler">{{ sampler }}</option>
-              </select>
-            </div>
+          <div class="framesync-subtitle forge-tab__note">
+            Main checkpoint, sampler, steps, and CFG controls now live under <strong>ENGINE</strong>. Keep Forge for connection and backend options.
+          </div>
+          <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Scheduler</div>
               <select class="framesync-select" v-model="forge.options.scheduler">
@@ -310,15 +357,7 @@
               </select>
             </div>
           </div>
-          <div class="framesync-row forge-tab__options-grid" style="grid-template-columns: repeat(5, 1fr); gap:10px; margin-top:12px;">
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">Steps</div>
-              <input type="number" class="framesync-input" v-model.number="forge.options.steps" min="1" max="150">
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">CFG</div>
-              <input type="number" class="framesync-input" v-model.number="forge.options.cfg_scale" min="1" max="30" step="0.5">
-            </div>
+          <div class="framesync-row forge-tab__options-grid" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Width</div>
               <input type="number" class="framesync-input" v-model.number="forge.options.width" min="64" max="4096" step="64">
@@ -617,8 +656,14 @@
         <div class="framesync-panel">
           <div class="framesync-header">
             <div class="framesync-title"><span class="framesync-accent">Collaboration</span></div>
-            <span class="pill" :style="wsStatus === 'connected' ? { color: 'var(--success)', borderColor: 'rgba(90,242,169,0.4)' } : {}">{{ wsStatus === 'connected' ? 'WS connected' : 'WS ' + wsStatus }}</span>
+            <button class="framesync-button" :class="{ active: collabEnabled }" @click="toggleCollaboration">
+              {{ collabEnabled ? 'WS ' + wsStatus : 'WS offline' }}
+            </button>
           </div>
+          <div v-if="!collabEnabled" style="margin-top:12px; font-size:12px; color:var(--text-secondary);">
+            Collaboration is offline. Press the WS button to bring the collaboration panel back and reconnect.
+          </div>
+          <template v-else>
           <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Display name</div>
@@ -659,6 +704,7 @@
             </span>
           </div>
           <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">No active locks.</div>
+          </template>
         </div>
       </div>
     </div>

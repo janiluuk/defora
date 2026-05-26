@@ -17,6 +17,7 @@
         @toggle-play="toggleDeforumPlay"
         @stop-play="stopDeforumPlay"
         @toggle-record="toggleStreamRecord"
+        @toggle-ws="toggleCollaboration"
         @open-midi="openMidiSettings"
       />
     </header>
@@ -586,6 +587,7 @@ export default {
         recordings: [],
         status: '',
       },
+      collabEnabled: true,
       gpuPool: {
         enabled: false,
         strategy: 'least_busy',
@@ -622,7 +624,7 @@ export default {
         { id: "GENERATE", label: "GENERATE" },
       ],
       currentTab: "LIVE",
-      currentSubTab: { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
+      currentSubTab: { PROMPTS: 'IMAGE', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -663,7 +665,7 @@ export default {
         morphBlendLfoBase: 0.5,
       },
       img2img: {
-        show: false,
+        show: true,
         dataUrl: null,
         maskDataUrl: null,
         maskBlur: 4,
@@ -853,6 +855,7 @@ export default {
       midiStatus: "Ready",
       ws: null,
       wsStatus: "disconnected",
+      wsReconnectTimer: null,
       streamSrc: "/hls/live/deforum.m3u8",
       defaultAnimation: {
         preferDeforumVideo: false,
@@ -1095,6 +1098,51 @@ export default {
       if (this.modelStatusKind === 'loading') return 'Loading';
       if (this.modelStatusKind === 'ready') return 'Ready';
       return 'Offline';
+    },
+    engineCurrentModelName() {
+      return this.normalizeModelName(
+        (this.deforumSettings && this.deforumSettings.sd_model_name)
+        || this.forge.currentModel
+        || this.forge.selectedModel
+        || this.forge.lastModel
+      );
+    },
+    engineCurrentModelFamily() {
+      return this.detectModelFamilyFromValue(this.forge.modelInfo, this.engineCurrentModelName);
+    },
+    engineCurrentModelFamilyLabel() {
+      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' };
+      return labels[this.engineCurrentModelFamily] || 'Generic';
+    },
+    engineCurrentCfgScale() {
+      const fallback = Number(this.forge.options && this.forge.options.cfg_scale)
+        || Number((this.liveVibe.find((param) => param.key === 'cfgscale') || {}).val)
+        || 7;
+      return this.readFirstNumericValue(
+        (this.deforumSettings && (this.deforumSettings.cfg_scale_schedule || this.deforumSettings.distilled_cfg_scale_schedule)) || '',
+        fallback
+      );
+    },
+    engineCurrentSteps() {
+      const direct = Number(this.deforumSettings && this.deforumSettings.steps);
+      if (Number.isFinite(direct) && direct > 0) return direct;
+      return Math.max(1, Math.round(this.readFirstNumericValue(
+        (this.deforumSettings && this.deforumSettings.steps_schedule) || '',
+        Number(this.forge.options && this.forge.options.steps) || 6
+      )));
+    },
+    engineSamplerOptions() {
+      return [...new Set([
+        this.deforumSettings && this.deforumSettings.sampler,
+        this.forge.options && this.forge.options.sampler_name,
+        ...(this.forge.samplers || []),
+      ].map((value) => String(value || '').trim()).filter(Boolean))];
+    },
+    engineOptimizedDefaults() {
+      return this.optimizedDefaultsForModel(this.engineCurrentModelName);
+    },
+    engineOptimizedProfileLabel() {
+      return (this.engineOptimizedDefaults && this.engineOptimizedDefaults.profileLabel) || 'Manual / custom';
     },
     paramPanelGroups() {
       return [
@@ -1359,6 +1407,7 @@ export default {
     if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
     if (this.deforumPreviewTimer) clearTimeout(this.deforumPreviewTimer);
     if (this.frameRefreshTimer) clearTimeout(this.frameRefreshTimer);
+    if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
     this.stopLfoAnimation();
     if (this.playerEl) {
       this.detachPlayerListeners(this.playerEl);
@@ -2192,19 +2241,42 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    return true;
  },
  connectWebSocket() {
+  if (!this.collabEnabled) {
+    this.wsStatus = "offline";
+    return;
+  }
    const url = (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/ws";
    const connect = () => {
-     this.ws = new WebSocket(url);
-     this.ws.onopen = () => {
-       this.wsStatus = "connected";
-       this.collabIdentify();
-     };
-     this.ws.onclose = () => {
-       this.wsStatus = "disconnected";
-       this.collab.userId = null;
-       setTimeout(connect, 1000);
-     };
-     this.ws.onmessage = (evt) => {
+    if (!this.collabEnabled) {
+      this.wsStatus = "offline";
+      return;
+    }
+    if (this.ws && (this.ws.readyState === 0 || this.ws.readyState === 1)) {
+      return;
+    }
+    this.wsStatus = "connecting";
+    const socket = new WebSocket(url);
+    this.ws = socket;
+    socket.onopen = () => {
+      if (this.ws !== socket) return;
+      this.wsStatus = "connected";
+      if (this.wsReconnectTimer) {
+        clearTimeout(this.wsReconnectTimer);
+        this.wsReconnectTimer = null;
+      }
+      this.collabIdentify();
+    };
+    socket.onclose = () => {
+      if (this.ws === socket) this.ws = null;
+      this.clearCollaborationPresence();
+      if (!this.collabEnabled) {
+        this.wsStatus = "offline";
+        return;
+      }
+      this.wsStatus = "disconnected";
+      this.wsReconnectTimer = setTimeout(connect, 1000);
+    };
+    socket.onmessage = (evt) => {
        try {
          const msg = JSON.parse(evt.data);
          this.handleWsMessage(msg);
@@ -2213,6 +2285,40 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    };
    connect();
  },
+clearCollaborationPresence() {
+  this.collab.userId = null;
+  this.collab.users = [];
+  this.collab.locks = {};
+  this.collab.recording = false;
+  this.collab.recordings = [];
+  this.collab.status = '';
+},
+disconnectWebSocket({ status = "offline" } = {}) {
+  if (this.wsReconnectTimer) {
+    clearTimeout(this.wsReconnectTimer);
+    this.wsReconnectTimer = null;
+  }
+  const socket = this.ws;
+  this.ws = null;
+  this.clearCollaborationPresence();
+  this.wsStatus = status;
+  if (socket && typeof socket.close === "function" && socket.readyState < 2) {
+    try {
+      socket.close();
+    } catch (_) {}
+  }
+},
+toggleCollaboration() {
+  if (this.collabEnabled) {
+    this.collabEnabled = false;
+    this.disconnectWebSocket({ status: "offline" });
+  } else {
+    this.collabEnabled = true;
+    this.wsStatus = "disconnected";
+    this.connectWebSocket();
+  }
+  this.saveSessionState();
+},
  handleWsMessage(msg) {
   if (msg.type === "batch" && Array.isArray(msg.messages)) {
     msg.messages.forEach((entry) => this.handleWsMessage(entry));
@@ -2249,7 +2355,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    }
    if (msg.type === "error") {
      console.error("[Defora WS]", msg.msg || msg, msg.locked || "");
-     this.collab.status = msg.msg || "WebSocket error";
+    this.collab.status = this.collabEnabled ? (msg.msg || "WebSocket error") : "";
    }
    if (msg.type === "event") {
      if (msg.msg) console.log("[Defora event]", msg.msg);
@@ -2941,32 +3047,41 @@ toggleLoraFamilyCollapse(familyKey) {
    row.freq_min = spec.freq_min;
    row.freq_max = spec.freq_max;
  },
- handleImg2imgFile(evt) {
-   const f = evt.target.files && evt.target.files[0];
-   if (!f) return;
-   const reader = new FileReader();
-   reader.onload = () => {
-     this.img2img.dataUrl = reader.result;
-     this.img2img.status = "Init image loaded";
-   };
-   reader.onerror = () => {
-     this.img2img.status = "Could not read file";
-   };
-   reader.readAsDataURL(f);
- },
- handleImg2imgMask(evt) {
-   const f = evt.target.files && evt.target.files[0];
-   if (!f) return;
-   const reader = new FileReader();
-   reader.onload = () => {
-     this.img2img.maskDataUrl = reader.result;
-     this.img2img.status = "Mask loaded (inpaint)";
-   };
-   reader.onerror = () => {
-     this.img2img.status = "Could not read mask file";
-   };
-   reader.readAsDataURL(f);
- },
+readImg2imgAsset(file, { mask = false } = {}) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    if (mask) {
+      this.img2img.maskDataUrl = reader.result;
+      this.img2img.status = "Mask loaded (inpaint)";
+      return;
+    }
+    this.img2img.dataUrl = reader.result;
+    this.img2img.status = "Input image loaded";
+  };
+  reader.onerror = () => {
+    this.img2img.status = mask ? "Could not read mask file" : "Could not read input image";
+  };
+  reader.readAsDataURL(file);
+},
+handleImg2imgFile(evt) {
+  const f = evt.target.files && evt.target.files[0];
+  this.readImg2imgAsset(f);
+},
+handleImg2imgMask(evt) {
+  const f = evt.target.files && evt.target.files[0];
+  this.readImg2imgAsset(f, { mask: true });
+},
+handleImg2imgDrop(evt, kind = 'input') {
+  const files = evt && evt.dataTransfer && evt.dataTransfer.files;
+  const file = files && files[0];
+  if (!file) return;
+  this.readImg2imgAsset(file, { mask: kind === 'mask' });
+},
+clearImg2imgInput() {
+  this.img2img.dataUrl = null;
+  this.img2img.status = "Input image cleared";
+},
  clearImg2imgMask() {
    this.img2img.maskDataUrl = null;
    this.img2img.status = "Mask cleared";
@@ -2987,7 +3102,7 @@ toggleLoraFamilyCollapse(familyKey) {
  },
  async submitImg2img() {
    if (!this.img2img.dataUrl) {
-     this.img2img.status = "Choose an init image first";
+    this.img2img.status = "Choose an input image first";
      return;
    }
   this.img2img.loading = true;
@@ -5099,6 +5214,10 @@ async generateStory() {
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
+    if (typeof s.collabEnabled === 'boolean') {
+      this.collabEnabled = s.collabEnabled;
+      this.wsStatus = s.collabEnabled ? this.wsStatus : 'offline';
+    }
     if (s.defaultAnimation && typeof s.defaultAnimation === 'object') {
       this.defaultAnimation = this.normalizeDefaultAnimationSettings(s.defaultAnimation);
     }
@@ -5123,6 +5242,7 @@ async generateStory() {
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       generateDockExpanded: this.generateDockExpanded,
+      collabEnabled: this.collabEnabled,
       defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
       deforumSettings: this.normalizedDeforumSettings(),
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
@@ -5185,22 +5305,81 @@ findForgeModelEntry(modelName) {
     return candidates.includes(normalized);
   }) || null;
 },
+readFirstNumericValue(rawValue, fallback = 0) {
+  const match = String(rawValue ?? '').match(/-?\d+(?:\.\d+)?/);
+  if (!match) return fallback;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : fallback;
+},
 optimizedDefaultsForModel(modelLike) {
   const matched = typeof modelLike === 'string' ? this.findForgeModelEntry(modelLike) : modelLike;
-  const metadata = matched && matched.metadata ? matched.metadata : this.forge.modelInfo;
-  if (!metadata) return null;
-  const variant = String(metadata.variant || '').toLowerCase();
-  const type = String(metadata.type || '').toLowerCase();
-  if (!variant.includes('turbo') && !type.includes('turbo')) return null;
-  const baseResolution = Number(metadata.base_resolution) || 1024;
+  const modelName = this.normalizeModelName(
+    (matched && (matched.model_name || matched.title || matched.name))
+    || (typeof modelLike === 'string' ? modelLike : (modelLike && (modelLike.model_name || modelLike.title || modelLike.name)))
+    || this.engineCurrentModelName
+  );
+  const metadata = (matched && matched.metadata) || (modelLike && modelLike.metadata) || this.forge.modelInfo || null;
+  if (!metadata && !modelName) return null;
+  const family = this.detectModelFamilyFromValue(metadata, modelName);
+  const profileText = [
+    metadata && metadata.variant,
+    metadata && metadata.type,
+    metadata && metadata.pipeline,
+    metadata && metadata.architecture,
+    metadata && metadata.base_model,
+    metadata && metadata.name,
+    modelName,
+  ].filter(Boolean).join(' ').toLowerCase();
+  const familyLabel = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' }[family] || 'Generic';
+  const isTurboLike = /(turbo|lightning|lcm|hyper|distill|schnell)/.test(profileText);
+  const isFluxDev = family === 'flux' && /\bdev\b/.test(profileText);
+  const baseResolution = Number(metadata && metadata.base_resolution) || (family === 'sd15' ? 512 : 1024);
+  const currentSampler = this.deforumSettings && this.deforumSettings.sampler
+    ? this.deforumSettings.sampler
+    : ((this.forge.options && this.forge.options.sampler_name) || 'Euler a');
+  const currentScheduler = this.deforumSettings && this.deforumSettings.scheduler
+    ? this.deforumSettings.scheduler
+    : ((this.forge.options && this.forge.options.scheduler) || 'Normal');
+  let profileLabel = familyLabel;
+  let steps = Number(metadata && metadata.recommended_steps);
+  let cfgScale = Number(metadata && metadata.recommended_cfg_scale);
+  let strength = Number(metadata && metadata.recommended_strength);
+  let sampler = (metadata && metadata.recommended_sampler) || currentSampler;
+  const scheduler = (metadata && metadata.recommended_scheduler) || currentScheduler;
+  if (!Number.isFinite(steps)) {
+    if (isTurboLike) steps = family === 'flux' ? 4 : 4;
+    else if (family === 'flux') steps = isFluxDev ? 20 : 8;
+    else if (family === 'svd') steps = 25;
+    else if (family === 'sdxl') steps = 30;
+    else if (family === 'sd15') steps = 24;
+    else steps = 24;
+  }
+  if (!Number.isFinite(cfgScale)) {
+    if (isTurboLike) cfgScale = family === 'flux' ? 1.0 : 1.5;
+    else if (family === 'flux') cfgScale = isFluxDev ? 3.5 : 1.0;
+    else if (family === 'svd') cfgScale = 2.5;
+    else if (family === 'sdxl') cfgScale = 6.5;
+    else if (family === 'sd15') cfgScale = 7.0;
+    else cfgScale = 6.0;
+  }
+  if (!Number.isFinite(strength)) {
+    if (isTurboLike) strength = 0.4;
+    else if (family === 'flux') strength = 0.5;
+    else if (family === 'sdxl') strength = 0.55;
+    else strength = 0.65;
+  }
+  if (isTurboLike) profileLabel = `${familyLabel} fast`;
+  else if (family === 'flux' && isFluxDev) profileLabel = 'FLUX dev';
+  else if (family === 'flux') profileLabel = 'FLUX schnell';
   return {
     width: baseResolution >= 1024 ? 1024 : 512,
     height: baseResolution >= 1024 ? 1024 : 512,
-    steps: Number(metadata.recommended_steps) || (baseResolution >= 1024 ? 2 : 1),
-    sampler: metadata.recommended_sampler || 'Euler a',
-    scheduler: 'Normal',
-    cfgScale: Number(metadata.recommended_cfg_scale ?? 1.0) || 1.0,
-    strength: Number(metadata.recommended_strength ?? (baseResolution >= 1024 ? 0.4 : 0.3)) || 0.4,
+    steps,
+    sampler,
+    scheduler,
+    cfgScale,
+    strength,
+    profileLabel,
   };
 },
 applyModelOptimizedDefaults(modelLike) {
@@ -5217,12 +5396,18 @@ applyModelOptimizedDefaults(modelLike) {
   this.deforumSettings.steps_schedule = `0: (${defaults.steps})`;
   this.deforumSettings.strength_schedule = `0: (${defaults.strength})`;
   this.deforumSettings.keyframe_strength_schedule = `0: (${defaults.strength})`;
+  this.forge.options.width = defaults.width;
+  this.forge.options.height = defaults.height;
+  this.forge.options.steps = defaults.steps;
+  this.forge.options.sampler_name = defaults.sampler;
+  this.forge.options.scheduler = defaults.scheduler;
+  this.forge.options.cfg_scale = defaults.cfgScale;
   const cfgParam = this.liveVibe.find((param) => param.key === 'cfgscale') || this.liveVibe.find((param) => param.key === 'cfg');
   if (cfgParam) cfgParam.val = defaults.cfgScale;
   const strengthParam = this.liveVibe.find((param) => param.key === 'strength');
   if (strengthParam) strengthParam.val = defaults.strength;
   this.syncDeforumSettingsJson();
-  this.deforumSettingsStatus = `${this.normalizeModelName(this.forge.selectedModel || this.forge.currentModel)} defaults optimized for Turbo`;
+  this.deforumSettingsStatus = `${this.normalizeModelName(this.forge.selectedModel || this.forge.currentModel)} optimized for ${defaults.profileLabel}`;
   return true;
 },
 applyLoadedModelSelection(modelName, { syncDeforumSettings = true, queueDeforumSave = false, saveSession = true } = {}) {
@@ -5280,6 +5465,55 @@ async onDeforumModelCommit(rawValue) {
   if (!switched && this.forge.currentModel) {
     this.applyLoadedModelSelection(this.forge.currentModel, { queueDeforumSave: true });
   }
+},
+onEngineSamplerChange(rawValue) {
+  const next = String(rawValue || '').trim();
+  if (!next) return;
+  this.deforumSettings = this.normalizedDeforumSettings();
+  this.deforumSettings.sampler = next;
+  this.forge.options.sampler_name = next;
+  this.syncDeforumSettingsJson();
+  this.pushDeforumLivePatch('sampler', next);
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+onEngineStepsChange(rawValue) {
+  const next = Math.max(1, Math.round(Number(rawValue) || 0));
+  if (!Number.isFinite(next) || next <= 0) return;
+  this.deforumSettings = this.normalizedDeforumSettings();
+  this.deforumSettings.steps = next;
+  this.deforumSettings.steps_schedule = `0: (${next})`;
+  this.forge.options.steps = next;
+  this.syncDeforumSettingsJson();
+  this.pushDeforumLivePatch('steps', next);
+  this.pushDeforumLivePatch('steps_schedule', this.deforumSettings.steps_schedule);
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+onEngineCfgScaleChange(rawValue) {
+  const next = Number(rawValue);
+  if (!Number.isFinite(next) || next < 0) return;
+  this.deforumSettings = this.normalizedDeforumSettings();
+  this.deforumSettings.cfg_scale_schedule = `0:(${next})`;
+  this.deforumSettings.distilled_cfg_scale_schedule = `0: (${next})`;
+  this.forge.options.cfg_scale = next;
+  const cfgParam = this.liveVibe.find((param) => param.key === 'cfgscale') || this.liveVibe.find((param) => param.key === 'cfg');
+  if (cfgParam) cfgParam.val = next;
+  this.syncDeforumSettingsJson();
+  this.pushDeforumLivePatch('cfg_scale_schedule', this.deforumSettings.cfg_scale_schedule);
+  this.pushDeforumLivePatch('distilled_cfg_scale_schedule', this.deforumSettings.distilled_cfg_scale_schedule);
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+reapplyEngineModelDefaults() {
+  const modelName = this.engineCurrentModelName;
+  if (!modelName) return false;
+  const applied = this.applyModelOptimizedDefaults(modelName);
+  if (applied) {
+    this.queueDeforumSettingsSave();
+    if (!this.deforumPlaying) this.scheduleDeforumPreview();
+  }
+  return applied;
 },
  slotTypeLabel(type) {
    const t = this.crossfadeSlotTypes.find((x) => x.id === type);
@@ -5490,6 +5724,18 @@ flushQueuedPreview() {
    if (keyPath === 'seed' && Number.isFinite(value)) {
      this.hud.seed = value;
    }
+  if (keyPath === 'steps' && Number.isFinite(value)) {
+    this.forge.options.steps = value;
+  }
+  if (keyPath === 'sampler') {
+    this.forge.options.sampler_name = String(value || '');
+  }
+  if (keyPath === 'W' && Number.isFinite(value)) {
+    this.forge.options.width = value;
+  }
+  if (keyPath === 'H' && Number.isFinite(value)) {
+    this.forge.options.height = value;
+  }
   if (keyPath === 'sd_model_name') {
     this.forge.selectedModel = this.normalizeModelName(value);
   }
@@ -5501,6 +5747,8 @@ flushQueuedPreview() {
  onEngineResolutionChange(val) {
    const [w, h] = String(val).split('x').map(Number);
    if (w > 0 && h > 0) {
+    this.forge.options.width = w;
+    this.forge.options.height = h;
      this.onDeforumFieldInput('W', w, 'number');
      this.onDeforumFieldInput('H', h, 'number');
    }
