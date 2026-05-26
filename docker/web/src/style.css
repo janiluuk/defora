@@ -1902,6 +1902,14 @@
     }
 
     /* ── MODULATION — 3-up LFO grid, larger waveforms ── */
+    .modulation-subtabs {
+      margin-top: 12px;
+      margin-bottom: 8px;
+    }
+    .modulation-panel__actions--section {
+      margin-bottom: 10px;
+      justify-content: flex-end;
+    }
     .modulation-lfo-grid {
       grid-template-columns: repeat(3, 1fr) !important;
       margin-top: 12px;
@@ -1922,6 +1930,28 @@
       border: 1px solid rgba(29, 158, 117, 0.35);
       border-radius: 999px;
       font-weight: 600;
+    }
+    .modulation-audio-stack {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+    .modulation-audio-panel,
+    .modulation-macros--audio {
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: inset 0 0 0 1px rgba(42, 45, 58, 0.35);
+    }
+    .modulation-macros--audio {
+      padding: 12px;
+    }
+    .modulation-macros--disabled {
+      opacity: 0.68;
+    }
+    .modulation-macros__hint {
+      margin-top: 10px;
+      color: var(--text-dim);
     }
 
     /* ── Beat Macros — BPM-driven CSS pulse ── */
@@ -1983,6 +2013,9 @@
       background: rgba(29, 158, 117, 0.15);
       border-color: var(--live);
       color: var(--live-text);
+    }
+    .runs-browser > .sub-pills {
+      margin-bottom: 0;
     }
     .forge-tab__endpoint {
       display: inline-flex;
