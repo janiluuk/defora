@@ -534,6 +534,30 @@ describe("Deforumation Web UI behavior", () => {
     delete global.fetch;
   });
 
+  it("loadSessionState restores null ControlNet schedules to safe Deforum defaults", () => {
+    const instance = instantiate(appDef);
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      deforumSettings: {
+        cn_1_enabled: false,
+        cn_1_weight: null,
+        cn_1_guidance_start: null,
+        cn_1_guidance_end: null,
+        cn_2_weight: null,
+        cn_2_guidance_start: null,
+        cn_2_guidance_end: null,
+      },
+    });
+
+    instance.loadSessionState();
+
+    expect(instance.deforumSettings.cn_1_weight).to.equal("0:(2)");
+    expect(instance.deforumSettings.cn_1_guidance_start).to.equal("0:(0.0)");
+    expect(instance.deforumSettings.cn_1_guidance_end).to.equal("0:(1.0)");
+    expect(instance.deforumSettings.cn_2_weight).to.equal("0:(1)");
+    expect(instance.deforumSettings.cn_2_guidance_start).to.equal("0:(0.0)");
+    expect(instance.deforumSettings.cn_2_guidance_end).to.equal("0:(1.0)");
+  });
+
   it("disposeLiveAudioAnalyser is safe when nothing is wired", () => {
     const instance = instantiate(appDef);
     instance.disposeLiveAudioAnalyser();

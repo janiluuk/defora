@@ -199,6 +199,142 @@ describe("web server frames API", () => {
   });
 });
 
+describe("txt2img fallback", () => {
+  let svc;
+  let tmp;
+  let uploads;
+  let sequencers;
+  let gpuPoolPath;
+  let request;
+  let fetchCalls;
+  let originalFetch;
+
+  beforeEach(async () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
+    uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencers = fs.mkdtempSync(path.join(os.tmpdir(), "seq-"));
+    gpuPoolPath = path.join(os.tmpdir(), `gpu-pool-${Date.now()}-${Math.random().toString(36).slice(2)}` + ".json");
+    fs.writeFileSync(path.join(tmp, "frame_0001.png"), "fake-image");
+    fs.writeFileSync(
+      gpuPoolPath,
+      JSON.stringify(
+        {
+          enabled: true,
+          strategy: "least_busy",
+          nodes: [
+            { url: "http://node-a:7860", name: "node-a", backend: "sd-forge", enabled: true, priority: 1 },
+          ],
+        },
+        null,
+        2
+      )
+    );
+    fetchCalls = [];
+    originalFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      const method = opts.method || "GET";
+      fetchCalls.push({ url: String(url), method, body: opts.body || null });
+      if (String(url).endsWith("/docs")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "<html>ok</html>",
+        };
+      }
+      if (String(url).endsWith("/sdapi/v1/options")) {
+        return {
+          ok: true,
+          status: 200,
+          text: async () => "{}",
+          json: async () => ({}),
+        };
+      }
+      if (String(url).endsWith("/sdapi/v1/txt2img")) {
+        return {
+          ok: false,
+          status: 500,
+          text: async () => "Internal Server Error",
+        };
+      }
+      if (String(url).endsWith("/deforum_api/batches")) {
+        return {
+          ok: true,
+          status: 202,
+          json: async () => ({ batch_id: "batch-1" }),
+        };
+      }
+      if (String(url).endsWith("/deforum_api/batches/batch-1")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ status: "completed" }),
+        };
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    };
+
+    svc = await start({
+      port: 0,
+      framesDir: tmp,
+      uploadsDir: uploads,
+      sequencersDir: sequencers,
+      gpuPoolPath,
+      enableMq: false,
+    });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+  });
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    if (svc && svc.close) {
+      await svc.close();
+    }
+    [tmp, uploads, sequencers].forEach((dir) => {
+      if (dir && fs.existsSync(dir)) {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    });
+    if (gpuPoolPath && fs.existsSync(gpuPoolPath)) {
+      fs.unlinkSync(gpuPoolPath);
+    }
+  });
+
+  it("falls back to deforum preview and bypasses broken txt2img on later requests", async () => {
+    const payload = {
+      prompt: "test preview",
+      negative_prompt: "",
+      steps: 4,
+      cfg_scale: 1.5,
+      width: 512,
+      height: 512,
+      sampler_name: "Euler a",
+      settings: {
+        prompts: ["original"],
+        negative_prompts: "",
+        W: 1024,
+        H: 576,
+        steps: 12,
+        sampler: "Euler a",
+        seed: 123,
+      },
+    };
+
+    const first = await request.post("/api/txt2img").send(payload);
+    const second = await request.post("/api/txt2img").send(payload);
+
+    expect(first.status).to.equal(200);
+    expect(first.body.ok).to.equal(true);
+    expect(first.body.fallback).to.equal("deforum_preview");
+    expect(second.status).to.equal(200);
+    expect(second.body.fallback).to.equal("deforum_preview");
+
+    const txt2imgCalls = fetchCalls.filter((call) => call.url.endsWith("/sdapi/v1/txt2img"));
+    const deforumBatchCalls = fetchCalls.filter((call) => call.url.endsWith("/deforum_api/batches"));
+    expect(txt2imgCalls).to.have.lengthOf(1);
+    expect(deforumBatchCalls).to.have.lengthOf(2);
+  });
+});
+
 describe("distributed Forge sync", () => {
   let svc;
   let tmp;

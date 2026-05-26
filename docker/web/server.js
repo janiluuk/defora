@@ -39,6 +39,8 @@ async function start(opts = {}) {
     sdModels: null,
     currentModel: null,
   };
+  const txt2imgBypassUntil = new Map();
+  const TXT2IMG_BYPASS_MS = 2 * 60 * 1000;
 
   const repoRoot = path.resolve(__dirname, "..", "..");
   const aiInvokeScript = path.join(__dirname, "scripts", "ai_invoke.py");
@@ -71,10 +73,25 @@ async function start(opts = {}) {
   }
 
   let framesIndexCache = { items: [], builtAt: 0, dirMtime: 0 };
-  const FRAMES_INDEX_TTL_MS = 2000;
+  const FRAMES_INDEX_MIN_ITEMS = 50;
+  const FRAME_FILE_RE = /^frame_(\d+)\.(png|jpg|jpeg|webp)$/i;
+
+  function updateFramesIndexCache(item, maxItems = FRAMES_INDEX_MIN_ITEMS) {
+    if (!item || !item.name) return;
+    const current = Array.isArray(framesIndexCache.items) ? framesIndexCache.items : [];
+    const filtered = current.filter((entry) => entry.name !== item.name);
+    filtered.unshift(item);
+    filtered.sort((a, b) => {
+      if (Number.isFinite(a.frame) && Number.isFinite(b.frame) && a.frame !== b.frame) {
+        return b.frame - a.frame;
+      }
+      return (b.mtime || 0) - (a.mtime || 0);
+    });
+    framesIndexCache.items = filtered.slice(0, Math.max(maxItems, FRAMES_INDEX_MIN_ITEMS));
+    framesIndexCache.builtAt = Date.now();
+  }
 
   async function buildFramesIndex(limit = 50) {
-    const now = Date.now();
     let dirMtime = 0;
     try {
       const st = await fsp.stat(framesDir);
@@ -83,30 +100,56 @@ async function start(opts = {}) {
       if (e.code === "ENOENT") return [];
       throw e;
     }
-    if (
-      framesIndexCache.builtAt &&
-      now - framesIndexCache.builtAt < FRAMES_INDEX_TTL_MS &&
-      framesIndexCache.dirMtime === dirMtime
-    ) {
+    if (framesIndexCache.builtAt && framesIndexCache.dirMtime === dirMtime) {
       return framesIndexCache.items.slice(0, limit);
     }
-    const entries = await fsp.readdir(framesDir, { withFileTypes: true });
-    const names = entries
-      .filter((e) => e.isFile() && /\.(png|jpg|jpeg|webp)$/i.test(e.name))
-      .map((e) => e.name);
-    const stats = await Promise.all(
-      names.map(async (name) => {
-        const stat = await fsp.stat(path.join(framesDir, name));
-        return { name, mtime: stat.mtimeMs };
+    const maxItems = Math.max(limit, FRAMES_INDEX_MIN_ITEMS);
+    const topFrames = [];
+    const pushCandidate = (candidate) => {
+      if (!candidate) return;
+      const minFrame = topFrames.length ? topFrames[topFrames.length - 1].frame : -1;
+      if (topFrames.length >= maxItems && candidate.frame <= minFrame) return;
+      topFrames.push(candidate);
+      topFrames.sort((a, b) => b.frame - a.frame);
+      if (topFrames.length > maxItems) topFrames.length = maxItems;
+    };
+
+    const dir = await fsp.opendir(framesDir);
+    try {
+      for await (const entry of dir) {
+        if (!entry.isFile()) continue;
+        const match = FRAME_FILE_RE.exec(entry.name);
+        if (!match) continue;
+        pushCandidate({ name: entry.name, frame: parseInt(match[1], 10) });
+      }
+    } finally {
+      await dir.close().catch(() => {});
+    }
+
+    const items = await Promise.all(
+      topFrames.map(async (candidate) => {
+        const filePath = path.join(framesDir, candidate.name);
+        let mtime = 0;
+        try {
+          const stat = await fsp.stat(filePath);
+          mtime = stat.mtimeMs;
+        } catch (_e) {
+          /* ignore files that vanished between directory scan and stat */
+        }
+        return {
+          src: `/frames/${candidate.name}`,
+          name: candidate.name,
+          frame: candidate.frame,
+          mtime,
+        };
       })
     );
-    stats.sort((a, b) => b.mtime - a.mtime);
-    const items = stats.slice(0, Math.max(limit, 50)).map((f) => {
-      const match = f.name.match(/(\d{3,})/);
-      const frame = match ? parseInt(match.pop(), 10) : null;
-      return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
+
+    items.sort((a, b) => {
+      if ((b.mtime || 0) !== (a.mtime || 0)) return (b.mtime || 0) - (a.mtime || 0);
+      return (b.frame || 0) - (a.frame || 0);
     });
-    framesIndexCache = { items, builtAt: now, dirMtime };
+    framesIndexCache = { items, builtAt: Date.now(), dirMtime };
     return items.slice(0, limit);
   }
 
@@ -202,6 +245,173 @@ async function start(opts = {}) {
       results,
       successes: successes.length,
       failures: failures.length,
+    };
+  }
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  async function latestFrameInfo() {
+    const items = await buildFramesIndex(1);
+    return items[0] || null;
+  }
+
+  async function latestFramePath() {
+    const top = await latestFrameInfo();
+    if (!top) return null;
+    return top.src || `/frames/${top.name}`;
+  }
+
+  function txt2imgBypassKey(target) {
+    return target?.node?.id || target?.url || "";
+  }
+
+  function shouldBypassTxt2img(target) {
+    const key = txt2imgBypassKey(target);
+    if (!key) return false;
+    const until = txt2imgBypassUntil.get(key) || 0;
+    if (until <= Date.now()) {
+      txt2imgBypassUntil.delete(key);
+      return false;
+    }
+    return true;
+  }
+
+  function recordTxt2imgFailure(target) {
+    const key = txt2imgBypassKey(target);
+    if (!key) return;
+    txt2imgBypassUntil.set(key, Date.now() + TXT2IMG_BYPASS_MS);
+  }
+
+  function clearTxt2imgFailure(target) {
+    const key = txt2imgBypassKey(target);
+    if (!key) return;
+    txt2imgBypassUntil.delete(key);
+  }
+
+  function buildTxt2imgFallbackSettings(body, payload) {
+    const base = body && typeof body.settings === "object"
+      ? JSON.parse(JSON.stringify(body.settings))
+      : null;
+    if (!base) return null;
+
+    const prompts = Array.isArray(base.prompts) ? [...base.prompts] : [];
+    prompts[0] = payload.prompt || prompts[0] || "Preview frame";
+    base.prompts = prompts;
+    base.negative_prompts = payload.negative_prompt || base.negative_prompts || "";
+    base.W = payload.width;
+    base.H = payload.height;
+    base.steps = payload.steps;
+    base.seed = payload.seed;
+    base.sampler = payload.sampler_name;
+    return base;
+  }
+
+  async function renderDeforumPreview(settings, target, optionsOverrides = {}) {
+    const forgeUrl = target.url;
+    const baselineFrame = await latestFrameInfo();
+    const previewSettings = {
+      ...settings,
+      max_frames: 1,
+      motion_preview_mode: true,
+      skip_video_creation: true,
+    };
+    const payload = { deforum_settings: previewSettings, options_overrides: optionsOverrides || {} };
+
+    if (typeof fetch === "undefined") {
+      const err = new Error("fetch not available in this Node build");
+      err.status = 500;
+      throw err;
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 120000);
+    const t0 = Date.now();
+    let response;
+    try {
+      response = await fetch(`${forgeUrl}/deforum_api/batches`, {
+        method: "POST",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    const genDuration = Date.now() - t0;
+    if (target.node) {
+      gpuPool.logNodeRequest(target.node.id, { type: "generate", path: "/deforum_api/batches", statusCode: response.status, durationMs: genDuration, ok: response.ok || response.status === 202 });
+    }
+    if (response.status !== 202 && !response.ok) {
+      const text = await response.text();
+      const err = new Error("Deforum batch submit failed");
+      err.status = response.status;
+      err.detail = text.slice(0, 500);
+      throw err;
+    }
+    const data = await response.json();
+    const batchId = data.batch_id;
+    if (!batchId) {
+      const framePath = await latestFramePath();
+      if (framePath) {
+        return { ok: true, path: framePath, batch: data, node: target.node ? { name: target.node.name, url: target.node.url } : null };
+      }
+      const err = new Error("Deforum returned no batch_id");
+      err.raw = data;
+      throw err;
+    }
+
+    let status = "pending";
+    for (let i = 0; i < 90; i++) {
+      await sleep(500);
+      const frame = await latestFrameInfo();
+      if (frame && (!baselineFrame || frame.mtime > baselineFrame.mtime || frame.name !== baselineFrame.name)) {
+        return {
+          ok: true,
+          path: frame.src || `/frames/${frame.name}`,
+          batchId,
+          status: "frame_ready",
+          node: target.node ? { name: target.node.name, url: target.node.url } : null,
+        };
+      }
+
+      if (i % 4 === 0) {
+        const pollCtrl = new AbortController();
+        const pollTimeout = setTimeout(() => pollCtrl.abort(), 15000);
+        let sresp;
+        try {
+          sresp = await fetch(`${forgeUrl}/deforum_api/batches/${batchId}`, {
+            signal: pollCtrl.signal,
+          });
+        } finally {
+          clearTimeout(pollTimeout);
+        }
+        if (!sresp.ok) continue;
+        const sdata = await sresp.json();
+        status = sdata.status || sdata.state || status;
+        if (["completed", "failed", "cancelled", "canceled", "done"].includes(String(status).toLowerCase())) {
+          if (String(status).toLowerCase() === "failed") {
+            const err = new Error("Deforum preview failed");
+            err.batch = sdata;
+            throw err;
+          }
+          break;
+        }
+      }
+    }
+
+    const framePath = await latestFramePath();
+    if (!framePath) {
+      const err = new Error("Deforum finished but no frame found in frames dir");
+      err.batchId = batchId;
+      err.previewStatus = status;
+      throw err;
+    }
+    return {
+      ok: true,
+      path: framePath,
+      batchId,
+      status,
+      node: target.node ? { name: target.node.name, url: target.node.url } : null,
     };
   }
 
@@ -838,97 +1048,18 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "settings object required" });
     }
     const target = forgeTarget(req);
-    const forgeUrl = target.url;
-    const previewSettings = {
-      ...settings,
-      max_frames: 1,
-      motion_preview_mode: true,
-      skip_video_creation: true,
-    };
-    const payload = { deforum_settings: previewSettings, options_overrides: body.options_overrides || {} };
-
-    const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-
-    async function latestFramePath() {
-      framesIndexCache.builtAt = 0;
-      const items = await buildFramesIndex(1);
-      if (!items.length) return null;
-      const top = items[0];
-      return top.src || `/frames/${top.name}`;
-    }
-
     try {
-      if (typeof fetch === "undefined") {
-        return res.status(500).json({ error: "fetch not available in this Node build" });
-      }
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 120000);
-      const t0 = Date.now();
-      const response = await fetch(`${forgeUrl}/deforum_api/batches`, {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-      const genDuration = Date.now() - t0;
-      if (target.node) {
-        gpuPool.logNodeRequest(target.node.id, { type: "generate", path: "/deforum_api/batches", statusCode: response.status, durationMs: genDuration, ok: response.ok || response.status === 202 });
-      }
-      if (response.status !== 202 && !response.ok) {
-        const text = await response.text();
-        return res.status(502).json({
-          error: "Deforum batch submit failed",
-          status: response.status,
-          detail: text.slice(0, 500),
-        });
-      }
-      const data = await response.json();
-      const batchId = data.batch_id;
-      if (!batchId) {
-        const framePath = await latestFramePath();
-        if (framePath) return res.json({ ok: true, path: framePath, batch: data });
-        return res.status(502).json({ error: "Deforum returned no batch_id", raw: data });
-      }
-
-      let status = "pending";
-      for (let i = 0; i < 90; i++) {
-        await sleep(2000);
-        const pollCtrl = new AbortController();
-        const pollTimeout = setTimeout(() => pollCtrl.abort(), 30000);
-        let sresp;
-        try {
-          sresp = await fetch(`${forgeUrl}/deforum_api/batches/${batchId}`, {
-            signal: pollCtrl.signal,
-          });
-        } finally {
-          clearTimeout(pollTimeout);
-        }
-        if (!sresp.ok) continue;
-        const sdata = await sresp.json();
-        status = sdata.status || sdata.state || status;
-        if (["completed", "failed", "cancelled", "canceled", "done"].includes(String(status).toLowerCase())) {
-          if (String(status).toLowerCase() === "failed") {
-            return res.status(502).json({ error: "Deforum preview failed", batch: sdata });
-          }
-          break;
-        }
-      }
-
-      const framePath = await latestFramePath();
-      if (!framePath) {
-        return res.status(502).json({ error: "Deforum finished but no frame found in frames dir", batchId, status });
-      }
-      res.json({
-        ok: true,
-        path: framePath,
-        batchId,
-        status,
-        node: target.node ? { name: target.node.name, url: target.node.url } : null,
-      });
+      const result = await renderDeforumPreview(settings, target, body.options_overrides || {});
+      res.json(result);
     } catch (err) {
       console.error("[api] deforum preview error", err);
-      res.status(502).json({ error: String(err.message || err) });
+      res.status(502).json({
+        error: String(err.message || err),
+        status: err.status,
+        detail: err.detail,
+        batch: err.batch,
+        raw: err.raw,
+      });
     } finally {
       target.release();
     }
@@ -1259,28 +1390,68 @@ async function start(opts = {}) {
       n_iter: 1,
       seed: Number.isFinite(seed) ? seed : -1,
     };
+    const fallbackSettings = buildTxt2imgFallbackSettings(body, payload);
+
+    async function respondWithDeforumFallback(reason) {
+      if (!fallbackSettings) return false;
+      try {
+        const result = await renderDeforumPreview(fallbackSettings, target, body.options_overrides || {});
+        if (target.node) {
+          gpuPool.logNodeRequest(target.node.id, {
+            type: "generate",
+            path: "/api/txt2img fallback",
+            durationMs: 0,
+            ok: true,
+            error: reason || null,
+          });
+        }
+        return res.json({ ...result, fallback: "deforum_preview" });
+      } catch (fallbackErr) {
+        console.error("[api] txt2img fallback error", fallbackErr);
+        return res.status(502).json({
+          error: String(fallbackErr.message || fallbackErr),
+          status: fallbackErr.status,
+          detail: fallbackErr.detail,
+          batch: fallbackErr.batch,
+          raw: fallbackErr.raw,
+          upstream_error: reason || null,
+        });
+      }
+    }
 
     try {
+      if (shouldBypassTxt2img(target)) {
+        const bypassed = await respondWithDeforumFallback("txt2img temporarily bypassed after recent Forge failures");
+        if (bypassed !== false) return;
+      }
       if (typeof fetch === "undefined") {
         return res.status(500).json({ error: "fetch not available in this Node build" });
       }
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 600000);
       const t0 = Date.now();
-      const response = await fetch(`${forgeUrl}/sdapi/v1/txt2img`, {
-        method: "POST",
-        headers: { Accept: "application/json", "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
+      let response;
+      try {
+        response = await fetch(`${forgeUrl}/sdapi/v1/txt2img`, {
+          method: "POST",
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
       if (target.node) {
         gpuPool.logNodeRequest(target.node.id, { type: "generate", path: "/sdapi/v1/txt2img", statusCode: response.status, durationMs: Date.now() - t0, ok: response.ok });
       }
       if (!response.ok) {
         const text = await response.text();
+        recordTxt2imgFailure(target);
+        const fallback = await respondWithDeforumFallback(`Forge txt2img failed (${response.status})`);
+        if (fallback !== false) return;
         return res.status(502).json({ error: "Forge txt2img failed", status: response.status, detail: text.slice(0, 500) });
       }
+      clearTxt2imgFailure(target);
       const data = await response.json();
       const images = data.images || [];
       if (!images.length) {
@@ -1302,6 +1473,9 @@ async function start(opts = {}) {
       });
     } catch (err) {
       console.error("[api] txt2img error", err);
+      recordTxt2imgFailure(target);
+      const fallback = await respondWithDeforumFallback(String(err.message || err));
+      if (fallback !== false) return;
       res.status(502).json({ error: String(err.message || err) });
     } finally {
       target.release();
@@ -3491,9 +3665,22 @@ async function start(opts = {}) {
   try {
     fs.mkdirSync(framesDir, { recursive: true });
     frameWatcher = fs.watch(framesDir, { persistent: false }, (_, filename) => {
-      if (filename && filename.startsWith("frame_")) {
-        broadcast({ type: "frame", file: `/frames/${filename}` });
-      }
+      if (!filename || !FRAME_FILE_RE.test(filename)) return;
+      const match = FRAME_FILE_RE.exec(filename);
+      const frame = match ? parseInt(match[1], 10) : null;
+      updateFramesIndexCache({
+        src: `/frames/${filename}`,
+        name: filename,
+        frame,
+        mtime: Date.now(),
+      });
+      fsp.stat(framesDir)
+        .then((stat) => {
+          framesIndexCache.dirMtime = stat.mtimeMs;
+          framesIndexCache.builtAt = Date.now();
+        })
+        .catch(() => {});
+      broadcast({ type: "frame", file: `/frames/${filename}` });
     });
   } catch (err) {
     console.error("[frames] watch error", err);

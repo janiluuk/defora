@@ -23,8 +23,23 @@
     <div class="layout" :class="{ 'layout--live': currentTab === 'LIVE' }">
       <!-- Left: video + mini timeline -->
       <div class="preview">
-        <div class="video-wrap">
+        <div class="video-wrap" :class="{ 'video-wrap--preview-loading': previewGenerating }">
           <video id="player" ref="videoEl" autoplay muted playsinline></video>
+          <div
+            v-if="previewGenerating"
+            class="preview-loading-overlay"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <div class="preview-loading-overlay__card">
+              <span class="lazy-loading-indicator lazy-loading-indicator--overlay">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Rendering preview frame</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <span class="preview-loading-overlay__hint">Updating the live window as soon as Forge returns a frame.</span>
+            </div>
+          </div>
           <div class="overlay">
             <div>
               <div class="timecode">{{ timecode }}</div>
@@ -125,7 +140,13 @@
               <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
               <span>{{ deforumPlaying ? 'Pause' : 'Play' }}</span>
             </button>
-            <button class="control-btn" @click="generatePreviewFrame" :disabled="previewGenerating || deforumPlaying" data-testid="preview-frame">
+            <button
+              class="control-btn"
+              :class="{ 'control-btn--loading': previewGenerating }"
+              @click="generatePreviewFrame"
+              :disabled="previewGenerating || deforumPlaying"
+              data-testid="preview-frame"
+            >
               <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
                 <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
                 <span>Frame</span>
@@ -393,7 +414,13 @@
                   </span>
                   <template v-else>💾 Save</template>
                 </button>
-                <button type="button" class="framesync-button" :disabled="previewGenerating" @click="generateDeforumPreviewFrame">
+                <button
+                  type="button"
+                  class="framesync-button"
+                  :class="{ 'framesync-button--loading': previewGenerating }"
+                  :disabled="previewGenerating"
+                  @click="generateDeforumPreviewFrame"
+                >
                   <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
                     <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
                     <span>Regenerate frame</span>
@@ -5893,13 +5920,16 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
        slots: this.performance.slots,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
-       deforumSettings: this.deforumSettings,
+      deforumSettings: this.normalizedDeforumSettings(),
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
        prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
    } catch (_e) { /* ignore */ }
  },
+normalizedDeforumSettings() {
+  return mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, this.deforumSettings || {});
+},
 normalizeModelName(name) {
   const normalized = typeof name === 'string' ? name.trim() : '';
   if (!normalized || normalized.toLowerCase() === 'unknown') return '';
@@ -5936,6 +5966,7 @@ optimizedDefaultsForModel(modelLike) {
 applyModelOptimizedDefaults(modelLike) {
   const defaults = this.optimizedDefaultsForModel(modelLike);
   if (!defaults) return false;
+  this.deforumSettings = this.normalizedDeforumSettings();
   this.deforumSettings.W = defaults.width;
   this.deforumSettings.H = defaults.height;
   this.deforumSettings.steps = defaults.steps;
@@ -6217,7 +6248,7 @@ async onDeforumModelCommit(rawValue) {
    try {
      const parsed = JSON.parse(this.deforumSettingsJson);
      if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
-     this.deforumSettings = parsed;
+    this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, parsed);
      this.deforumSettingsJsonError = '';
     const desiredModel = this.syncSelectedModelFromDeforumSettings();
     if (desiredModel) {
@@ -6258,6 +6289,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
  async saveDeforumSettings() {
   this.deforumSettingsSaving = true;
    try {
+    this.deforumSettings = this.normalizedDeforumSettings();
      const res = await fetch('/api/deforum/settings', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
@@ -6290,6 +6322,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    this.performance.status = 'Rendering Deforum frame…';
    this.deforumSettingsStatus = 'Rendering…';
    try {
+    this.deforumSettings = this.normalizedDeforumSettings();
      const res = await fetch('/api/deforum/preview', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
@@ -6344,6 +6377,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
      getNestedValue(this.deforumSettings, 'prompts.0') ||
      this.buildMorphedPrompt();
    try {
+    this.deforumSettings = this.normalizedDeforumSettings();
      const res = await fetch('/api/txt2img', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
@@ -6356,6 +6390,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
          height: h,
          seed,
          sampler_name: sampler,
+        settings: this.deforumSettings,
        }),
      });
      const data = await res.json();
