@@ -288,8 +288,11 @@
     .perf-mode-badge.mode-preview { border-color: var(--accent); color: var(--accent-text); }
     .perf-mode-badge.mode-animate { border-color: var(--live); color: var(--live-text); }
     .preview-frame-thumb { width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
-    .live-hud-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+    .live-hud-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
     .live-hud-empty { font-size: 10px; color: var(--text-dim); padding: 4px 0; }
+    .live-hud-pinned {
+      min-width: 0;
+    }
     .live-hud-morph__slots {
       display: grid;
       gap: 4px;

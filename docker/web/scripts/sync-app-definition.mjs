@@ -14,6 +14,17 @@ const outPath = join(root, 'src', 'app-definition.js');
 
 const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js'];
 
+function extractVueTemplate(src, label) {
+  const templateOpen = src.indexOf('<template>');
+  const scriptOpen = src.indexOf('<script>');
+  if (templateOpen < 0 || scriptOpen < 0 || templateOpen > scriptOpen) {
+    throw new Error(`Could not parse template for ${label}`);
+  }
+  return src
+    .slice(templateOpen + '<template>'.length, src.lastIndexOf('</template>', scriptOpen))
+    .trim();
+}
+
 function esmToInlineCjs(src) {
   return src
     .replace(/^export\s+(async\s+)?function\s+/gm, '$1function ')
@@ -63,14 +74,23 @@ if (inlinedUtils) inlinedUtils += '\n';
 
 const componentStubs = [];
 script = script.replace(
-  /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"]\.\/components\/[^'"]+\.vue['"];?\s*$/gm,
-  (_, name) => {
-    componentStubs.push(name);
+  /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
+  (_, name, relPath) => {
+    if (relPath.includes('/views/')) {
+      const componentPath = join(root, 'src', relPath.replace(/^\.\//, ''));
+      const componentSrc = readFileSync(componentPath, 'utf8');
+      const componentTemplate = extractVueTemplate(componentSrc, relPath);
+      componentStubs.push(
+        `const ${name} = { props: ['app'], setup(props) { return props.app; }, template: ${JSON.stringify(componentTemplate)} };`
+      );
+      return '';
+    }
+    componentStubs.push(`const ${name} = { template: '<div></div>' };`);
     return '';
   }
 );
 const stubBlock = componentStubs.length
-  ? `${componentStubs.map((name) => `const ${name} = { template: '<div></div>' };`).join('\n')}\n\n`
+  ? `${componentStubs.join('\n')}\n\n`
   : '';
 
 script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '');

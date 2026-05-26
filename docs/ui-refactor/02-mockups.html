@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Defora — simplified instrument UI mockups</title>
+<style>
+  :root{
+    --bg-0:#08090d; --bg-1:#0c0d14; --bg-2:#11131c; --bg-3:#14161f;
+    --border:#2a2d3a; --border-strong:#3a3d4c;
+    --live:#1d9e75; --live-text:#9fe1cb; --accent:#7f77dd; --accent-text:#cecbf6;
+    --a-group:#378add; --b-group:#e879b0; --warn:#ef9f27; --error:#e24b4a;
+    --text:#e6e8f0; --text-2:#9a9db0; --text-dim:#777b8f;
+    --radius:11px; --radius-sm:7px; --mono:ui-monospace,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg-0);color:var(--text);
+    font-family:"Space Grotesk","Inter","Segoe UI",Arial,sans-serif;line-height:1.5;}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 20px 80px;}
+  .doc-head{margin-bottom:8px;}
+  .doc-head h1{font-size:22px;font-weight:500;margin:0 0 4px;}
+  .doc-head p{color:var(--text-2);font-size:13px;margin:0;max-width:760px;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;margin:16px 0 30px;font-size:11px;color:var(--text-2);}
+  .legend span{display:inline-flex;align-items:center;gap:6px;}
+  .dot{width:9px;height:9px;border-radius:50%;display:inline-block;}
+  .view{margin-bottom:34px;}
+  .view-label{font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:10px;display:flex;align-items:center;gap:8px;}
+  .view-label .tag{color:var(--accent-text);background:#1a1726;border:0.5px solid var(--accent);border-radius:6px;padding:2px 9px;letter-spacing:.5px;}
+  .stage{background:var(--bg-0);border:0.5px solid var(--border);border-radius:14px;overflow:hidden;}
+  .mono{font-family:var(--mono);}
+  .gp{backdrop-filter:blur(10px);background:rgba(17,19,28,.82);border:0.5px solid var(--border);border-radius:var(--radius);}
+  .nav{display:flex;gap:4px;padding:10px 13px;font-size:11px;background:linear-gradient(180deg,rgba(8,9,13,.8),transparent);}
+  .nav .on{color:#0c0d12;background:var(--accent);border-radius:6px;padding:3px 11px;}
+  .nav .off{color:#b8bcce;padding:3px 8px;}
+  .ws{margin-left:auto;color:var(--live-text);font-size:10px;display:flex;align-items:center;gap:5px;}
+  .card{background:var(--bg-2);border:0.5px solid var(--border);border-radius:var(--radius);}
+  .pill{font-size:11px;border-radius:var(--radius-sm);padding:3px 9px;}
+  .pill-live{color:#0c0d12;background:var(--live-text);}
+  .pill-idle{color:var(--text-2);border:0.5px solid var(--border);}
+  .pill-acc{color:var(--accent-text);background:#1a1726;border:0.5px solid var(--accent);}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .grid6{display:grid;grid-template-columns:repeat(6,1fr);gap:7px;}
+  .tgt{border:0.5px solid var(--border);border-radius:var(--radius-sm);padding:8px 4px;text-align:center;background:var(--bg-3);font-size:10px;color:var(--text-dim);}
+  .tgt.on{background:rgba(29,158,117,.18);border-color:var(--live);color:var(--live-text);}
+  .tgt.on small{display:block;font-size:8px;color:var(--live);margin-top:2px;}
+  h2.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);}
+  .note{font-size:12px;color:var(--text-2);margin:6px 0 0;}
+  button.mk{font-size:11px;border-radius:var(--radius-sm);padding:6px 12px;cursor:pointer;border:0.5px solid var(--border);background:var(--bg-3);color:var(--text-2);font-family:inherit;}
+  button.mk.live{background:rgba(29,158,117,.18);border-color:var(--live);color:var(--live-text);}
+  button.mk.acc{background:rgba(83,74,183,.25);border-color:var(--accent);color:var(--accent-text);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="doc-head">
+    <h1>Defora — simplified instrument UI</h1>
+    <p>Visual target for the declutter migration. One rule throughout: one control per job, the thing you watch is biggest, teal = live/modulated, A = blue / B = pink, setup hidden until needed. Waveforms and meters shown here are static snapshots — in the app they animate from real timing (<span class="mono">lfo.phase</span>, live FFT).</p>
+  </div>
+  <div class="legend">
+    <span><i class="dot" style="background:var(--live)"></i> live / modulated</span>
+    <span><i class="dot" style="background:var(--accent)"></i> selected / morph</span>
+    <span><i class="dot" style="background:var(--a-group)"></i> A side</span>
+    <span><i class="dot" style="background:var(--b-group)"></i> B side</span>
+    <span><i class="dot" style="background:var(--text-dim)"></i> idle / available</span>
+  </div>
+
+  <!-- LIVE -->
+  <div class="view">
+    <div class="view-label"><span class="tag">live</span> the stage — preview fills the view, controls float as glass HUDs</div>
+    <div class="stage">
+      <h2 class="sr">LIVE: full-bleed preview with floating morph and modulating-now HUDs.</h2>
+      <div style="position:relative;min-height:360px;background:#0a0b11;">
+        <svg viewBox="0 0 1140 360" style="width:100%;display:block;position:absolute;inset:0">
+          <rect width="1140" height="360" fill="#0e0f17"/>
+          <circle cx="570" cy="180" r="150" fill="#534ab7" opacity="0.45"/>
+          <circle cx="490" cy="150" r="95" fill="#1d9e75" opacity="0.36"/>
+          <circle cx="660" cy="215" r="115" fill="#d4537e" opacity="0.32"/>
+          <circle cx="570" cy="180" r="46" fill="#7f77dd" opacity="0.8"/>
+        </svg>
+        <div class="nav" style="position:absolute;top:0;left:0;right:0;">
+          <span class="on">live</span><span class="off">prompts</span><span class="off">motion</span><span class="off">modulation</span><span class="off">audio</span><span class="off">runs</span><span class="off">settings</span><span class="off">generate</span>
+          <span class="ws"><i class="dot" style="background:var(--live)"></i> ws · midi</span>
+        </div>
+        <div class="mono" style="position:absolute;top:46px;left:14px;font-size:11px;color:var(--text-2);">00:00.00 · seed 42490527 · 27fps · 120ms</div>
+        <div class="gp" style="position:absolute;left:14px;bottom:14px;width:210px;padding:11px;">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:9px;">modulating now</div>
+          <div style="margin-bottom:9px;"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--live-text);"><span>cfg ← LFO 1</span><span class="mono">7.5</span></div><div style="height:3px;background:#0f3e30;border-radius:2px;margin-top:5px;"><div style="width:60%;height:100%;background:var(--live);border-radius:2px;"></div></div></div>
+          <div style="margin-bottom:9px;"><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--live-text);"><span>zoom ← audio</span><span class="mono">1.04</span></div><div style="height:3px;background:#0f3e30;border-radius:2px;margin-top:5px;"><div style="width:82%;height:100%;background:var(--live);border-radius:2px;"></div></div></div>
+          <div><div style="display:flex;justify-content:space-between;font-size:10px;color:var(--b-group);"><span>pan ← XY pad</span><span class="mono">x.y</span></div></div>
+        </div>
+        <div class="gp" style="position:absolute;right:14px;bottom:14px;width:300px;padding:12px;">
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--warn);margin-bottom:10px;">morph</div>
+          <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:8px;"><span style="color:var(--a-group)">A · 62% · cat-2026</span><span style="color:var(--b-group)">B · 38% · eurovision</span></div>
+          <div style="height:9px;border-radius:5px;background:linear-gradient(90deg,var(--a-group),var(--b-group));position:relative;"><div style="position:absolute;left:62%;top:-3px;width:15px;height:15px;background:#fff;border-radius:50%;transform:translateX(-50%);"></div></div>
+          <div style="display:flex;gap:7px;margin-top:11px;"><button class="mk acc" style="flex:1;">snap A</button><button class="mk acc" style="flex:1;">snap B</button><button class="mk live" style="flex:1;">rand</button></div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px;">
+        <span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);">recent</span>
+        <div style="display:flex;gap:6px;flex:1;"><div style="width:48px;height:30px;background:#1a1726;border-radius:5px;"></div><div style="width:48px;height:30px;background:#101a18;border-radius:5px;"></div><div style="width:48px;height:30px;background:#1f1418;border-radius:5px;"></div><div style="width:48px;height:30px;background:var(--bg-3);border-radius:5px;"></div></div>
+        <span style="font-size:10px;color:var(--accent-text);">all runs →</span>
+        <span style="font-size:10px;color:var(--text-dim);">params ▾</span>
+      </div>
+    </div>
+    <p class="note">Gone: the duplicate crossfader and the entire bottom chip panel. The full parameter list lives behind <span class="mono">params ▾</span>; only pinned params + the two HUDs sit on the stage.</p>
+  </div>
+
+  <!-- MODULATION -->
+  <div class="view">
+    <div class="view-label"><span class="tag">modulation</span> patch bay — waveform-first cards + one shared target grid</div>
+    <div class="stage" style="padding:14px;">
+      <h2 class="sr">MODULATION: waveform-first LFO cards, shared glowing target grid, beat macros strip.</h2>
+      <div style="display:flex;align-items:center;margin-bottom:12px;font-size:11px;"><span class="pill" style="color:#0c0d12;background:var(--accent);">modulation</span><span style="margin-left:auto;color:var(--live-text);font-size:10px;">6 LFOs · 2 active</span></div>
+      <div class="grid3" style="margin-bottom:11px;">
+        <div class="card" style="border-color:var(--live);padding:11px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;"><span class="dot" style="background:var(--live);"></span><span style="font-size:12px;">LFO 1</span><span class="mono" style="margin-left:auto;font-size:10px;color:var(--live-text);">sine·120</span></div>
+          <svg viewBox="0 0 320 40" style="width:100%;height:40px;"><path d="M0 20 Q40 3 80 20 T160 20 T240 20 T320 20" stroke="var(--live)" stroke-width="2.2" fill="none"/></svg>
+          <div style="display:flex;gap:5px;margin-top:8px;"><span class="pill pill-live">cfg</span><span class="pill pill-idle">+ route</span></div>
+        </div>
+        <div class="card" style="border-color:var(--live);padding:11px;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;"><span class="dot" style="background:var(--live);"></span><span style="font-size:12px;">LFO 2</span><span class="mono" style="margin-left:auto;font-size:10px;color:var(--live-text);">saw·120</span></div>
+          <svg viewBox="0 0 320 40" style="width:100%;height:40px;"><path d="M0 36 L80 4 L80 36 L160 4 L160 36 L240 4 L240 36 L320 4" stroke="var(--live)" stroke-width="2.2" fill="none"/></svg>
+          <div style="display:flex;gap:5px;margin-top:8px;"><span class="pill pill-live">strength</span><span class="pill pill-live">cn1.w</span></div>
+        </div>
+        <div class="card" style="padding:11px;opacity:.6;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;"><span class="dot" style="background:#444;"></span><span style="font-size:12px;color:var(--text-2);">LFO 3</span><span class="mono" style="margin-left:auto;font-size:10px;color:var(--text-dim);">off</span></div>
+          <svg viewBox="0 0 320 40" style="width:100%;height:40px;"><path d="M0 20 Q40 10 80 20 T160 20 T240 20 T320 20" stroke="#3a3d4c" stroke-width="2.2" fill="none"/></svg>
+          <div style="margin-top:8px;font-size:10px;color:var(--text-dim);">no targets · tap to enable</div>
+        </div>
+      </div>
+      <div style="background:var(--bg-1);border:0.5px solid #232533;border-radius:var(--radius);padding:12px;margin-bottom:11px;">
+        <div style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);margin-bottom:11px;">target grid · glowing = routed</div>
+        <div class="grid6" style="margin-bottom:7px;">
+          <div class="tgt on">cfg<small>LFO 1</small></div><div class="tgt on">strength<small>LFO 2</small></div><div class="tgt">noise</div><div class="tgt">zoom</div><div class="tgt">pan x</div><div class="tgt">pan y</div>
+        </div>
+        <div class="grid6">
+          <div class="tgt">rotate</div><div class="tgt">tilt</div><div class="tgt">fov</div><div class="tgt on">cn1.w<small>LFO 2</small></div><div class="tgt">cn2.w</div><div class="tgt">cn1.start</div>
+        </div>
+      </div>
+      <div class="card" style="padding:11px 13px;">
+        <div style="display:flex;align-items:center;"><span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);">beat macros</span><span style="margin-left:auto;font-size:10px;color:var(--live-text);">3 active</span></div>
+        <div style="display:flex;gap:7px;margin-top:9px;"><span class="pill pill-acc">cfg · sine</span><span class="pill pill-acc">translation_z · saw</span><span class="pill pill-acc">noise · noise</span></div>
+      </div>
+    </div>
+    <p class="note">Gone: the 22-chip-per-card wall. Each LFO leads with its waveform; routing happens once, in the shared grid; idle LFOs dim so your eye finds what's live.</p>
+  </div>
+
+  <!-- MOTION + AUDIO -->
+  <div class="view">
+    <div class="view-label"><span class="tag">motion · audio</span> the XY pad grows up; audio mappings get live band meters</div>
+    <div class="stage" style="padding:14px;">
+      <h2 class="sr">MOTION large XY pad and AUDIO frequency-band meters.</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div>
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:10px;">motion</div>
+          <div style="display:flex;gap:6px;margin-bottom:11px;"><span class="pill pill-acc">static</span><span class="pill pill-idle">orbit</span><span class="pill pill-idle">tunnel</span><span class="pill pill-idle">handheld</span><span class="pill pill-idle">chaos</span></div>
+          <div style="background:var(--bg-1);border:0.5px solid #232533;border-radius:var(--radius);position:relative;height:300px;">
+            <svg viewBox="0 0 300 300" style="width:100%;height:100%;display:block;"><line x1="150" y1="0" x2="150" y2="300" stroke="#1c1f2b"/><line x1="0" y1="150" x2="300" y2="150" stroke="#1c1f2b"/><circle cx="150" cy="150" r="3" fill="#3a3d4c"/></svg>
+            <div style="position:absolute;left:64%;top:38%;width:26px;height:26px;background:var(--accent);border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 18px rgba(127,119,221,.7);"></div>
+            <div style="position:absolute;top:10px;left:12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);">pan y</div>
+            <div style="position:absolute;bottom:10px;right:12px;font-size:10px;color:var(--live-text);" class="mono">x 0.28 · y 0.24</div>
+            <div style="position:absolute;bottom:10px;left:12px;font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text-dim);">pan x</div>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:10px;">audio reactive · running</div>
+          <div style="display:flex;flex-direction:column;gap:9px;">
+            <div class="card" style="border-color:var(--live);padding:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--live-text);margin-bottom:7px;"><span>strength</span><span class="mono" style="font-size:9px;color:var(--text-dim);">20–300 hz</span></div>
+              <svg viewBox="0 0 320 30" style="width:100%;height:28px;"><rect x="2" y="16" width="14" height="14" fill="var(--live)"/><rect x="22" y="6" width="14" height="24" fill="var(--live)"/><rect x="42" y="20" width="14" height="10" fill="#0f6e56"/><rect x="62" y="2" width="14" height="28" fill="var(--live)"/><rect x="82" y="13" width="14" height="17" fill="var(--live)"/><rect x="102" y="22" width="14" height="8" fill="#0f6e56"/><rect x="122" y="9" width="14" height="21" fill="var(--live)"/><rect x="142" y="18" width="14" height="12" fill="#0f6e56"/></svg>
+            </div>
+            <div class="card" style="border-color:var(--live);padding:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--live-text);margin-bottom:7px;"><span>cfg</span><span class="mono" style="font-size:9px;color:var(--text-dim);">300–1200 hz</span></div>
+              <svg viewBox="0 0 320 30" style="width:100%;height:28px;"><rect x="2" y="10" width="14" height="20" fill="var(--live)"/><rect x="22" y="18" width="14" height="12" fill="#0f6e56"/><rect x="42" y="6" width="14" height="24" fill="var(--live)"/><rect x="62" y="14" width="14" height="16" fill="var(--live)"/><rect x="82" y="22" width="14" height="8" fill="#0f6e56"/><rect x="102" y="9" width="14" height="21" fill="var(--live)"/></svg>
+            </div>
+            <div class="card" style="padding:10px;">
+              <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-2);margin-bottom:7px;"><span>translation_z</span><span class="mono" style="font-size:9px;color:var(--text-dim);">1200–3000 hz</span></div>
+              <svg viewBox="0 0 320 30" style="width:100%;height:28px;"><rect x="2" y="20" width="14" height="10" fill="#0f6e56"/><rect x="22" y="14" width="14" height="16" fill="var(--live)"/><rect x="42" y="22" width="14" height="8" fill="#0f6e56"/><rect x="62" y="11" width="14" height="19" fill="var(--live)"/></svg>
+            </div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;"><span class="pill" style="color:var(--live-text);border:0.5px solid var(--live);">sub</span><span class="pill pill-idle">bass</span><span class="pill pill-idle">lo-mid</span><span class="pill pill-idle">mid</span><span class="pill pill-idle">air</span><span class="pill" style="color:var(--text-dim);border:0.5px dashed var(--border-strong);">+ map</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="note">MOTION: the pad becomes the view's hero, glowing puck, live readout. AUDIO: each mapping leads with a live frequency meter (the audio analogue of an LFO wave); numbers shrink to compact. Both are separate full views in the app — paired here only for compactness.</p>
+  </div>
+
+  <!-- GENERATE -->
+  <div class="view">
+    <div class="view-label"><span class="tag">generate</span> timeline docks under the preview — filmstrip + lanes on one time axis</div>
+    <div class="stage" style="padding:14px;">
+      <h2 class="sr">GENERATE: timeline docked under the preview with filmstrip and stacked keyframe lanes sharing one time axis.</h2>
+      <div style="background:#0e0f17;border:0.5px solid #232533;border-radius:var(--radius);height:170px;position:relative;display:flex;align-items:center;justify-content:center;margin-bottom:10px;overflow:hidden;">
+        <svg viewBox="0 0 1110 170" style="width:100%;"><rect width="1110" height="170" fill="#0e0f17"/><circle cx="555" cy="85" r="64" fill="#534ab7" opacity="0.45"/><circle cx="515" cy="68" r="40" fill="#1d9e75" opacity="0.36"/><circle cx="600" cy="100" r="48" fill="#d4537e" opacity="0.32"/></svg>
+        <div class="mono" style="position:absolute;top:9px;left:12px;font-size:10px;color:var(--text-2);">00:03.04 · 8.00s · 24fps</div>
+        <div style="position:absolute;top:0;bottom:0;left:38%;width:1.5px;background:#e6e8f0;"></div>
+      </div>
+      <div style="background:var(--bg-1);border:0.5px solid #232533;border-radius:var(--radius);padding:11px 13px;">
+        <div style="display:flex;align-items:center;font-size:9px;color:var(--text-dim);margin-bottom:8px;" class="mono"><span style="width:66px;"></span><div style="flex:1;display:flex;justify-content:space-between;"><span>0s</span><span>2s</span><span>4s</span><span>6s</span><span>8s</span></div></div>
+        <div style="display:flex;align-items:center;margin-bottom:9px;"><span style="width:66px;"></span><div style="flex:1;display:flex;gap:5px;"><div style="flex:1;height:34px;background:#1a1726;border-radius:4px;"></div><div style="flex:1;height:34px;background:#101a18;border-radius:4px;"></div><div style="flex:1;height:34px;background:#1f1418;border-radius:4px;"></div><div style="flex:1;height:34px;background:var(--bg-3);border-radius:4px;"></div></div></div>
+        <div style="position:relative;">
+          <div style="display:flex;align-items:center;height:44px;margin-bottom:6px;"><div style="width:66px;font-size:10px;color:var(--live-text);">zoom</div><div style="flex:1;height:100%;background:#101119;border:0.5px solid #232533;border-radius:6px;position:relative;overflow:hidden;"><svg viewBox="0 0 600 44" preserveAspectRatio="none" style="width:100%;height:100%;"><polyline points="0,33 140,28 280,11 440,19 600,8" fill="none" stroke="var(--live)" stroke-width="1.5"/></svg><span style="position:absolute;left:23%;top:65%;width:7px;height:7px;background:#5dcaa5;border-radius:50%;transform:translate(-50%,-50%);"></span><span style="position:absolute;left:47%;top:25%;width:7px;height:7px;background:#5dcaa5;border-radius:50%;transform:translate(-50%,-50%);"></span></div></div>
+          <div style="display:flex;align-items:center;height:44px;"><div style="width:66px;font-size:10px;color:var(--live-text);">pan x</div><div style="flex:1;height:100%;background:#101119;border:0.5px solid #232533;border-radius:6px;position:relative;overflow:hidden;"><svg viewBox="0 0 600 44" preserveAspectRatio="none" style="width:100%;height:100%;"><polyline points="0,22 160,36 300,9 460,28 600,22" fill="none" stroke="var(--a-group)" stroke-width="1.5"/></svg><span style="position:absolute;left:27%;top:82%;width:7px;height:7px;background:#85b7eb;border-radius:50%;transform:translate(-50%,-50%);"></span><span style="position:absolute;left:50%;top:20%;width:7px;height:7px;background:#85b7eb;border-radius:50%;transform:translate(-50%,-50%);"></span></div></div>
+          <div style="position:absolute;left:66px;right:0;top:-6px;bottom:-6px;pointer-events:none;"><div style="position:absolute;left:38%;top:0;bottom:0;width:1.5px;background:#e6e8f0;"><span style="position:absolute;top:-4px;left:50%;width:9px;height:9px;background:#e6e8f0;border-radius:50%;transform:translateX(-50%);"></span></div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:7px;margin-top:11px;padding-top:10px;border-top:0.5px solid #232533;"><button class="mk live">play</button><button class="mk">+ track</button><button class="mk">+ key</button><button class="mk">curve: linear ▾</button><span style="margin-left:auto;font-size:9px;color:var(--text-dim);" class="mono">export json · save · load</span></div>
+      </div>
+    </div>
+    <p class="note">The empty timeline box becomes a docked workspace: filmstrip + stacked value-curve lanes on one shared time axis, a single position indicator tying the preview to every lane. Compact by default; expands for full lane editing. Export JSON format unchanged.</p>
+  </div>
+
+  <!-- PROMPTS / RUNS / SETTINGS -->
+  <div class="view">
+    <div class="view-label"><span class="tag">prompts · runs · settings</span> the support views — same calm card system</div>
+    <div class="stage" style="padding:14px;">
+      <h2 class="sr">PROMPTS LoRA A/B groups, RUNS table, SETTINGS GPU pool in one calm card language.</h2>
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:10px;">prompts · lora — A=blue / B=pink, matching the morph crossfader</div>
+      <div class="grid3" style="margin-bottom:9px;">
+        <div class="card" style="padding:10px;"><div style="font-size:11px;margin-bottom:7px;">cat-2026</div><div style="height:3px;background:var(--border);border-radius:2px;margin-bottom:8px;"><div style="width:70%;height:100%;background:var(--text-2);border-radius:2px;"></div></div><div style="display:flex;gap:6px;"><span style="flex:1;text-align:center;font-size:10px;color:#cce0f7;background:rgba(55,138,221,.2);border:0.5px solid var(--a-group);border-radius:5px;padding:4px;">A</span><span style="flex:1;text-align:center;font-size:10px;color:var(--text-2);border:0.5px solid var(--border);border-radius:5px;padding:4px;">B</span></div></div>
+        <div class="card" style="padding:10px;"><div style="font-size:11px;margin-bottom:7px;">eurovision14</div><div style="height:3px;background:var(--border);border-radius:2px;margin-bottom:8px;"><div style="width:55%;height:100%;background:var(--text-2);border-radius:2px;"></div></div><div style="display:flex;gap:6px;"><span style="flex:1;text-align:center;font-size:10px;color:var(--text-2);border:0.5px solid var(--border);border-radius:5px;padding:4px;">A</span><span style="flex:1;text-align:center;font-size:10px;color:#f6cede;background:rgba(232,121,176,.2);border:0.5px solid var(--b-group);border-radius:5px;padding:4px;">B</span></div></div>
+        <div class="card" style="padding:10px;"><div style="font-size:11px;margin-bottom:7px;">diagrams-sdxl</div><div style="height:3px;background:var(--border);border-radius:2px;margin-bottom:8px;"><div style="width:40%;height:100%;background:var(--text-2);border-radius:2px;"></div></div><div style="display:flex;gap:6px;"><span style="flex:1;text-align:center;font-size:10px;color:var(--text-2);border:0.5px solid var(--border);border-radius:5px;padding:4px;">A</span><span style="flex:1;text-align:center;font-size:10px;color:var(--text-2);border:0.5px solid var(--border);border-radius:5px;padding:4px;">B</span></div></div>
+      </div>
+      <div class="card" style="padding:9px 11px;display:flex;align-items:center;margin-bottom:18px;"><span style="font-size:10px;color:#cce0f7;">A group · 1</span><span style="margin-left:16px;font-size:10px;color:#f6cede;">B group · 1</span><button class="mk live" style="margin-left:auto;">apply</button></div>
+
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:10px;">runs</div>
+      <div style="background:var(--bg-1);border:0.5px solid #232533;border-radius:var(--radius);padding:11px;margin-bottom:18px;">
+        <div style="display:flex;gap:7px;margin-bottom:10px;"><span style="flex:1;font-size:10px;color:var(--text-dim);background:var(--bg-3);border:0.5px solid var(--border);border-radius:6px;padding:6px 10px;">search id, tag, model…</span><span style="font-size:10px;color:var(--text-2);background:var(--bg-3);border:0.5px solid var(--border);border-radius:6px;padding:6px 10px;">all status ▾</span><button class="mk">json</button><button class="mk">csv</button></div>
+        <div style="display:flex;gap:9px;align-items:center;padding:7px 0;border-bottom:0.5px solid #1c1f2b;"><div style="width:38px;height:24px;background:#1a1726;border-radius:4px;"></div><span style="font-size:11px;">run_0481</span><span class="pill" style="font-size:9px;color:var(--live-text);background:rgba(29,158,117,.15);">done</span><span style="margin-left:auto;font-size:10px;color:var(--text-dim);" class="mono">240f · seed 4249 · 2DN-Pony</span></div>
+        <div style="display:flex;gap:9px;align-items:center;padding:7px 0;"><div style="width:38px;height:24px;background:#101a18;border-radius:4px;"></div><span style="font-size:11px;">run_0480</span><span class="pill" style="font-size:9px;color:var(--live-text);background:rgba(29,158,117,.15);">done</span><span style="margin-left:auto;font-size:10px;color:var(--text-dim);" class="mono">192f · seed 1180 · FLUX1</span></div>
+      </div>
+
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--text-dim);margin-bottom:10px;">settings · gpu pool</div>
+      <div style="background:var(--bg-1);border:0.5px solid #232533;border-radius:var(--radius);padding:11px;">
+        <div style="display:flex;gap:6px;margin-bottom:11px;"><span class="pill pill-acc">gpus</span><span class="pill pill-idle">engine</span><span class="pill pill-idle">forge</span><span class="pill pill-idle">midi</span><span class="pill pill-idle">presets</span><span class="pill pill-idle">keys</span></div>
+        <div style="display:flex;gap:9px;align-items:center;padding:7px 0;border-bottom:0.5px solid #1c1f2b;"><span style="font-size:11px;">Node-1</span><span class="pill" style="font-size:9px;color:var(--live-text);background:rgba(29,158,117,.15);">healthy</span><span style="margin-left:auto;font-size:10px;color:var(--text-dim);" class="mono">2DN-Pony · 450/15848mb · 3% · 0 jobs</span></div>
+        <div style="display:flex;gap:9px;align-items:center;padding:7px 0;"><span style="font-size:11px;">Node-2</span><span class="pill" style="font-size:9px;color:var(--live-text);background:rgba(29,158,117,.15);">healthy</span><span style="margin-left:auto;font-size:10px;color:var(--text-dim);" class="mono">FLUX1 · 133/11910mb · 1% · 1 job</span></div>
+      </div>
+    </div>
+    <p class="note">Support views, not performance surfaces — so they stay calm: same card system, A=blue/B=pink on LoRA groups so they rhyme with the morph crossfader, teal status badges, no heavy chrome. SETTINGS logic (GPU pool, presets, MIDI) is untouched — restyle only.</p>
+  </div>
+
+</div>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
+</body>
+</html>
