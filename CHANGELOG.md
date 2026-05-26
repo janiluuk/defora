@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.1] - 2026-05-26
+
+## What's Changed
+
+- fix: split ROOT assignment and cd to fix unbound variable error under set -u (4b2d19a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.0...v0.6.1
+
+
 ## [0.6.0] - 2026-05-26
 
 ## What's Changed
