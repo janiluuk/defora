@@ -168,10 +168,11 @@
         <div v-else-if="currentTab==='PROMPTS'">
           <div class="sub-pills">
             <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='PROMPTS'}" @click="switchSubTab('PROMPTS','PROMPTS')">PROMPTS</button>
-            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='STORY'}" @click="switchSubTab('PROMPTS','STORY')">STORY</button>
-            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CROSSFADER'}" @click="switchSubTab('PROMPTS','CROSSFADER')">CROSSFADER</button>
+            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='IMAGE'}" @click="switchSubTab('PROMPTS','IMAGE')">IMAGE</button>
             <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='LORA'}" @click="switchSubTab('PROMPTS','LORA')">LORA</button>
             <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CONTROLNET'}" @click="switchSubTab('PROMPTS','CONTROLNET')">CONTROLNET</button>
+            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CROSSFADER'}" @click="switchSubTab('PROMPTS','CROSSFADER')">CROSSFADER</button>
+            <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='STORY'}" @click="switchSubTab('PROMPTS','STORY')">STORY</button>
           </div>
           <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
           <div class="rack">
@@ -186,10 +187,46 @@
               </div>
 
               <div v-if="!morphCollapsed">
+                <div style="margin-top:12px;"></div>
+                <div style="margin-top:14px; padding:10px; border:1px solid #0c3048; border-radius:10px; background:rgba(3, 27, 45, 0.3);">
+                  <div class="framesync-header">
+                    <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
+                      <button class="framesync-button" :class="{active: !promptMorphBlendLinkedLfo}" @click="setPromptMorphBlendLfoLink(null)">Manual</button>
+                      <button v-for="lfo in lfos.slice(0, 4)" :key="'morph-lfo-link-' + lfo.id" class="framesync-button" :class="{active: prompts.morphBlendLfoLink === lfo.id}" @click="setPromptMorphBlendLfoLink(lfo.id)">
+                        {{ 'LFO ' + lfo.id }}
+                      </button>
+                    </div>
+                  </div>
+                  <div style="margin-top:14px; padding:0 2px;">
+                    <div class="framesync-subtitle">Prompt morph blend</div>
+                    <div class="framesync-gradient-bar"></div>
+                    <input type="range" min="0" max="1" step="0.01" :value="prompts.morphBlend" class="framesync-input" data-testid="prompt-morph-blend" :disabled="!prompts.morphOn" @input="applyPromptMorphBlend($event.target.value, { commitBase: true })">
+                    <div style="display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;">
+                      <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+                      <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+                    </div>
+                  </div>
+                  <div style="font-size:11px; color:#7fb3d6; margin-top:8px;">{{ promptMorphBlendLinkStatus }}</div>
+                </div>
               </div>
             </div>
           </div>
 
+          <div class="rack">
+            <div class="framesync-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">📚 Plugins <span class="framesync-accent">Registry</span></div>
+                <button class="framesync-button" @click="refreshPlugins">🔄 Refresh</button>
+              </div>
+              <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
+                <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
+              </ul>
+            </div>
+          </div>
+          </div>
+
+          <div v-else-if="currentSubTab.PROMPTS==='IMAGE'">
           <div class="rack">
             <div class="framesync-panel">
               <div class="framesync-header">
@@ -237,18 +274,6 @@
                 Output: <a :href="img2img.lastPath" target="_blank" style="color:#ff8a1a;">{{ img2img.lastPath }}</a>
               </div>
               </div>
-            </div>
-          </div>
-
-          <div class="rack">
-            <div class="framesync-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">📚 Plugins <span class="framesync-accent">Registry</span></div>
-                <button class="framesync-button" @click="refreshPlugins">🔄 Refresh</button>
-              </div>
-              <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
-                <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
-              </ul>
             </div>
           </div>
           </div>
@@ -352,12 +377,17 @@
 
                   <div class="framesync-stack">
                     <div class="framesync-subtitle">Crossfader</div>
+                    <div class="lora-crossfader-links">
+                      <button type="button" class="framesync-button" :class="{ active: !prompts.loraCrossfaderLfoLink }" @click="setLoraCrossfaderLfoLink(null)">Manual</button>
+                      <button v-for="lfo in lfos.slice(0, 6)" :key="'lora-crossfader-tab-lfo-' + lfo.id" type="button" class="framesync-button" :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }" @click="setLoraCrossfaderLfoLink(lfo.id)">LFO {{ lfo.id }}</button>
+                    </div>
                     <div class="framesync-gradient-bar"></div>
-                    <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="prompts.crossfaderValue=parseFloat($event.target.value)" class="framesync-input" style="margin-top:8px;">
+                    <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
                     <div style="display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;">
                       <span>A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
                       <span>B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
                     </div>
+                    <div class="lora-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
                   </div>
 
                   <div class="framesync-stack">
@@ -472,6 +502,26 @@
                     </div>
                   </div>
                 </div>
+              </div>
+              <div class="lora-crossfader-inline" style="margin-top:16px;">
+                <div class="lora-crossfader-inline__header">
+                  <div class="framesync-title">LoRA <span class="framesync-accent">Crossfader</span></div>
+                  <span class="pill" :class="{ danger: !loraCrossfaderEnabled }">
+                    <span class="dot"></span>{{ loraCrossfaderStatusLabel }}
+                  </span>
+                </div>
+                <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
+                <div class="lora-crossfader-links">
+                  <button type="button" class="framesync-button" :class="{ active: !prompts.loraCrossfaderLfoLink }" @click="setLoraCrossfaderLfoLink(null)">Manual</button>
+                  <button v-for="lfo in lfos.slice(0, 6)" :key="'lora-crossfader-inline-lfo-' + lfo.id" type="button" class="framesync-button" :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }" @click="setLoraCrossfaderLfoLink(lfo.id)">LFO {{ lfo.id }}</button>
+                </div>
+                <div class="framesync-gradient-bar"></div>
+                <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
+                <div style="display:flex; justify-content:space-between; font-size:10px; color:#7fb3d6; margin-top:4px;">
+                  <span>A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
+                  <span>B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
+                </div>
+                <div class="lora-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
               </div>
               <div class="framesync-footer" style="margin-top:12px;">
                 <button class="framesync-button" @click="applyLoras">✓ Apply LoRAs</button>

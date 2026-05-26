@@ -4,6 +4,72 @@
       <div class="framesync-panel">
         <div class="framesync-header">
           <div class="framesync-title">
+            <UiIcon class="framesync-title-icon" name="film" />
+            <span class="framesync-accent">Default Animation</span>
+          </div>
+          <span class="framesync-subtitle" style="margin:0;">Volume-lighting style standby scene inspired by the referenced Three.js demo.</span>
+        </div>
+
+        <div class="framesync-stack" style="margin-top:10px;">
+          <div class="framesync-subtitle">Output surface</div>
+          <div class="chips">
+            <button
+              type="button"
+              class="chip"
+              :class="{ active: !defaultAnimation.preferDeforumVideo }"
+              @click="setPreferDeforumVideo(false)"
+            >
+              Default animation
+            </button>
+            <button
+              type="button"
+              class="chip"
+              :class="{ active: defaultAnimation.preferDeforumVideo }"
+              @click="setPreferDeforumVideo(true)"
+            >
+              Deforum feed
+            </button>
+          </div>
+          <div class="framesync-subtitle" style="margin-top:6px;">
+            {{ deforumFeedStatusLabel }}
+          </div>
+        </div>
+
+        <div class="slider-row">
+          <label>Beam count</label>
+          <input type="range" min="3" max="12" step="1" v-model.number="defaultAnimation.beamCount" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <label>Speed</label>
+          <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <label>Spread</label>
+          <input type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <label>Glow</label>
+          <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <label>Hue</label>
+          <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <label>Pulse</label>
+          <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.pulse" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <label>Drift</label>
+          <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
+        </div>
+      </div>
+    </div>
+
+    <div class="rack performance-deck">
+      <div class="framesync-panel">
+        <div class="framesync-header">
+          <div class="framesync-title">
             <UiIcon class="framesync-title-icon" name="sliders" />
             <span class="framesync-accent">Morph Setup</span>
           </div>

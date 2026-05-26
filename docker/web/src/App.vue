@@ -29,14 +29,22 @@
       <!-- Left: video + mini timeline -->
       <div class="preview">
         <div class="video-wrap" :class="{ 'video-wrap--preview-loading': previewGenerating }">
+          <ThreeBackground
+            class="video-wrap__default-animation"
+            :lfos="lfos"
+            :audio-metrics="backgroundAudioMetrics"
+            :active-tab="currentTab"
+            :morph="performance.crossfader"
+            :settings="defaultAnimation"
+          />
           <img
-            v-if="!deforumPlaying && activePreviewStillPath"
+            v-if="showPreviewStill"
             :src="activePreviewStillPath"
             alt="Generated preview"
             class="video-still-preview"
           />
           <video
-            v-show="deforumPlaying || !activePreviewStillPath"
+            :class="['video-feed', { 'video-feed--visible': showDeforumVideo }]"
             id="player"
             ref="videoEl"
             autoplay
@@ -64,12 +72,25 @@
               <div style="font-size:11px; color:var(--text-secondary);">Seed {{ hud.seed }}</div>
             </div>
             <div style="display:flex; align-items:flex-start; gap:8px; text-align:right;">
-              <button v-if="currentTab === 'LIVE'" type="button" class="live-overlay-btn" @click="liveDrawerOpen = !liveDrawerOpen" :title="liveDrawerOpen ? 'Close controls' : 'Open controls'">
-                {{ liveDrawerOpen ? '✕ Close' : '⚙ Controls' }}
+              <button
+                v-if="currentTab === 'LIVE'"
+                type="button"
+                class="live-overlay-btn"
+                :class="{ 'live-overlay-btn--open': showRightPanel }"
+                :title="rightPanelToggleTitle"
+                :aria-expanded="showRightPanel ? 'true' : 'false'"
+                @click="liveDrawerOpen = !liveDrawerOpen"
+              >
+                <UiIcon class="live-overlay-btn__lead" name="sliders" />
+                <span class="live-overlay-btn__label">Right panel</span>
+                <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
               </button>
               <div>
                 <div>{{ stats.fps }} fps</div>
                 <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
+                <div class="video-feed-status" :class="{ 'video-feed-status--ready': videoReady, 'video-feed-status--selected': defaultAnimation.preferDeforumVideo }">
+                  {{ deforumFeedStatusLabel }}
+                </div>
               </div>
             </div>
           </div>
@@ -413,18 +434,20 @@
       </div>
 
       <!-- Right: control rack per tab (fixed drawer overlay in LIVE mode) -->
-      <div v-if="currentTab !== 'LIVE' || liveDrawerOpen" :class="{
-        'live-right-column': currentTab === 'LIVE',
-        'stage-rack-overlay': currentTab === 'MOTION',
-        'studio-right-column': currentTab === 'MODULATION'
-      }">
-        <LiveView v-if="currentTab==='LIVE'" :app="appViewModel" />
-        <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
-        <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
-        <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
-        <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
-        <GenerateView v-else-if="currentTab==='GENERATE'" :app="appViewModel" />
-      </div>
+      <transition name="right-panel-slide">
+        <div v-if="showRightPanel" :class="{
+          'live-right-column': currentTab === 'LIVE',
+          'stage-rack-overlay': currentTab === 'MOTION',
+          'studio-right-column': currentTab === 'MODULATION'
+        }">
+          <LiveView v-if="currentTab==='LIVE'" :app="appViewModel" />
+          <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
+          <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
+          <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
+          <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
+          <GenerateView v-else-if="currentTab==='GENERATE'" :app="appViewModel" />
+        </div>
+      </transition>
     </div>
 
   </div>
@@ -468,6 +491,7 @@ import Crossfader from './components/Crossfader.vue'
 import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
 import Timeline from './components/generate/Timeline.vue'
+import ThreeBackground from './components/ThreeBackground.vue'
 import LiveView from './components/views/LiveView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
@@ -477,7 +501,7 @@ import GenerateView from './components/views/GenerateView.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, LiveView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
        showFrames: true,
@@ -487,6 +511,7 @@ export default {
        previewGenerating: false,
        previewDebounceTimer: null,
        previewQueuedKind: null,
+      videoReady: false,
        framesRefreshBackoffMs: 1000,
        frameRefreshTimer: null,
        apiHealthBackoffMs: 15000,
@@ -622,7 +647,17 @@ export default {
           return raw ? JSON.parse(raw) : [];
         } catch (_) { return []; }
       })(),
-      prompts: { pos: "", neg: "", morphOn: true, crossfaderValue: 0.5, morphBlend: 0.5 },
+      prompts: {
+        pos: "",
+        neg: "",
+        morphOn: true,
+        crossfaderValue: 0.5,
+        loraCrossfaderLfoLink: null,
+        loraCrossfaderLfoBase: 0.5,
+        morphBlend: 0.5,
+        morphBlendLfoLink: null,
+        morphBlendLfoBase: 0.5,
+      },
       img2img: {
         show: false,
         dataUrl: null,
@@ -648,6 +683,12 @@ export default {
         groupA: [],
         groupB: [],
         source: "unknown",
+        familyCollapsed: {
+          sd15: true,
+          sdxl: true,
+          flux: true,
+          svd: true,
+        },
       },
       motionPresets: {
         Static: { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
@@ -809,11 +850,25 @@ export default {
       ws: null,
       wsStatus: "disconnected",
       streamSrc: "/hls/live/deforum.m3u8",
+      defaultAnimation: {
+        preferDeforumVideo: false,
+        beamCount: 7,
+        speed: 0.75,
+        spread: 0.68,
+        glow: 0.78,
+        hue: 0.6,
+        pulse: 0.36,
+        drift: 0.44,
+      },
       thumbs: [],
       framesTimer: null,
       playerEl: null,
       timeHandler: null,
       hls: null,
+      videoReadyHandler: null,
+      videoWaitingHandler: null,
+      videoPlayHandler: null,
+      videoPauseHandler: null,
       liveParamTimers: {},
       liveParamPending: {},
       lastParamSent: {},
@@ -847,6 +902,7 @@ export default {
       lfoTargetPick: {},
       avSyncCollapsed: true,
       morphCollapsed: true,
+      loraPickerOpen: false,
       loraCrossfaderCollapsed: true,
       forgeAdvancedCollapsed: true,
       storyResultCollapsed: false,
@@ -904,6 +960,43 @@ export default {
       }
       return this.performance.lastPreviewPath || this.generator.lastPath || '';
     },
+    showRightPanel() {
+      return this.currentTab !== 'LIVE' || this.liveDrawerOpen;
+    },
+    rightPanelToggleIcon() {
+      return this.showRightPanel ? 'close' : 'arrow-left';
+    },
+    rightPanelToggleTitle() {
+      return this.showRightPanel ? 'Hide right panel' : 'Show right panel';
+    },
+    showDeforumVideo() {
+      return !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo && this.videoReady);
+    },
+    showPreviewStill() {
+      return !!(!this.showDeforumVideo && !this.deforumPlaying && this.activePreviewStillPath);
+    },
+    deforumFeedStatusLabel() {
+      if (this.showDeforumVideo) return 'Deforum feed live';
+      if (this.videoReady) return 'Deforum feed ready';
+      if (this.deforumPlaying) return 'Deforum feed warming up';
+      if (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo) return 'Waiting for Deforum feed';
+      return 'Default animation';
+    },
+    backgroundAudioMetrics() {
+      const levels = Array.isArray(this.audioMappingLevels) ? this.audioMappingLevels.map((value) => Math.max(0, Math.min(1, Number(value) || 0))) : [];
+      const bass = levels[0] || 0;
+      const mid = levels[1] || 0;
+      const treble = levels[2] || 0;
+      const level = levels.length ? levels.reduce((sum, value) => sum + value, 0) / levels.length : 0;
+      return {
+        active: level > 0.01,
+        level,
+        bass,
+        mid,
+        treble,
+        pulse: Math.min(1, bass * 0.7 + level * 0.3),
+      };
+    },
     availableOllamaNodes() {
       return (this.gpuPool.nodes || []).filter((node) => node && node.enabled && node.backend === 'ollama');
     },
@@ -917,6 +1010,58 @@ export default {
         return `Ollama ${firstNode.model || firstNode.currentModel || firstNode.name}`;
       }
       return 'Local fallback';
+    },
+    promptMorphBlendLinkedLfo() {
+      const id = Number(this.prompts.morphBlendLfoLink || 0);
+      if (!id) return null;
+      return this.lfos.find((lfo) => lfo.id === id) || null;
+    },
+    promptMorphBlendLinkStatus() {
+      const lfo = this.promptMorphBlendLinkedLfo;
+      if (!lfo) return 'Manual control';
+      return lfo.on ? `Linked to LFO ${lfo.id}` : `Linked to LFO ${lfo.id} (currently off)`;
+    },
+    loraCrossfaderLinkedLfo() {
+      const id = Number(this.prompts.loraCrossfaderLfoLink || 0);
+      if (!id) return null;
+      return this.lfos.find((lfo) => lfo.id === id) || null;
+    },
+    loraCrossfaderLinkStatus() {
+      const lfo = this.loraCrossfaderLinkedLfo;
+      if (!lfo) return 'Manual control';
+      return lfo.on ? `Linked to LFO ${lfo.id}` : `Linked to LFO ${lfo.id} (currently off)`;
+    },
+    currentLoraModelFamily() {
+      return this.detectModelFamilyFromValue(
+        this.forge.modelInfo,
+        this.forge.currentModel || this.forge.selectedModel || this.forge.lastModel
+      );
+    },
+    currentLoraModelFamilyLabel() {
+      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' };
+      return labels[this.currentLoraModelFamily] || 'Unknown';
+    },
+    loraBrowserFamilies() {
+      const defs = [
+        { key: 'sd15', label: 'SD1.5' },
+        { key: 'sdxl', label: 'SDXL' },
+        { key: 'flux', label: 'FLUX' },
+        { key: 'svd', label: 'SVD' },
+      ];
+      const active = this.currentLoraModelFamily;
+      return defs
+        .map((family) => ({
+          ...family,
+          items: this.loras.available.filter((lora) => (lora.family || 'sd15') === family.key),
+          compatible: !active || active === family.key,
+          collapsed: this.loras.familyCollapsed[family.key] !== false,
+        }))
+        .filter((family) => !active || family.compatible);
+    },
+    compatibleLoraFamilies() {
+      return this.loraBrowserFamilies
+        .map((family) => ({ ...family, items: family.items.filter(Boolean) }))
+        .filter((family) => family.items.length);
     },
     loraCrossfaderEnabled() {
       return this.loras.groupA.length > 0 && this.loras.groupB.length > 0;
@@ -1211,11 +1356,12 @@ export default {
     if (this.deforumPreviewTimer) clearTimeout(this.deforumPreviewTimer);
     if (this.frameRefreshTimer) clearTimeout(this.frameRefreshTimer);
     this.stopLfoAnimation();
-    if (this.playerEl && this.timeHandler) {
-      this.playerEl.removeEventListener("timeupdate", this.timeHandler);
+    if (this.playerEl) {
+      this.detachPlayerListeners(this.playerEl);
     }
-    if (this.playerEl && this.errorHandler) {
-      this.playerEl.removeEventListener("error", this.errorHandler);
+    if (this.hls && this.hls.destroy) {
+      this.hls.destroy();
+      this.hls = null;
     }
     if (typeof document !== "undefined") {
       document.removeEventListener("keydown", this._keyHandler);
@@ -1468,6 +1614,9 @@ export default {
  switchSubTab(tab, sub) {
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
+  if (tab === 'PROMPTS' && sub !== 'LORA') {
+    this.loraPickerOpen = false;
+  }
    if (tab === 'PROMPTS' && sub === 'LORA' && !this.lorasLoading && !this.loras.available.length) {
      this.refreshLoras();
    }
@@ -1542,12 +1691,60 @@ export default {
  async toggleRecord() {
    return this.toggleStreamRecord();
  },
+normalizeDefaultAnimationSettings(input = {}) {
+  const next = input && typeof input === 'object' ? input : {};
+  return {
+    preferDeforumVideo: !!next.preferDeforumVideo,
+    beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
+    speed: Math.max(0.1, Math.min(2.5, Number(next.speed) || 0.75)),
+    spread: Math.max(0.2, Math.min(1.4, Number(next.spread) || 0.68)),
+    glow: Math.max(0.1, Math.min(1.4, Number(next.glow) || 0.78)),
+    hue: Math.max(0, Math.min(1, Number(next.hue) || 0.6)),
+    pulse: Math.max(0, Math.min(1, Number(next.pulse) || 0.36)),
+    drift: Math.max(0, Math.min(1, Number(next.drift) || 0.44)),
+  };
+},
+onDefaultAnimationInput() {
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
+  this.saveSessionState();
+},
+setPreferDeforumVideo(prefer) {
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+    ...this.defaultAnimation,
+    preferDeforumVideo: prefer,
+  });
+  if (prefer) {
+    this.videoReady = false;
+    this.attachPlayer();
+  }
+  this.saveSessionState();
+},
+markVideoReady(ready) {
+  this.videoReady = !!ready;
+},
+detachPlayerListeners(video = this.playerEl) {
+  if (!video) return;
+  if (this.timeHandler) video.removeEventListener("timeupdate", this.timeHandler);
+  if (this.errorHandler) video.removeEventListener("error", this.errorHandler);
+  if (this.videoReadyHandler) {
+    video.removeEventListener("loadeddata", this.videoReadyHandler);
+    video.removeEventListener("canplay", this.videoReadyHandler);
+    video.removeEventListener("playing", this.videoReadyHandler);
+  }
+  if (this.videoWaitingHandler) {
+    video.removeEventListener("waiting", this.videoWaitingHandler);
+    video.removeEventListener("stalled", this.videoWaitingHandler);
+    video.removeEventListener("emptied", this.videoWaitingHandler);
+  }
+  if (this.videoPlayHandler) video.removeEventListener("play", this.videoPlayHandler);
+  if (this.videoPauseHandler) video.removeEventListener("pause", this.videoPauseHandler);
+},
  attachPlayer() {
    const video = document.getElementById("player");
    if (!video) return;
-   if (this.playerEl && this.timeHandler) this.playerEl.removeEventListener("timeupdate", this.timeHandler);
-   if (this.playerEl && this.errorHandler) this.playerEl.removeEventListener("error", this.errorHandler);
+  if (this.playerEl) this.detachPlayerListeners(this.playerEl);
    this.playerEl = video;
+  this.markVideoReady(false);
    const hlsSource = this.streamSrc.includes("?") ? this.streamSrc + "&t=" + Date.now() : this.streamSrc + "?t=" + Date.now();
    if (this.hls && this.hls.destroy) {
      this.hls.destroy();
@@ -1577,21 +1774,38 @@ export default {
       this.timecode = this.formatPlaybackTime(t);
       this.syncFrameSelectionFromPlayback(t);
      }
+    if (video.readyState >= 2) this.markVideoReady(true);
      this.syncReferenceAudioToVideo(video);
    };
    this.errorHandler = () => {
+    this.markVideoReady(false);
      setTimeout(() => this.attachPlayer(), 800);
    };
+  this.videoReadyHandler = () => {
+    if (video.readyState >= 2) this.markVideoReady(true);
+  };
+  this.videoWaitingHandler = () => {
+    this.markVideoReady(false);
+  };
+  this.videoPlayHandler = () => {
+    this.isPlaying = true;
+    if (video.readyState >= 2) this.markVideoReady(true);
+    this.syncAvAudioPlayState(true, video);
+  };
+  this.videoPauseHandler = () => {
+    this.isPlaying = false;
+    this.syncAvAudioPlayState(false, video);
+  };
    video.addEventListener("timeupdate", this.timeHandler);
    video.addEventListener("error", this.errorHandler);
-   video.addEventListener("play", () => {
-     this.isPlaying = true;
-     this.syncAvAudioPlayState(true, video);
-   });
-   video.addEventListener("pause", () => {
-     this.isPlaying = false;
-     this.syncAvAudioPlayState(false, video);
-   });
+  video.addEventListener("loadeddata", this.videoReadyHandler);
+  video.addEventListener("canplay", this.videoReadyHandler);
+  video.addEventListener("playing", this.videoReadyHandler);
+  video.addEventListener("waiting", this.videoWaitingHandler);
+  video.addEventListener("stalled", this.videoWaitingHandler);
+  video.addEventListener("emptied", this.videoWaitingHandler);
+  video.addEventListener("play", this.videoPlayHandler);
+  video.addEventListener("pause", this.videoPauseHandler);
    this.autoplayVideo(video);
  },
  syncReferenceAudioToVideo(video) {
@@ -1629,7 +1843,13 @@ export default {
    if (!el || typeof el.play !== "function") return;
    const p = el.play();
    if (p && typeof p.catch === "function") {
-     p.then(() => { this.isPlaying = true; }).catch(() => { this.isPlaying = false; });
+    p.then(() => {
+      this.isPlaying = true;
+      if (el.readyState >= 2) this.markVideoReady(true);
+    }).catch(() => {
+      this.isPlaying = false;
+      this.markVideoReady(false);
+    });
    }
  },
  ensureLivePlayback() {
@@ -1695,13 +1915,37 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
     const payload = {};
     const cnUpdates = {};
     this.lfos.forEach((lfo) => {
-      if (!lfo.on || !lfo.targets.length) return;
+      const drivesMorphBlend = Number(this.prompts.morphBlendLfoLink || 0) === lfo.id && lfo.id >= 1 && lfo.id <= 4;
+      const drivesLoraCrossfader = Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id && lfo.id >= 1 && lfo.id <= 6;
+      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader)) return;
       const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
       const inc = dtSec * this.lfoRateRadPerSec(lfo);
       const phase = (lfo.phase || 0) + inc;
       lfo.phase = phase % (Math.PI * 2);
       lfo.renderPhase = lfo.phase;
       const wave = this.shapeValue(lfo.shape, lfo.phase);
+
+      if (drivesMorphBlend) {
+        const base = this.clampVal(
+          Number(this.prompts.morphBlendLfoBase ?? this.prompts.morphBlend ?? 0.5) || 0.5,
+          0,
+          1
+        );
+        const amp = depth * 0.5;
+        const value = this.clampVal(base + wave * amp, 0, 1);
+        this.applyPromptMorphBlend(value, { fromModulation: true });
+      }
+
+      if (drivesLoraCrossfader) {
+        const base = this.clampVal(
+          Number(this.prompts.loraCrossfaderLfoBase ?? this.prompts.crossfaderValue ?? 0.5) || 0.5,
+          0,
+          1
+        );
+        const amp = depth * 0.5;
+        const value = this.clampVal(base + wave * amp, 0, 1);
+        this.applyLoraCrossfader(value, { fromModulation: true });
+      }
 
       lfo.targets.forEach((targetKey) => {
         const target = this.lfoTargets.find((t) => t.key === targetKey);
@@ -2007,6 +2251,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
      if (msg.msg) console.log("[Defora event]", msg.msg);
    }
    if (msg.type === "stream" && msg.src) {
+    this.markVideoReady(false);
      this.streamSrc = msg.src + "?t=" + Date.now();
      this.attachPlayer();
    }
@@ -2115,6 +2360,11 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
        neg: this.prompts.neg,
        morphOn: this.prompts.morphOn,
        crossfaderValue: this.prompts.crossfaderValue,
+       loraCrossfaderLfoLink: this.prompts.loraCrossfaderLfoLink,
+       loraCrossfaderLfoBase: this.prompts.loraCrossfaderLfoBase,
+       morphBlend: this.prompts.morphBlend,
+       morphBlendLfoLink: this.prompts.morphBlendLfoLink,
+       morphBlendLfoBase: this.prompts.morphBlendLfoBase,
      },
      lfos: this.lfos,
      macrosRack: this.macrosRack,
@@ -2575,8 +2825,7 @@ applyMotionPresetAndSelect(name) {
    return w < 0.99 ? `${phrase} ×${w.toFixed(2)}` : phrase;
  },
  onPromptMorphBlendInput() {
-   this.applyPromptMorphing();
-   if (!this.deforumPlaying) this.schedulePreviewFrame();
+  this.applyPromptMorphBlend(this.prompts.morphBlend, { commitBase: true });
  },
  onMorphSlotWeightInput(_slot) {
    this.applyPromptMorphing();
@@ -2585,6 +2834,54 @@ applyMotionPresetAndSelect(name) {
 onMorphSlotPhraseInput(_slot) {
   this.applyPromptMorphing();
   if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
+applyPromptMorphBlend(value, { commitBase = false, fromModulation = false } = {}) {
+  const next = this.clampVal(Number(value) || 0, 0, 1);
+  this.prompts.morphBlend = next;
+  if (commitBase || !fromModulation) {
+    this.prompts.morphBlendLfoBase = next;
+  }
+  this.applyPromptMorphing();
+  if (!fromModulation && !this.deforumPlaying) {
+    this.schedulePreviewFrame();
+  }
+},
+setPromptMorphBlendLfoLink(lfoId) {
+  const nextId = Number(lfoId || 0);
+  const allowed = nextId >= 1 && nextId <= 4 ? nextId : null;
+  this.prompts.morphBlendLfoLink = this.prompts.morphBlendLfoLink === allowed ? null : allowed;
+  this.prompts.morphBlendLfoBase = this.prompts.morphBlend;
+  if (this.prompts.morphBlendLfoLink) {
+    const linked = this.lfos.find((lfo) => lfo.id === this.prompts.morphBlendLfoLink);
+    if (linked) linked.on = true;
+  }
+},
+applyLoraCrossfader(value, { commitBase = false, fromModulation = false } = {}) {
+  const next = this.clampVal(Number(value) || 0, 0, 1);
+  this.prompts.crossfaderValue = next;
+  if (commitBase || !fromModulation) {
+    this.prompts.loraCrossfaderLfoBase = next;
+  }
+  if (this.loras.groupA.length || this.loras.groupB.length) {
+    this.applyLoras();
+  }
+  if (!fromModulation) {
+    this.saveSessionState();
+  }
+},
+setLoraCrossfaderLfoLink(lfoId) {
+  const nextId = Number(lfoId || 0);
+  const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
+  this.prompts.loraCrossfaderLfoLink = this.prompts.loraCrossfaderLfoLink === allowed ? null : allowed;
+  this.prompts.loraCrossfaderLfoBase = this.prompts.crossfaderValue;
+  if (this.prompts.loraCrossfaderLfoLink) {
+    const linked = this.lfos.find((lfo) => lfo.id === this.prompts.loraCrossfaderLfoLink);
+    if (linked) linked.on = true;
+  }
+},
+toggleLoraFamilyCollapse(familyKey) {
+  if (!familyKey || !this.loras.familyCollapsed || !(familyKey in this.loras.familyCollapsed)) return;
+  this.loras.familyCollapsed[familyKey] = !this.loras.familyCollapsed[familyKey];
 },
  applyPromptMorphing() {
    if (!this.prompts.morphOn) return;
@@ -3226,6 +3523,11 @@ audioBandWindowStyle(mapping) {
        neg: this.prompts.neg,
        morphOn: this.prompts.morphOn,
        crossfaderValue: this.prompts.crossfaderValue,
+       loraCrossfaderLfoLink: this.prompts.loraCrossfaderLfoLink,
+       loraCrossfaderLfoBase: this.prompts.loraCrossfaderLfoBase,
+       morphBlend: this.prompts.morphBlend,
+       morphBlendLfoLink: this.prompts.morphBlendLfoLink,
+       morphBlendLfoBase: this.prompts.morphBlendLfoBase,
      },
      lfos: this.lfos,
      macrosRack: this.macrosRack,
@@ -4414,6 +4716,8 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
          name: lora.name,
          path: lora.path || "",
          thumbnail: lora.thumbnail || null,
+         metadata: lora.metadata || null,
+         family: this.detectLoraFamily(lora),
          strength: lora.strength || 1.0,
          selected: false,
          group: null,
@@ -4483,6 +4787,15 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
    this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
  },
+unassignLora(lora) {
+  const available = this.loras.available.find((entry) => entry.id === lora.id);
+  if (available) {
+    available.selected = false;
+    available.group = null;
+  }
+  this.loras.groupA = this.loras.groupA.filter((entry) => entry.id !== lora.id);
+  this.loras.groupB = this.loras.groupB.filter((entry) => entry.id !== lora.id);
+},
  updateLoraStrength(lora) {
    // Update strength in groups as well
    const groupALora = this.loras.groupA.find((l) => l.id === lora.id);
@@ -4494,6 +4807,19 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      groupBLora.strength = lora.strength;
    }
  },
+updateGroupedLoraStrength(group, lora, value) {
+  const next = parseFloat(value);
+  if (!Number.isFinite(next)) return;
+  const list = group === "B" ? this.loras.groupB : this.loras.groupA;
+  const target = list.find((entry) => entry.id === lora.id);
+  if (target) target.strength = next;
+  const available = this.loras.available.find((entry) => entry.id === lora.id);
+  if (available) {
+    available.strength = next;
+    available.selected = true;
+    available.group = group;
+  }
+},
  updateCrossfader() {
    // Send crossfader value and update LoRA strengths
    this.sendControl("crossfader", {
@@ -4769,6 +5095,9 @@ async generateStory() {
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
+    if (s.defaultAnimation && typeof s.defaultAnimation === 'object') {
+      this.defaultAnimation = this.normalizeDefaultAnimationSettings(s.defaultAnimation);
+    }
      if (s.deforumSettings && typeof s.deforumSettings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
        this.syncDeforumSettingsJson();
@@ -4790,6 +5119,7 @@ async generateStory() {
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       generateDockExpanded: this.generateDockExpanded,
+      defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
       deforumSettings: this.normalizedDeforumSettings(),
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
        prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
@@ -4804,6 +5134,42 @@ normalizeModelName(name) {
   const normalized = typeof name === 'string' ? name.trim() : '';
   if (!normalized || normalized.toLowerCase() === 'unknown') return '';
   return normalized;
+},
+detectModelFamilyFromText(rawValue) {
+  const value = String(rawValue || '').toLowerCase();
+  if (!value) return '';
+  if (/\bflux\b|flux\.1/.test(value)) return 'flux';
+  if (/\bsvd\b|stable video diffusion|\bvideo\b/.test(value)) return 'svd';
+  if (/\bsdxl\b|stable diffusion xl|\bpony\b|illustrious|\bxl\b/.test(value)) return 'sdxl';
+  if (/\bsd(?:\s|[-_.])?1(?:\s|[-_.])?5\b|\bsd15\b|stable diffusion 1\.5|\bv1[-_. ]?5\b|\b1\.5\b/.test(value)) return 'sd15';
+  return '';
+},
+detectModelFamilyFromValue(metadata, fallbackText = '') {
+  const values = [];
+  if (metadata && typeof metadata === 'object') {
+    values.push(
+      metadata.base_model,
+      metadata.architecture,
+      metadata.model_type,
+      metadata.type,
+      metadata.pipeline,
+      metadata.variant,
+      metadata.name
+    );
+  }
+  values.push(fallbackText);
+  for (const value of values) {
+    const family = this.detectModelFamilyFromText(value);
+    if (family) return family;
+  }
+  return '';
+},
+detectLoraFamily(loraLike) {
+  const family = this.detectModelFamilyFromValue(
+    loraLike && loraLike.metadata,
+    `${loraLike && loraLike.name ? loraLike.name : ''} ${loraLike && loraLike.path ? loraLike.path : ''}`
+  );
+  return family || 'sd15';
 },
 findForgeModelEntry(modelName) {
   const normalized = this.normalizeModelName(modelName);
