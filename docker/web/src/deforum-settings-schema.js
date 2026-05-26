@@ -4,7 +4,7 @@
  */
 
 export const DEFORUM_DEFAULT_SETTINGS = {
-  W: 1920,
+  W: 960,
   H: 540,
   show_info_on_ui: false,
   tiling: false,
@@ -14,7 +14,7 @@ export const DEFORUM_DEFAULT_SETTINGS = {
   seed: 1693,
   sampler: 'HeunPP2',
   scheduler: 'Normal',
-  steps: 10,
+  steps: 6,
   batch_name: 'floral_neu',
   seed_behavior: 'random',
   seed_iter_N: 1,
@@ -51,7 +51,7 @@ export const DEFORUM_DEFAULT_SETTINGS = {
   positive_prompts: '',
   negative_prompts:
     'star, star shape, watermark, signature , dreamstime, logo, writing, text, poster element, year, number, date, label,   vignette, glow, , symbol, alphabet, number, freepik',
-  fps: 25,
+  fps: 24,
   sd_model_name: 'nightvisionxl_v0811.safetensors',
   skip_video_creation: true,
   cn_1_enabled: false,
@@ -68,7 +68,7 @@ export const DEFORUM_FIELD_GROUPS = [
     fields: [
       { key: 'W', label: 'Width', type: 'number', min: 256, max: 4096, step: 64 },
       { key: 'H', label: 'Height', type: 'number', min: 256, max: 4096, step: 64 },
-      { key: 'fps', label: 'FPS', type: 'number', min: 1, max: 60, step: 1 },
+      { key: 'fps', label: 'FPS', type: 'select', options: ['8', '12', '24', '30'] },
       { key: 'max_frames', label: 'Max frames', type: 'number', min: 1, max: 99999, step: 1 },
       { key: 'batch_name', label: 'Batch name', type: 'text' },
     ],
@@ -80,7 +80,7 @@ export const DEFORUM_FIELD_GROUPS = [
       { key: 'seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
       { key: 'sampler', label: 'Sampler', type: 'text' },
       { key: 'scheduler', label: 'Scheduler', type: 'text' },
-      { key: 'steps', label: 'Steps', type: 'number', min: 1, max: 150, step: 1 },
+      { key: 'steps', label: 'Steps', type: 'number', min: 2, max: 150, step: 1 },
       { key: 'sd_model_name', label: 'Checkpoint', type: 'text' },
     ],
   },

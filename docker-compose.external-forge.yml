@@ -73,6 +73,7 @@ services:
     build:
       context: .
       dockerfile: docker/web/Dockerfile
+    restart: unless-stopped
     ports:
       - "8080:80"
       - "1935:1935"
@@ -83,6 +84,7 @@ services:
       - frames:/data/frames:ro
       - hls:/var/www/hls
     environment:
+      - NODE_OPTIONS=--max-old-space-size=768
       - RABBIT_URL=amqp://mq
       - FRAMES_DIR=/data/frames
       - HLS_STREAM=/hls/live/deforum.m3u8

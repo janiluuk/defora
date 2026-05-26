@@ -1290,20 +1290,40 @@
               <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Resolution</div>
-                  <select class="framesync-select"><option>1024x576</option><option>1280x720</option></select>
+                  <select class="framesync-select" :value="deforumSettings.W + 'x' + deforumSettings.H" @change="onEngineResolutionChange($event.target.value)">
+                    <option value="512x512">512×512</option>
+                    <option value="960x540">960×540</option>
+                    <option value="1024x1024">1024×1024</option>
+                  </select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <select class="framesync-select"><option>24</option><option selected>30</option><option>60</option></select>
+                  <select class="framesync-select" :value="deforumSettings.fps" @change="onDeforumFieldInput('fps', +$event.target.value, 'number')">
+                    <option :value="8">8</option>
+                    <option :value="12">12</option>
+                    <option :value="24">24</option>
+                    <option :value="30">30</option>
+                  </select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Steps</div>
-                  <select class="framesync-select"><option>24</option><option>30</option><option>40</option></select>
+                  <select class="framesync-select" :value="deforumSettings.steps" @change="onDeforumFieldInput('steps', +$event.target.value, 'number')">
+                    <option :value="2">2</option>
+                    <option :value="4">4</option>
+                    <option :value="6">6</option>
+                    <option :value="8">8</option>
+                    <option :value="10">10</option>
+                    <option :value="12">12</option>
+                    <option :value="15">15</option>
+                    <option :value="20">20</option>
+                    <option :value="30">30</option>
+                  </select>
                 </div>
               </div>
               <div class="framesync-footer" style="margin-top:12px;">
-                <button class="framesync-button">Seed: 42490527</button>
-                <button class="framesync-button">Sampler: DPM++ 2M Karras</button>
+                <button class="framesync-button" @click="onDeforumFieldInput('seed', Math.floor(Math.random() * 2147483647), 'number')">Seed: {{ deforumSettings.seed }}</button>
+                <span class="framesync-button" style="cursor:default;">Sampler: {{ deforumSettings.sampler }}</span>
+                <span class="framesync-button" style="cursor:default;">{{ deforumSettings.W }}×{{ deforumSettings.H }}</span>
               </div>
             </div>
           </div>
@@ -6165,6 +6185,13 @@ async onDeforumModelCommit(rawValue) {
    this.pushDeforumLivePatch(keyPath, value);
    this.queueDeforumSettingsSave();
    if (!this.deforumPlaying) this.scheduleDeforumPreview();
+ },
+ onEngineResolutionChange(val) {
+   const [w, h] = String(val).split('x').map(Number);
+   if (w > 0 && h > 0) {
+     this.onDeforumFieldInput('W', w, 'number');
+     this.onDeforumFieldInput('H', h, 'number');
+   }
  },
  pushDeforumLivePatch(keyPath, value) {
    const patch = patchFromKeyPath(keyPath, value);
