@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.4.1] - 2026-05-23
+
+## What's Changed
+
+- Roadmap audit remediation, Deforum settings panel, and UI screenshots (#36) (956a3f2)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.4.0...v0.4.1
+
+
 ## [0.4.0] - 2026-05-19
 
 ## What's Changed
