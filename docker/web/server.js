@@ -73,10 +73,25 @@ async function start(opts = {}) {
   }
 
   let framesIndexCache = { items: [], builtAt: 0, dirMtime: 0 };
-  const FRAMES_INDEX_TTL_MS = 2000;
+  const FRAMES_INDEX_MIN_ITEMS = 50;
+  const FRAME_FILE_RE = /^frame_(\d+)\.(png|jpg|jpeg|webp)$/i;
+
+  function updateFramesIndexCache(item, maxItems = FRAMES_INDEX_MIN_ITEMS) {
+    if (!item || !item.name) return;
+    const current = Array.isArray(framesIndexCache.items) ? framesIndexCache.items : [];
+    const filtered = current.filter((entry) => entry.name !== item.name);
+    filtered.unshift(item);
+    filtered.sort((a, b) => {
+      if (Number.isFinite(a.frame) && Number.isFinite(b.frame) && a.frame !== b.frame) {
+        return b.frame - a.frame;
+      }
+      return (b.mtime || 0) - (a.mtime || 0);
+    });
+    framesIndexCache.items = filtered.slice(0, Math.max(maxItems, FRAMES_INDEX_MIN_ITEMS));
+    framesIndexCache.builtAt = Date.now();
+  }
 
   async function buildFramesIndex(limit = 50) {
-    const now = Date.now();
     let dirMtime = 0;
     try {
       const st = await fsp.stat(framesDir);
@@ -85,30 +100,56 @@ async function start(opts = {}) {
       if (e.code === "ENOENT") return [];
       throw e;
     }
-    if (
-      framesIndexCache.builtAt &&
-      now - framesIndexCache.builtAt < FRAMES_INDEX_TTL_MS &&
-      framesIndexCache.dirMtime === dirMtime
-    ) {
+    if (framesIndexCache.builtAt && framesIndexCache.dirMtime === dirMtime) {
       return framesIndexCache.items.slice(0, limit);
     }
-    const entries = await fsp.readdir(framesDir, { withFileTypes: true });
-    const names = entries
-      .filter((e) => e.isFile() && /\.(png|jpg|jpeg|webp)$/i.test(e.name))
-      .map((e) => e.name);
-    const stats = await Promise.all(
-      names.map(async (name) => {
-        const stat = await fsp.stat(path.join(framesDir, name));
-        return { name, mtime: stat.mtimeMs };
+    const maxItems = Math.max(limit, FRAMES_INDEX_MIN_ITEMS);
+    const topFrames = [];
+    const pushCandidate = (candidate) => {
+      if (!candidate) return;
+      const minFrame = topFrames.length ? topFrames[topFrames.length - 1].frame : -1;
+      if (topFrames.length >= maxItems && candidate.frame <= minFrame) return;
+      topFrames.push(candidate);
+      topFrames.sort((a, b) => b.frame - a.frame);
+      if (topFrames.length > maxItems) topFrames.length = maxItems;
+    };
+
+    const dir = await fsp.opendir(framesDir);
+    try {
+      for await (const entry of dir) {
+        if (!entry.isFile()) continue;
+        const match = FRAME_FILE_RE.exec(entry.name);
+        if (!match) continue;
+        pushCandidate({ name: entry.name, frame: parseInt(match[1], 10) });
+      }
+    } finally {
+      await dir.close().catch(() => {});
+    }
+
+    const items = await Promise.all(
+      topFrames.map(async (candidate) => {
+        const filePath = path.join(framesDir, candidate.name);
+        let mtime = 0;
+        try {
+          const stat = await fsp.stat(filePath);
+          mtime = stat.mtimeMs;
+        } catch (_e) {
+          /* ignore files that vanished between directory scan and stat */
+        }
+        return {
+          src: `/frames/${candidate.name}`,
+          name: candidate.name,
+          frame: candidate.frame,
+          mtime,
+        };
       })
     );
-    stats.sort((a, b) => b.mtime - a.mtime);
-    const items = stats.slice(0, Math.max(limit, 50)).map((f) => {
-      const match = f.name.match(/(\d{3,})/);
-      const frame = match ? parseInt(match.pop(), 10) : null;
-      return { src: `/frames/${f.name}`, name: f.name, frame, mtime: f.mtime };
+
+    items.sort((a, b) => {
+      if ((b.mtime || 0) !== (a.mtime || 0)) return (b.mtime || 0) - (a.mtime || 0);
+      return (b.frame || 0) - (a.frame || 0);
     });
-    framesIndexCache = { items, builtAt: now, dirMtime };
+    framesIndexCache = { items, builtAt: Date.now(), dirMtime };
     return items.slice(0, limit);
   }
 
@@ -3624,9 +3665,22 @@ async function start(opts = {}) {
   try {
     fs.mkdirSync(framesDir, { recursive: true });
     frameWatcher = fs.watch(framesDir, { persistent: false }, (_, filename) => {
-      if (filename && filename.startsWith("frame_")) {
-        broadcast({ type: "frame", file: `/frames/${filename}` });
-      }
+      if (!filename || !FRAME_FILE_RE.test(filename)) return;
+      const match = FRAME_FILE_RE.exec(filename);
+      const frame = match ? parseInt(match[1], 10) : null;
+      updateFramesIndexCache({
+        src: `/frames/${filename}`,
+        name: filename,
+        frame,
+        mtime: Date.now(),
+      });
+      fsp.stat(framesDir)
+        .then((stat) => {
+          framesIndexCache.dirMtime = stat.mtimeMs;
+          framesIndexCache.builtAt = Date.now();
+        })
+        .catch(() => {});
+      broadcast({ type: "frame", file: `/frames/${filename}` });
     });
   } catch (err) {
     console.error("[frames] watch error", err);
