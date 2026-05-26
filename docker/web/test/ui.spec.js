@@ -182,6 +182,21 @@ describe("Deforumation Web UI", () => {
     expect(promptButtons.join(" ")).to.match(/Enabled|Disabled/);
   });
 
+  it("shows a dedicated collapsed LoRA crossfader tab", async () => {
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "CROSSFADER");
+    await nextTick();
+    await nextTick();
+
+    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
+    expect(subTabs.join(" ")).to.include("CROSSFADER");
+    expect(appVm.loraCrossfaderCollapsed).to.equal(true);
+
+    const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
+    expect(titles.join(" ")).to.include("LoRA Crossfader");
+    expect(document.querySelector(".prompt-ab-summary")).to.not.exist;
+  });
+
   it("toggles modulation tab sections and shows LFO modulators", async () => {
     // Verify app state changes (Vue reactivity in JSDOM is limited)
     appVm.currentTab = "MODULATION";

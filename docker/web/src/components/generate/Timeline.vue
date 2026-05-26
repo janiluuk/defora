@@ -130,7 +130,8 @@ export default {
         ? Math.min(...numericFrames.map((entry) => entry.num))
         : null
 
-      return this.frames.slice(0, 16).map((frame, index, list) => {
+      const visibleFrames = this.frames.length > 16 ? this.frames.slice(-16) : this.frames
+      return visibleFrames.map((frame, index, list) => {
         const rawFrame = Number(frame && frame.frame)
         const parsedFrame = Number.isFinite(rawFrame) ? rawFrame : null
         const time = parsedFrame != null && baseFrame != null

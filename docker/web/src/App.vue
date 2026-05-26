@@ -486,7 +486,9 @@ export default {
        deforumPlaying: false,
        previewGenerating: false,
        previewDebounceTimer: null,
-       framesRefreshBackoffMs: 5000,
+       previewQueuedKind: null,
+       framesRefreshBackoffMs: 1000,
+       frameRefreshTimer: null,
        apiHealthBackoffMs: 15000,
       runsLoading: false,
       presetsLoading: false,
@@ -845,6 +847,7 @@ export default {
       lfoTargetPick: {},
       avSyncCollapsed: true,
       morphCollapsed: true,
+      loraCrossfaderCollapsed: true,
       forgeAdvancedCollapsed: true,
       storyResultCollapsed: false,
        lfoCanvasRefs: {},
@@ -914,6 +917,25 @@ export default {
         return `Ollama ${firstNode.model || firstNode.currentModel || firstNode.name}`;
       }
       return 'Local fallback';
+    },
+    loraCrossfaderEnabled() {
+      return this.loras.groupA.length > 0 && this.loras.groupB.length > 0;
+    },
+    loraCrossfaderStatusLabel() {
+      return this.loraCrossfaderEnabled ? 'Enabled' : 'Disabled';
+    },
+    loraCrossfaderSummary() {
+      const aCount = this.loras.groupA.length;
+      const bCount = this.loras.groupB.length;
+      const aMix = ((1 - this.prompts.crossfaderValue) * 100).toFixed(0);
+      const bMix = (this.prompts.crossfaderValue * 100).toFixed(0);
+      if (!aCount && !bCount) {
+        return 'Assign LoRAs to both A and B in the LoRA tab to enable crossfading.';
+      }
+      if (!this.loraCrossfaderEnabled) {
+        return `Crossfader needs both groups. Current assignment: A ${aCount}, B ${bCount}.`;
+      }
+      return `A ${aCount} · B ${bCount} · mix ${aMix}% / ${bMix}%`;
     },
     modelStatusKind() {
       if (this.forge.switching || this.forge.loading) return 'loading';
@@ -1143,9 +1165,11 @@ export default {
     this.syncDeforumSettingsJson();
     const deforumSettingsPromise = this.loadDeforumSettings({ syncServerModel: false });
     const forgeRefreshPromise = this.refreshForgeAll();
+    deforumSettingsPromise.finally(() => {
+      if (!this.deforumPlaying) this.schedulePreviewFrame();
+    });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
       this.restoreLastModel();
-      if (!this.deforumPlaying) this.schedulePreviewFrame();
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -1184,6 +1208,8 @@ export default {
     if (this.lfoTimer) clearInterval(this.lfoTimer);
     if (this.beatTimer) clearInterval(this.beatTimer);
     if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
+    if (this.deforumPreviewTimer) clearTimeout(this.deforumPreviewTimer);
+    if (this.frameRefreshTimer) clearTimeout(this.frameRefreshTimer);
     this.stopLfoAnimation();
     if (this.playerEl && this.timeHandler) {
       this.playerEl.removeEventListener("timeupdate", this.timeHandler);
@@ -1940,6 +1966,10 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    connect();
  },
  handleWsMessage(msg) {
+  if (msg.type === "batch" && Array.isArray(msg.messages)) {
+    msg.messages.forEach((entry) => this.handleWsMessage(entry));
+    return;
+  }
    if (msg.type === "hello" && msg.userId) {
      this.collab.userId = msg.userId;
      this.collabIdentify();
@@ -1981,7 +2011,8 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
      this.attachPlayer();
    }
    if (msg.type === "frame") {
-     this.refreshFrames();
+    if (msg.item) this.mergeFrameThumb(msg.item);
+    this.scheduleFrameRefresh(msg.item ? 80 : 0);
    }
   if (msg.type === "deforum_settings") {
     this.loadDeforumSettings({ syncServerModel: false });
@@ -2167,6 +2198,62 @@ ollamaModelOptions(url) {
   const map = this.gpuPool.modelOptions || {};
   const normalized = String(url || '').trim().replace(/\/+$/, '');
   return (map[url] || map[normalized] || []).filter(Boolean);
+},
+frameSrcKey(value) {
+  return String(value || "").split("?")[0];
+},
+normalizeFrameThumb(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const src = item;
+    const baseSrc = this.frameSrcKey(src);
+    return {
+      src,
+      name: baseSrc.split("/").pop(),
+      frame: this.parseFrameNumber(baseSrc),
+      mtime: Date.now(),
+    };
+  }
+  const rawSrc = item.src || item.url || item.path || "";
+  const name = item.name || this.frameSrcKey(rawSrc).split("/").pop() || "";
+  const frame = item.frame != null ? item.frame : this.parseFrameNumber(name || rawSrc);
+  const mtime = Number(item.mtime) || Date.now();
+  const src = rawSrc || (name ? `/frames/${name}?v=${mtime}` : "");
+  return { src, name, frame, mtime };
+},
+mergeFrameThumb(item) {
+  const normalized = this.normalizeFrameThumb(item);
+  if (!normalized || (!normalized.name && !normalized.src)) return;
+  const selectedSrcKey = this.frameSrcKey(
+    this.selectedFrameThumb ? (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || "") : ""
+  );
+  const next = [...(this.thumbs || [])]
+    .filter((entry) => entry && entry.name !== normalized.name)
+    .concat(normalized)
+    .sort((a, b) => {
+      const aFrame = Number(a && a.frame);
+      const bFrame = Number(b && b.frame);
+      if (Number.isFinite(aFrame) && Number.isFinite(bFrame)) return aFrame - bFrame;
+      return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+    });
+  this.thumbs = next;
+  this.updateFrameSelection(selectedSrcKey);
+},
+scheduleFrameRefresh(delay = 0) {
+  clearTimeout(this.frameRefreshTimer);
+  this.frameRefreshTimer = setTimeout(() => {
+    this.frameRefreshTimer = null;
+    this.refreshFrames();
+  }, Math.max(0, Number(delay) || 0));
+},
+nextFramesPollDelay({ failed = false } = {}) {
+  const current = Number(this.framesRefreshBackoffMs) || 1000;
+  if (failed) {
+    return Math.min(10000, Math.max(1000, current * 2));
+  }
+  if (this.previewGenerating || this.deforumPlaying) return 750;
+  if (this.wsStatus !== "connected") return 1500;
+  return 3000;
 },
 async loadOllamaModels(url) {
   const normalized = (url || '').trim();
@@ -2495,6 +2582,10 @@ applyMotionPresetAndSelect(name) {
    this.applyPromptMorphing();
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
+onMorphSlotPhraseInput(_slot) {
+  this.applyPromptMorphing();
+  if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
  applyPromptMorphing() {
    if (!this.prompts.morphOn) return;
    const base = (this.prompts.pos || "").trim();
@@ -2772,23 +2863,15 @@ toggleLfoTarget(lfo, targetKey) {
  async refreshFrames() {
    if (typeof fetch !== "function") return;
    try {
-    const previousSelectedSrc = this.selectedFrameThumb ? (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '') : '';
+   const previousSelectedSrc = this.frameSrcKey(this.selectedFrameThumb ? (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '') : '');
     const res = await fetch("/api/frames?limit=48", { cache: "no-store" });
      if (!res.ok) {
-       this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
+      this.framesRefreshBackoffMs = this.nextFramesPollDelay({ failed: true });
        return;
      }
      const json = await res.json();
      if (Array.isArray(json.items)) {
-      this.thumbs = json.items.map((item) => {
-         if (typeof item === "string") {
-           return { src: item, name: item.split("/").pop(), frame: this.parseFrameNumber(item) };
-         }
-         const src = item.src || item.url || item.path || "";
-         const name = item.name || src.split("/").pop();
-         const frame = item.frame != null ? item.frame : this.parseFrameNumber(name || src);
-         return { src, name, frame };
-      }).sort((a, b) => {
+     this.thumbs = json.items.map((item) => this.normalizeFrameThumb(item)).filter(Boolean).sort((a, b) => {
         const aFrame = Number(a && a.frame);
         const bFrame = Number(b && b.frame);
         if (Number.isFinite(aFrame) && Number.isFinite(bFrame)) return aFrame - bFrame;
@@ -2796,10 +2879,10 @@ toggleLfoTarget(lfo, targetKey) {
       });
       this.updateFrameSelection(previousSelectedSrc);
      }
-     this.framesRefreshBackoffMs = 5000;
+    this.framesRefreshBackoffMs = this.nextFramesPollDelay();
    } catch (e) {
      console.warn("frames fetch failed", e);
-     this.framesRefreshBackoffMs = Math.min(60000, (this.framesRefreshBackoffMs || 5000) * 2);
+    this.framesRefreshBackoffMs = this.nextFramesPollDelay({ failed: true });
    }
  },
  parseFrameNumber(name) {
@@ -2918,7 +3001,7 @@ updateFrameSelection(preferredSrc = '') {
     return;
   }
   if (preferredSrc) {
-    const existingIndex = this.frameStripThumbs.findIndex((thumb) => (thumb.src || thumb.url || thumb.path || '') === preferredSrc);
+    const existingIndex = this.frameStripThumbs.findIndex((thumb) => this.frameSrcKey(thumb.src || thumb.url || thumb.path || '') === this.frameSrcKey(preferredSrc));
     if (existingIndex >= 0) {
       this.selectFrame(existingIndex, { scroll: false });
       return;
@@ -4961,15 +5044,48 @@ async onDeforumModelCommit(rawValue) {
    this.saveSessionState();
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
+queuePreviewRequest(kind, delay) {
+  if (this.deforumPlaying) return;
+  const nextKind = kind === 'deforum' ? 'deforum' : 'auto';
+  this.previewQueuedKind = nextKind;
+  clearTimeout(this.previewDebounceTimer);
+  clearTimeout(this.deforumPreviewTimer);
+  if (this.previewGenerating) return;
+  const timerKey = nextKind === 'deforum' ? 'deforumPreviewTimer' : 'previewDebounceTimer';
+  this[timerKey] = setTimeout(async () => {
+    this[timerKey] = null;
+    const queuedKind = this.previewQueuedKind;
+    this.previewQueuedKind = null;
+    if (queuedKind === 'deforum') {
+      await this.generateDeforumPreviewFrame();
+      this.flushQueuedPreview();
+    } else {
+      await this.generatePreviewFrame();
+    }
+  }, delay);
+},
+flushQueuedPreview() {
+  if (this.deforumPlaying || this.previewGenerating || !this.previewQueuedKind) return;
+  const queuedKind = this.previewQueuedKind;
+  this.previewQueuedKind = null;
+  clearTimeout(this.previewDebounceTimer);
+  clearTimeout(this.deforumPreviewTimer);
+  const timerKey = queuedKind === 'deforum' ? 'deforumPreviewTimer' : 'previewDebounceTimer';
+  this[timerKey] = setTimeout(async () => {
+    this[timerKey] = null;
+    if (queuedKind === 'deforum') {
+      await this.generateDeforumPreviewFrame();
+      this.flushQueuedPreview();
+    } else {
+      await this.generatePreviewFrame();
+    }
+  }, 0);
+},
  schedulePreviewFrame() {
-   if (this.deforumPlaying) return;
-   clearTimeout(this.previewDebounceTimer);
-   this.previewDebounceTimer = setTimeout(() => this.generatePreviewFrame(), 900);
+  this.queuePreviewRequest('auto', 180);
  },
  scheduleDeforumPreview() {
-   if (this.deforumPlaying) return;
-   clearTimeout(this.deforumPreviewTimer);
-   this.deforumPreviewTimer = setTimeout(() => this.generateDeforumPreviewFrame(), 1200);
+  this.queuePreviewRequest('deforum', 300);
  },
  getDeforumField(keyPath) {
    return getNestedValue(this.deforumSettings, keyPath);
@@ -5125,7 +5241,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
      this.generator.lastPath = data.path;
      this.performance.status = 'Deforum frame ready';
      this.deforumSettingsStatus = 'Frame ready';
-     this.refreshFrames();
+    this.scheduleFrameRefresh(40);
      return true;
    } catch (err) {
      this.performance.status = String(err.message || err);
@@ -5136,12 +5252,21 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    }
  },
  async generatePreviewFrame() {
-   if (this.deforumPanelOpen) {
-     const ok = await this.generateDeforumPreviewFrame();
-     if (!ok) await this.generateImage();
-   } else {
-     await this.generateImage();
-   }
+  if (this.previewGenerating) {
+    this.previewQueuedKind = this.deforumPanelOpen ? 'deforum' : 'auto';
+    return false;
+  }
+  try {
+    if (this.deforumPanelOpen) {
+      const ok = await this.generateDeforumPreviewFrame();
+      if (!ok) await this.generateImage();
+    } else {
+      await this.generateImage();
+    }
+    return true;
+  } finally {
+    this.flushQueuedPreview();
+  }
  },
  async generateImage() {
    if (this.deforumPlaying) {
@@ -5188,7 +5313,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
      this.performance.lastPreviewPath = data.path;
      this.generator.lastPath = data.path;
      this.performance.status = 'Preview frame ready';
-     this.refreshFrames();
+    this.scheduleFrameRefresh(120);
    } catch (err) {
      this.performance.status = String(err.message || err);
    } finally {

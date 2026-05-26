@@ -320,7 +320,7 @@ async function start(opts = {}) {
           /* ignore files that vanished between directory scan and stat */
         }
         return {
-          src: `/frames/${candidate.name}`,
+          src: `/frames/${candidate.name}?v=${mtime || Date.now()}`,
           name: candidate.name,
           frame: candidate.frame,
           mtime,
@@ -544,8 +544,9 @@ async function start(opts = {}) {
     }
 
     let status = "pending";
-    for (let i = 0; i < 90; i++) {
-      await sleep(500);
+    for (let i = 0; i < 120; i++) {
+      const framePollMs = i < 20 ? 150 : (i < 60 ? 250 : 400);
+      await sleep(framePollMs);
       const frame = await latestFrameInfo();
       if (frame && (!baselineFrame || frame.mtime > baselineFrame.mtime || frame.name !== baselineFrame.name)) {
         return {
@@ -557,7 +558,7 @@ async function start(opts = {}) {
         };
       }
 
-      if (i % 4 === 0) {
+      if ((i < 20 && i % 2 === 0) || (i >= 20 && i % 4 === 0)) {
         const pollCtrl = new AbortController();
         const pollTimeout = setTimeout(() => pollCtrl.abort(), 15000);
         let sresp;
@@ -1205,9 +1206,20 @@ async function start(opts = {}) {
     }
     try {
       let modelSync = null;
+      let previousSettings = null;
+      if (fs.existsSync(deforumSettingsFile)) {
+        try {
+          previousSettings = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8"));
+        } catch (_err) {
+          previousSettings = null;
+        }
+      }
       await fsp.writeFile(deforumSettingsFile, JSON.stringify(settings, null, 2), "utf-8");
+      const previousModel = typeof previousSettings?.sd_model_name === "string"
+        ? previousSettings.sd_model_name.trim()
+        : "";
       const requestedModel = typeof settings.sd_model_name === "string" ? settings.sd_model_name.trim() : "";
-      if (requestedModel) {
+      if (requestedModel && requestedModel !== previousModel) {
         try {
           modelSync = await switchSdModelOnForge(req, requestedModel);
         } catch (modelErr) {
@@ -3585,7 +3597,7 @@ async function start(opts = {}) {
 
   // Enhanced broadcast with batching support
   function broadcast(obj) {
-    if (wsMessageBatcher.enabled) {
+    if (wsMessageBatcher.enabled && obj?.type !== "frame") {
       wsMessageBatcher.pendingMessages.push(obj);
       
       // Clear existing timer
@@ -3874,19 +3886,20 @@ async function start(opts = {}) {
       if (!filename || !FRAME_FILE_RE.test(filename)) return;
       const match = FRAME_FILE_RE.exec(filename);
       const frame = match ? parseInt(match[1], 10) : null;
-      updateFramesIndexCache({
-        src: `/frames/${filename}`,
+      const item = {
+        src: `/frames/${filename}?v=${Date.now()}`,
         name: filename,
         frame,
         mtime: Date.now(),
-      });
+      };
+      updateFramesIndexCache(item);
       fsp.stat(framesDir)
         .then((stat) => {
           framesIndexCache.dirMtime = stat.mtimeMs;
           framesIndexCache.builtAt = Date.now();
         })
         .catch(() => {});
-      broadcast({ type: "frame", file: `/frames/${filename}` });
+      broadcast({ type: "frame", file: item.src, item });
     });
   } catch (err) {
     console.error("[frames] watch error", err);

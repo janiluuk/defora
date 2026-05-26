@@ -17,6 +17,10 @@ function normalizeUrl(url) {
   return u;
 }
 
+function normalizeModelName(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
 function nodeIdFromUrl(url) {
   return crypto.createHash("sha256").update(normalizeUrl(url)).digest("hex").slice(0, 16);
 }
@@ -167,24 +171,39 @@ function createGpuPool(options = {}) {
     });
   }
 
-  function selectNode({ preferred, sdApiOnly = false, backend = null } = {}) {
+  function selectNode({ preferred, preferredModel = null, sdApiOnly = false, backend = null } = {}) {
     const healthy = eligibleNodes({ sdApiOnly, backend });
     if (!healthy.length) return null;
+    const preferredModelKey = normalizeModelName(preferredModel);
+    const candidateNodes = preferredModelKey
+      ? healthy.filter((node) => normalizeModelName(node.currentModel || node.model).includes(preferredModelKey))
+      : healthy;
+    const pool = candidateNodes.length ? candidateNodes : healthy;
+    const compareByLoad = (a, b) => {
+      if (a.activeJobs !== b.activeJobs) return a.activeJobs - b.activeJobs;
+      const aResponse = Number.isFinite(Number(a.responseTime)) ? Number(a.responseTime) : Number.MAX_SAFE_INTEGER;
+      const bResponse = Number.isFinite(Number(b.responseTime)) ? Number(b.responseTime) : Number.MAX_SAFE_INTEGER;
+      if (aResponse !== bResponse) return aResponse - bResponse;
+      return a.priority - b.priority;
+    };
 
     if (preferred) {
-      const hit = healthy.find((n) => n.name === preferred || n.url === preferred || n.id === preferred);
+      const hit = pool.find((n) => n.name === preferred || n.url === preferred || n.id === preferred);
       if (hit) return hit;
     }
 
     switch (state.strategy) {
       case "least_busy":
-        return healthy.reduce((min, node) => (node.activeJobs < min.activeJobs ? node : min));
+        return [...pool].sort(compareByLoad)[0];
       case "random":
-        return healthy[Math.floor(Math.random() * healthy.length)];
+        return pool[Math.floor(Math.random() * pool.length)];
       case "priority":
-        return [...healthy].sort((a, b) => a.priority - b.priority)[0];
+        return [...pool].sort((a, b) => (a.priority - b.priority) || compareByLoad(a, b))[0];
       case "round_robin":
       default: {
+        if (pool.length !== healthy.length) {
+          return [...pool].sort(compareByLoad)[0];
+        }
         let attempts = 0;
         while (attempts < state.nodes.length) {
           const node = state.nodes[state.currentIndex];
@@ -229,10 +248,20 @@ function createGpuPool(options = {}) {
     return state.enabled && eligibleNodes({ sdApiOnly: true }).length > 0;
   }
 
+  function requestedModelName(req) {
+    return (
+      req?.body?.settings?.sd_model_name ||
+      req?.body?.model_name ||
+      req?.query?.model_name ||
+      ""
+    );
+  }
+
   function resolveForgeTarget(req, { sdApiOnly = true } = {}) {
     const preferred = req?.body?.preferredNode || req?.query?.preferredNode;
+    const preferredModel = requestedModelName(req);
     if (isLoadBalancing()) {
-      const node = selectNode({ preferred, sdApiOnly });
+      const node = selectNode({ preferred, preferredModel, sdApiOnly });
       if (node) return wrapTarget(node);
     }
     const host = env.SD_FORGE_HOST || "192.168.2.101";
