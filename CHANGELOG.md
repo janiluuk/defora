@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.2] - 2026-05-26
+
+## What's Changed
+
+- feat(web): finish browser UI pass and refresh docs (#43) (9b28141)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.1...v0.6.2
+
+
 ## [0.6.1] - 2026-05-26
 
 ## What's Changed
