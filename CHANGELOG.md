@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.9] - 2026-05-26
+
+## What's Changed
+
+- update(web): refine live controls and GPU node editing (#48) (0e0873f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.8...v0.6.9
+
+
 ## [0.6.8] - 2026-05-26
 
 ## What's Changed
