@@ -14,7 +14,6 @@ async function start(opts = {}) {
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
-  const apiToken = opts.apiToken ?? process.env.API_TOKEN ?? "";
   const framesDir =
     opts.framesDir ||
     process.env.FRAMES_DIR ||
@@ -111,7 +110,7 @@ async function start(opts = {}) {
   }
 
   const gpuPool = createGpuPool({
-    configPath: opts.gpuPoolPath || process.env.GPU_POOL_PATH || path.join(__dirname, "gpu-pool.json"),
+    configPath: opts.gpuPoolPath || path.join(__dirname, "gpu-pool.json"),
     env: process.env,
   });
   await gpuPool.init();
@@ -149,87 +148,6 @@ async function start(opts = {}) {
 
   const app = express();
   app.use(express.json({ limit: "50mb" }));
-
-  const rateLimitMax = parseInt(
-    opts.rateLimitMax ?? process.env.RATE_LIMIT_MAX ?? "0",
-    10
-  );
-  const rateLimitWindowMs = parseInt(
-    opts.rateLimitWindowMs ?? process.env.RATE_LIMIT_WINDOW_MS ?? "60000",
-    10
-  );
-  const rateLimitStore = new Map();
-
-  function getClientKey(req) {
-    const forwarded = req.headers["x-forwarded-for"];
-    if (typeof forwarded === "string" && forwarded.trim()) {
-      return forwarded.split(",")[0].trim();
-    }
-    return req.ip || req.connection?.remoteAddress || "unknown";
-  }
-
-  function rateLimit(req, res, next) {
-    if (!Number.isFinite(rateLimitMax) || rateLimitMax <= 0) return next();
-    const windowMs = Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0
-      ? rateLimitWindowMs
-      : 60000;
-    const now = Date.now();
-    const key = getClientKey(req);
-    let entry = rateLimitStore.get(key);
-    if (!entry || now - entry.start >= windowMs) {
-      entry = { start: now, count: 0 };
-    }
-    res.set("X-RateLimit-Limit", String(rateLimitMax));
-    res.set("X-RateLimit-Reset", String(entry.start + windowMs));
-    if (entry.count >= rateLimitMax) {
-      res.set("X-RateLimit-Remaining", "0");
-      return res.status(429).json({ error: "rate limit exceeded" });
-    }
-    entry.count += 1;
-    rateLimitStore.set(key, entry);
-    res.set("X-RateLimit-Remaining", String(Math.max(0, rateLimitMax - entry.count)));
-    return next();
-  }
-
-  function extractApiToken(req) {
-    const authHeader = req.headers.authorization || "";
-    if (typeof authHeader === "string" && authHeader.toLowerCase().startsWith("bearer ")) {
-      return authHeader.slice(7).trim();
-    }
-    const headerToken = req.headers["x-api-token"] || req.headers["x-control-token"];
-    if (typeof headerToken === "string" && headerToken.trim()) {
-      return headerToken.trim();
-    }
-    const queryToken = req.query && typeof req.query.token === "string" ? req.query.token : "";
-    return queryToken.trim();
-  }
-
-  function requireApiToken(req, res, next) {
-    if (!apiToken) return next();
-    const token = extractApiToken(req);
-    if (token !== apiToken) {
-      return res.status(401).json({ error: "unauthorized" });
-    }
-    return next();
-  }
-
-  const pruneRateLimitTimer = setInterval(() => {
-    if (!Number.isFinite(rateLimitMax) || rateLimitMax <= 0) return;
-    const windowMs = Number.isFinite(rateLimitWindowMs) && rateLimitWindowMs > 0
-      ? rateLimitWindowMs
-      : 60000;
-    const cutoff = Date.now() - windowMs * 2;
-    for (const [key, entry] of rateLimitStore.entries()) {
-      if (!entry || entry.start < cutoff) {
-        rateLimitStore.delete(key);
-      }
-    }
-  }, Math.max(60000, rateLimitWindowMs));
-  if (typeof pruneRateLimitTimer.unref === "function") {
-    pruneRateLimitTimer.unref();
-  }
-
-  app.use("/api", rateLimit, requireApiToken);
   app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
   
   // Serve static files from public directory
@@ -477,7 +395,7 @@ async function start(opts = {}) {
     if (typeof body.durationSec !== "number" || body.durationSec <= 0 || body.durationSec > 3600) {
       return "durationSec must be between 0 and 3600";
     }
-    if (typeof body.fps !== "number" || body.fps < 5 || body.fps > 25) return "fps must be 5–25";
+    if (typeof body.fps !== "number" || body.fps < 1 || body.fps > 120) return "fps must be 1–120";
     if (!Array.isArray(body.tracks)) return "tracks must be an array";
     for (const tr of body.tracks) {
       if (!tr || typeof tr !== "object") return "invalid track";
@@ -831,9 +749,6 @@ async function start(opts = {}) {
     const forgeUrl = target.url;
     const previewSettings = {
       ...settings,
-      W: Math.min(960, Math.max(64, parseInt(settings.W, 10) || 960)),
-      H: Math.min(540, Math.max(64, parseInt(settings.H, 10) || 540)),
-      fps: Math.min(25, Math.max(5, parseInt(settings.fps, 10) || 12)),
       max_frames: 1,
       motion_preview_mode: true,
       skip_video_creation: true,
@@ -1139,8 +1054,8 @@ async function start(opts = {}) {
     const forgeUrl = target.url;
     const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 28));
     const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
-    const w = Math.min(960, Math.max(64, parseInt(body.width, 10) || 960));
-    const h = Math.min(540, Math.max(64, parseInt(body.height, 10) || 540));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 1024));
     const denoise = Math.min(1, Math.max(0, parseFloat(body.denoising_strength ?? body.denoisingStrength) || 0.55));
     const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
     const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
@@ -1230,8 +1145,8 @@ async function start(opts = {}) {
     const forgeUrl = target.url;
     const steps = Math.min(100, Math.max(1, parseInt(body.steps, 10) || 12));
     const cfg = Math.min(30, Math.max(1, parseFloat(body.cfg_scale ?? body.cfgScale) || 7));
-    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 960));
-    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 540));
+    const w = Math.min(2048, Math.max(64, parseInt(body.width, 10) || 1024));
+    const h = Math.min(2048, Math.max(64, parseInt(body.height, 10) || 576));
     const sampler = typeof body.sampler_name === "string" && body.sampler_name ? body.sampler_name : "Euler a";
     const seed = body.seed != null ? parseInt(body.seed, 10) : -1;
 
@@ -1399,10 +1314,10 @@ async function start(opts = {}) {
       const slot = req.body.slot || "CN1";
       const imageBuffer = req.file.buffer;
       
-      const target = forgeTarget(req);
-      const forgeUrl = target.url;
-
       try {
+        const forgeHost = process.env.SD_FORGE_HOST || "192.168.2.102";
+        const forgePort = process.env.SD_FORGE_PORT || "7860";
+        const forgeUrl = `http://${forgeHost}:${forgePort}`;
         
         const FormData = require('form-data');
         const formData = new FormData();
@@ -1428,8 +1343,6 @@ async function start(opts = {}) {
       } catch (error) {
         console.error(`[controlnet] Upload failed: ${error.message}`);
         res.status(500).json({ error: "Failed to upload image to SD-Forge" });
-      } finally {
-        target.release();
       }
     });
   });
@@ -3476,8 +3389,6 @@ async function start(opts = {}) {
     clearInterval(pollTimer);
     if (forgePollTimer) clearInterval(forgePollTimer);
     clearInterval(cleanupTimer);
-    clearInterval(pruneRateLimitTimer);
-    if (gpuPool && typeof gpuPool.close === "function") gpuPool.close();
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
       try {
@@ -3502,37 +3413,7 @@ async function start(opts = {}) {
 }
 
 if (require.main === module) {
-  let closing = false;
-  let service = null;
-
-  const shutdown = async (code = 0) => {
-    if (closing) return;
-    closing = true;
-    try {
-      if (service && typeof service.close === "function") {
-        await service.close();
-      }
-    } catch (err) {
-      console.error("[server] shutdown error", err);
-      code = 1;
-    } finally {
-      process.exit(code);
-    }
-  };
-
-  start()
-    .then((svc) => {
-      service = svc;
-      ["SIGINT", "SIGTERM"].forEach((sig) => {
-        process.on(sig, () => {
-          void shutdown(0);
-        });
-      });
-    })
-    .catch((err) => {
-      console.error("[server] startup error", err);
-      process.exit(1);
-    });
+  start();
 }
 
 module.exports = { start };

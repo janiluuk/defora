@@ -311,7 +311,7 @@ Keyframe timelines for the Web UI **MOTION** tab are stored as JSON under `SEQUE
 Timeline schema (`version` **1**):
 
 - `durationSec` (number): timeline length in seconds (positive, ≤ 3600).
-- `fps` (number): playback sample rate (5–25).
+- `fps` (number): playback sample rate (1–120).
 - `loop` (boolean, optional): repeat when playback reaches the end.
 - `markers` (optional array): scene cues `{ t, name }` with `t` in seconds within `0..durationSec`, `name` a 1–48 character label (`[a-zA-Z0-9_ \\-.]+`). At most **64** markers. Omitted or empty means none.
 - `tracks` (array): each track has `id`, `param` (mediator parameter key), and `keyframes` (`t` in seconds, `v` numeric value). Optional `easing` on a keyframe controls the segment **from that keyframe to the next**: `linear` (default), `easeIn`, `easeOut`, `easeInOut` (cubic). Unknown values are rejected on save.
@@ -397,7 +397,7 @@ Proxy to Forge `POST /sdapi/v1/img2img`. The first returned image is written und
 | `negative_prompt` / `negativePrompt` | string | no | |
 | `steps` | number | no | 1–100, default 28 |
 | `cfg_scale` / `cfgScale` | number | no | 1–30, default 7 |
-| `width`, `height` | number | no | 64–2048, default `960x540` |
+| `width`, `height` | number | no | 64–2048, default 1024 |
 | `denoising_strength` / `denoisingStrength` | number | no | 0–1, default 0.55 |
 | `sampler_name` | string | no | default `Euler a` |
 | `seed` | number | no | default `-1` |
@@ -546,9 +546,6 @@ Configure the web server using these environment variables:
 - `UPLOADS_DIR` - Directory for uploaded audio files (default: ./uploads)
 - `DEF_MEDIATOR_HOST` - Default mediator hostname (default: localhost)
 - `DEF_MEDIATOR_PORT` - Default mediator port (default: 8766)
-- `API_TOKEN` - Optional HTTP API bearer token (default: unset)
-- `RATE_LIMIT_MAX` - Max requests per window when rate limiting is enabled (default: 0, disabled)
-- `RATE_LIMIT_WINDOW_MS` - Rate limit window duration in ms (default: 60000)
 
 ---
 
@@ -591,18 +588,14 @@ Compare 2–8 runs side-by-side (matrix of fields including `prompt_positive` / 
 ## Rate Limiting & Security
 
 **Current Implementation**:
-- Optional in-memory rate limiting (disabled by default)
-- Optional HTTP API authentication via `API_TOKEN`
+- No rate limiting (suitable for local/trusted networks)
 - Filename sanitization on uploads
 - File extension and MIME type validation
-- WebSocket control authentication via `CONTROL_TOKEN`
-
-**Client Notes**:
-- Web UI reads `defora_control_token` from localStorage and sends it as `Authorization: Bearer <token>` for API calls and as `token` for WebSocket control messages.
+- No authentication (use `CONTROL_TOKEN` for basic WebSocket auth)
 
 **Production Recommendations**:
-- Set `RATE_LIMIT_MAX` and `RATE_LIMIT_WINDOW_MS` to throttle API traffic
-- Set `API_TOKEN` and secure traffic with HTTPS/WSS
+- Add rate limiting middleware
+- Implement proper authentication/authorization
 - Use HTTPS/WSS for remote access
 - Add CORS configuration
 - Set up firewall rules

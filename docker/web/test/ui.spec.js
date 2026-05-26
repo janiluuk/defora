@@ -173,17 +173,16 @@ describe("Deforumation Web UI", () => {
   it("shows prompts/morph table structure", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "PROMPTS");
-    appVm.morphCollapsed = false;
     await nextTick();
     await nextTick();
-    const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
-    expect(titles.join(" ")).to.include("Prompt Morphing");
-    const morphBlend = document.querySelector('[data-testid="prompt-morph-blend"]');
-    expect(morphBlend).to.exist;
-    const morphRows = [...document.querySelectorAll(".morph-slot-weight-row")];
-    expect(morphRows.length).to.be.greaterThan(0);
-    const labels = morphRows.map((row) => row.textContent.trim());
-    expect(labels.join(" ")).to.match(/clean|style|tunnel/i);
+    const tables = [...document.querySelectorAll(".context table.table, .rack table.table")];
+    const morphTable = tables.find(t => {
+      const th = t.querySelector("th");
+      return th && /ID|Name/.test(th.textContent);
+    });
+    expect(morphTable).to.exist;
+    const headers = [...morphTable.querySelectorAll("th")].map((h) => h.textContent.trim());
+    expect(headers.join(" ")).to.match(/ID|On|Name|Range/);
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {
@@ -220,13 +219,8 @@ describe("Deforumation Web UI", () => {
     expect(appVm.midi.mappings.length).to.be.greaterThan(0);
     const settingsHeadings = [...document.querySelectorAll(".framesync-title")].map((h) => h.textContent.trim());
     if (settingsHeadings.join(" ").includes("Controllers")) {
-      const unsupported = document.body.textContent.includes("WebMIDI not supported or not enabled.");
-      if (unsupported) {
-        expect(appVm.midi.supported).to.equal(false);
-      } else {
-        const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
-        expect(mappingRows.length).to.be.greaterThan(0);
-      }
+      const mappingRows = [...document.querySelectorAll("table.table tbody tr")];
+      expect(mappingRows.length).to.be.greaterThan(1);
     }
   });
 });
@@ -330,99 +324,7 @@ describe("Deforumation Web UI behavior", () => {
 
     expect(instance.thumbs[0].frame).to.equal(7);
     expect(instance.thumbs[1].frame).to.equal(10);
-    expect(instance.thumbs[0].url).to.equal(instance.thumbs[0].src);
     delete global.fetch;
-  });
-
-  it("loadSessionState restores frame history and serializable UI state", () => {
-    const instance = instantiate(appDef);
-    instance.currentTab = "PROMPTS";
-    instance.currentSubTab = { PROMPTS: "LORA", SETTINGS: "GPUS" };
-    instance.showFrames = false;
-    instance.performance.crossfader = 0.77;
-    instance.performance.lastPreviewPath = "/frames/frame_0012.png";
-    instance.liveVibe[0].val = 1.1;
-    instance.prompts.pos = "clown tunnel";
-    instance.audio.bpm = 128;
-    instance.thumbs = [{ src: "/frames/frame_0012.png", name: "frame_0012.png", frame: 12 }];
-
-    instance.saveSessionState();
-
-    const restored = instantiate(appDef);
-    restored.loadSessionState();
-
-    expect(restored.currentTab).to.equal("PROMPTS");
-    expect(restored.currentSubTab.PROMPTS).to.equal("LORA");
-    expect(restored.currentSubTab.SETTINGS).to.equal("GPUS");
-    expect(restored.showFrames).to.equal(false);
-    expect(restored.performance.crossfader).to.equal(0.77);
-    expect(restored.performance.lastPreviewPath).to.equal("/frames/frame_0012.png");
-    expect(restored.liveVibe[0].val).to.equal(1.1);
-    expect(restored.prompts.pos).to.equal("clown tunnel");
-    expect(restored.audio.bpm).to.equal(128);
-    expect(restored.thumbs).to.have.lengthOf(1);
-    expect(restored.thumbs[0].src).to.equal("/frames/frame_0012.png");
-    expect(restored.thumbs[0].url).to.equal("/frames/frame_0012.png");
-    expect(restored.thumbs[0].frame).to.equal(12);
-  });
-
-  it("applyRunsFilters supports advanced fields and search tokens", () => {
-    const instance = instantiate(appDef);
-    instance.runsAll = [
-      {
-        run_id: "run_a",
-        status: "completed",
-        tag: "forest-set",
-        model: "flux-dev",
-        seed: 42,
-        frame_count: 120,
-        started_at: "2026-05-20T10:00:00Z",
-        prompt_positive: "forest, cinematic lighting",
-        prompt_negative: "blurry",
-        notes: "hero take",
-      },
-      {
-        run_id: "run_b",
-        status: "failed",
-        tag: "city-set",
-        model: "sdxl",
-        seed: 99,
-        frame_count: 24,
-        started_at: "2026-05-01T10:00:00Z",
-        prompt_positive: "city, neon",
-        prompt_negative: "lowres",
-        notes: "backup",
-      },
-    ];
-    instance.runsFilter = {
-      search: "prompt:forest note:hero after:2026-05-10",
-      status: "",
-      tag: "",
-      model: "",
-      seed: "42",
-      minFrames: 100,
-      maxFrames: 150,
-      dateFrom: "",
-      dateTo: "",
-    };
-
-    instance.applyRunsFilters();
-
-    expect(instance.runsFiltered.map((run) => run.run_id)).to.deep.equal(["run_a"]);
-    expect(instance.activeRunsFilterChips).to.include("seed:42");
-  });
-
-  it("buildPromptSegmentDiff marks changed prompt segments", () => {
-    const instance = instantiate(appDef);
-
-    const diff = instance.buildPromptSegmentDiff(
-      "forest, cinematic lighting, fog",
-      "forest, neon lighting, fog, particles"
-    );
-
-    expect(diff.left.some((segment) => segment.kind === "remove" && segment.text === "cinematic lighting")).to.equal(true);
-    expect(diff.right.some((segment) => segment.kind === "add" && segment.text === "neon lighting")).to.equal(true);
-    expect(diff.right.some((segment) => segment.kind === "add" && segment.text === "particles")).to.equal(true);
   });
 
   it("ensureLivePlayback triggers play when paused", () => {

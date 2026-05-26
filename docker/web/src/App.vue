@@ -1,11 +1,5 @@
 <template>
   <div id="app">
-    <ThreeBackground
-      :lfos="lfos"
-      :audio-metrics="backgroundAudioMetrics"
-      :active-tab="currentTab"
-      :morph="performance.crossfader"
-    />
     <header>
       <div class="tabs">
         <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
@@ -960,7 +954,7 @@
               </div>
 
               <!-- Filters -->
-              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr repeat(4, minmax(0, 1fr)); gap:8px;">
+              <div style="margin-top:12px; display:grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap:8px;">
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
                 <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
                   <option value="">All Status</option>
@@ -971,24 +965,6 @@
                 </select>
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
                 <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
-                <input type="text" class="framesync-input" v-model.trim="runsFilter.seed" placeholder="Seed" @input="applyRunsFilters">
-              </div>
-
-              <div style="margin-top:8px; display:grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap:8px;">
-                <input type="number" class="framesync-input" v-model.number="runsFilter.minFrames" placeholder="Min frames" @input="applyRunsFilters">
-                <input type="number" class="framesync-input" v-model.number="runsFilter.maxFrames" placeholder="Max frames" @input="applyRunsFilters">
-                <input type="date" class="framesync-input" v-model="runsFilter.dateFrom" @change="applyRunsFilters">
-                <input type="date" class="framesync-input" v-model="runsFilter.dateTo" @change="applyRunsFilters">
-                <button class="framesync-button" @click="clearRunsFilters">Reset filters</button>
-              </div>
-
-              <div class="runs-filter-help">
-                Search supports tokens like <code>status:completed</code>, <code>seed:42</code>, <code>prompt:forest</code>,
-                <code>note:todo</code>, <code>after:2026-05-01</code>, <code>before:2026-05-31</code>.
-              </div>
-
-              <div v-if="activeRunsFilterChips.length" class="runs-filter-chips">
-                <span v-for="chip in activeRunsFilterChips" :key="chip" class="chip chip--context">{{ chip }}</span>
               </div>
 
               <!-- Sort controls -->
@@ -1149,73 +1125,6 @@
                 </tbody>
               </table>
             </div>
-
-            <div v-if="comparePromptRuns.length >= 2" class="prompt-diff-wrap">
-              <div class="framesync-subtitle">
-                Prompt diff
-                <span class="prompt-diff-meta">{{ comparePromptRuns[0].run_id }} ↔ {{ comparePromptRuns[1].run_id }}</span>
-              </div>
-              <div v-if="runsSelected.length > 2" class="runs-filter-help">
-                Showing side-by-side prompt diff for the first two selected runs.
-              </div>
-              <div class="prompt-diff-grid">
-                <div class="prompt-diff-card">
-                  <div class="prompt-diff-head">Positive prompt</div>
-                  <div class="prompt-diff-columns">
-                    <div class="prompt-diff-column">
-                      <div class="prompt-diff-label">{{ comparePromptRuns[0].run_id }}</div>
-                      <div class="prompt-diff-segments">
-                        <span
-                          v-for="(segment, idx) in positivePromptDiff.left"
-                          :key="'pp-left-' + idx"
-                          class="prompt-diff-segment"
-                          :class="'is-' + segment.kind"
-                        >{{ segment.text }}</span>
-                      </div>
-                    </div>
-                    <div class="prompt-diff-column">
-                      <div class="prompt-diff-label">{{ comparePromptRuns[1].run_id }}</div>
-                      <div class="prompt-diff-segments">
-                        <span
-                          v-for="(segment, idx) in positivePromptDiff.right"
-                          :key="'pp-right-' + idx"
-                          class="prompt-diff-segment"
-                          :class="'is-' + segment.kind"
-                        >{{ segment.text }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="prompt-diff-card">
-                  <div class="prompt-diff-head">Negative prompt</div>
-                  <div class="prompt-diff-columns">
-                    <div class="prompt-diff-column">
-                      <div class="prompt-diff-label">{{ comparePromptRuns[0].run_id }}</div>
-                      <div class="prompt-diff-segments">
-                        <span
-                          v-for="(segment, idx) in negativePromptDiff.left"
-                          :key="'np-left-' + idx"
-                          class="prompt-diff-segment"
-                          :class="'is-' + segment.kind"
-                        >{{ segment.text }}</span>
-                      </div>
-                    </div>
-                    <div class="prompt-diff-column">
-                      <div class="prompt-diff-label">{{ comparePromptRuns[1].run_id }}</div>
-                      <div class="prompt-diff-segments">
-                        <span
-                          v-for="(segment, idx) in negativePromptDiff.right"
-                          :key="'np-right-' + idx"
-                          class="prompt-diff-segment"
-                          :class="'is-' + segment.kind"
-                        >{{ segment.text }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -1238,11 +1147,11 @@
               <div class="framesync-row" style="grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;">
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Resolution</div>
-                  <select class="framesync-select"><option>960x540</option><option>1280x720</option></select>
+                  <select class="framesync-select"><option>1024x576</option><option>1280x720</option></select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <select class="framesync-select"><option>5</option><option selected>12</option><option>25</option></select>
+                  <select class="framesync-select"><option>24</option><option selected>30</option><option>60</option></select>
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Steps</div>
@@ -1611,7 +1520,7 @@
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">FPS</div>
-                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="5" max="25" step="1">
+                  <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
                 </div>
                 <div class="framesync-stack">
                   <div class="framesync-subtitle">Loop</div>
@@ -1787,58 +1696,123 @@
       </div>
     </div>
 
-    <!-- Bottom context rail -->
-    <div class="context context--rail">
-      <div class="context-rail-header">
-        <div>
-          <h4>Recent Runs</h4>
-          <p class="context-rail-copy">{{ contextRailCopy }}</p>
+    <!-- Bottom context panel -->
+    <div class="context">
+      <div v-if="currentTab==='LIVE'">
+        <h4>Performance</h4>
+        <div class="chips">
+          <span class="chip">Crossfader: {{ performance.crossfader.toFixed(2) }}</span>
+          <span class="chip">Slots: {{ performance.slots.length }}</span>
+          <span class="chip">Model: {{ modelStatusLabel }}</span>
         </div>
-        <div class="context-rail-actions">
-          <span class="pill"><span class="dot"></span>{{ recentRunsRail.length }} loaded</span>
-          <button class="framesync-button" @click="refreshRuns">🔄 Refresh</button>
-        </div>
-      </div>
-
-      <div v-if="contextSummaryChips.length" class="context-summary-chips">
-        <span v-for="chip in contextSummaryChips" :key="chip" class="chip chip--context">{{ chip }}</span>
-      </div>
-
-      <div v-if="runsStatus" class="context-rail-status">{{ runsStatus }}</div>
-
-      <div v-if="recentRunsRail.length" class="recent-runs-rail">
-        <button
-          v-for="run in recentRunsRail"
-          :key="'rail-' + run.run_id"
-          type="button"
-          class="recent-runs-card"
-          :class="{ 'recent-runs-card--active': runsDetailView && runsDetailView.run_id === run.run_id }"
-          @click="openRunFromRail(run)"
-        >
-          <div class="recent-runs-thumb-wrap">
-            <img
-              v-if="run.has_thumbnail"
-              :src="`/api/runs/${run.run_id}/thumb`"
-              :alt="run.run_id"
-              class="recent-runs-thumb"
-            >
-            <div v-else class="recent-runs-thumb recent-runs-thumb--empty">No preview</div>
-            <span class="status-chip recent-runs-status" :class="'status-' + (run.status || 'queued')">{{ run.status || 'queued' }}</span>
-          </div>
-          <div class="recent-runs-meta">
-            <div class="recent-runs-id">{{ run.run_id }}</div>
-            <div class="recent-runs-model">{{ run.model || 'Unknown model' }}</div>
-            <div class="recent-runs-subline">
-              <span>{{ formatDate(run.started_at) }}</span>
-              <span>{{ run.frame_count || run.length_frames || 0 }}f</span>
+        <h4 style="margin-top:12px;">Beat & MIDI status</h4>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div style="min-width:240px;">
+            <strong>Beat macros ({{ macrosRack.length }})</strong>
+            <div v-for="m in macrosRack" :key="m.target" style="font-size:12px; color:var(--text-secondary);">
+              • {{ m.target }} – {{ m.shape }} @ {{ m.speed }} – Depth {{ (m.depth*100).toFixed(0) }}%
             </div>
-            <div v-if="runRailSummary(run)" class="recent-runs-note">{{ runRailSummary(run) }}</div>
           </div>
-        </button>
+          <div style="min-width:240px;">
+            <strong>MIDI mappings</strong>
+            <div style="font-size:12px; color:var(--text-secondary);">
+              • LaunchControl CC21 → Vibe<br/>
+              • LaunchControl CC22 → Strength<br/>
+              • LaunchControl CC23 → Zoom
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div v-else class="recent-runs-empty">
-        No recent runs yet. Render something and refresh this rail to populate it.
+      <div v-else-if="currentTab==='PROMPTS'">
+        <h4>Prompts & Parameters</h4>
+        <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
+          <table class="table">
+            <thead><tr><th>ID</th><th>On</th><th>Name</th><th>A prompt</th><th>B prompt</th><th>Range</th></tr></thead>
+            <tbody>
+              <tr v-for="slot in morphSlots" :key="slot.id">
+                <td>{{ slot.id }}</td>
+                <td>{{ slot.on ? '●' : '○' }}</td>
+                <td>{{ slot.name }}</td>
+                <td>{{ slot.a }}</td>
+                <td>{{ slot.b }}</td>
+                <td>{{ slot.range }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="chips"><span class="chip">+ Add morph</span><span class="chip">Copy from preset</span></div>
+        </div>
+        <div v-else-if="currentSubTab.PROMPTS==='LORA'">
+          <div class="chips">
+            <span class="chip">LoRA: {{ loras.groupA.length }}A / {{ loras.groupB.length }}B</span>
+            <span class="chip">Crossfader: {{ prompts.crossfaderValue.toFixed(2) }}</span>
+          </div>
+        </div>
+        <div v-else-if="currentSubTab.PROMPTS==='CONTROLNET'">
+          <div class="chips">
+            <span class="chip">ControlNet: {{ cn.active }}</span>
+            <span class="chip">Slots: {{ cn.slots.length }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="currentTab==='MOTION'">
+        <h4>Sequencer status</h4>
+        <div class="chips">
+          <span class="chip" v-for="(s, name) in motionStylesSaved" :key="'ctx-saved-'+name">💾 {{ name }}</span>
+          <span class="chip">Tracks: {{ sequencer.tracks.length }}</span>
+          <span class="chip">Markers: {{ sequencer.markers?.length || 0 }}</span>
+        </div>
+      </div>
+
+      <div v-else-if="currentTab==='MODULATION'">
+        <h4>Modulation</h4>
+        <div class="chips">
+          <span class="chip" v-for="(m, idx) in macrosRack.filter(x => x.on)" :key="'ctx-mac'+idx">Macro {{ idx+1 }}: {{ m.target }} ({{ m.shape }})</span>
+          <span class="chip">LFOs: {{ lfos.filter(l => l.on).length }}/{{ lfos.length }}</span>
+        </div>
+      </div>
+
+      <div v-else-if="currentTab==='AUDIO'">
+        <h4>Audio</h4>
+        <div v-if="audio.uploadedFile" style="margin-top:8px;">
+          <div class="chips">
+            <span class="chip">File: {{ audio.uploadedFile }}</span>
+            <span class="chip">BPM: {{ audio.bpm }}</span>
+          </div>
+          <div style="margin-top:8px;">
+            <img v-if="audioSpectrogramDataUrl" :src="audioSpectrogramDataUrl" class="spectral-preview" alt="Spectrogram">
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="currentTab==='SETTINGS'">
+        <h4>Settings</h4>
+        <div v-if="currentSubTab.SETTINGS==='MIDI'">
+          <table class="table">
+            <thead><tr><th>Control</th><th>CC</th><th>Target</th></tr></thead>
+            <tbody>
+              <tr v-for="m in midi.mappings" :key="m.control+'ctx'">
+                <td>{{ m.control }}</td>
+                <td>{{ m.cc }}</td>
+                <td>
+                  <select class="select" v-model="m.key" @change="updateMidiMapping(m)">
+                    <option value="">None</option>
+                    <option v-for="t in lfoTargets" :key="'map'+t.key" :value="t.key">{{ t.label }}</option>
+                  </select>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-else-if="currentTab==='GENERATE'">
+        <h4>Generator</h4>
+        <div class="chips">
+          <span class="chip">Theme: {{ generator.theme || '—' }}</span>
+          <span class="chip">Style: {{ generator.stylePreset }}</span>
+        </div>
       </div>
     </div>
   </div>
@@ -1859,18 +1833,17 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
-import { apiFetch, getStoredControlToken, modelSourceLabel } from './api-utils.js'
+import { apiFetch, modelSourceLabel } from './api-utils.js'
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
 import Crossfader from './components/Crossfader.vue'
 import LiveParamRow from './components/LiveParamRow.vue'
 import Waveform from './components/Waveform.vue'
 import TargetCell from './components/TargetCell.vue'
-import ThreeBackground from './components/ThreeBackground.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, Waveform, TargetCell, ThreeBackground },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, Waveform, TargetCell },
   data() {
     return {
        showFrames: true,
@@ -1879,7 +1852,6 @@ export default {
        deforumPlaying: false,
        previewGenerating: false,
        previewDebounceTimer: null,
-      sessionSaveTimer: null,
        framesRefreshBackoffMs: 5000,
        apiHealthBackoffMs: 15000,
       runsLoading: false,
@@ -2052,14 +2024,6 @@ export default {
       avSyncEnabled: false,
       avSyncLeadSec: 4,
       audioStatus: "Idle",
-      backgroundAudioMetrics: {
-        active: false,
-        level: 0,
-        bass: 0,
-        mid: 0,
-        treble: 0,
-        pulse: 0,
-      },
       audioMappings: [
         { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
         { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
@@ -2239,7 +2203,7 @@ export default {
        _lfoAnimFrame: null,
        runsAll: [],
        runsFiltered: [],
-       runsFilter: { search: "", status: "", tag: "", model: "", seed: "", minFrames: null, maxFrames: null, dateFrom: "", dateTo: "" },
+       runsFilter: { search: "", status: "", tag: "", model: "" },
        runsSort: { field: "started_at", order: "desc" },
        runsSelected: [],
        runsCompareFields: [
@@ -2306,126 +2270,6 @@ export default {
         const p = paramMap[entry.key] || { key: entry.key, label: entry.key, val: 0, min: 0, max: 1 };
         return { ...p, source: entry.sources.join(' + ') };
       });
-    },
-    recentRunsRail() {
-      return (this.runsAll || []).slice(0, 6);
-    },
-    contextRailCopy() {
-      if (this.currentTab === 'LIVE') {
-        return 'Stay on the performance surface while jumping back into recent output.';
-      }
-      if (this.currentTab === 'RUNS') {
-        return 'Recent output stays docked while you inspect details and compare runs.';
-      }
-      if (this.currentTab === 'SETTINGS') {
-        return 'Keep the latest output in view while tuning engine and node configuration.';
-      }
-      if (this.currentTab === 'GENERATE') {
-        return 'Review recent output while shaping timelines, scenes, and prompts.';
-      }
-      return 'Recent output stays one click away while you tune this surface.';
-    },
-    contextSummaryChips() {
-      switch (this.currentTab) {
-        case 'LIVE':
-          return [
-            `Model ${this.modelStatusLabel}`,
-            `Morph ${this.performance.crossfader.toFixed(2)}`,
-            `Pinned ${this.pinnedParamItems.length}`,
-            `Modulating ${this.liveModulating.length}`,
-          ];
-        case 'PROMPTS':
-          if (this.currentSubTab.PROMPTS === 'LORA') {
-            return [
-              `LoRA A ${this.loras.groupA.length}`,
-              `LoRA B ${this.loras.groupB.length}`,
-              `Morph ${this.prompts.crossfaderValue.toFixed(2)}`,
-            ];
-          }
-          if (this.currentSubTab.PROMPTS === 'CONTROLNET') {
-            return [
-              `ControlNet ${this.cn.active || 'idle'}`,
-              `Slots ${this.cn.slots.length}`,
-              `Webcam ${this.cn.webcamActive ? 'on' : 'off'}`,
-            ];
-          }
-          return [
-            `Morph ${this.prompts.morphOn ? 'on' : 'off'}`,
-            `Slots ${this.morphSlots.length}`,
-            `Blend ${this.prompts.crossfaderValue.toFixed(2)}`,
-          ];
-        case 'MOTION':
-          return [
-            `Tracks ${this.sequencer.tracks.length}`,
-            `Markers ${this.sequencer.markers?.length || 0}`,
-            `FPS ${this.sequencer.fps}`,
-          ];
-        case 'MODULATION':
-          return [
-            `LFOs ${this.lfos.filter(l => l.on).length}/${this.lfos.length}`,
-            `Macros ${this.macrosRack.filter(m => m.on).length}/${this.macrosRack.length}`,
-            `Live ${this.liveModulating.length}`,
-          ];
-        case 'AUDIO':
-          return [
-            this.audio.uploadedFile ? `File ${this.audio.uploadedFile}` : 'No audio loaded',
-            `BPM ${this.audio.bpm}`,
-            `Mappings ${this.audioMappings.length}`,
-          ];
-        case 'RUNS':
-          return [
-            `Filtered ${this.runsFiltered.length}`,
-            `Selected ${this.runsSelected.length}`,
-            `Sort ${this.runsSort.field}`,
-          ];
-        case 'SETTINGS':
-          return [
-            `Section ${this.currentSubTab.SETTINGS}`,
-            `GPU nodes ${this.gpuPool.nodes.length}`,
-            `API ${this.apiHealth.sdForge && this.apiHealth.sdForge.available ? 'online' : 'offline'}`,
-          ];
-        case 'GENERATE':
-          return [
-            `Tracks ${this.sequencer.tracks.length}`,
-            `Markers ${this.sequencer.markers?.length || 0}`,
-            `Theme ${this.generator.theme || '—'}`,
-          ];
-        default:
-          return [];
-      }
-    },
-    activeRunsFilterChips() {
-      const chips = [];
-      if (this.runsFilter.status) chips.push(`status:${this.runsFilter.status}`);
-      if (this.runsFilter.tag) chips.push(`tag:${this.runsFilter.tag}`);
-      if (this.runsFilter.model) chips.push(`model:${this.runsFilter.model}`);
-      if (this.runsFilter.seed !== "" && this.runsFilter.seed !== null && this.runsFilter.seed !== undefined) chips.push(`seed:${this.runsFilter.seed}`);
-      if (Number.isFinite(this.runsFilter.minFrames)) chips.push(`min frames ${this.runsFilter.minFrames}`);
-      if (Number.isFinite(this.runsFilter.maxFrames)) chips.push(`max frames ${this.runsFilter.maxFrames}`);
-      if (this.runsFilter.dateFrom) chips.push(`after ${this.runsFilter.dateFrom}`);
-      if (this.runsFilter.dateTo) chips.push(`before ${this.runsFilter.dateTo}`);
-      if (this.runsFilter.search) chips.push(`search:${this.runsFilter.search}`);
-      return chips;
-    },
-    comparePromptRuns() {
-      return this.runsSelected
-        .map((runId) => this.runsAll.find((r) => r.run_id === runId))
-        .filter(Boolean)
-        .slice(0, 2);
-    },
-    positivePromptDiff() {
-      if (this.comparePromptRuns.length < 2) return { left: [], right: [] };
-      return this.buildPromptSegmentDiff(
-        this.comparePromptRuns[0].prompt_positive,
-        this.comparePromptRuns[1].prompt_positive
-      );
-    },
-    negativePromptDiff() {
-      if (this.comparePromptRuns.length < 2) return { left: [], right: [] };
-      return this.buildPromptSegmentDiff(
-        this.comparePromptRuns[0].prompt_negative,
-        this.comparePromptRuns[1].prompt_negative
-      );
     },
     targetOwners() {
       const map = {};
@@ -2505,91 +2349,10 @@ export default {
     },
     'performance.crossfader'() {
       this.applyCrossfadeMorph();
-      this.queueSessionStateSave();
+      this.saveSessionState();
     },
     session() {
-      this.queueSessionStateSave();
-    },
-    currentTab() {
-      this.queueSessionStateSave();
-    },
-    currentSubTab: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    showFrames() {
-      this.queueSessionStateSave();
-    },
-    liveVibe: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    liveCam: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    paramSources: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    prompts: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    lfos: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    macrosRack: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    audioMappings: {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    'audio.bpm'() {
-      this.queueSessionStateSave();
-    },
-    'audio.track'() {
-      this.queueSessionStateSave();
-    },
-    'audio.uploadedFile'() {
-      this.queueSessionStateSave();
-    },
-    'forge.lastModel'() {
-      this.queueSessionStateSave();
-    },
-    'performance.lastPreviewPath'() {
-      this.queueSessionStateSave();
-    },
-    'loras.groupA': {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
-    },
-    'loras.groupB': {
-      handler() {
-        this.queueSessionStateSave();
-      },
-      deep: true,
+      this.saveSessionState();
     },
   },
   mounted() {
@@ -2646,7 +2409,6 @@ export default {
     if (this.lfoTimer) clearInterval(this.lfoTimer);
     if (this.beatTimer) clearInterval(this.beatTimer);
     if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
-    if (this.sessionSaveTimer) clearTimeout(this.sessionSaveTimer);
     this.stopLfoAnimation();
     if (this.playerEl && this.timeHandler) {
       this.playerEl.removeEventListener("timeupdate", this.timeHandler);
@@ -2690,105 +2452,22 @@ export default {
       this.runsStatus = "Failed to load runs";
     }
   },
-  clearRunsFilters() {
-    this.runsFilter = {
-      search: "",
-      status: "",
-      tag: "",
-      model: "",
-      seed: "",
-      minFrames: null,
-      maxFrames: null,
-      dateFrom: "",
-      dateTo: "",
-    };
-    this.applyRunsFilters();
-  },
-  parseRunSearchQuery(rawQuery) {
-    const out = {
-      terms: [],
-      status: "",
-      tag: "",
-      model: "",
-      seed: "",
-      note: "",
-      prompt: "",
-      before: "",
-      after: "",
-    };
-    const tokens = String(rawQuery || "").trim().split(/\s+/).filter(Boolean);
-    for (const token of tokens) {
-      const idx = token.indexOf(":");
-      if (idx <= 0) {
-        out.terms.push(token.toLowerCase());
-        continue;
-      }
-      const key = token.slice(0, idx).toLowerCase();
-      const value = token.slice(idx + 1).trim();
-      if (!value) continue;
-      if (key === "status") out.status = value.toLowerCase();
-      else if (key === "tag") out.tag = value.toLowerCase();
-      else if (key === "model") out.model = value.toLowerCase();
-      else if (key === "seed") out.seed = value;
-      else if (key === "note" || key === "notes") out.note = value.toLowerCase();
-      else if (key === "prompt" || key === "positive" || key === "negative") out.prompt = value.toLowerCase();
-      else if (key === "before") out.before = value;
-      else if (key === "after") out.after = value;
-      else out.terms.push(token.toLowerCase());
-    }
-    return out;
-  },
-  runMatchesFreeTerms(run, terms) {
-    if (!terms.length) return true;
-    const haystack = [
-      run.run_id,
-      run.tag,
-      run.model,
-      run.status,
-      run.seed,
-      run.prompt_positive,
-      run.prompt_negative,
-      run.notes,
-    ].map((value) => String(value || "").toLowerCase()).join(" ");
-    return terms.every((term) => haystack.includes(term));
-  },
   applyRunsFilters() {
     let filtered = [...this.runsAll];
-    const { search, status, tag, model, seed, minFrames, maxFrames, dateFrom, dateTo } = this.runsFilter;
-    const query = this.parseRunSearchQuery(search);
-    const effectiveStatus = (status || query.status || "").toLowerCase();
-    const effectiveTag = (tag || query.tag || "").toLowerCase();
-    const effectiveModel = (model || query.model || "").toLowerCase();
-    const effectiveSeed = String(seed || query.seed || "").trim();
-    const effectiveDateFrom = dateFrom || query.after || "";
-    const effectiveDateTo = dateTo || query.before || "";
-
-    if (effectiveStatus) filtered = filtered.filter(r => String(r.status || "").toLowerCase() === effectiveStatus);
-    if (effectiveTag) filtered = filtered.filter(r => String(r.tag || "").toLowerCase().includes(effectiveTag));
-    if (effectiveModel) filtered = filtered.filter(r => String(r.model || "").toLowerCase().includes(effectiveModel));
-    if (effectiveSeed) filtered = filtered.filter(r => String(r.seed ?? "").trim() === effectiveSeed);
-    if (query.note) filtered = filtered.filter(r => String(r.notes || "").toLowerCase().includes(query.note));
-    if (query.prompt) {
+    const { search, status, tag, model } = this.runsFilter;
+    if (status) filtered = filtered.filter(r => r.status === status);
+    if (tag) filtered = filtered.filter(r => (r.tag || "").toLowerCase().includes(tag.toLowerCase()));
+    if (model) filtered = filtered.filter(r => (r.model || "").toLowerCase().includes(model.toLowerCase()));
+    if (search) {
+      const s = search.toLowerCase();
       filtered = filtered.filter(r =>
-        String(r.prompt_positive || "").toLowerCase().includes(query.prompt) ||
-        String(r.prompt_negative || "").toLowerCase().includes(query.prompt)
+        (r.run_id || "").toLowerCase().includes(s) ||
+        (r.tag || "").toLowerCase().includes(s) ||
+        (r.model || "").toLowerCase().includes(s) ||
+        (r.prompt_positive || "").toLowerCase().includes(s) ||
+        (r.notes || "").toLowerCase().includes(s)
       );
     }
-    if (Number.isFinite(minFrames)) {
-      filtered = filtered.filter((r) => Number(r.frame_count || r.length_frames || 0) >= minFrames);
-    }
-    if (Number.isFinite(maxFrames)) {
-      filtered = filtered.filter((r) => Number(r.frame_count || r.length_frames || 0) <= maxFrames);
-    }
-    if (effectiveDateFrom) {
-      const floor = Date.parse(effectiveDateFrom);
-      if (Number.isFinite(floor)) filtered = filtered.filter((r) => Date.parse(r.started_at || "") >= floor);
-    }
-    if (effectiveDateTo) {
-      const ceil = Date.parse(`${effectiveDateTo}T23:59:59Z`);
-      if (Number.isFinite(ceil)) filtered = filtered.filter((r) => Date.parse(r.started_at || "") <= ceil);
-    }
-    filtered = filtered.filter((r) => this.runMatchesFreeTerms(r, query.terms));
     const { field, order } = this.runsSort;
     filtered.sort((a, b) => {
       let va = a[field] || "";
@@ -2888,52 +2567,6 @@ export default {
     }
     return val;
   },
-  splitPromptSegments(text) {
-    const parts = String(text || "")
-      .split(/\n|,/)
-      .map((part) => part.trim())
-      .filter(Boolean);
-    return parts.length ? parts : ['—'];
-  },
-  buildPromptSegmentDiff(leftText, rightText) {
-    const left = this.splitPromptSegments(leftText);
-    const right = this.splitPromptSegments(rightText);
-    const rows = Array.from({ length: left.length + 1 }, () => Array(right.length + 1).fill(0));
-    for (let i = left.length - 1; i >= 0; i -= 1) {
-      for (let j = right.length - 1; j >= 0; j -= 1) {
-        rows[i][j] = left[i] === right[j]
-          ? rows[i + 1][j + 1] + 1
-          : Math.max(rows[i + 1][j], rows[i][j + 1]);
-      }
-    }
-    const outLeft = [];
-    const outRight = [];
-    let i = 0;
-    let j = 0;
-    while (i < left.length && j < right.length) {
-      if (left[i] === right[j]) {
-        outLeft.push({ text: left[i], kind: 'same' });
-        outRight.push({ text: right[j], kind: 'same' });
-        i += 1;
-        j += 1;
-      } else if (rows[i + 1][j] >= rows[i][j + 1]) {
-        outLeft.push({ text: left[i], kind: 'remove' });
-        i += 1;
-      } else {
-        outRight.push({ text: right[j], kind: 'add' });
-        j += 1;
-      }
-    }
-    while (i < left.length) {
-      outLeft.push({ text: left[i], kind: 'remove' });
-      i += 1;
-    }
-    while (j < right.length) {
-      outRight.push({ text: right[j], kind: 'add' });
-      j += 1;
-    }
-    return { left: outLeft, right: outRight };
-  },
   async exportRunComparison(format) {
     if (this.runsSelected.length < 2) {
       this.runsStatus = 'Select at least 2 runs to compare';
@@ -2980,54 +2613,6 @@ export default {
     } catch {
       return dateStr;
     }
-  },
-  runRailSummary(run) {
-    const raw = run && (run.tag || run.notes || '');
-    const text = String(raw || '').trim();
-    if (!text) return '';
-    return text.length > 72 ? `${text.slice(0, 71)}…` : text;
-  },
-  averageByteRange(buf, start, end) {
-    if (!buf || !buf.length) return 0;
-    const s = Math.max(0, Math.min(buf.length, start | 0));
-    const e = Math.max(s + 1, Math.min(buf.length, end | 0));
-    let total = 0;
-    for (let i = s; i < e; i += 1) total += buf[i];
-    return total / (e - s);
-  },
-  updateBackgroundAudioMetrics(freqBytes) {
-    const prev = this.backgroundAudioMetrics || {};
-    if (!freqBytes || !freqBytes.length) {
-      this.backgroundAudioMetrics = {
-        active: false,
-        level: (prev.level || 0) * 0.82,
-        bass: (prev.bass || 0) * 0.82,
-        mid: (prev.mid || 0) * 0.82,
-        treble: (prev.treble || 0) * 0.82,
-        pulse: (prev.pulse || 0) * 0.88,
-      };
-      return;
-    }
-    const bassEnd = Math.max(1, Math.floor(freqBytes.length * 0.08));
-    const midEnd = Math.max(bassEnd + 1, Math.floor(freqBytes.length * 0.32));
-    const trebleEnd = Math.max(midEnd + 1, Math.floor(freqBytes.length * 0.8));
-    const bass = this.averageByteRange(freqBytes, 0, bassEnd) / 255;
-    const mid = this.averageByteRange(freqBytes, bassEnd, midEnd) / 255;
-    const treble = this.averageByteRange(freqBytes, midEnd, trebleEnd) / 255;
-    const level = Math.min(1, bass * 0.42 + mid * 0.35 + treble * 0.23);
-    this.backgroundAudioMetrics = {
-      active: level > 0.015,
-      level: (prev.level || 0) * 0.68 + level * 0.32,
-      bass: (prev.bass || 0) * 0.7 + bass * 0.3,
-      mid: (prev.mid || 0) * 0.7 + mid * 0.3,
-      treble: (prev.treble || 0) * 0.7 + treble * 0.3,
-      pulse: Math.min(1, (prev.pulse || 0) * 0.72 + level * 0.6 + bass * 0.12),
-    };
-  },
-  async openRunFromRail(run) {
-    this.switchTab('RUNS');
-    this.runsSelected = [run.run_id];
-    await this.showRunDetails(run);
   },
  switchTab(id) {
    this.currentTab = id;
@@ -3785,10 +3370,7 @@ export default {
  },
  sendControl(controlType, payload) {
    if (!this.ws || this.ws.readyState !== 1) return;
-  const token = getStoredControlToken();
-  const msg = token
-    ? { type: "control", controlType, payload, token }
-    : { type: "control", controlType, payload };
+   const msg = { type: "control", controlType, payload };
    this.ws.send(JSON.stringify(msg));
  },
  updateParam(p, evt) {
@@ -4213,8 +3795,15 @@ export default {
      }
      const json = await res.json();
      if (Array.isArray(json.items)) {
-      this.thumbs = json.items.map((item) => this.normalizeThumb(item));
-      this.queueSessionStateSave();
+       this.thumbs = json.items.map((item) => {
+         if (typeof item === "string") {
+           return { src: item, name: item.split("/").pop(), frame: this.parseFrameNumber(item) };
+         }
+         const src = item.src || item.url || item.path || "";
+         const name = item.name || src.split("/").pop();
+         const frame = item.frame != null ? item.frame : this.parseFrameNumber(name || src);
+         return { src, name, frame };
+       });
      }
      this.framesRefreshBackoffMs = 5000;
    } catch (e) {
@@ -4227,36 +3816,6 @@ export default {
    const match = String(name).match(/(\d{3,})/);
    return match ? parseInt(match.pop(), 10) : null;
  },
-normalizeThumb(item) {
-  if (typeof item === "string") {
-    const src = item;
-    return {
-      src,
-      url: src,
-      name: src.split("/").pop(),
-      frame: this.parseFrameNumber(src),
-    };
-  }
-  const src = item?.src || item?.url || item?.path || "";
-  const name = item?.name || src.split("/").pop();
-  const frame = item?.frame != null ? item.frame : this.parseFrameNumber(name || src);
-  return {
-    src,
-    url: src,
-    name,
-    frame,
-  };
-},
-queueSessionStateSave() {
-  if (typeof setTimeout !== 'function') {
-    this.saveSessionState();
-    return;
-  }
-  clearTimeout(this.sessionSaveTimer);
-  this.sessionSaveTimer = setTimeout(() => {
-    this.saveSessionState();
-  }, 120);
-},
  async runAudioMod() {
    if (!this.audio.track) {
      this.audioStatus = "Set audio file first";
@@ -4702,7 +4261,6 @@ queueSessionStateSave() {
    this._liveSpecAnalyser = null;
    this._liveSpecGain = null;
    this._liveSpecFreqBuf = null;
-   this.updateBackgroundAudioMetrics(null);
    if (ctx && typeof ctx.close === "function") {
      try {
        void ctx.close();
@@ -4759,7 +4317,6 @@ queueSessionStateSave() {
    }
    this._liveSpecRaf = null;
    this.paintLiveSpectrumCanvases(null);
-   this.updateBackgroundAudioMetrics(null);
  },
  scheduleLiveSpectrumFrame() {
    if (this._liveSpecRaf != null) return;
@@ -4780,7 +4337,6 @@ queueSessionStateSave() {
    });
  },
  paintLiveSpectrumCanvases(freqBytes) {
-   this.updateBackgroundAudioMetrics(freqBytes);
    const canvases = [this.$refs.liveSpectrumCanvas, this.$refs.liveSpectrumCanvasStrip].filter(Boolean);
    for (const c of canvases) {
      if (!c || !c.getContext) continue;
@@ -5977,98 +5533,36 @@ queueSessionStateSave() {
  loadSessionState() {
    try {
      const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
-    const tab = window.localStorage && window.localStorage.getItem('defora_tab');
-    const promptsSubTab = window.localStorage && window.localStorage.getItem('defora_subtab_PROMPTS');
-    const settingsSubTab = window.localStorage && window.localStorage.getItem('defora_subtab_SETTINGS');
-    const s = raw ? JSON.parse(raw) : {};
+     if (!raw) return;
+     const s = JSON.parse(raw);
      if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
-     if (typeof s.currentTab === 'string') this.currentTab = s.currentTab;
-     else if (tab) this.currentTab = tab;
-     if (s.currentSubTab && typeof s.currentSubTab === 'object') {
-       this.currentSubTab = { ...this.currentSubTab, ...s.currentSubTab };
-     }
-     if (!s.currentSubTab || typeof s.currentSubTab !== 'object') {
-       if (promptsSubTab) this.currentSubTab.PROMPTS = promptsSubTab;
-       if (settingsSubTab) this.currentSubTab.SETTINGS = settingsSubTab;
-     }
-     if (typeof s.showFrames === 'boolean') this.showFrames = s.showFrames;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
-     if (typeof s.deforumAdvancedOpen === 'boolean') this.deforumAdvancedOpen = s.deforumAdvancedOpen;
      if (s.deforumSettings && typeof s.deforumSettings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
        this.syncDeforumSettingsJson();
-     }
-     if (Array.isArray(s.thumbs)) {
-       this.thumbs = s.thumbs.map((item) => this.normalizeThumb(item)).filter((item) => item.src);
-     }
-     if (s.performance && typeof s.performance === 'object') {
-       if (typeof s.performance.lastPreviewPath === 'string') {
-         this.performance.lastPreviewPath = s.performance.lastPreviewPath;
-       }
      }
      if (s.lastModel) {
        this.forge.lastModel = s.lastModel;
        this.forge.selectedModel = s.lastModel;
      }
      if (s.prompts) Object.assign(this.prompts, s.prompts);
-     if (Array.isArray(s.liveVibe)) this.liveVibe = s.liveVibe;
-     if (Array.isArray(s.liveCam)) this.liveCam = s.liveCam;
-     if (s.paramSources && typeof s.paramSources === 'object') this.paramSources = { ...this.paramSources, ...s.paramSources };
-     if (Array.isArray(s.lfos)) this.lfos = s.lfos;
-     if (Array.isArray(s.macrosRack)) this.macrosRack = s.macrosRack;
-     if (Array.isArray(s.audioMappings)) this.audioMappings = s.audioMappings;
-     if (s.audio && typeof s.audio === 'object') {
-       this.audio.track = s.audio.track || "";
-       this.audio.uploadedFile = s.audio.uploadedFile || null;
-       if (Number.isFinite(Number(s.audio.bpm))) this.audio.bpm = Number(s.audio.bpm);
-     }
-     if (s.loras && typeof s.loras === 'object') {
-       this.loras.groupA = Array.isArray(s.loras.groupA) ? s.loras.groupA : [];
-       this.loras.groupB = Array.isArray(s.loras.groupB) ? s.loras.groupB : [];
-     }
    } catch (_e) { /* ignore */ }
  },
  saveSessionState() {
    try {
      if (!window.localStorage) return;
      const blob = {
-      currentTab: this.currentTab,
-      currentSubTab: this.currentSubTab,
-      showFrames: this.showFrames,
        crossfader: this.performance.crossfader,
        genericPrompt: this.performance.genericPrompt,
        slots: this.performance.slots,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
-      deforumAdvancedOpen: this.deforumAdvancedOpen,
        deforumSettings: this.deforumSettings,
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
-      prompts: this.prompts,
-      performance: {
-        lastPreviewPath: this.performance.lastPreviewPath,
-      },
-      liveVibe: this.liveVibe,
-      liveCam: this.liveCam,
-      paramSources: this.paramSources,
-      lfos: this.lfos,
-      macrosRack: this.macrosRack,
-      audio: {
-        track: this.audio.track,
-        bpm: this.audio.bpm,
-        uploadedFile: this.audio.uploadedFile,
-      },
-      audioMappings: this.audioMappings,
-      loras: {
-        groupA: this.loras.groupA,
-        groupB: this.loras.groupB,
-      },
-      thumbs: this.thumbs.slice(0, 24).map((item) => {
-        const thumb = this.normalizeThumb(item);
-        return { src: thumb.src, name: thumb.name, frame: thumb.frame };
-      }),
+       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
    } catch (_e) { /* ignore */ }
@@ -6379,8 +5873,8 @@ queueSessionStateSave() {
    this.performance.status = 'Generating preview frame…';
    const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
    const strength = this.liveVibe.find((p) => p.key === 'strength');
-  const w = Math.min(960, Math.max(64, Number(this.deforumSettings.W) || 960));
-  const h = Math.min(540, Math.max(64, Number(this.deforumSettings.H) || 540));
+   const w = this.deforumSettings.W || 1024;
+   const h = this.deforumSettings.H || 576;
    const steps = this.deforumSettings.steps || 12;
    const seed = this.deforumSettings.seed != null ? this.deforumSettings.seed : this.hud.seed;
    const sampler = this.deforumSettings.sampler || 'Euler a';
