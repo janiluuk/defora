@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.5] - 2026-05-26
+
+## What's Changed
+
+- Add files via upload (4e64490)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.4...v0.6.5
+
+
 ## [0.6.4] - 2026-05-26
 
 ## What's Changed
