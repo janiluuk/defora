@@ -1,25 +1,60 @@
 <template>
   <div class="status-strip">
-    <button
-      class="ss-btn"
-      :class="{ 'ss-btn--active': playing }"
-      :title="playing ? 'Pause Deforum' : 'Play Deforum animation'"
-      @click="$emit('toggle-play')"
-    >
-      <UiIcon class="ss-icon" :name="playing ? 'pause' : 'play'" />
-      <span class="ss-label">Anim</span>
-    </button>
-    <button class="ss-btn ss-btn--ghost" title="Stop animation" @click="$emit('stop-play')">
-      <UiIcon class="ss-icon" name="stop" />
-    </button>
-    <button
-      class="ss-btn ss-btn--ghost"
-      :class="{ 'ss-btn--recording': recording }"
-      @click="$emit('toggle-record')"
-    >
-      <UiIcon class="ss-icon" :name="recording ? 'stop' : 'record'" />
-      <span class="ss-label">Rec</span>
-    </button>
+    <div class="header-transport ss-transport" data-testid="header-transport">
+      <button
+        type="button"
+        class="header-transport__btn"
+        :class="playing ? 'header-transport__btn--pause header-transport__btn--active' : 'header-transport__btn--play'"
+        :title="playing ? 'Pause Deforum animation' : 'Play Deforum animation'"
+        :aria-label="playing ? 'Pause animation' : 'Play animation'"
+        data-testid="header-play"
+        @click="$emit('toggle-play')"
+      >
+        <UiIcon class="header-transport__icon" :name="playing ? 'pause' : 'play'" />
+      </button>
+      <button
+        type="button"
+        class="header-transport__btn header-transport__btn--stop"
+        title="Stop animation"
+        aria-label="Stop animation"
+        data-testid="header-stop"
+        @click="$emit('stop-play')"
+      >
+        <UiIcon class="header-transport__icon" name="stop" />
+      </button>
+      <button
+        type="button"
+        class="header-transport__btn header-transport__btn--record"
+        :class="{ 'header-transport__btn--active': recording }"
+        :title="recording ? 'Stop recording' : 'Start recording'"
+        :aria-label="recording ? 'Stop recording' : 'Start recording'"
+        data-testid="header-record"
+        @click="$emit('toggle-record')"
+      >
+        <UiIcon class="header-transport__icon" :name="recording ? 'stop' : 'record'" />
+      </button>
+      <span class="header-transport__divider" aria-hidden="true"></span>
+      <button
+        type="button"
+        class="header-transport__btn header-transport__btn--preview"
+        :class="{ 'header-transport__btn--active': previewGenerating }"
+        :disabled="previewGenerating || previewDisabled"
+        title="Generate preview frame from current settings"
+        aria-label="Generate preview frame"
+        data-testid="header-preview-frame"
+        @click="$emit('generate-preview')"
+      >
+        <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button header-transport__preview-loading">
+          <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+          <span class="header-transport__preview-label">Frame</span>
+          <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+        </span>
+        <template v-else>
+          <UiIcon class="header-transport__icon" name="image" />
+          <span class="header-transport__preview-label">Frame</span>
+        </template>
+      </button>
+    </div>
 
     <button
       type="button"
@@ -128,10 +163,12 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record', 'toggle-ws', 'open-midi', 'open-gpus'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
+    previewGenerating: { type: Boolean, default: false },
+    previewDisabled:   { type: Boolean, default: false },
     apiHealth:     { type: Object,  default: () => ({}) },
     gpuActiveCount:{ type: Number,  default: 0 },
     gpuTotalCount: { type: Number,  default: 0 },
@@ -170,10 +207,42 @@ export default {
 <style scoped>
 .status-strip {
   display: flex;
-  gap: 5px;
+  gap: 8px;
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.ss-transport {
+  border-left: none;
+  border-radius: 12px;
+  border: 0.5px solid var(--border);
+  background: rgba(17, 19, 28, 0.72);
+  padding: 4px;
+  gap: 3px;
+}
+
+.ss-transport .header-transport__btn {
+  width: 36px;
+  height: 36px;
+}
+
+.ss-transport .header-transport__btn--preview {
+  width: auto;
+  min-width: 36px;
+  padding: 0 10px;
+  gap: 5px;
+}
+
+.header-transport__preview-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.header-transport__preview-loading {
+  font-size: 10px;
 }
 
 /* Action buttons */

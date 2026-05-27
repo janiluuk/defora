@@ -68,6 +68,12 @@
     <template v-else-if="name === 'chevron-down'">
       <path d="M6 10L12 16L18 10" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </template>
+    <template v-else-if="name === 'panel-bottom'">
+      <rect x="4" y="5" width="16" height="11" rx="2" stroke="currentColor" stroke-width="1.8" />
+      <path d="M8 14H16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity="0.55" />
+      <path d="M12 8.5V12.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+      <path d="M9.5 10.5L12 8L14.5 10.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
     <template v-else-if="name === 'close'">
       <path d="M7 7L17 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
       <path d="M17 7L7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />

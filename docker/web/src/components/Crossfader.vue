@@ -1,11 +1,20 @@
 <template>
-  <div class="crossfader">
+  <div
+    class="crossfader"
+    :class="{
+      'crossfader--a': dominantSide === 'a',
+      'crossfader--b': dominantSide === 'b',
+    }"
+    :style="weightStyle"
+  >
     <div class="crossfader-labels">
       <span class="crossfader-label crossfader-label--a">A {{ aPercent }}%</span>
       <span class="crossfader-label crossfader-label--b">B {{ bPercent }}%</span>
     </div>
     <div class="crossfader-track">
-      <div class="crossfader-fill" :style="{ width: (modelValue * 100) + '%' }"></div>
+      <div class="crossfader-track__half crossfader-track__half--a"></div>
+      <div class="crossfader-track__half crossfader-track__half--b"></div>
+      <div class="crossfader-track__divider" :style="{ left: (modelValue * 100) + '%' }"></div>
       <div class="crossfader-thumb" :style="{ left: (modelValue * 100) + '%' }"></div>
       <input
         type="range"
@@ -43,8 +52,25 @@ export default {
     testid:     { type: String, default: '' },
   },
   computed: {
-    aPercent() { return ((1 - this.modelValue) * 100).toFixed(0); },
-    bPercent() { return (this.modelValue * 100).toFixed(0); },
+    aWeight() {
+      return Math.min(1, Math.max(0, 1 - Number(this.modelValue) || 0));
+    },
+    bWeight() {
+      return Math.min(1, Math.max(0, Number(this.modelValue) || 0));
+    },
+    dominantSide() {
+      if (this.aWeight > this.bWeight + 0.02) return 'a';
+      if (this.bWeight > this.aWeight + 0.02) return 'b';
+      return 'neutral';
+    },
+    weightStyle() {
+      return {
+        '--crossfade-a-weight': this.aWeight,
+        '--crossfade-b-weight': this.bWeight,
+      };
+    },
+    aPercent() { return (this.aWeight * 100).toFixed(0); },
+    bPercent() { return (this.bWeight * 100).toFixed(0); },
   },
   methods: {
     onRandomize() {
@@ -57,7 +83,13 @@ export default {
 </script>
 
 <style scoped>
-.crossfader { display: flex; flex-direction: column; gap: 8px; }
+.crossfader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  --crossfade-a-weight: 0.5;
+  --crossfade-b-weight: 0.5;
+}
 
 .crossfader-labels {
   display: flex;
@@ -66,37 +98,73 @@ export default {
   font-weight: 700;
   letter-spacing: 0.06em;
 }
-.crossfader-label--a { color: var(--a-group); }
-.crossfader-label--b { color: var(--b-group); }
+.crossfader-label--a {
+  color: var(--a-group);
+  opacity: calc(0.35 + var(--crossfade-a-weight) * 0.65);
+  text-shadow: 0 0 calc(var(--crossfade-a-weight) * 14px) color-mix(in srgb, var(--a-group) 70%, transparent);
+  transition: opacity 0.08s linear, text-shadow 0.08s linear;
+}
+.crossfader-label--b {
+  color: var(--b-group);
+  opacity: calc(0.35 + var(--crossfade-b-weight) * 0.65);
+  text-shadow: 0 0 calc(var(--crossfade-b-weight) * 14px) color-mix(in srgb, var(--b-group) 70%, transparent);
+  transition: opacity 0.08s linear, text-shadow 0.08s linear;
+}
 
 .crossfader-track {
   position: relative;
-  height: 20px;
-  border-radius: 4px;
+  height: 24px;
+  border-radius: 8px;
   background: var(--bg-1);
   border: 0.5px solid var(--border);
-  overflow: visible;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
 }
-.crossfader-fill {
+.crossfader-track__half {
+  height: 100%;
+  transition: opacity 0.08s linear, box-shadow 0.08s linear, filter 0.08s linear;
+}
+.crossfader-track__half--a {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--a-group) 88%, #000), color-mix(in srgb, var(--a-group) 42%, transparent));
+  opacity: calc(0.12 + var(--crossfade-a-weight) * 0.78);
+  box-shadow:
+    inset 0 0 calc(var(--crossfade-a-weight) * 28px) color-mix(in srgb, var(--a-group) 55%, transparent),
+    0 0 calc(var(--crossfade-a-weight) * 18px) color-mix(in srgb, var(--a-group) 45%, transparent);
+}
+.crossfader-track__half--b {
+  background: linear-gradient(270deg, color-mix(in srgb, var(--b-group) 88%, #000), color-mix(in srgb, var(--b-group) 42%, transparent));
+  opacity: calc(0.12 + var(--crossfade-b-weight) * 0.78);
+  box-shadow:
+    inset 0 0 calc(var(--crossfade-b-weight) * 28px) color-mix(in srgb, var(--b-group) 55%, transparent),
+    0 0 calc(var(--crossfade-b-weight) * 18px) color-mix(in srgb, var(--b-group) 45%, transparent);
+}
+.crossfader-track__divider {
   position: absolute;
-  inset: 0 auto 0 0;
-  border-radius: 4px;
-  background: linear-gradient(90deg, var(--a-group), var(--b-group));
-  opacity: 0.28;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
   pointer-events: none;
-  transition: width 0.04s;
+  z-index: 2;
+  transition: left 0.04s linear;
 }
 .crossfader-thumb {
   position: absolute;
   top: 50%;
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
   border-radius: 50%;
-  background: var(--media-text);
+  background: #fff;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px rgba(127, 119, 221, 0.5), 0 0 8px rgba(127, 119, 221, 0.35);
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--a-group) calc(var(--crossfade-a-weight) * 100%), var(--b-group)),
+    0 0 calc(8px + var(--crossfade-a-weight) * 10px + var(--crossfade-b-weight) * 10px) color-mix(in srgb, var(--a-group) calc(var(--crossfade-a-weight) * 100%), var(--b-group));
   pointer-events: none;
-  transition: left 0.04s;
+  z-index: 3;
+  transition: left 0.04s linear, box-shadow 0.08s linear;
 }
 .crossfader-input {
   position: absolute;
@@ -106,6 +174,7 @@ export default {
   opacity: 0;
   cursor: pointer;
   margin: 0;
+  z-index: 4;
 }
 .crossfader-input:disabled { cursor: not-allowed; }
 
@@ -123,17 +192,23 @@ export default {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-secondary);
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, box-shadow 0.15s;
 }
 .crossfader-snap--a {
   color: var(--a-group);
   border-color: rgba(55, 138, 221, 0.45);
   background: rgba(55, 138, 221, 0.12);
 }
+.crossfader--a .crossfader-snap--a {
+  box-shadow: 0 0 calc(var(--crossfade-a-weight) * 16px) color-mix(in srgb, var(--a-group) 50%, transparent);
+}
 .crossfader-snap--b {
   color: var(--b-group);
   border-color: rgba(232, 121, 176, 0.45);
   background: rgba(232, 121, 176, 0.12);
+}
+.crossfader--b .crossfader-snap--b {
+  box-shadow: 0 0 calc(var(--crossfade-b-weight) * 16px) color-mix(in srgb, var(--b-group) 50%, transparent);
 }
 .crossfader-randomize {
   display: inline-flex;

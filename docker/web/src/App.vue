@@ -35,6 +35,8 @@
       <StatusStrip
         :playing="deforumPlaying"
         :recording="isRecording"
+        :preview-generating="previewGenerating"
+        :preview-disabled="deforumPlaying"
         :api-health="apiHealth"
         :gpu-active-count="gpuActiveCount"
         :gpu-total-count="gpuTotalCount"
@@ -45,6 +47,7 @@
         @toggle-play="toggleDeforumPlay"
         @stop-play="stopDeforumPlay"
         @toggle-record="toggleStreamRecord"
+        @generate-preview="generatePreviewFrame"
         @open-gpus="openGpuSettings"
         @toggle-ws="toggleCollaboration"
         @open-midi="openMidiSettings"
@@ -242,372 +245,25 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div v-if="currentTab === 'LIVE'" class="live-bottom-drawer">
-          <button
-            type="button"
-            class="live-bottom-drawer__toggle"
-            :class="{ active: liveBottomDrawerOpen }"
-            :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
-            title="Expand performance drawer"
-            @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
-          >
-            <UiIcon :name="liveBottomDrawerOpen ? 'chevron-down' : 'chevron-up'" />
-          </button>
-
-          <div class="live-bottom-drawer__panel" :class="{ open: liveBottomDrawerOpen }">
-            <div class="live-bottom-drawer__tabs">
-              <button
-                type="button"
-                class="sub-pill"
-                :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
-                @click="liveBottomDrawerTab = 'MODULATION'; saveSessionState()"
-              >
-                MODULATION
-              </button>
-              <button
-                type="button"
-                class="sub-pill"
-                :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
-                @click="liveBottomDrawerTab = 'CROSSFADER'; saveSessionState()"
-              >
-                CROSSFADER
-              </button>
-            </div>
-
-            <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
-              <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
-              <template v-else>
-                <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
-                  <div class="live-mod-slot__head">
-                    <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
-                    <span v-if="slot.mappingLabel" class="live-mod-slot__map">
-                      <UiIcon name="arrow-left" />
-                      <span>{{ slot.mappingLabel }}</span>
-                    </span>
-                    <div class="live-mod-slot__actions">
-                      <button
-                        v-if="slot.paramKey"
-                        type="button"
-                        class="framesync-button framesync-button--compact"
-                        title="Remove mapping"
-                        @click="clearParamMapping(slot.paramKey)"
-                      >
-                        <UiIcon name="close" />
-                      </button>
-                      <button
-                        v-if="slot.paramKey"
-                        type="button"
-                        class="framesync-button framesync-button--compact"
-                        title="Add mapping"
-                        @click="openModulationMapping(slot.paramKey)"
-                      >
-                        <UiIcon name="sliders" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <!-- Slider -->
-                  <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
-                    <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
-                      <input
-                        type="range"
-                        class="framesync-input live-mod-slider__input"
-                        :min="slot.min"
-                        :max="slot.max"
-                        :step="slot.step"
-                        :value="slot.value"
-                        @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
-                      />
-                      <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
-                    </div>
-                  </div>
-
-                  <!-- XY pad -->
-                  <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
-                    <div
-                      class="live-mod-pad"
-                      @mousedown="livePadDown($event, slot)"
-                      @mousemove="livePadMove($event, slot)"
-                      @mouseup="livePadUp"
-                      @mouseleave="livePadUp"
-                      @touchstart.prevent="livePadDown($event, slot)"
-                      @touchmove.prevent="livePadMove($event, slot)"
-                      @touchend.prevent="livePadUp"
-                    >
-                      <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
-                      <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
-                      <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
-                    </div>
-                    <div class="live-mod-pad__axes">
-                      <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
-                      <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
-                    </div>
-                  </div>
-
-                  <!-- Knob -->
-                  <div v-else class="live-mod-slot__body">
-                    <div class="live-mod-knob">
-                      <input
-                        type="range"
-                        class="framesync-input live-mod-knob__input"
-                        :min="slot.min"
-                        :max="slot.max"
-                        :step="slot.step"
-                        :value="slot.value"
-                        @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
-                      />
-                      <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <div v-else class="live-main-crossfader">
-              <div class="live-main-crossfader__summary">
-                <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
-                <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
-              </div>
-              <Crossfader
-                :model-value="performance.crossfader"
-                @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
-                testid="performance-crossfader"
-              />
-              <div class="crossfade-deck-head live-main-crossfader__builder">
-                <span class="framesync-subtitle" style="margin:0;">Add to groups</span>
-                <select class="framesync-select" style="max-width:160px;" v-model="performance.newSlotType">
-                  <option v-for="st in crossfadeSlotTypes" :key="'live-main-slot-' + st.id" :value="st.id">{{ st.label }}</option>
-                </select>
-                <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add item</button>
-              </div>
-              <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
-              <div v-for="slot in performance.slots" :key="'live-main-crossfade-' + slot.id" class="crossfade-slot-row">
-              <div class="crossfade-side crossfade-side-a">
-                <span class="crossfade-side-label">A</span>
-                <template v-if="slot.type === 'prompt'">
-                  <input class="framesync-input" v-model="slot.valueA" placeholder="Prompt A (optional)" @input="onPerformanceInput">
-                </template>
-                <template v-else-if="slot.type === 'param'">
-                  <select class="framesync-select" v-model="slot.paramKey" @change="onPerformanceInput">
-                    <option v-for="t in modulationTargets" :key="'live-main-a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
-                  </select>
-                  <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
-                </template>
-                <template v-else-if="slot.type === 'lora'">
-                  <select class="framesync-select" v-model="slot.valueA" @change="onPerformanceInput">
-                    <option :value="null">— none —</option>
-                    <option v-for="l in loras.available" :key="'live-main-la-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
-                  </select>
-                  <input type="number" class="framesync-input" v-model.number="slot.loraStrengthA" min="0" max="2" step="0.01" placeholder="Str A" @input="onPerformanceInput">
-                </template>
-                <template v-else-if="slot.type === 'controlnet'">
-                  <select class="framesync-select" v-model="slot.cnSlotId" @change="onPerformanceInput">
-                    <option v-for="s in cn.slots" :key="'live-main-cna-'+slot.id+s.id" :value="s.id">{{ s.label }}</option>
-                  </select>
-                  <input type="number" class="framesync-input" v-model.number="slot.valueA" min="0" max="2" step="0.01" placeholder="Weight A" @input="onPerformanceInput">
-                </template>
-              </div>
-
-              <div class="crossfade-slot-meta">
-                <span class="crossfade-type-pill">{{ slotTypeLabel(slot.type) }}</span>
-                <button type="button" class="framesync-button" style="padding:2px 6px;" @click="removeCrossfadeSlot(slot.id)">✕</button>
-              </div>
-
-              <div class="crossfade-side crossfade-side-b">
-                <span class="crossfade-side-label">B</span>
-                <template v-if="slot.type === 'prompt'">
-                  <input class="framesync-input" v-model="slot.valueB" placeholder="Prompt B (optional)" @input="onPerformanceInput">
-                </template>
-                <template v-else-if="slot.type === 'param'">
-                  <input type="number" class="framesync-input" v-model.number="slot.valueB" step="any" placeholder="Value B" @input="onPerformanceInput">
-                </template>
-                <template v-else-if="slot.type === 'lora'">
-                  <select class="framesync-select" v-model="slot.valueB" @change="onPerformanceInput">
-                    <option :value="null">— none —</option>
-                    <option v-for="l in loras.available" :key="'live-main-lb-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
-                  </select>
-                  <input type="number" class="framesync-input" v-model.number="slot.loraStrengthB" min="0" max="2" step="0.01" placeholder="Str B" @input="onPerformanceInput">
-                </template>
-                <template v-else-if="slot.type === 'controlnet'">
-                  <input type="number" class="framesync-input" v-model.number="slot.valueB" min="0" max="2" step="0.01" placeholder="Weight B" @input="onPerformanceInput">
-                </template>
-              </div>
-
-              <div class="crossfade-morphed" v-if="slotMorphedPreview(slot) !== null">
-                <span class="framesync-subtitle" style="margin:0;font-size:9px;">→</span>
-                <code class="crossfade-morphed-val">{{ formatMorphedPreview(slot) }}</code>
-              </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
         <div v-if="showMotionSequencerDock" class="generate-dock-shell">
           <GlassPanel size="lg" class="generate-dock">
             <template #header>
               <div class="generate-dock__header">
                 <span>Animation Sequencer</span>
+                <span
+                  class="generate-sequencer__frame-counter"
+                  :class="{ 'generate-sequencer__frame-counter--live': sequencerJobFrameLive }"
+                  data-testid="sequencer-job-frame-counter"
+                >
+                  {{ sequencerJobFrameLabel }}
+                </span>
                 <span class="generate-sequencer__status" :class="{ 'generate-sequencer__status--live': sequencerPlaying }">
                   {{ sequencerPlaying ? 'Playing' : 'Stopped' }}
                 </span>
               </div>
             </template>
 
-            <div class="generate-sequencer__transport generate-sequencer__transport--dock">
-              <label class="generate-sequencer__field">
-                <span class="framesync-subtitle">Duration (s)</span>
-                <input type="number" class="framesync-input" v-model.number="sequencer.durationSec" min="0.5" max="600" step="0.5" @change="clampSequencerPlayhead">
-              </label>
-              <label class="generate-sequencer__field">
-                <span class="framesync-subtitle">FPS</span>
-                <input type="number" class="framesync-input" v-model.number="sequencer.fps" min="1" max="60" step="1">
-              </label>
-              <label class="generate-sequencer__toggle">
-                <span class="framesync-subtitle">Loop</span>
-                <span><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</span>
-              </label>
-              <label class="generate-sequencer__toggle">
-                <span class="framesync-subtitle">BPM Sync</span>
-                <span><input type="checkbox" v-model="sequencer.bpmSync"> Sync to audio BPM</span>
-              </label>
-            </div>
-
-            <div v-if="sequencer.bpmSync" class="generate-sequencer__transport generate-sequencer__transport--secondary">
-              <label class="generate-sequencer__field">
-                <span class="framesync-subtitle">BPM</span>
-                <input type="number" class="framesync-input" v-model.number="sequencer.bpm" min="20" max="300" step="0.1">
-              </label>
-              <label class="generate-sequencer__field">
-                <span class="framesync-subtitle">Bars</span>
-                <input type="number" class="framesync-input" v-model.number="sequencer.bars" min="1" max="128" step="1">
-              </label>
-              <label class="generate-sequencer__field">
-                <span class="framesync-subtitle">Beats/Bar</span>
-                <select class="framesync-select" v-model.number="sequencer.beatsPerBar">
-                  <option value="4">4/4</option>
-                  <option value="3">3/4</option>
-                  <option value="6">6/8</option>
-                </select>
-              </label>
-              <div class="generate-sequencer__field generate-sequencer__field--calc">
-                <span class="framesync-subtitle">Calculated</span>
-                <code>{{ sequencerCalculatedDuration }}s</code>
-              </div>
-            </div>
-
-            <div class="generate-sequencer__timeline-tools">
-              <label class="generate-sequencer__playhead">
-                <span class="framesync-subtitle">Playhead (s)</span>
-                <input type="range" class="framesync-input" min="0" :max="Math.max(0.01, sequencer.durationSec)" step="0.01" v-model.number="sequencerPlayhead" @input="previewSequencerFrame">
-              </label>
-              <div class="generate-sequencer__marker-tools">
-                <input type="text" class="framesync-input" v-model.trim="sequencerMarkerName" maxlength="48" placeholder="Label" title="1–48 chars: letters, digits, space, _ - .">
-                <button type="button" class="framesync-button" @click="addSequencerMarker">+ Marker @ playhead</button>
-              </div>
-            </div>
-
-            <Timeline
-              :duration="Number(sequencer.durationSec) || 0"
-              :playhead="sequencerPlayhead"
-              :markers="sortedSequencerMarkers"
-              :tracks="sequencer.tracks"
-              :selected-track-id="selectedSequencerTrack ? selectedSequencerTrack.id : ''"
-              :param-meta="sequencerParamMetaMap"
-              :frames="thumbs"
-              :fps="Number(sequencer.fps) || 24"
-              :compact="!generateDockExpanded"
-              :expandable="true"
-              @seek="seekSequencer"
-              @jump-marker="jumpToSequencerMarker"
-              @select-track="selectSequencerTrack"
-              @toggle-compact="generateDockExpanded = !generateDockExpanded; saveSessionState()"
-              @update-keyframe="updateSequencerKeyframe"
-            />
-
-            <div class="generate-sequencer__actions">
-              <div class="generate-sequencer__track-builder">
-                <select class="framesync-input" v-model="sequencerNewParam">
-                  <option v-for="opt in sequencerParamOptions" :key="'sp-'+opt.key" :value="opt.key">{{ opt.label }}</option>
-                </select>
-                <button type="button" class="framesync-button" @click="addSequencerTrack">+ Track</button>
-                <input type="number" class="framesync-input" v-model.number="sequencerKeyframeVal" step="any" placeholder="Keyframe value">
-                <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
-              </div>
-              <div class="generate-sequencer__transport-actions">
-                <button type="button" class="framesync-button" :class="{ 'framesync-button--live': sequencerPlaying }" @click="toggleSequencerPlayback">{{ sequencerPlaying ? 'Stop' : 'Play' }}</button>
-                <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
-                <button type="button" class="framesync-button" @click="saveSequencerTimeline">Save</button>
-                <button type="button" class="framesync-button" @click="exportSequencerDownload">Export JSON</button>
-                <button type="button" class="framesync-button framesync-button--accent" @click="applySequencerToDeforumSettings" title="Convert timeline keyframes to Deforum schedule strings and save to settings">Apply to Deforum</button>
-                <select class="framesync-input" v-model="sequencerLoadPick" @change="loadSequencerTimeline">
-                  <option value="">Load saved…</option>
-                  <option v-for="n in sequencerList" :key="'seq-'+n" :value="n">{{ n }}</option>
-                </select>
-              </div>
-            </div>
-
-            <div v-if="generateDockExpanded" class="generate-sequencer__details">
-              <div class="generate-sequencer__track-list" v-if="sequencer.tracks.length">
-                <div
-                  v-for="tr in sequencer.tracks"
-                  :key="tr.id"
-                  class="generate-track-card"
-                  :class="{ 'generate-track-card--selected': selectedSequencerTrack && selectedSequencerTrack.id === tr.id }"
-                >
-                  <div class="generate-track-card__header">
-                    <button type="button" class="generate-track-card__title" @click="selectSequencerTrack(tr.id)">{{ sequencerParamMetaMap[tr.param]?.label || tr.param }}</button>
-                    <button type="button" class="framesync-button generate-track-card__remove" @click="removeSequencerTrack(tr.id)">Remove track</button>
-                  </div>
-                  <div class="generate-track-card__keyframes" v-if="sortedKeyframes(tr).length">
-                    <div v-for="(kf, ki) in sortedKeyframes(tr)" :key="tr.id+'-'+ki+'-'+(kf.t||0)" class="generate-track-card__keyframe-row">
-                      <span class="generate-track-card__keyframe-time">{{ kf.t.toFixed(2) }}s</span>
-                      <span class="generate-track-card__keyframe-value">{{ kf.v.toFixed(3) }}</span>
-                      <select class="framesync-input generate-track-card__easing" :value="kf.easing || 'linear'" title="Easing to next keyframe" @change="setKeyframeEasing(kf, $event.target.value)">
-                        <option value="linear">linear</option>
-                        <option value="easeIn">easeIn</option>
-                        <option value="easeOut">easeOut</option>
-                        <option value="easeInOut">easeInOut</option>
-                      </select>
-                      <button type="button" class="framesync-button framesync-button--danger framesync-button--compact generate-track-card__delete" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">Remove</button>
-                    </div>
-                  </div>
-                  <div v-else class="generate-track-card__empty">No keyframes yet.</div>
-                </div>
-              </div>
-
-              <div class="generate-sequencer__markers" v-if="sortedSequencerMarkers.length">
-                <div v-for="(m, mi) in sortedSequencerMarkers" :key="'mrow-'+mi+'-'+(m.t||0)" class="generate-marker-row">
-                  <button type="button" class="framesync-button generate-marker-row__jump" @click="jumpToSequencerMarker(m)">{{ m.name }} @ {{ m.t.toFixed(2) }}s</button>
-                  <select class="framesync-input generate-marker-row__action" :value="m.action || 'jump'" @change="setMarkerAction(m, $event.target.value)">
-                    <option value="jump">Jump</option>
-                    <option value="preset">Preset</option>
-                    <option value="generate">Generate</option>
-                    <option value="morph">Morph</option>
-                    <option value="param">Params</option>
-                    <option value="pause">Pause</option>
-                  </select>
-                  <input
-                    v-if="m.action && m.action !== 'jump' && m.action !== 'generate' && m.action !== 'pause'"
-                    type="text"
-                    class="framesync-input generate-marker-row__target"
-                    :value="m.target || ''"
-                    :placeholder="markerActionPlaceholder(m.action)"
-                    @change="setMarkerTarget(m, $event.target.value)"
-                    :title="markerActionTitle(m.action)"
-                  >
-                  <span v-else class="generate-marker-row__hint">
-                    {{ m.action === 'jump' ? 'jump to time' : (m.action === 'generate' ? 'trigger generation' : (m.action === 'pause' ? 'pause playback' : '')) }}
-                  </span>
-                  <button type="button" class="framesync-button framesync-button--danger framesync-button--compact generate-marker-row__delete" title="Remove" @click="removeSequencerMarker(mi)">Remove</button>
-                </div>
-              </div>
-              <div v-else class="generate-sequencer__empty-markers">No markers yet.</div>
-
-              <div v-if="sequencerStatus" class="generate-sequencer__status-text">{{ sequencerStatus }}</div>
-            </div>
-            <div v-else class="generate-sequencer__dock-note">
-              Expand lanes for detailed keyframe editing and marker actions.
-            </div>
+            <SequencerControlsPanel :app="appViewModel" show-timeline />
           </GlassPanel>
         </div>
         <template v-else>
@@ -682,15 +338,13 @@
         >
           <div class="frame-rail__header">
             <div class="frame-rail__title-wrap">
-              <span class="frame-rail__title">Projects</span>
+              <span class="frame-rail__title">Runs</span>
               <span class="frame-rail__meta" v-if="librarySelectedRunSummary && librarySelectedFrames.length">
                 {{ librarySelectedFrameLabel }} · {{ librarySelectedFrames.length }} frames
               </span>
-              <span class="frame-rail__meta" v-else-if="librarySelectedPrefixKey">
-                {{ libraryRunsForSelectedPrefix.length }} runs in {{ librarySelectedPrefixKey }}
-              </span>
-              <span class="frame-rail__meta" v-else-if="runsLoading">Loading projects…</span>
-              <span class="frame-rail__meta" v-else>Pick a project to browse runs</span>
+              <span class="frame-rail__meta" v-else-if="runsLoading">Loading runs…</span>
+              <span class="frame-rail__meta" v-else-if="libraryRailRuns.length">{{ libraryRailRuns.length }} runs</span>
+              <span class="frame-rail__meta" v-else>No runs yet</span>
             </div>
             <div class="frame-rail__actions">
               <button
@@ -731,29 +385,14 @@
             </div>
           </div>
 
-          <div v-if="runsLoading" class="frame-rail__empty">Loading projects…</div>
-          <div v-else-if="!libraryPrefixGroups.length" class="frame-rail__empty">No projects yet. Runs will appear here after you render.</div>
+          <div v-if="runsLoading" class="frame-rail__empty">Loading runs…</div>
+          <div v-else-if="!libraryRailRuns.length" class="frame-rail__empty">No runs yet. Runs will appear here after you render.</div>
           <template v-else>
-            <div class="library-frame-rail__projects" data-testid="library-project-list">
-              <button
-                v-for="group in libraryPrefixGroups"
-                :key="'library-project-' + group.key"
-                type="button"
-                class="library-frame-rail__project"
-                :class="{ 'library-frame-rail__project--active': librarySelectedPrefixKey === group.key }"
-                @click="openLibraryPrefix(group.key)"
-              >
-                <span class="library-frame-rail__project-name">{{ group.label }}</span>
-                <span class="library-frame-rail__project-count">{{ group.runs.length }} runs</span>
-              </button>
-            </div>
-
             <div v-if="library.status" class="frame-rail__empty">{{ library.status }}</div>
             <div v-else-if="library.loading" class="frame-rail__empty">Loading frames…</div>
-            <div v-else-if="!libraryRunsForSelectedPrefix.length" class="frame-rail__empty">No runs in this project yet.</div>
             <div v-else class="library-frame-rail__runs" data-testid="library-run-thumbs">
               <button
-                v-for="run in libraryRunsForSelectedPrefix"
+                v-for="run in libraryRailRuns"
                 :key="'library-rail-run-' + run.run_id"
                 type="button"
                 class="frame-rail__item library-frame-rail__run"
@@ -872,6 +511,132 @@
       </transition>
     </div>
 
+    <div
+      class="bottom-drawer-shell"
+      :class="{ 'bottom-drawer-shell--open': liveBottomDrawerOpen }"
+      data-testid="bottom-drawer"
+    >
+      <button
+        type="button"
+        class="bottom-drawer-fab"
+        :class="{ 'bottom-drawer-fab--active': liveBottomDrawerOpen }"
+        :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
+        :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'"
+        @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
+      >
+        <UiIcon class="bottom-drawer-fab__icon" name="panel-bottom" />
+      </button>
+
+      <div class="bottom-drawer-panel" :class="{ 'bottom-drawer-panel--open': liveBottomDrawerOpen }">
+        <div class="live-bottom-drawer__tabs">
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
+            @click="setLiveBottomDrawerTab('MODULATION')"
+          >
+            MODULATION
+          </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
+            @click="setLiveBottomDrawerTab('CROSSFADER')"
+          >
+            CROSSFADER
+          </button>
+        </div>
+
+        <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
+          <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
+          <template v-else>
+            <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
+              <div class="live-mod-slot__head">
+                <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
+                <span v-if="slot.mappingLabel" class="live-mod-slot__map">
+                  <UiIcon name="arrow-left" />
+                  <span>{{ slot.mappingLabel }}</span>
+                </span>
+                <div class="live-mod-slot__actions">
+                  <button
+                    v-if="slot.paramKey"
+                    type="button"
+                    class="framesync-button framesync-button--compact"
+                    title="Remove mapping"
+                    @click="clearParamMapping(slot.paramKey)"
+                  >
+                    <UiIcon name="close" />
+                  </button>
+                  <button
+                    v-if="slot.paramKey"
+                    type="button"
+                    class="framesync-button framesync-button--compact"
+                    title="Add mapping"
+                    @click="openModulationMapping(slot.paramKey)"
+                  >
+                    <UiIcon name="sliders" />
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
+                <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
+                  <input
+                    type="range"
+                    class="framesync-input live-mod-slider__input"
+                    :min="slot.min"
+                    :max="slot.max"
+                    :step="slot.step"
+                    :value="slot.value"
+                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                  />
+                  <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
+                </div>
+              </div>
+
+              <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
+                <div
+                  class="live-mod-pad"
+                  @mousedown="livePadDown($event, slot)"
+                  @mousemove="livePadMove($event, slot)"
+                  @mouseup="livePadUp"
+                  @mouseleave="livePadUp"
+                  @touchstart.prevent="livePadDown($event, slot)"
+                  @touchmove.prevent="livePadMove($event, slot)"
+                  @touchend.prevent="livePadUp"
+                >
+                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
+                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
+                  <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
+                </div>
+                <div class="live-mod-pad__axes">
+                  <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
+                  <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
+                </div>
+              </div>
+
+              <div v-else class="live-mod-slot__body">
+                <div class="live-mod-knob">
+                  <input
+                    type="range"
+                    class="framesync-input live-mod-knob__input"
+                    :min="slot.min"
+                    :max="slot.max"
+                    :step="slot.step"
+                    :value="slot.value"
+                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                  />
+                  <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+
+        <LoraCrossfaderPanel v-else :app="appViewModel" />
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -919,9 +684,9 @@ import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
 import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
-import Timeline from './components/generate/Timeline.vue'
+import SequencerControlsPanel from './components/SequencerControlsPanel.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
-import Crossfader from './components/Crossfader.vue'
+import LoraCrossfaderPanel from './components/LoraCrossfaderPanel.vue'
 import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LibraryView from './components/views/LibraryView.vue'
@@ -934,7 +699,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, Crossfader, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, ThreeBackground, LoraCrossfaderPanel, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView },
   data() {
     return {
        showFrames: false,
@@ -1110,7 +875,7 @@ export default {
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
       ],
       currentTab: "LIVE",
-      currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
+      currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
       liveSourcePanel: 'library',
       liveSources: [],
       liveSourceStatus: '',
@@ -1183,6 +948,7 @@ export default {
         pos: "",
         neg: "",
         morphOn: true,
+        loraCrossfaderOn: false,
         crossfaderValue: 0.5,
         loraCrossfaderLfoLink: null,
         loraCrossfaderLfoBase: 0.5,
@@ -1502,8 +1268,9 @@ export default {
       beatCount: 0,
       beatPhase: 0,
       lastMacroTrigger: {},
-      sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [], bpmSync: false, bpm: 120, bars: 4, beatsPerBar: 4 },
+      sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [], clips: [], bpmSync: false, bpm: 120, bars: 4, beatsPerBar: 4 },
       sequencerPlayhead: 0,
+      jobPlaybackTimeSec: 0,
       sequencerPlaying: false,
       sequencerTimer: null,
       sequencerSaveName: "default_clip",
@@ -1513,7 +1280,9 @@ export default {
       sequencerNewParam: "translation_x",
       sequencerKeyframeVal: 0,
       sequencerMarkerName: "Scene",
+      sequencerClipDurationSec: 2,
       sequencerSelectedTrackId: null,
+      sequencerSelectedClipId: null,
       generateDockExpanded: false,
       selectedFrameIndex: -1,
       timelineHoverTime: null,
@@ -1545,7 +1314,6 @@ export default {
        runsDetailView: null,
        runsStatus: "",
        library: {
-         selectedPrefix: '',
          selectedRunId: '',
          selectedFrameName: '',
          runDetail: null,
@@ -1628,8 +1396,7 @@ export default {
       return this.selectedFrameThumb ? `Frame ${this.frameLabel(this.selectedFrameThumb)}` : 'No frames';
     },
     currentProjectLabel() {
-      const group = this.libraryPrefixGroups.find((entry) => entry.key === this.librarySelectedPrefixKey);
-      return (group && group.label) || this.session || 'Project';
+      return String(this.session || '').trim() || 'Project';
     },
     currentBatchLabel() {
       return String((this.deforumSettings && this.deforumSettings.batch_name) || '').trim() || '—';
@@ -1755,6 +1522,47 @@ export default {
       }
       return 'Local fallback';
     },
+    storyGeneratorStatusLabel() {
+      if (this.generator.isGenerating) return 'Generating';
+      if (this.generator.result) return 'Ready';
+      return 'Idle';
+    },
+    storyGeneratorStatusLive() {
+      return !!this.generator.isGenerating || !!this.generator.result;
+    },
+    storyGeneratorSceneCount() {
+      return Math.max(2, Number(this.generator.numScenes) || 4);
+    },
+    storyGeneratorFrameCount() {
+      return Number(this.deforumSettings && this.deforumSettings.max_frames)
+        || Number(this.generator.totalFrames)
+        || 96;
+    },
+    storyGeneratorFps() {
+      return Number(this.sequencer && this.sequencer.fps)
+        || Number(this.framesync && this.framesync.fps)
+        || Number(this.generator.fps)
+        || 24;
+    },
+    storyGeneratorSceneMeta() {
+      const scenes = this.storyGeneratorSceneCount;
+      const frames = this.storyGeneratorFrameCount;
+      return `~${Math.ceil(frames / scenes)} frames per scene`;
+    },
+    storyGeneratorTimelineMeta() {
+      const fps = this.storyGeneratorFps;
+      const frames = this.storyGeneratorFrameCount;
+      return `${(frames / fps).toFixed(1)}s timeline`;
+    },
+    storyGeneratorResolutionLabel() {
+      const w = Number(this.deforumSettings && this.deforumSettings.W)
+        || Number((this.generator.resolution || '1024x576').split('x')[0])
+        || 1024;
+      const h = Number(this.deforumSettings && this.deforumSettings.H)
+        || Number((this.generator.resolution || '1024x576').split('x')[1])
+        || 576;
+      return `${w}×${h}`;
+    },
     promptMorphBlendLinkedLfo() {
       const id = Number(this.prompts.morphBlendLfoLink || 0);
       if (!id) return null;
@@ -1807,22 +1615,28 @@ export default {
         .map((family) => ({ ...family, items: family.items.filter(Boolean) }))
         .filter((family) => family.items.length);
     },
-    loraCrossfaderEnabled() {
+    loraCrossfaderReady() {
       return this.loras.groupA.length > 0 && this.loras.groupB.length > 0;
     },
+    loraCrossfaderBlending() {
+      return !!this.prompts.loraCrossfaderOn && this.loraCrossfaderReady;
+    },
     loraCrossfaderStatusLabel() {
-      return this.loraCrossfaderEnabled ? 'Enabled' : 'Disabled';
+      return this.prompts.loraCrossfaderOn ? 'Enabled' : 'Disabled';
     },
     loraCrossfaderSummary() {
       const aCount = this.loras.groupA.length;
       const bCount = this.loras.groupB.length;
       const aMix = ((1 - this.prompts.crossfaderValue) * 100).toFixed(0);
       const bMix = (this.prompts.crossfaderValue * 100).toFixed(0);
-      if (!aCount && !bCount) {
-        return 'Assign LoRAs to both A and B in the LoRA tab to enable crossfading.';
+      if (!this.prompts.loraCrossfaderOn) {
+        return 'Crossfader is off. Click Enabled to blend A/B LoRA groups.';
       }
-      if (!this.loraCrossfaderEnabled) {
-        return `Crossfader needs both groups. Current assignment: A ${aCount}, B ${bCount}.`;
+      if (!aCount && !bCount) {
+        return 'Assign LoRAs to A and B groups to crossfade.';
+      }
+      if (!this.loraCrossfaderReady) {
+        return `Needs LoRAs in both groups. Current assignment: A ${aCount}, B ${bCount}.`;
       }
       return `A ${aCount} · B ${bCount} · mix ${aMix}% / ${bMix}%`;
     },
@@ -2093,35 +1907,16 @@ export default {
         })
         .slice(0, 4);
     },
-    libraryPrefixGroups() {
-      const groups = new Map();
-      [...this.runsAll]
-        .sort((a, b) => {
-          const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
-          const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
-          return bTime - aTime;
-        })
-        .forEach((run) => {
-          const key = this.runPrefixKey(run);
-          if (!groups.has(key)) {
-            groups.set(key, { key, label: this.runPrefixLabel(run), runs: [] });
-          }
-          groups.get(key).runs.push(run);
-        });
-      return [...groups.values()];
-    },
-    librarySelectedPrefixKey() {
-      return this.libraryPrefixGroups.some((group) => group.key === this.library.selectedPrefix)
-        ? this.library.selectedPrefix
-        : (this.libraryPrefixGroups[0] && this.libraryPrefixGroups[0].key) || '';
-    },
-    libraryRunsForSelectedPrefix() {
-      const group = this.libraryPrefixGroups.find((entry) => entry.key === this.librarySelectedPrefixKey);
-      return group ? group.runs : [];
+    libraryRailRuns() {
+      return [...this.runsAll].sort((a, b) => {
+        const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
+        const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
+        return bTime - aTime;
+      });
     },
     librarySelectedRunSummary() {
-      return this.libraryRunsForSelectedPrefix.find((run) => run.run_id === this.library.selectedRunId)
-        || this.libraryRunsForSelectedPrefix[0]
+      return this.libraryRailRuns.find((run) => run.run_id === this.library.selectedRunId)
+        || this.libraryRailRuns[0]
         || null;
     },
     librarySelectedRunDetail() {
@@ -2261,6 +2056,62 @@ export default {
     sortedSequencerMarkers() {
       const raw = (this.sequencer && this.sequencer.markers) || [];
       return [...raw].sort((a, b) => a.t - b.t);
+    },
+    sortedSequencerClips() {
+      const raw = (this.sequencer && this.sequencer.clips) || [];
+      return [...raw].sort((a, b) => a.t - b.t);
+    },
+    sequencerClipSummary() {
+      const clips = this.sortedSequencerClips;
+      const count = (type) => clips.filter((c) => c.type === type).length;
+      return { prompt: count('prompt'), lora: count('lora'), controlnet: count('controlnet') };
+    },
+    sequencerJobFps() {
+      return Math.max(
+        1,
+        Number(this.deforumSettings && this.deforumSettings.fps)
+          || Number(this.sequencer && this.sequencer.fps)
+          || Number(this.framesync && this.framesync.fps)
+          || 24,
+      );
+    },
+    sequencerJobTotalFrames() {
+      const fromDeforum = Number(this.deforumSettings && this.deforumSettings.max_frames);
+      if (Number.isFinite(fromDeforum) && fromDeforum > 0) {
+        return Math.floor(fromDeforum);
+      }
+      const fps = this.sequencerJobFps;
+      const dur = Number(this.sequencer && this.sequencer.durationSec) || 0;
+      return Math.max(1, Math.ceil(dur * fps));
+    },
+    sequencerJobTimeSec() {
+      if (this.sequencerPlaying) {
+        return Number(this.sequencerPlayhead) || 0;
+      }
+      if (this.deforumPlaying && this.showMotionSequencerDock) {
+        return Number(this.jobPlaybackTimeSec) || 0;
+      }
+      return Number(this.sequencerPlayhead) || 0;
+    },
+    sequencerJobFrameIndex() {
+      const fps = this.sequencerJobFps;
+      const total = this.sequencerJobTotalFrames;
+      const idx = Math.floor((Number(this.sequencerJobTimeSec) || 0) * fps + 1e-6);
+      return Math.min(total - 1, Math.max(0, idx));
+    },
+    sequencerJobFrameNumber() {
+      return this.sequencerJobFrameIndex + 1;
+    },
+    sequencerJobFrameLabel() {
+      return `Frame ${this.sequencerJobFrameNumber} / ${this.sequencerJobTotalFrames}`;
+    },
+    sequencerJobFrameProgressPct() {
+      const total = this.sequencerJobTotalFrames;
+      if (total <= 1) return 0;
+      return (this.sequencerJobFrameIndex / (total - 1)) * 100;
+    },
+    sequencerJobFrameLive() {
+      return !!this.sequencerPlaying || !!this.deforumPlaying;
     },
     sequencerCalculatedDuration() {
       if (!this.sequencer.bpmSync) return "—";
@@ -2557,41 +2408,15 @@ export default {
       setTimeout(() => { if (this.performance.status && this.performance.status.startsWith('Service health refreshed')) this.performance.status = ''; }, 2500);
     }
   },
-  runPrefixSource(run) {
-    return String(
-      (run && (run.batch_name
-        || (run.metadata && run.metadata.batch_name)
-        || (run.metadata && run.metadata.deforum && run.metadata.deforum.batch_name)
-        || run.run_id))
-      || 'ungrouped'
-    ).trim();
-  },
-  runPrefixKey(run) {
-    const raw = this.runPrefixSource(run)
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .toLowerCase();
-    const slug = raw
-      .replace(/[^a-z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '');
-    return slug || 'ungrouped';
-  },
-  runPrefixLabel(run) {
-    return this.runPrefixSource(run);
-  },
   syncLibrarySelection() {
-    if (!this.libraryPrefixGroups.length) {
-      this.library.selectedPrefix = '';
+    if (!this.libraryRailRuns.length) {
       this.library.selectedRunId = '';
       this.library.selectedFrameName = '';
       this.library.runDetail = null;
       return;
     }
-    if (!this.libraryPrefixGroups.some((group) => group.key === this.library.selectedPrefix)) {
-      this.library.selectedPrefix = this.libraryPrefixGroups[0].key;
-    }
-    if (!this.libraryRunsForSelectedPrefix.some((run) => run.run_id === this.library.selectedRunId)) {
-      this.library.selectedRunId = (this.libraryRunsForSelectedPrefix[0] && this.libraryRunsForSelectedPrefix[0].run_id) || '';
+    if (!this.libraryRailRuns.some((run) => run.run_id === this.library.selectedRunId)) {
+      this.library.selectedRunId = (this.libraryRailRuns[0] && this.libraryRailRuns[0].run_id) || '';
       this.library.selectedFrameName = '';
       this.library.runDetail = null;
     }
@@ -2685,16 +2510,8 @@ export default {
     this.openRunsSettings();
     this.showRunDetails(run);
   },
-  async openLibraryPrefix(prefixKey) {
-    this.library.selectedPrefix = prefixKey;
-    this.library.selectedRunId = '';
-    this.library.selectedFrameName = '';
-    this.library.runDetail = null;
-    await this.ensureLibraryRunDetail();
-  },
   async openLibraryRun(run) {
     if (!run || !run.run_id || typeof fetch !== 'function') return;
-    this.library.selectedPrefix = this.runPrefixKey(run);
     this.library.selectedRunId = run.run_id;
     this.library.selectedFrameName = '';
     this.library.loading = true;
@@ -2951,10 +2768,7 @@ export default {
   if (tab === 'PROMPTS' && sub !== 'LORA') {
     this.loraPickerOpen = false;
   }
-  if (tab === 'PROMPTS' && sub !== 'CROSSFADER') {
-    this.loraCrossfaderPickerGroup = null;
-  }
-  if (tab === 'PROMPTS' && (sub === 'LORA' || sub === 'CROSSFADER') && !this.lorasLoading && !this.loras.available.length) {
+  if (tab === 'PROMPTS' && sub === 'LORA' && !this.lorasLoading && !this.loras.available.length) {
     this.refreshLoras();
   }
   if (tab === 'LIVE' && sub === 'ADD_SOURCE') {
@@ -2964,6 +2778,16 @@ export default {
   if (tab === 'LIVE' && this.videoLayerAddOpen && !this.systemFiles.roots.length) {
     void this.initSystemFilesBrowser();
   }
+ },
+ setLiveBottomDrawerTab(tab) {
+  if (tab !== 'MODULATION' && tab !== 'CROSSFADER') return;
+  this.liveBottomDrawerTab = tab;
+  if (tab !== 'CROSSFADER') {
+    this.loraCrossfaderPickerGroup = null;
+  } else if (!this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
+  this.saveSessionState();
  },
  toggleLoraCrossfaderPicker(group) {
   if (group !== 'A' && group !== 'B') return;
@@ -3643,6 +3467,7 @@ detachPlayerListeners(video = this.playerEl) {
      if (!isNaN(video.currentTime)) {
       const t = video.currentTime;
       this.timecode = this.formatPlaybackTime(t);
+      this.jobPlaybackTimeSec = t;
       this.syncFrameSelectionFromPlayback(t);
      }
     if (video.readyState >= 2) this.markVideoReady(true);
@@ -3794,7 +3619,10 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
     const cnUpdates = {};
     this.lfos.forEach((lfo) => {
       const drivesMorphBlend = Number(this.prompts.morphBlendLfoLink || 0) === lfo.id && lfo.id >= 1 && lfo.id <= 4;
-      const drivesLoraCrossfader = Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id && lfo.id >= 1 && lfo.id <= 6;
+      const drivesLoraCrossfader = this.prompts.loraCrossfaderOn
+        && Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id
+        && lfo.id >= 1
+        && lfo.id <= 6;
       if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader)) return;
       const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
       const inc = dtSec * this.lfoRateRadPerSec(lfo);
@@ -4282,6 +4110,7 @@ toggleCollaboration() {
        pos: this.prompts.pos,
        neg: this.prompts.neg,
        morphOn: this.prompts.morphOn,
+       loraCrossfaderOn: this.prompts.loraCrossfaderOn,
        crossfaderValue: this.prompts.crossfaderValue,
        loraCrossfaderLfoLink: this.prompts.loraCrossfaderLfoLink,
        loraCrossfaderLfoBase: this.prompts.loraCrossfaderLfoBase,
@@ -5155,12 +4984,26 @@ setPromptMorphBlendLfoLink(lfoId) {
     if (linked) linked.on = true;
   }
 },
+setLoraCrossfaderOn(on) {
+  this.prompts.loraCrossfaderOn = !!on;
+  this.sendControl("prompts", { loraCrossfaderOn: this.prompts.loraCrossfaderOn });
+  if (this.loras.groupA.length || this.loras.groupB.length) {
+    this.applyLoras();
+  }
+  this.saveSessionState();
+},
 applyLoraCrossfader(value, { commitBase = false, fromModulation = false } = {}) {
   const next = this.clampVal(Number(value) || 0, 0, 1);
   this.prompts.crossfaderValue = next;
   this.performance.crossfader = next;
   if (commitBase || !fromModulation) {
     this.prompts.loraCrossfaderLfoBase = next;
+  }
+  if (!this.prompts.loraCrossfaderOn) {
+    if (!fromModulation) {
+      this.saveSessionState();
+    }
+    return;
   }
   if (this.performance.slots.length) {
     this.applyCrossfadeMorph();
@@ -5865,6 +5708,7 @@ audioBandWindowStyle(mapping) {
        pos: this.prompts.pos,
        neg: this.prompts.neg,
        morphOn: this.prompts.morphOn,
+       loraCrossfaderOn: this.prompts.loraCrossfaderOn,
        crossfaderValue: this.prompts.crossfaderValue,
        loraCrossfaderLfoLink: this.prompts.loraCrossfaderLfoLink,
        loraCrossfaderLfoBase: this.prompts.loraCrossfaderLfoBase,
@@ -6503,12 +6347,215 @@ onAudioUpload(evt) {
      fps: Number(this.sequencer.fps),
      loop: !!this.sequencer.loop,
      markers,
+     clips: this.normalizeSequencerClipsForSave(this.sequencer.clips),
      tracks: this.sequencer.tracks.map((tr) => ({
        id: tr.id,
        param: tr.param,
        keyframes: [...tr.keyframes].sort((a, b) => a.t - b.t),
      })),
    };
+ },
+ normalizeSequencerClipsForSave(clips) {
+   const allowed = new Set(['prompt', 'lora', 'controlnet']);
+   const d = Number(this.sequencer.durationSec) || 0;
+   if (!Array.isArray(clips)) return [];
+   return clips
+     .filter((c) => c && allowed.has(c.type) && Number.isFinite(Number(c.t)))
+     .map((c) => {
+       const t = Math.min(Math.max(0, Number(c.t)), d);
+       let endT = c.endT == null || c.endT === '' ? null : Number(c.endT);
+       if (endT != null && Number.isFinite(endT)) {
+         endT = Math.min(Math.max(t, endT), d);
+       } else {
+         endT = null;
+       }
+       return {
+         id: String(c.id || `clip-${Date.now()}`),
+         type: c.type,
+         t,
+         endT,
+         label: String(c.label || c.type).slice(0, 48),
+         payload: c.payload && typeof c.payload === 'object' ? c.payload : {},
+       };
+     })
+     .sort((a, b) => a.t - b.t);
+ },
+ clampSequencerClips() {
+   const d = Number(this.sequencer.durationSec) || 0;
+   const arr = this.sequencer.clips;
+   if (!Array.isArray(arr)) return;
+   for (const c of arr) {
+     if (!c || typeof c.t !== 'number') continue;
+     if (c.t < 0) c.t = 0;
+     if (c.t > d) c.t = d;
+     if (c.endT != null && typeof c.endT === 'number') {
+       if (c.endT < c.t) c.endT = c.t;
+       if (c.endT > d) c.endT = d;
+     }
+   }
+ },
+ snapshotSequencerPromptPayload() {
+   return {
+     pos: String(this.prompts.pos || ''),
+     neg: String(this.prompts.neg || ''),
+   };
+ },
+ snapshotSequencerLoraPayload() {
+   const pick = (list) => (list || []).map((l) => ({
+     id: l.id,
+     name: l.name,
+     path: l.path,
+     strength: Number(l.strength) || 0,
+   }));
+   return {
+     common: pick(this.loras.common),
+     groupA: pick(this.loras.groupA),
+     groupB: pick(this.loras.groupB),
+     crossfaderValue: Number(this.prompts.crossfaderValue) || 0,
+     loraCrossfaderOn: !!this.prompts.loraCrossfaderOn,
+   };
+ },
+ snapshotSequencerControlNetPayload() {
+   return {
+     slots: (this.cn.slots || []).map((s) => ({
+       id: s.id,
+       model: s.model,
+       weight: Number(s.weight) || 0,
+       start: Number(s.start) || 0,
+       end: Number(s.end) ?? 1,
+       enabled: !!s.enabled,
+     })),
+   };
+ },
+ addSequencerClip(type) {
+   const allowed = new Set(['prompt', 'lora', 'controlnet']);
+   if (!allowed.has(type)) return;
+   this.clampSequencerPlayhead();
+   const d = Number(this.sequencer.durationSec) || 0;
+   if (!Array.isArray(this.sequencer.clips)) this.sequencer.clips = [];
+   if (this.sequencer.clips.length >= 96) {
+     this.sequencerStatus = 'Maximum 96 timeline clips';
+     return;
+   }
+   const t = Math.min(Math.max(0, this.sequencerPlayhead), d);
+   const span = Math.max(0.1, Number(this.sequencerClipDurationSec) || 2);
+   const endT = Math.min(d, t + span);
+   const count = this.sequencer.clips.filter((c) => c.type === type).length + 1;
+   const labels = { prompt: 'Prompt', lora: 'LoRA', controlnet: 'ControlNet' };
+   let payload = {};
+   if (type === 'prompt') payload = this.snapshotSequencerPromptPayload();
+   else if (type === 'lora') payload = this.snapshotSequencerLoraPayload();
+   else payload = this.snapshotSequencerControlNetPayload();
+   const id = `clip-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+   const clip = {
+     id,
+     type,
+     t,
+     endT: endT > t ? endT : null,
+     label: `${labels[type]} ${count}`,
+     payload,
+   };
+   this.sequencer.clips.push(clip);
+   this.sequencerSelectedClipId = id;
+   this.sequencerStatus = `Added ${clip.label} at ${t.toFixed(2)}s`;
+   this.applySequencerClip(clip);
+ },
+ removeSequencerClip(clipId) {
+   if (!Array.isArray(this.sequencer.clips)) return;
+   const ix = this.sequencer.clips.findIndex((c) => c.id === clipId);
+   if (ix < 0) return;
+   this.sequencer.clips.splice(ix, 1);
+   if (this.sequencerSelectedClipId === clipId) this.sequencerSelectedClipId = null;
+ },
+ jumpToSequencerClip(clip) {
+   if (!clip || typeof clip.t !== 'number') return;
+   const d = Number(this.sequencer.durationSec) || 0;
+   this.sequencerPlayhead = Math.min(Math.max(0, clip.t), d);
+   this.sequencerSelectedClipId = clip.id;
+   this.previewSequencerFrame();
+ },
+ selectSequencerClip(clipId) {
+   this.sequencerSelectedClipId = clipId;
+ },
+ activeSequencerClipAt(tSec, type) {
+   const t = Number(tSec) || 0;
+   const matches = (this.sequencer.clips || [])
+     .filter((c) => c && c.type === type && Number.isFinite(Number(c.t)) && t >= Number(c.t))
+     .filter((c) => c.endT == null || t < Number(c.endT));
+   if (!matches.length) return null;
+   return matches.reduce((best, c) => (Number(c.t) >= Number(best.t) ? c : best), matches[0]);
+ },
+ applySequencerClip(clip) {
+   if (!clip || !clip.payload) return;
+   if (clip.type === 'prompt') {
+     if (clip.payload.pos != null) this.prompts.pos = String(clip.payload.pos);
+     if (clip.payload.neg != null) this.prompts.neg = String(clip.payload.neg);
+     this.sendPrompts();
+     return;
+   }
+   if (clip.type === 'lora') {
+     const restore = (entries, groupKey) => {
+       this.loras[groupKey] = (entries || []).map((e) => ({
+         id: e.id || e.path,
+         name: e.name || e.path,
+         path: e.path,
+         strength: Number(e.strength) || 1,
+       }));
+     };
+     restore(clip.payload.common, 'common');
+     restore(clip.payload.groupA, 'groupA');
+     restore(clip.payload.groupB, 'groupB');
+     if (clip.payload.crossfaderValue != null) {
+       this.prompts.crossfaderValue = Number(clip.payload.crossfaderValue) || 0;
+     }
+     if (clip.payload.loraCrossfaderOn != null) {
+       this.prompts.loraCrossfaderOn = !!clip.payload.loraCrossfaderOn;
+     }
+     this.applyLoras();
+     return;
+   }
+   if (clip.type === 'controlnet' && Array.isArray(clip.payload.slots)) {
+     for (const snap of clip.payload.slots) {
+       const slot = this.cn.slots.find((s) => s.id === snap.id);
+       if (!slot) continue;
+       if (snap.model != null) slot.model = snap.model;
+       if (snap.weight != null) slot.weight = snap.weight;
+       if (snap.start != null) slot.start = snap.start;
+       if (snap.end != null) slot.end = snap.end;
+       if (snap.enabled != null) slot.enabled = snap.enabled;
+       this.updateControlNet(slot);
+     }
+   }
+ },
+ applySequencerClipsAt(tSec) {
+   for (const type of ['prompt', 'lora', 'controlnet']) {
+     const clip = this.activeSequencerClipAt(tSec, type);
+     if (clip) this.applySequencerClip(clip);
+   }
+ },
+ clipTypeLabel(type) {
+   if (type === 'prompt') return 'Prompt';
+   if (type === 'lora') return 'LoRA';
+   if (type === 'controlnet') return 'ControlNet';
+   return type;
+ },
+ clipSummaryText(clip) {
+   if (!clip) return '';
+   if (clip.type === 'prompt') {
+     const text = String(clip.payload?.pos || '').trim();
+     return text.length > 48 ? `${text.slice(0, 48)}…` : text || 'Empty prompt';
+   }
+   if (clip.type === 'lora') {
+     const n = (clip.payload?.common?.length || 0)
+       + (clip.payload?.groupA?.length || 0)
+       + (clip.payload?.groupB?.length || 0);
+     return `${n} LoRA${n === 1 ? '' : 's'}`;
+   }
+   if (clip.type === 'controlnet') {
+     const enabled = (clip.payload?.slots || []).filter((s) => s.enabled).length;
+     return `${enabled} slot${enabled === 1 ? '' : 's'} on`;
+   }
+   return '';
  },
  clampSequencerMarkers() {
    const d = Number(this.sequencer.durationSec) || 0;
@@ -6519,6 +6566,7 @@ onAudioUpload(evt) {
      if (m.t < 0) m.t = 0;
      if (m.t > d) m.t = d;
    }
+   this.clampSequencerClips();
  },
  clampSequencerPlayhead() {
    const d = Number(this.sequencer.durationSec) || 0;
@@ -6632,9 +6680,11 @@ onAudioUpload(evt) {
    }
    if (Object.keys(payload).length) this.sendControl("liveParam", payload);
    Object.values(cnUpdates).forEach(slot => this.updateControlNet(slot));
+   this.applySequencerClipsAt(tSec);
  },
  previewSequencerFrame() {
    this.clampSequencerPlayhead();
+   this.jobPlaybackTimeSec = Number(this.sequencerPlayhead) || 0;
    if (!this.ws || this.ws.readyState !== 1) return;
    this.applySequencerAt(this.sequencerPlayhead);
  },
@@ -6826,6 +6876,8 @@ onAudioUpload(evt) {
            keyframes: Array.isArray(tr.keyframes) ? tr.keyframes.slice() : [],
          }))
        : [];
+     this.sequencer.clips = this.normalizeSequencerClipsForSave(tl.clips || []);
+     this.sequencerSelectedClipId = this.sequencer.clips[0] ? this.sequencer.clips[0].id : null;
      this.sequencerSaveName = name;
      this.sequencerSelectedTrackId = this.sequencer.tracks[0] ? this.sequencer.tracks[0].id : null;
      this.clampSequencerPlayhead();
@@ -6883,8 +6935,20 @@ async applySequencerToDeforumSettings() {
 selectSequencerTrack(trackId) {
   this.sequencerSelectedTrackId = trackId;
 },
-seekSequencer(t) {
+ sequencerTimeFromJobFrame(frameNumber) {
+   const fps = this.sequencerJobFps;
+   const total = this.sequencerJobTotalFrames;
+   const frame = Math.min(total, Math.max(1, Math.floor(Number(frameNumber) || 1)));
+   return (frame - 1) / fps;
+ },
+ seekSequencerToJobFrame(frameNumber) {
+   const dur = Number(this.sequencer.durationSec) || 0;
+   const t = Math.min(dur, Math.max(0, this.sequencerTimeFromJobFrame(frameNumber)));
+   this.seekSequencer(t);
+ },
+ seekSequencer(t) {
   this.sequencerPlayhead = Math.min(Math.max(0, Number(t) || 0), Math.max(0.01, Number(this.sequencer.durationSec) || 0.01));
+  this.jobPlaybackTimeSec = this.sequencerPlayhead;
   this.previewSequencerFrame();
 },
 updateSequencerKeyframe({ trackId, keyframe, t, v }) {
@@ -7258,24 +7322,28 @@ updateGroupedLoraStrength(group, lora, value) {
   }
 },
  updateCrossfader() {
-   // Send crossfader value and update LoRA strengths
+   const blend = this.loraCrossfaderBlending;
+   const t = this.prompts.crossfaderValue;
    this.sendControl("crossfader", {
-     value: this.prompts.crossfaderValue,
+     value: t,
+     loraCrossfaderOn: this.prompts.loraCrossfaderOn,
     common: this.loras.common.map((l) => ({
       ...l,
       effectiveStrength: l.strength,
     })),
      groupA: this.loras.groupA.map((l) => ({
        ...l,
-       effectiveStrength: l.strength * (1 - this.prompts.crossfaderValue),
+       effectiveStrength: blend ? l.strength * (1 - t) : l.strength,
      })),
      groupB: this.loras.groupB.map((l) => ({
        ...l,
-       effectiveStrength: l.strength * this.prompts.crossfaderValue,
+       effectiveStrength: blend ? l.strength * t : l.strength,
      })),
    });
  },
  applyLoras() {
+   const blend = this.loraCrossfaderBlending;
+   const t = this.prompts.crossfaderValue;
    const payload = {
     common: this.loras.common.map((l) => ({
       name: l.name,
@@ -7285,14 +7353,15 @@ updateGroupedLoraStrength(group, lora, value) {
      groupA: this.loras.groupA.map((l) => ({
        name: l.name,
        path: l.path,
-       strength: l.strength * (1 - this.prompts.crossfaderValue),
+       strength: blend ? l.strength * (1 - t) : l.strength,
      })),
      groupB: this.loras.groupB.map((l) => ({
        name: l.name,
        path: l.path,
-       strength: l.strength * this.prompts.crossfaderValue,
+       strength: blend ? l.strength * t : l.strength,
      })),
-     crossfaderValue: this.prompts.crossfaderValue,
+     crossfaderValue: t,
+     loraCrossfaderOn: this.prompts.loraCrossfaderOn,
    };
    this.sendControl("loras", payload);
    console.log("Applied LoRAs with crossfader", payload);

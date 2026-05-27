@@ -5,7 +5,6 @@
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='IMAGE'}" @click="switchSubTab('PROMPTS','IMAGE')">IMAGE</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='LORA'}" @click="switchSubTab('PROMPTS','LORA')">LORA</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CONTROLNET'}" @click="switchSubTab('PROMPTS','CONTROLNET')">CONTROLNET</button>
-      <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CROSSFADER'}" @click="switchSubTab('PROMPTS','CROSSFADER')">CROSSFADER</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='STORY'}" @click="switchSubTab('PROMPTS','STORY')">STORY</button>
     </div>
     <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
@@ -41,6 +40,49 @@
           </div>
 
           <div v-else-if="!morphCollapsed">
+            <div class="morph-crossfader-panel">
+              <div class="framesync-header">
+                <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
+                <div class="prompt-toolbar morph-crossfader-links">
+                  <button
+                    class="framesync-button"
+                    :class="{ active: !promptMorphBlendLinkedLfo }"
+                    @click="setPromptMorphBlendLfoLink(null)"
+                  >
+                    Manual
+                  </button>
+                  <button
+                    v-for="lfo in lfos.slice(0, 4)"
+                    :key="'morph-lfo-link-' + lfo.id"
+                    class="framesync-button"
+                    :class="{ active: prompts.morphBlendLfoLink === lfo.id }"
+                    @click="setPromptMorphBlendLfoLink(lfo.id)"
+                  >
+                    {{ 'LFO ' + lfo.id }}
+                  </button>
+                </div>
+              </div>
+              <div class="morph-blend-bar" style="margin-top:14px;">
+                <div class="framesync-subtitle">Prompt morph blend</div>
+                <div class="framesync-gradient-bar"></div>
+                <input
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.01"
+                  :value="prompts.morphBlend"
+                  class="framesync-input"
+                  data-testid="prompt-morph-blend"
+                  :disabled="!prompts.morphOn"
+                  @input="applyPromptMorphBlend($event.target.value, { commitBase: true })"
+                />
+                <div class="morph-blend-labels">
+                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+                </div>
+              </div>
+              <div class="framesync-subtitle morph-crossfader-status">{{ promptMorphBlendLinkStatus }}</div>
+            </div>
             <div v-if="prompts.morphOn" class="morph-slot-weights" style="margin-top:12px;">
               <div
                 v-for="slot in morphSlots"
@@ -111,49 +153,6 @@
                 </div>
                 <code class="morph-slot-preview">{{ morphSlotPreview(slot) }}</code>
               </div>
-            </div>
-            <div class="morph-crossfader-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
-                <div class="prompt-toolbar morph-crossfader-links">
-                  <button
-                    class="framesync-button"
-                    :class="{ active: !promptMorphBlendLinkedLfo }"
-                    @click="setPromptMorphBlendLfoLink(null)"
-                  >
-                    Manual
-                  </button>
-                  <button
-                    v-for="lfo in lfos.slice(0, 4)"
-                    :key="'morph-lfo-link-' + lfo.id"
-                    class="framesync-button"
-                    :class="{ active: prompts.morphBlendLfoLink === lfo.id }"
-                    @click="setPromptMorphBlendLfoLink(lfo.id)"
-                  >
-                    {{ 'LFO ' + lfo.id }}
-                  </button>
-                </div>
-              </div>
-              <div class="morph-blend-bar" style="margin-top:14px;">
-                <div class="framesync-subtitle">Prompt morph blend</div>
-                <div class="framesync-gradient-bar"></div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  :value="prompts.morphBlend"
-                  class="framesync-input"
-                  data-testid="prompt-morph-blend"
-                  :disabled="!prompts.morphOn"
-                  @input="applyPromptMorphBlend($event.target.value, { commitBase: true })"
-                />
-                <div class="morph-blend-labels">
-                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
-                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
-                </div>
-              </div>
-              <div class="framesync-subtitle morph-crossfader-status">{{ promptMorphBlendLinkStatus }}</div>
             </div>
           </div>
         </div>
@@ -273,223 +272,132 @@
 
     <div v-else-if="currentSubTab.PROMPTS==='STORY'">
       <div class="rack generate-story">
-        <div class="framesync-panel generate-story__panel">
+        <div class="framesync-panel">
           <div class="framesync-header">
             <div class="framesync-title">Story <span class="framesync-accent">Generator</span></div>
-            <button class="framesync-button generate-story__hero-action" :disabled="generator.isGenerating" @click="generateStory">
+            <span
+              class="generate-sequencer__status"
+              :class="{ 'generate-sequencer__status--live': storyGeneratorStatusLive }"
+            >
+              {{ storyGeneratorStatusLabel }}
+            </span>
+          </div>
+
+          <p class="generate-sequencer__live-hint">
+            Builds scene prompts and motion keyframes from your theme. Configure
+            <button type="button" class="generate-sequencer__live-link" @click="switchTab('SETTINGS'); switchSubTab('SETTINGS', 'GPUS')">Ollama nodes</button>
+            in Settings → GPUs for LLM-backed plans, or use the local fallback engine.
+          </p>
+
+          <div class="generate-sequencer__hero-grid">
+            <div class="generate-sequencer__hero-card">
+              <div class="framesync-subtitle">Scenes</div>
+              <div class="generate-sequencer__hero-value">{{ storyGeneratorSceneCount }}</div>
+              <div class="generate-sequencer__hero-meta">{{ storyGeneratorSceneMeta }}</div>
+            </div>
+            <div class="generate-sequencer__hero-card">
+              <div class="framesync-subtitle">Frames</div>
+              <div class="generate-sequencer__hero-value">{{ storyGeneratorFrameCount }}</div>
+              <div class="generate-sequencer__hero-meta">{{ storyGeneratorTimelineMeta }}</div>
+            </div>
+            <div class="generate-sequencer__hero-card">
+              <div class="framesync-subtitle">Resolution</div>
+              <div class="generate-sequencer__hero-value generate-sequencer__hero-value--compact">{{ storyGeneratorResolutionLabel }}</div>
+              <div class="generate-sequencer__hero-meta">From Deforum timeline settings</div>
+            </div>
+            <div class="generate-sequencer__hero-card">
+              <div class="framesync-subtitle">Engine</div>
+              <div class="generate-sequencer__hero-value generate-sequencer__hero-value--status generate-sequencer__hero-value--compact">{{ storyGeneratorSourceLabel }}</div>
+              <div class="generate-sequencer__hero-meta">{{ availableOllamaNodes.length ? `${availableOllamaNodes.length} Ollama node(s) ready` : 'Local template fallback' }}</div>
+            </div>
+          </div>
+
+          <div class="generate-story__config">
+            <label class="framesync-stack generate-story__theme-field">
+              <div class="framesync-subtitle">Theme / story concept</div>
+              <input
+                class="framesync-input generate-story__theme-input"
+                v-model="generator.theme"
+                placeholder="e.g. A Space Traveler, Ancient Forest, Cyberpunk City…"
+              >
+            </label>
+
+            <div class="img2img-controls-grid generate-story__controls-grid">
+              <div class="img2img-control-card img2img-control-card--primary">
+                <div class="framesync-subtitle">Style preset</div>
+                <select class="framesync-select img2img-control-card__input" v-model="generator.stylePreset">
+                  <option value="Masterpiece, Realistic">Masterpiece Realistic</option>
+                  <option value="Masterpiece, Cinematic">Cinematic</option>
+                  <option value="Masterpiece, best quality, anime">Anime</option>
+                  <option value="oil painting, impressionism">Oil Painting</option>
+                  <option value="digital art, concept art, surrealistic">Surrealist</option>
+                  <option value="watercolor, illustration">Watercolor</option>
+                  <option value="custom">Custom…</option>
+                </select>
+              </div>
+              <div v-if="generator.stylePreset === 'custom'" class="img2img-control-card">
+                <div class="framesync-subtitle">Custom style</div>
+                <input class="framesync-input img2img-control-card__input" v-model="generator.customStyle" placeholder="Your style keywords">
+              </div>
+              <div class="img2img-control-card">
+                <div class="framesync-subtitle">Scene count</div>
+                <div class="img2img-control-card__value">{{ storyGeneratorSceneCount }}</div>
+                <input
+                  type="range"
+                  min="2"
+                  max="12"
+                  step="1"
+                  :value="generator.numScenes"
+                  class="framesync-input img2img-control-card__slider"
+                  @input="generator.numScenes = parseInt($event.target.value, 10)"
+                >
+              </div>
+              <div class="img2img-control-card">
+                <div class="framesync-subtitle">FPS</div>
+                <input type="number" class="framesync-input img2img-control-card__input" v-model.number="generator.fps" min="1" max="60" step="1">
+              </div>
+              <div class="img2img-control-card">
+                <div class="framesync-subtitle">Total frames</div>
+                <input type="number" class="framesync-input img2img-control-card__input" v-model.number="generator.totalFrames" min="24" max="9999" step="1">
+              </div>
+            </div>
+          </div>
+
+          <div class="prompt-toolbar generate-story__actions">
+            <button
+              type="button"
+              class="framesync-button framesync-button--live"
+              :disabled="generator.isGenerating"
+              @click="generateStory"
+            >
               {{ generator.isGenerating ? 'Generating…' : 'Generate Story' }}
             </button>
+            <button type="button" class="framesync-button" :disabled="generator.isGenerating" @click="generateImage">Generate Image</button>
           </div>
-          <div class="framesync-stack generate-story__field">
-            <div class="framesync-subtitle">Theme / Story concept</div>
-            <input class="framesync-input" v-model="generator.theme" placeholder="e.g. A Space Traveler, Ancient Forest, Cyberpunk City…">
-          </div>
-          <div class="generate-story__grid">
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">Style preset</div>
-              <select class="framesync-select" v-model="generator.stylePreset">
-                <option value="Masterpiece, Realistic">Masterpiece Realistic</option>
-                <option value="Masterpiece, Cinematic">Cinematic</option>
-                <option value="Masterpiece, best quality, anime">Anime</option>
-                <option value="oil painting, impressionism">Oil Painting</option>
-                <option value="digital art, concept art, surrealistic">Surrealist</option>
-                <option value="watercolor, illustration">Watercolor</option>
-                <option value="custom">Custom…</option>
-              </select>
-            </div>
-            <div class="framesync-stack" v-if="generator.stylePreset === 'custom'">
-              <div class="framesync-subtitle">Custom style</div>
-              <input class="framesync-input" v-model="generator.customStyle" placeholder="your style keywords">
-            </div>
-          </div>
-          <div class="framesync-subtitle" style="margin-top:10px;">Story engine: {{ storyGeneratorSourceLabel }}</div>
-          <div class="framesync-footer generate-story__actions">
-            <button class="framesync-button" @click="generateStory">Generate Story</button>
-            <button class="framesync-button" @click="generateImage">Generate Image</button>
-          </div>
-          <div v-if="generator.status" class="generate-story__status">{{ generator.status }}</div>
+
+          <div v-if="generator.status" class="generate-sequencer__status-text">{{ generator.status }}</div>
+
           <div v-if="generator.result" class="generate-story__story-result">
             <div class="framesync-header">
-              <div class="framesync-subtitle" style="margin:0;">Story plan</div>
+              <div class="framesync-subtitle generate-story__section-title">Story plan</div>
               <span class="pill" v-if="generator.result.source && generator.result.source.model">{{ generator.result.source.model }}</span>
             </div>
             <pre class="generate-story__story-text">{{ generator.result.formatted }}</pre>
-            <div class="framesync-footer generate-story__actions">
-              <button class="framesync-button" @click="approveStory">Apply to prompts</button>
-              <button class="framesync-button" @click="rejectStory">Discard</button>
+            <div class="prompt-toolbar generate-story__actions">
+              <button type="button" class="framesync-button framesync-button--live" @click="approveStory">Apply to prompts</button>
+              <button type="button" class="framesync-button" @click="rejectStory">Discard</button>
             </div>
           </div>
-          <div v-if="generator.lastPath" class="generate-story__result">
+
+          <div v-if="generator.lastPath" class="generate-story__preview">
             <div class="framesync-header">
-              <div class="framesync-subtitle" style="margin:0;">Result</div>
-              <button class="framesync-button" @click="storyResultCollapsed = !storyResultCollapsed">{{ storyResultCollapsed ? 'Show' : 'Hide' }}</button>
+              <div class="framesync-subtitle generate-story__section-title">Preview image</div>
+              <button type="button" class="framesync-button framesync-button--compact" @click="storyResultCollapsed = !storyResultCollapsed">
+                {{ storyResultCollapsed ? 'Show' : 'Hide' }}
+              </button>
             </div>
             <div v-if="!storyResultCollapsed" class="generate-story__image-wrap">
-              <img v-if="generator.lastPath" :src="generator.lastPath" class="generate-story__image">
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div v-else-if="currentSubTab.PROMPTS==='CROSSFADER'">
-      <div class="rack">
-        <div class="framesync-panel">
-          <div class="framesync-header">
-            <div class="framesync-title">LoRA <span class="framesync-accent">Crossfader</span></div>
-            <div class="prompt-toolbar">
-              <span class="pill" :class="{ danger: !loraCrossfaderEnabled }">
-                <span class="dot"></span>{{ loraCrossfaderStatusLabel }}
-              </span>
-              <button class="framesync-button" @click="refreshLoras">Refresh</button>
-            </div>
-          </div>
-          <div class="lora-crossfader-shell">
-            <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
-            <div class="prompt-ab-summary">
-              <div class="prompt-ab-column prompt-ab-column--a">
-                <div class="prompt-ab-column__head">
-                  <div class="prompt-ab-column__title">A Group</div>
-                  <button
-                    type="button"
-                    class="framesync-button lora-picker-trigger"
-                    :title="loraCrossfaderPickerGroup === 'A' ? 'Close LoRA picker' : 'Add LoRA to A group'"
-                    @click="toggleLoraCrossfaderPicker('A')"
-                  >
-                    {{ loraCrossfaderPickerGroup === 'A' ? '×' : '+' }}
-                  </button>
-                </div>
-                <div v-if="loraCrossfaderPickerGroup === 'A'" class="lora-picker-panel lora-picker-panel--column">
-                  <div class="framesync-subtitle lora-browser-summary">Add LoRAs to the A group for crossfading.</div>
-                  <div class="lora-picker-families">
-                    <section v-for="family in compatibleLoraFamilies" :key="'xfpick-a-' + family.key" class="lora-picker-family">
-                      <div class="lora-picker-family__title">{{ family.label }}</div>
-                      <div class="lora-picker-list">
-                        <div v-for="lora in family.items" :key="'xfpick-a-row-' + lora.id" class="lora-picker-row">
-                          <div class="lora-picker-row__copy">
-                            <div class="lora-picker-row__name">{{ lora.name }}</div>
-                            <div class="lora-picker-row__path">{{ lora.path }}</div>
-                          </div>
-                          <div class="lora-picker-row__actions">
-                            <button
-                              type="button"
-                              class="framesync-button prompt-group-button prompt-group-button--a"
-                              :class="{ active: lora.group === 'A' }"
-                              @click.stop="assignLoraToGroup(lora, 'A')"
-                            >
-                              {{ lora.group === 'A' ? 'In A' : 'Add' }}
-                            </button>
-                            <button type="button" class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                  <div v-if="!compatibleLoraFamilies.length" class="lora-picker-empty">
-                    No LoRA models found. Refresh or check SD-Forge connection.
-                  </div>
-                </div>
-                <div v-for="lora in loras.groupA.slice(0, 3)" :key="'xfa-'+lora.id" class="prompt-ab-card">
-                  <div class="prompt-ab-card__name">{{ lora.name }}</div>
-                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
-                  <div class="prompt-ab-card__value">{{ lora.strength.toFixed(2) }}</div>
-                </div>
-                <div v-if="loras.groupA.length === 0" class="prompt-ab-column__empty">
-                  No LoRAs in A group
-                </div>
-                <div v-else-if="loras.groupA.length > 3" class="prompt-ab-column__more">
-                  +{{ loras.groupA.length - 3 }} more
-                </div>
-              </div>
-
-              <div class="framesync-stack prompt-ab-center">
-                <div class="framesync-subtitle">Crossfader</div>
-                <div class="lora-crossfader-links">
-                  <button
-                    type="button"
-                    class="framesync-button"
-                    :class="{ active: !prompts.loraCrossfaderLfoLink }"
-                    @click="setLoraCrossfaderLfoLink(null)"
-                  >
-                    Manual
-                  </button>
-                  <button
-                    v-for="lfo in lfos.slice(0, 6)"
-                    :key="'lora-crossfader-tab-lfo-' + lfo.id"
-                    type="button"
-                    class="framesync-button"
-                    :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }"
-                    @click="setLoraCrossfaderLfoLink(lfo.id)"
-                  >
-                    LFO {{ lfo.id }}
-                  </button>
-                </div>
-                <div class="framesync-gradient-bar"></div>
-                <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
-                <div class="prompt-ab-center__labels">
-                  <span class="prompt-ab-center__label prompt-ab-center__label--a">A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
-                  <span class="prompt-ab-center__label prompt-ab-center__label--b">B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
-                </div>
-                <div class="lora-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
-              </div>
-
-              <div class="prompt-ab-column prompt-ab-column--b">
-                <div class="prompt-ab-column__head">
-                  <div class="prompt-ab-column__title">B Group</div>
-                  <button
-                    type="button"
-                    class="framesync-button lora-picker-trigger"
-                    :title="loraCrossfaderPickerGroup === 'B' ? 'Close LoRA picker' : 'Add LoRA to B group'"
-                    @click="toggleLoraCrossfaderPicker('B')"
-                  >
-                    {{ loraCrossfaderPickerGroup === 'B' ? '×' : '+' }}
-                  </button>
-                </div>
-                <div v-if="loraCrossfaderPickerGroup === 'B'" class="lora-picker-panel lora-picker-panel--column">
-                  <div class="framesync-subtitle lora-browser-summary">Add LoRAs to the B group for crossfading.</div>
-                  <div class="lora-picker-families">
-                    <section v-for="family in compatibleLoraFamilies" :key="'xfpick-b-' + family.key" class="lora-picker-family">
-                      <div class="lora-picker-family__title">{{ family.label }}</div>
-                      <div class="lora-picker-list">
-                        <div v-for="lora in family.items" :key="'xfpick-b-row-' + lora.id" class="lora-picker-row">
-                          <div class="lora-picker-row__copy">
-                            <div class="lora-picker-row__name">{{ lora.name }}</div>
-                            <div class="lora-picker-row__path">{{ lora.path }}</div>
-                          </div>
-                          <div class="lora-picker-row__actions">
-                            <button
-                              type="button"
-                              class="framesync-button prompt-group-button prompt-group-button--b"
-                              :class="{ active: lora.group === 'B' }"
-                              @click.stop="assignLoraToGroup(lora, 'B')"
-                            >
-                              {{ lora.group === 'B' ? 'In B' : 'Add' }}
-                            </button>
-                            <button type="button" class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
-                          </div>
-                        </div>
-                      </div>
-                    </section>
-                  </div>
-                  <div v-if="!compatibleLoraFamilies.length" class="lora-picker-empty">
-                    No LoRA models found. Refresh or check SD-Forge connection.
-                  </div>
-                </div>
-                <div v-for="lora in loras.groupB.slice(0, 3)" :key="'xfb-'+lora.id" class="prompt-ab-card">
-                  <div class="prompt-ab-card__name">{{ lora.name }}</div>
-                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
-                  <div class="prompt-ab-card__value">{{ lora.strength.toFixed(2) }}</div>
-                </div>
-                <div v-if="loras.groupB.length === 0" class="prompt-ab-column__empty">
-                  No LoRAs in B group
-                </div>
-                <div v-else-if="loras.groupB.length > 3" class="prompt-ab-column__more">
-                  +{{ loras.groupB.length - 3 }} more
-                </div>
-              </div>
-            </div>
-            <div class="framesync-footer" style="margin-top:12px;">
-              <button class="framesync-button" @click="applyLoras">Apply LoRAs</button>
+              <img :src="generator.lastPath" alt="Story preview" class="generate-story__image">
             </div>
           </div>
         </div>
@@ -598,12 +506,27 @@
           <div class="lora-crossfader-inline">
             <div class="lora-crossfader-inline__header">
               <div class="framesync-title">LoRA <span class="framesync-accent">Crossfader</span></div>
-              <span class="pill" :class="{ danger: !loraCrossfaderEnabled }">
-                <span class="dot"></span>{{ loraCrossfaderStatusLabel }}
-              </span>
+              <div class="prompt-toolbar">
+                <button
+                  type="button"
+                  class="framesync-button"
+                  :class="{ 'framesync-button--live': prompts.loraCrossfaderOn }"
+                  @click="setLoraCrossfaderOn(true)"
+                >
+                  Enabled
+                </button>
+                <button
+                  type="button"
+                  class="framesync-button"
+                  :class="{ active: !prompts.loraCrossfaderOn }"
+                  @click="setLoraCrossfaderOn(false)"
+                >
+                  Disabled
+                </button>
+              </div>
             </div>
             <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
-            <div class="lora-crossfader-links">
+            <div class="lora-crossfader-links" :class="{ 'lora-crossfader-links--disabled': !prompts.loraCrossfaderOn }">
               <button
                 type="button"
                 class="framesync-button"
@@ -624,7 +547,7 @@
               </button>
             </div>
             <div class="framesync-gradient-bar"></div>
-            <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
+            <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" :disabled="!prompts.loraCrossfaderOn" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
             <div class="prompt-ab-center__labels">
               <span class="prompt-ab-center__label prompt-ab-center__label--a">A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
               <span class="prompt-ab-center__label prompt-ab-center__label--b">B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>

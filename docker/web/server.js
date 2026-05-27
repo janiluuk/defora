@@ -1208,6 +1208,24 @@ async function start(opts = {}) {
         if (!markerNameOk.test(nm)) return "invalid marker.name (1–48 chars: letters, digits, space, _ - .)";
       }
     }
+    if (body.clips != null) {
+      if (!Array.isArray(body.clips)) return "clips must be an array";
+      if (body.clips.length > 96) return "too many clips (max 96)";
+      const clipTypes = new Set(["prompt", "lora", "controlnet"]);
+      const clipNameOk = /^[a-zA-Z0-9_ \-.]{1,48}$/;
+      for (const cl of body.clips) {
+        if (!cl || typeof cl !== "object") return "invalid clip";
+        if (!clipTypes.has(cl.type)) return "invalid clip.type (prompt|lora|controlnet)";
+        if (typeof cl.t !== "number") return "clip requires numeric t";
+        if (cl.t < 0 || cl.t > body.durationSec) return "clip t outside 0..durationSec";
+        if (cl.endT != null && (typeof cl.endT !== "number" || cl.endT < cl.t || cl.endT > body.durationSec)) {
+          return "invalid clip.endT";
+        }
+        const label = String(cl.label || cl.type).trim();
+        if (!clipNameOk.test(label)) return "invalid clip.label (1–48 chars: letters, digits, space, _ - .)";
+        if (cl.payload != null && typeof cl.payload !== "object") return "invalid clip.payload";
+      }
+    }
     return null;
   }
 

@@ -149,7 +149,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' };
+    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' };
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
@@ -443,6 +443,22 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Story generation text");
     expect(pageText).to.include("Theme: Neon city");
     expect(pageText).to.include("LIVE");
+    expect(document.querySelector(".sequencer-controls-panel .modulation-lfo-grid")).to.exist;
+  });
+
+  it("shows the modern story generator under the story subtab", async () => {
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "STORY");
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Story Generator");
+    expect(pageText).to.include("Theme / story concept");
+    expect(pageText).to.include("Style preset");
+    expect(pageText).to.include("Scene count");
+    expect(document.querySelector(".generate-sequencer__hero-grid")).to.exist;
+    expect(document.querySelector(".generate-story__theme-input")).to.exist;
   });
 
   it("shows img2img under the image subtab", async () => {
@@ -501,6 +517,7 @@ describe("Deforumation Web UI", () => {
       calls.push({ type, payload });
     };
     instance.prompts.crossfaderValue = 0.25;
+    instance.prompts.loraCrossfaderOn = true;
     instance.loras.common = [{ id: "c-1", name: "utility", path: "/loras/utility.safetensors", strength: 0.6 }];
     instance.loras.groupA = [{ id: "a-1", name: "style-a", path: "/loras/style-a.safetensors", strength: 1.0 }];
     instance.loras.groupB = [{ id: "b-1", name: "style-b", path: "/loras/style-b.safetensors", strength: 0.8 }];
@@ -566,27 +583,27 @@ describe("Deforumation Web UI", () => {
     expect(appVm.cn.slots[0].enabled).to.equal(true);
   });
 
-  it("shows the LoRA crossfader tab expanded by default with group pickers", async () => {
-    appVm.switchTab("PROMPTS");
+  it("shows the LoRA crossfader in the bottom drawer with group pickers", async () => {
+    appVm.liveBottomDrawerOpen = true;
+    appVm.liveBottomDrawerTab = "CROSSFADER";
     await nextTick();
     await nextTick();
 
-    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
-    expect(subTabs.join(" ")).to.include("CROSSFADER");
-    expect(appVm.currentSubTab.PROMPTS).to.equal("CROSSFADER");
-    expect(appVm.loraCrossfaderCollapsed).to.equal(false);
+    const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
+    expect(drawerTabs.join(" ")).to.include("CROSSFADER");
+    expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
     expect(titles.join(" ")).to.include("LoRA Crossfader");
-    expect(document.querySelector(".prompt-ab-summary")).to.exist;
+    expect(document.querySelector(".lora-crossfader-panel__deck")).to.exist;
 
-    const groupPickers = [...document.querySelectorAll(".prompt-ab-column .lora-picker-trigger")];
+    const groupPickers = [...document.querySelectorAll(".lora-crossfader-panel .lora-picker-trigger")];
     expect(groupPickers.length).to.equal(2);
 
     groupPickers[0].click();
     await nextTick();
     expect(appVm.loraCrossfaderPickerGroup).to.equal("A");
-    expect(document.querySelector(".prompt-ab-column--a .lora-picker-panel")).to.exist;
+    expect(document.querySelector(".lora-crossfader-panel__side--a .lora-picker-panel")).to.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {
@@ -741,10 +758,9 @@ describe("Deforumation Web UI behavior", () => {
     global.localStorage = localStorageMock;
   });
 
-  it("defaults prompts to the LoRA crossfader subtab", () => {
+  it("defaults prompts to the main prompts subtab", () => {
     const instance = instantiate(appDef);
-    expect(instance.currentSubTab.PROMPTS).to.equal("CROSSFADER");
-    expect(instance.loraCrossfaderCollapsed).to.equal(false);
+    expect(instance.currentSubTab.PROMPTS).to.equal("PROMPTS");
     expect(instance.img2img.show).to.equal(true);
   });
 
