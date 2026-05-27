@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.23] - 2026-05-27
+
+## What's Changed
+
+- feat(web): motion sequencer, WebGL startup, and Library runs browser (#65) (6338c7f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.22...v0.6.23
+
+
 ## [0.6.22] - 2026-05-27
 
 ## What's Changed
