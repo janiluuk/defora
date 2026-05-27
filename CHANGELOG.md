@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.14] - 2026-05-27
+
+## What's Changed
+
+- feat(web): LIVE sub-tabs, GPU instancing standby, and video-swarm sources (#54) (5f5bcc5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.13...v0.6.14
+
+
 ## [0.6.13] - 2026-05-27
 
 ## What's Changed
