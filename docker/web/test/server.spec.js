@@ -70,6 +70,34 @@ describe("web server frames API", () => {
     expect(res.body.sdForge.pollIntervalMs).to.equal(0);
   });
 
+  it("GET /api/infrastructure returns mediator and transcoder nodes", async () => {
+    const prev = {
+      DEF_MEDIATOR_HOST: process.env.DEF_MEDIATOR_HOST,
+      DEF_MEDIATOR_PORT: process.env.DEF_MEDIATOR_PORT,
+      TRANSCODER_NODES: process.env.TRANSCODER_NODES,
+    };
+    process.env.DEF_MEDIATOR_HOST = "127.0.0.1";
+    process.env.DEF_MEDIATOR_PORT = "65530";
+    process.env.TRANSCODER_NODES = "edge|127.0.0.1:65529|rtmp://127.0.0.1:65529/live/test";
+    const infraSvc = await start({ port: 0, framesDir: tmp, uploadsDir: uploads, sequencersDir: sequencers, enableMq: false });
+    const infraRequest = supertest(`http://127.0.0.1:${infraSvc.port}`);
+    const res = await infraRequest.get("/api/infrastructure");
+    expect(res.status).to.equal(200);
+    expect(res.body.mediator).to.be.an("object");
+    expect(res.body.mediator.host).to.equal("127.0.0.1");
+    expect(res.body.mediator.address).to.equal("127.0.0.1:65530");
+    expect(res.body.transcoders).to.be.an("array").with.lengthOf(1);
+    expect(res.body.transcoders[0].name).to.equal("edge");
+    expect(res.body.transcoders[0].address).to.include("127.0.0.1");
+    await infraSvc.close();
+    if (prev.DEF_MEDIATOR_HOST === undefined) delete process.env.DEF_MEDIATOR_HOST;
+    else process.env.DEF_MEDIATOR_HOST = prev.DEF_MEDIATOR_HOST;
+    if (prev.DEF_MEDIATOR_PORT === undefined) delete process.env.DEF_MEDIATOR_PORT;
+    else process.env.DEF_MEDIATOR_PORT = prev.DEF_MEDIATOR_PORT;
+    if (prev.TRANSCODER_NODES === undefined) delete process.env.TRANSCODER_NODES;
+    else process.env.TRANSCODER_NODES = prev.TRANSCODER_NODES;
+  });
+
   it("GET /api/plugins returns a list", async () => {
     const res = await request.get("/api/plugins");
     expect(res.status).to.equal(200);

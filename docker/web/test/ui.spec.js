@@ -299,7 +299,7 @@ describe("Deforumation Web UI", () => {
     appVm.liveDrawerOpen = true;
     appVm.paramPanelOpen = true;
     await nextTick();
-    const sliderRows = [...document.querySelectorAll(".param-drawer input[type='range'], [data-testid='performance-crossfader']")];
+    const sliderRows = [...document.querySelectorAll(".param-drawer input[type='range'], [data-testid='modulation-morph-crossfader']")];
     expect(sliderRows.length).to.be.greaterThan(5);
     appVm.switchTab("MOTION");
     await nextTick();
@@ -584,6 +584,15 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(appVm.currentSubTab.MODULATION).to.equal("BEAT_MACROS");
     expect(appVm.audioMappings.length).to.be.greaterThan(0);
+
+    appVm.switchSubTab("MODULATION", "CROSSFADER");
+    const slotCount = appVm.performance.slots.length;
+    appVm.addCrossfadeSlot();
+    expect(appVm.currentSubTab.MODULATION).to.equal("CROSSFADER");
+    expect(appVm.performance.slots.length).to.equal(slotCount + 1);
+
+    appVm.switchSubTab("MODULATION", "ACTIVE_MODS");
+    expect(appVm.currentSubTab.MODULATION).to.equal("ACTIVE_MODS");
     
     appVm.audio.uploadedFile = "song.wav";
     appVm.audio.track = "/tmp/song.wav";
@@ -634,16 +643,18 @@ describe("Deforumation Web UI", () => {
       { run_id: "run-b-001", batch_name: "session_b", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false, frame_count: 1, model: "xl-b" },
     ];
     appVm.applyRunsFilters();
-    global.fetch = async (url) => ({
-      ok: true,
-      json: async () => ({
-        run_id: String(url).includes("run-a-002") ? "run-a-002" : "run-a-001",
-        frames: String(url).includes("run-a-002")
-          ? ["frame_0001.png", "frame_0002.png"]
-          : ["frame_0001.png", "frame_0002.png", "frame_0003.png"],
-      }),
-    });
+    global.fetch = async (url) => {
+      const path = String(url);
+      if (path.includes("run-a-002")) {
+        return { ok: true, json: async () => ({ run_id: "run-a-002", frames: ["frame_0001.png", "frame_0002.png"] }) };
+      }
+      if (path.includes("run-b-001")) {
+        return { ok: true, json: async () => ({ run_id: "run-b-001", frames: ["frame_0001.png"] }) };
+      }
+      return { ok: true, json: async () => ({ run_id: "run-a-001", frames: ["frame_0001.png", "frame_0002.png", "frame_0003.png"] }) };
+    };
 
+    appVm.showFrames = true;
     appVm.switchTab("LIBRARY");
     await nextTick();
     await nextTick();
@@ -651,6 +662,8 @@ describe("Deforumation Web UI", () => {
     await nextTick();
 
     expect(document.querySelectorAll(".library-folder-item").length).to.equal(2);
+    expect(document.querySelector("[data-testid='library-frame-rail']")).to.exist;
+    expect(document.querySelectorAll("[data-testid='library-project-list'] .library-frame-rail__project").length).to.equal(2);
     expect(document.body.textContent).to.include("session_a");
     expect(document.body.textContent).to.include("session_b");
     expect(appVm.library.selectedRunId).to.equal("run-a-002");
@@ -660,6 +673,27 @@ describe("Deforumation Web UI", () => {
     appVm.stepLibraryFrame(1);
     await nextTick();
     expect(appVm.library.selectedFrameName).to.equal("frame_0002.png");
+
+    const projectButtons = [...document.querySelectorAll("[data-testid='library-project-list'] .library-frame-rail__project")];
+    const sessionB = projectButtons.find((btn) => btn.textContent.includes("session_b"));
+    expect(sessionB).to.exist;
+    sessionB.click();
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+    expect(appVm.librarySelectedPrefixKey).to.match(/session_b/);
+    expect(appVm.library.selectedRunId).to.equal("run-b-001");
+    expect(document.querySelectorAll("[data-testid='library-frame-thumbs'] .frame-rail__item").length).to.equal(1);
+
+    const sessionA = projectButtons.find((btn) => btn.textContent.includes("session_a"));
+    sessionA.click();
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+    expect(appVm.librarySelectedPrefixKey).to.match(/session_a/);
+    expect(appVm.library.selectedRunId).to.equal("run-a-002");
+    expect(document.querySelectorAll("[data-testid='library-frame-thumbs'] .frame-rail__item").length).to.equal(2);
+
     delete global.fetch;
   });
 });

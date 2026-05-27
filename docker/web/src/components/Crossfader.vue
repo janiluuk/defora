@@ -112,35 +112,49 @@ export default {
 .crossfader-actions { display: flex; gap: 6px; }
 .crossfader-snap {
   flex: 1;
-  padding: 4px 6px;
-  border-radius: var(--radius-pill);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
   border: 0.5px solid var(--border);
-  background: var(--bg-2);
-  font-size: 9px;
-  font-weight: 700;
+  background: var(--bg-3);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: inherit;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-dim);
-  transition: color 0.15s, border-color 0.15s;
+  letter-spacing: 0.06em;
+  color: var(--text-secondary);
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
 }
-.crossfader-snap--a { color: var(--a-group); border-color: rgba(55, 138, 221, 0.35); }
-.crossfader-snap--b { color: var(--b-group); border-color: rgba(232, 121, 176, 0.35); }
+.crossfader-snap--a {
+  color: var(--a-group);
+  border-color: rgba(55, 138, 221, 0.45);
+  background: rgba(55, 138, 221, 0.12);
+}
+.crossfader-snap--b {
+  color: var(--b-group);
+  border-color: rgba(232, 121, 176, 0.45);
+  background: rgba(232, 121, 176, 0.12);
+}
 .crossfader-randomize {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--radius-pill);
-  border: 0.5px solid var(--border);
-  background: var(--bg-2);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--live);
+  background: rgba(29, 158, 117, 0.18);
   font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
-  color: var(--text-dim);
+  color: var(--live-text);
+  transition: background 0.15s, border-color 0.15s;
+}
+.crossfader-randomize:hover:not(:disabled) {
+  background: rgba(29, 158, 117, 0.28);
 }
 .crossfader-randomize-icon { font-size: 12px; }
 .crossfader-randomize-label { line-height: 1; }

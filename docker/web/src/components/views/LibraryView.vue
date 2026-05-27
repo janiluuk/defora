@@ -32,7 +32,7 @@
           <span class="framesync-subtitle" style="margin:0;">{{ libraryRunsForSelectedPrefix.length }} runs</span>
         </div>
         <div v-if="!libraryRunsForSelectedPrefix.length" class="library-browser__empty">
-          Select a prefix folder to browse its runs.
+          Select a project below the preview to browse its runs.
         </div>
         <div v-else class="library-run-grid">
           <button
@@ -73,7 +73,7 @@
       <div v-if="library.status" class="library-inspector__status">{{ library.status }}</div>
       <div v-else-if="library.loading" class="library-browser__empty">Loading frames…</div>
       <div v-else-if="!librarySelectedRunSummary" class="library-browser__empty">
-        Pick a prefix and run to inspect its frames one by one.
+        Pick a project and run below the preview to inspect frames one by one.
       </div>
       <template v-else>
         <div class="library-inspector__summary">

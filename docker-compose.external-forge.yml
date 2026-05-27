@@ -50,6 +50,8 @@ services:
       - MEDIATOR_PORT=${MEDIATOR_PORT:-8766}
       - DEF_MEDIATOR_HOST=${DEF_MEDIATOR_HOST:-vimage2}
       - DEF_MEDIATOR_PORT=${DEF_MEDIATOR_PORT:-8766}
+      - ENCODER_RTMP_TARGET=rtmp://web:1935/live/deforum
+      - TRANSCODER_NODES=${TRANSCODER_NODES:-encoder|web:1935|rtmp://web:1935/live/deforum}
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.2.104:11434}
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1:80/api/health || exit 1"]
