@@ -32,7 +32,7 @@ services:
             -c:v libx264 -preset $$PRESET -tune zerolatency
             -b:v $$BITRATE -maxrate $$MAXRATE -bufsize $$BUFSIZE -crf $$CRF
             -g $(( CUR_FPS * 2 ))
-            -f flv rtmp://web:1935/live/deforum &
+            -f flv ${RTMP_TARGET:-rtmp://vimage3:1935/live/deforum} &
           PID=$$!;
           PREV_COUNT=$$COUNT;
           while sleep 3; do
@@ -69,6 +69,7 @@ services:
       - "1935:1935"
     extra_hosts:
       - "vimage2:${VIMAGE2_IP:-192.168.2.101}"
+      - "vimage3:${VIMAGE3_IP:-192.168.2.103}"
     volumes:
       - frames:/data/frames:ro
       - hls:/var/www/hls
@@ -100,6 +101,7 @@ services:
       - "8766:8766"
     extra_hosts:
       - "vimage2:${VIMAGE2_IP:-192.168.2.101}"
+      - "vimage3:${VIMAGE3_IP:-192.168.2.103}"
     environment:
       - MEDIATOR_DEFORUM_ADDRESS=0.0.0.0
       - MEDIATOR_DEFORUM_PORT=8765
@@ -198,6 +200,7 @@ services:
       dockerfile: docker/bridge/Dockerfile
     extra_hosts:
       - "vimage2:${VIMAGE2_IP:-192.168.2.101}"
+      - "vimage3:${VIMAGE3_IP:-192.168.2.103}"
     environment:
       - MQ_URL=amqp://mq
       - MQ_QUEUE=controls
