@@ -205,11 +205,21 @@ deploy_stream_node
 
 BASE_URL="http://${HOST}:${WEB_PORT}"
 STREAM_HTTP_PORT="${STREAM_HTTP_PORT:-80}"
+MEDIATOR_HOST_EFFECTIVE="${DEF_MEDIATOR_HOST:-${MEDIATOR_HOST:-vimage2}}"
+MEDIATOR_PORT_EFFECTIVE="${DEF_MEDIATOR_PORT:-${MEDIATOR_PORT:-8766}}"
+MEDIA_MOUNTPOINT="$(ssh_remote "${REMOTE_USER}@${HOST}" "docker volume inspect -f '{{.Mountpoint}}' defora_runs 2>/dev/null || true" 2>/dev/null || true)"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Defora UI:     ${BASE_URL}"
 echo "  Health:        ${BASE_URL}/api/health"
 echo "  HLS (UI proxy): ${BASE_URL}/hls/live/deforum.m3u8"
+echo "  Mediator:      ${MEDIATOR_HOST_EFFECTIVE}:${MEDIATOR_PORT_EFFECTIVE}"
+echo "  Media (in web): /data/runs  (uploads: /data/runs/uploads)"
+if [[ -n "${MEDIA_MOUNTPOINT}" ]]; then
+  echo "  Media (host):  ${MEDIA_MOUNTPOINT}"
+else
+  echo "  Media (host):  docker volume defora_runs"
+fi
 if [[ "${DEPLOY_STREAM_NODE}" == "1" && -n "${STREAM_DEPLOY_HOST}" ]]; then
   echo "  HLS (origin):   http://${STREAM_DEPLOY_HOST}:${STREAM_HTTP_PORT}/hls/live/deforum.m3u8"
   echo "  RTMP ingest:    rtmp://${STREAM_DEPLOY_HOST}:1935/live/deforum"
