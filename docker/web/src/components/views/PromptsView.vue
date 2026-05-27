@@ -415,8 +415,8 @@
           </div>
           <div v-if="loraPickerOpen" class="lora-picker-panel">
             <div class="framesync-subtitle lora-browser-summary">
-              <span v-if="currentLoraModelFamily">Select from {{ currentLoraModelFamilyLabel }}-compatible LoRAs and assign directly to A or B.</span>
-              <span v-else>Select from the compatible LoRA list and assign directly to A or B.</span>
+              <span v-if="currentLoraModelFamily">Select from {{ currentLoraModelFamilyLabel }}-compatible LoRAs and assign them to Common, A, or B.</span>
+              <span v-else>Select from the compatible LoRA list and assign them to Common, A, or B.</span>
             </div>
             <div class="lora-picker-families">
               <section v-for="family in compatibleLoraFamilies" :key="'picker-' + family.key" class="lora-picker-family">
@@ -428,6 +428,7 @@
                       <div class="lora-picker-row__path">{{ lora.path }}</div>
                     </div>
                     <div class="lora-picker-row__actions">
+                      <button class="framesync-button prompt-group-button prompt-group-button--common" :class="{active: lora.group==='COMMON'}" @click.stop="assignLoraToGroup(lora,'COMMON')">Common</button>
                       <button class="framesync-button prompt-group-button prompt-group-button--a" :class="{active: lora.group==='A'}" @click.stop="assignLoraToGroup(lora,'A')">A</button>
                       <button class="framesync-button prompt-group-button prompt-group-button--b" :class="{active: lora.group==='B'}" @click.stop="assignLoraToGroup(lora,'B')">B</button>
                       <button class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
@@ -442,6 +443,23 @@
             </div>
           </div>
           <div class="lora-active-groups">
+            <div class="lora-active-group lora-active-group--common">
+              <div class="lora-active-group__title">Common Group ({{ loras.common.length }})</div>
+              <div class="lora-active-group__body">
+                <div v-for="lora in loras.common" :key="lora.id"
+                     class="lora-active-group__row">
+                  <div class="lora-active-group__copy">
+                    <span class="lora-active-group__name">{{ lora.name }}</span>
+                    <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
+                  </div>
+                  <input type="range" min="0" max="2" step="0.01" :value="lora.strength" class="framesync-input lora-active-group__slider" @input="updateGroupedLoraStrength('COMMON', lora, $event.target.value)">
+                  <button class="framesync-button lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
+                </div>
+                <div v-if="loras.common.length === 0" class="lora-active-group__empty">
+                  No LoRAs in Common group
+                </div>
+              </div>
+            </div>
             <div class="lora-active-group lora-active-group--a">
               <div class="lora-active-group__title">A Group ({{ loras.groupA.length }})</div>
               <div class="lora-active-group__body">

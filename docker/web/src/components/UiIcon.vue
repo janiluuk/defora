@@ -46,6 +46,14 @@
       <path d="M5 8H19" stroke="currentColor" stroke-width="1.5" />
       <path d="M5 16H19" stroke="currentColor" stroke-width="1.5" />
     </template>
+    <template v-else-if="name === 'sparkles'">
+      <path d="M12 3.5L13.7 8.3L18.5 10L13.7 11.7L12 16.5L10.3 11.7L5.5 10L10.3 8.3L12 3.5Z" fill="currentColor" />
+      <path d="M18.5 3L19.2 5L21.2 5.7L19.2 6.4L18.5 8.4L17.8 6.4L15.8 5.7L17.8 5L18.5 3Z" fill="currentColor" opacity="0.75" />
+      <path d="M5.2 14.6L5.8 16.2L7.4 16.8L5.8 17.4L5.2 19L4.6 17.4L3 16.8L4.6 16.2L5.2 14.6Z" fill="currentColor" opacity="0.75" />
+    </template>
+    <template v-else-if="name === 'wave'">
+      <path d="M2.5 12C4.4 12 4.4 7 6.3 7C8.2 7 8.2 17 10.1 17C12 17 12 7 13.9 7C15.8 7 15.8 17 17.7 17C19.6 17 19.6 12 21.5 12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
     <template v-else-if="name === 'folder'">
       <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h3.2l1.6 1.8H18A2.5 2.5 0 0 1 20.5 9.3v7.2A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
       <path d="M3.8 9h16.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />

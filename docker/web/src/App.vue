@@ -360,8 +360,11 @@
             </div>
           </div>
         </template>
+        <div v-else-if="currentTab === 'LIBRARY'" class="frame-rail__empty" style="margin-top: 4px;">
+          Select a prefix folder and run to inspect frames one by one.
+        </div>
 
-        <div class="video-controls-panel">
+        <div v-if="currentTab !== 'LIBRARY'" class="video-controls-panel">
           <div class="video-controls">
             <button class="control-btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
               <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
@@ -468,7 +471,8 @@
           'stage-rack-overlay': currentTab === 'MOTION',
           'studio-right-column': currentTab === 'MODULATION'
         }">
-          <PromptsView v-if="currentTab==='PROMPTS'" :app="appViewModel" />
+          <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
+          <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
           <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
           <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
@@ -520,6 +524,7 @@ import UiIcon from './components/UiIcon.vue'
 import Timeline from './components/generate/Timeline.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
 import LiveView from './components/views/LiveView.vue'
+import LibraryView from './components/views/LibraryView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
 import ModulationView from './components/views/ModulationView.vue'
@@ -528,7 +533,7 @@ import GenerateView from './components/views/GenerateView.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
        showFrames: true,
@@ -660,6 +665,7 @@ export default {
       session: "clown_set_01",
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -729,6 +735,7 @@ export default {
       ],
       loras: {
         available: [],
+        common: [],
         groupA: [],
         groupB: [],
         source: "unknown",
@@ -969,6 +976,14 @@ export default {
        ],
        runsDetailView: null,
        runsStatus: "",
+       library: {
+         selectedPrefix: '',
+         selectedRunId: '',
+         selectedFrameName: '',
+         runDetail: null,
+         loading: false,
+         status: '',
+       },
        genData: {
          defaultThemes: ['A journey through light', 'Neon cathedral', 'Ocean depths'],
          sceneDescriptors: { opening: ['ethereal', 'quiet'], buildup: ['rising', 'vivid'], climax: ['intense', 'surreal'], closing: ['soft', 'fading'] },
@@ -1013,6 +1028,12 @@ export default {
     activePreviewStillPath() {
       if (!this.deforumPlaying && this.currentTab === 'LIBRARY') {
         return this.librarySelectedFrameSrc || '';
+      }
+      if (!this.deforumPlaying && this.currentTab === 'LIVE') {
+        return this.performance.lastPreviewPath
+          || this.generator.lastPath
+          || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
+          || '';
       }
       if (!this.deforumPlaying && this.currentTab !== 'GENERATE' && this.selectedFrameThumb) {
         return this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '';
@@ -1576,6 +1597,54 @@ export default {
       this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
     }
   },
+  runPrefixSource(run) {
+    return String(
+      (run && (run.batch_name
+        || (run.metadata && run.metadata.batch_name)
+        || (run.metadata && run.metadata.deforum && run.metadata.deforum.batch_name)
+        || run.run_id))
+      || 'ungrouped'
+    ).trim();
+  },
+  runPrefixKey(run) {
+    return this.sessionSlug(this.runPrefixSource(run));
+  },
+  runPrefixLabel(run) {
+    return this.runPrefixSource(run);
+  },
+  syncLibrarySelection() {
+    if (!this.libraryPrefixGroups.length) {
+      this.library.selectedPrefix = '';
+      this.library.selectedRunId = '';
+      this.library.selectedFrameName = '';
+      this.library.runDetail = null;
+      return;
+    }
+    if (!this.libraryPrefixGroups.some((group) => group.key === this.library.selectedPrefix)) {
+      this.library.selectedPrefix = this.libraryPrefixGroups[0].key;
+    }
+    if (!this.libraryRunsForSelectedPrefix.some((run) => run.run_id === this.library.selectedRunId)) {
+      this.library.selectedRunId = (this.libraryRunsForSelectedPrefix[0] && this.libraryRunsForSelectedPrefix[0].run_id) || '';
+      this.library.selectedFrameName = '';
+      this.library.runDetail = null;
+    }
+    if (this.library.runDetail && this.library.runDetail.run_id !== this.library.selectedRunId) {
+      this.library.runDetail = null;
+      this.library.selectedFrameName = '';
+    }
+  },
+  async ensureLibraryRunDetail() {
+    this.syncLibrarySelection();
+    const run = this.librarySelectedRunSummary;
+    if (!run) return;
+    if (this.librarySelectedRunDetail) {
+      if (!this.library.selectedFrameName && this.librarySelectedFrames.length) {
+        this.library.selectedFrameName = this.librarySelectedFrames[0];
+      }
+      return;
+    }
+    await this.openLibraryRun(run);
+  },
   async refreshRuns() {
     if (typeof fetch !== "function") return;
     this.runsLoading = true;
@@ -1585,6 +1654,10 @@ export default {
       const data = await res.json();
       this.runsAll = data.runs || [];
       this.applyRunsFilters();
+      this.syncLibrarySelection();
+      if (this.currentTab === 'LIBRARY') {
+        await this.ensureLibraryRunDetail();
+      }
     } catch (_e) {
       this.runsStatus = "Failed to load runs";
     } finally {
@@ -1607,6 +1680,40 @@ export default {
     if (!run) return;
     this.openRunsSettings();
     this.showRunDetails(run);
+  },
+  async openLibraryPrefix(prefixKey) {
+    this.library.selectedPrefix = prefixKey;
+    this.library.selectedRunId = '';
+    this.library.selectedFrameName = '';
+    this.library.runDetail = null;
+    await this.ensureLibraryRunDetail();
+  },
+  async openLibraryRun(run) {
+    if (!run || !run.run_id || typeof fetch !== 'function') return;
+    this.library.selectedPrefix = this.runPrefixKey(run);
+    this.library.selectedRunId = run.run_id;
+    this.library.selectedFrameName = '';
+    this.library.loading = true;
+    this.library.status = '';
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`);
+      if (!res.ok) return;
+      this.library.runDetail = await res.json();
+      this.library.selectedFrameName = (this.library.runDetail.frames && this.library.runDetail.frames[0]) || '';
+    } catch (_e) {
+      this.library.status = 'Failed to load run frames';
+    } finally {
+      this.library.loading = false;
+    }
+  },
+  selectLibraryFrame(frameName) {
+    this.library.selectedFrameName = frameName || '';
+  },
+  stepLibraryFrame(direction) {
+    if (!this.librarySelectedFrames.length) return;
+    const current = this.librarySelectedFrameIndex >= 0 ? this.librarySelectedFrameIndex : 0;
+    const next = Math.min(this.librarySelectedFrames.length - 1, Math.max(0, current + Number(direction || 0)));
+    this.library.selectedFrameName = this.librarySelectedFrames[next] || '';
   },
   applyRunsFilters() {
     let filtered = [...this.runsAll];
@@ -1795,6 +1902,13 @@ export default {
    }
    this.currentTab = id;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
+  if (id === 'LIBRARY') {
+    if (!this.runsAll.length && !this.runsLoading) {
+      void this.refreshRuns();
+    } else {
+      void this.ensureLibraryRunDetail();
+    }
+  }
  },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
@@ -2603,7 +2717,7 @@ toggleCollaboration() {
      liveCam: this.liveCam,
      audio: { bpm: this.audio.bpm, track: this.audio.track },
      cn: { slots: this.cn.slots, active: this.cn.active },
-     loras: { groupA: this.loras.groupA, groupB: this.loras.groupB },
+    loras: { common: this.loras.common, groupA: this.loras.groupA, groupB: this.loras.groupB },
      prompts: {
        pos: this.prompts.pos,
        neg: this.prompts.neg,
@@ -2649,6 +2763,7 @@ toggleCollaboration() {
      if (preset.macrosRack) this.macrosRack = preset.macrosRack;
      if (preset.prompts) Object.assign(this.prompts, preset.prompts);
      if (preset.loras) {
+      this.loras.common = preset.loras.common || [];
        this.loras.groupA = preset.loras.groupA || [];
        this.loras.groupB = preset.loras.groupB || [];
        await this.refreshLoras();
@@ -3956,6 +4071,7 @@ audioBandWindowStyle(mapping) {
        if (data.preset.lfos) this.lfos = data.preset.lfos;
        if (data.preset.macrosRack) this.macrosRack = data.preset.macrosRack;
        if (data.preset.loras) {
+        this.loras.common = data.preset.loras.common || [];
          this.loras.groupA = data.preset.loras.groupA || [];
          this.loras.groupB = data.preset.loras.groupB || [];
          // Sync selection state without fetching (data already restored)
@@ -3981,6 +4097,7 @@ audioBandWindowStyle(mapping) {
      audio: { bpm: this.audio.bpm, track: this.audio.track },
      cn: { slots: this.cn.slots, active: this.cn.active },
      loras: {
+      common: this.loras.common,
        groupA: this.loras.groupA,
        groupB: this.loras.groupB,
      },
@@ -5191,7 +5308,15 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
        this.loras.source = data.source || "unknown";
        // Restore selected loras from groups using Map for O(1) lookup
        const loraMap = new Map(this.loras.available.map(l => [l.id, l]));
-       this.loras.groupA.forEach((savedLora) => {
+      this.loras.common.forEach((savedLora) => {
+        const found = loraMap.get(savedLora.id);
+        if (found) {
+          found.selected = true;
+          found.group = "COMMON";
+          found.strength = savedLora.strength;
+        }
+      });
+      this.loras.groupA.forEach((savedLora) => {
          const found = loraMap.get(savedLora.id);
          if (found) {
            found.selected = true;
@@ -5219,14 +5344,15 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      this.removeLoraSelection(lora);
    } else {
      lora.selected = true;
-     lora.group = "A";
-     this.assignLoraToGroup(lora, "A");
+    lora.group = "COMMON";
+    this.assignLoraToGroup(lora, "COMMON");
    }
  },
  assignLoraToGroup(lora, group) {
-   if (group !== "A" && group !== "B") return;
+  if (group !== "A" && group !== "B" && group !== "COMMON") return;
    
-   // Remove from both groups first
+  // Keep each LoRA assigned to exactly one group.
+  this.loras.common = this.loras.common.filter((l) => l.id !== lora.id);
    this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
    this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
    
@@ -5241,7 +5367,9 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      thumbnail: lora.thumbnail,
    };
    
-   if (group === "A") {
+  if (group === "COMMON") {
+    this.loras.common.push(loraData);
+  } else if (group === "A") {
      this.loras.groupA.push(loraData);
    } else {
      this.loras.groupB.push(loraData);
@@ -5250,6 +5378,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  removeLoraSelection(lora) {
    lora.selected = false;
    lora.group = null;
+  this.loras.common = this.loras.common.filter((l) => l.id !== lora.id);
    this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
    this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
  },
@@ -5259,11 +5388,16 @@ unassignLora(lora) {
     available.selected = false;
     available.group = null;
   }
+  this.loras.common = this.loras.common.filter((entry) => entry.id !== lora.id);
   this.loras.groupA = this.loras.groupA.filter((entry) => entry.id !== lora.id);
   this.loras.groupB = this.loras.groupB.filter((entry) => entry.id !== lora.id);
 },
  updateLoraStrength(lora) {
    // Update strength in groups as well
+  const commonLora = this.loras.common.find((entry) => entry.id === lora.id);
+  if (commonLora) {
+    commonLora.strength = lora.strength;
+  }
    const groupALora = this.loras.groupA.find((l) => l.id === lora.id);
    if (groupALora) {
      groupALora.strength = lora.strength;
@@ -5276,7 +5410,11 @@ unassignLora(lora) {
 updateGroupedLoraStrength(group, lora, value) {
   const next = parseFloat(value);
   if (!Number.isFinite(next)) return;
-  const list = group === "B" ? this.loras.groupB : this.loras.groupA;
+  const list = group === "COMMON"
+    ? this.loras.common
+    : group === "B"
+      ? this.loras.groupB
+      : this.loras.groupA;
   const target = list.find((entry) => entry.id === lora.id);
   if (target) target.strength = next;
   const available = this.loras.available.find((entry) => entry.id === lora.id);
@@ -5290,6 +5428,10 @@ updateGroupedLoraStrength(group, lora, value) {
    // Send crossfader value and update LoRA strengths
    this.sendControl("crossfader", {
      value: this.prompts.crossfaderValue,
+    common: this.loras.common.map((l) => ({
+      ...l,
+      effectiveStrength: l.strength,
+    })),
      groupA: this.loras.groupA.map((l) => ({
        ...l,
        effectiveStrength: l.strength * (1 - this.prompts.crossfaderValue),
@@ -5302,6 +5444,11 @@ updateGroupedLoraStrength(group, lora, value) {
  },
  applyLoras() {
    const payload = {
+    common: this.loras.common.map((l) => ({
+      name: l.name,
+      path: l.path,
+      strength: l.strength,
+    })),
      groupA: this.loras.groupA.map((l) => ({
        name: l.name,
        path: l.path,
@@ -5322,9 +5469,10 @@ updateGroupedLoraStrength(group, lora, value) {
      lora.selected = false;
      lora.group = null;
    });
+  this.loras.common = [];
    this.loras.groupA = [];
    this.loras.groupB = [];
-   this.sendControl("loras", { groupA: [], groupB: [], crossfaderValue: this.prompts.crossfaderValue });
+  this.sendControl("loras", { common: [], groupA: [], groupB: [], crossfaderValue: this.prompts.crossfaderValue });
  },
 
  // ─── Story Generator ─────────────────────────────────────────────────
@@ -6030,8 +6178,13 @@ reapplyEngineModelDefaults() {
    this.prompts.pos = positive;
    this.sendControl('prompt', { positive, negative });
    if (Object.keys(live).length) this.sendControl('liveParam', live);
-   if (loraA.length || loraB.length) {
+  if (this.loras.common.length || loraA.length || loraB.length) {
      this.sendControl('loras', {
+      common: this.loras.common.map((lora) => ({
+        name: lora.name,
+        path: lora.path,
+        strength: lora.strength,
+      })),
        groupA: loraA,
        groupB: loraB,
        crossfaderValue: t,
@@ -6095,6 +6248,27 @@ flushQueuedPreview() {
  getDeforumField(keyPath) {
    return getNestedValue(this.deforumSettings, keyPath);
  },
+formatDeforumFieldValue(field, rawValue) {
+  if (!field) return String(rawValue ?? '');
+  const value = rawValue == null ? '' : rawValue;
+  if (field.type === 'slider' || field.type === 'number') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '';
+    const stepText = String(field.step ?? '');
+    const decimals = stepText.includes('.') ? stepText.split('.')[1].length : 0;
+    return numeric.toFixed(decimals);
+  }
+  return String(value);
+},
+deforumFieldOptions(field) {
+  if (!field) return [];
+  if (field.key === 'sampler') return this.engineSamplerOptions;
+  if (field.key === 'scheduler') return this.engineSchedulerOptions;
+  return Array.isArray(field.options) ? field.options : [];
+},
+isDeforumDynamicSelect(field) {
+  return !!(field && (field.key === 'sampler' || field.key === 'scheduler'));
+},
  onDeforumSectionToggle(groupId, evt) {
    this.deforumSectionOpen[groupId] = evt.target.open;
  },
@@ -6130,6 +6304,9 @@ flushQueuedPreview() {
   }
   if (keyPath === 'sampler') {
     this.forge.options.sampler_name = String(value || '');
+  }
+  if (keyPath === 'scheduler') {
+    this.forge.options.scheduler = String(value || '');
   }
   if (keyPath === 'W' && Number.isFinite(value)) {
     this.syncResolutionAcrossControls(value, this.deforumSettings && this.deforumSettings.H, { syncGpuModal: true });

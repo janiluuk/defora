@@ -1362,9 +1362,18 @@
       border-color: var(--a-group);
       color: var(--a-group);
     }
+    .prompt-group-button--common {
+      border-color: rgba(127, 119, 221, 0.65);
+      color: var(--accent-text);
+    }
     .prompt-group-button--b {
       border-color: var(--b-group);
       color: var(--b-group);
+    }
+    .prompt-group-button--common.active {
+      border-color: rgba(127, 119, 221, 0.9);
+      color: var(--accent-text);
+      box-shadow: 0 0 0 1px rgba(127, 119, 221, 0.75) inset;
     }
     .prompt-group-button--a.active {
       border-color: var(--a-group);
@@ -1608,12 +1617,16 @@
       display: grid;
       gap: 8px;
     }
+    .lora-active-group--common {
+      grid-column: 1 / -1;
+    }
     .lora-active-group__title {
       font-size: 12px;
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.08em;
     }
+    .lora-active-group--common .lora-active-group__title { color: var(--accent-text); }
     .lora-active-group--a .lora-active-group__title { color: var(--a-group); }
     .lora-active-group--b .lora-active-group__title { color: var(--b-group); }
     .lora-active-group__body {
