@@ -6,6 +6,7 @@
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='RUNS'}" @click="switchSubTab('SETTINGS','RUNS')">RUNS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','SYSTEM')">SYSTEM</button>
     </div>
 
     <div v-if="currentSubTab.SETTINGS==='RUNS'" class="rack runs-browser">
@@ -757,14 +758,20 @@
       </div>
     </div>
 
+    <div v-else-if="currentSubTab.SETTINGS==='SYSTEM'" class="system-files-tab" data-testid="video-swarm-browser">
+      <VideoSwarmBrowser :app="app" />
+    </div>
+
   </div>
 </template>
 
 <script>
+import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'SettingsView',
+  components: { VideoSwarmBrowser },
   props: {
     app: { type: Object, required: true },
   },

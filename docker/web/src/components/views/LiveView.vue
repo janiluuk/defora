@@ -1,5 +1,33 @@
 <template>
-  <div>
+  <div class="live-view" data-testid="live-view">
+    <div class="sub-pills live-view__tabs">
+      <button
+        type="button"
+        class="sub-pill"
+        :class="{ active: currentSubTab.LIVE === 'MONITOR' }"
+        @click="switchSubTab('LIVE', 'MONITOR')"
+      >
+        Monitor
+      </button>
+      <button
+        type="button"
+        class="sub-pill"
+        :class="{ active: currentSubTab.LIVE === 'DEFORUM_JOB' }"
+        @click="switchSubTab('LIVE', 'DEFORUM_JOB')"
+      >
+        Deforum job
+      </button>
+      <button
+        type="button"
+        class="sub-pill live-view__tab-add"
+        :class="{ active: currentSubTab.LIVE === 'ADD_SOURCE' }"
+        @click="switchSubTab('LIVE', 'ADD_SOURCE')"
+      >
+        + Add source
+      </button>
+    </div>
+
+    <template v-if="currentSubTab.LIVE === 'MONITOR'">
     <div class="rack performance-deck">
       <div class="framesync-panel">
         <div class="framesync-header">
@@ -39,6 +67,7 @@
           <div class="framesync-stack" style="margin-top:10px;">
             <div class="framesync-subtitle">Animation style</div>
             <select class="framesync-select" :value="defaultAnimation.mode" @change="setDefaultAnimationMode($event.target.value)">
+              <option value="instancing">GPU instancing</option>
               <option value="volume">Volume lighting</option>
               <option value="orbital">Orbital pulse</option>
               <option value="nebula">Nebula drift</option>
@@ -46,6 +75,30 @@
               <option value="marching">Marching cubes</option>
               <option value="ocean">Shader ocean</option>
             </select>
+          </div>
+          <div v-if="defaultAnimation.mode === 'instancing'" class="slider-row">
+            <label>Instance count</label>
+            <input type="range" min="1000" max="50000" step="500" v-model.number="defaultAnimation.instCount" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'instancing'" class="slider-row">
+            <label>Spread</label>
+            <input type="range" min="0.2" max="2.5" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'instancing'" class="slider-row">
+            <label>Motion rate</label>
+            <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'instancing'" class="slider-row">
+            <label>Color shift</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'instancing'" class="slider-row">
+            <label>Shimmer</label>
+            <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'instancing'" class="slider-row">
+            <label>Camera depth</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.orbit" @input="onDefaultAnimationInput">
           </div>
           <div v-if="defaultAnimation.mode === 'volume'" class="slider-row">
             <label>Beam count</label>
@@ -162,31 +215,27 @@
             <label>Cloud elevation</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudElevation" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Speed</label>
             <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
-            <label>Speed</label>
-            <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
-          </div>
-          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Spread</label>
             <input type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Glow</label>
             <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Hue</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Pulse</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.pulse" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Drift</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
           </div>
@@ -333,17 +382,36 @@
         </div>
       </div>
     </div>
+    </template>
 
-    <div class="rack param-drawer deforum-settings-drawer" data-testid="deforum-settings-panel">
-      <button type="button" class="param-drawer-toggle" @click="deforumPanelOpen = !deforumPanelOpen; saveSessionState()">
-        <span class="param-drawer-label">
-          <UiIcon class="param-drawer-label-icon" name="film" />
-          <span>Deforum settings</span>
-        </span>
-        <span class="deforum-settings-hint">{{ deforumSettingsStatus || 'Hidden panel' }}</span>
-        <UiIcon class="param-drawer-chevron" :name="deforumPanelOpen ? 'chevron-up' : 'chevron-down'" />
-      </button>
-      <div v-show="deforumPanelOpen" class="param-drawer-body deforum-settings-body">
+    <template v-else-if="currentSubTab.LIVE === 'DEFORUM_JOB'">
+    <div class="rack deforum-job-panel" data-testid="deforum-settings-panel">
+      <div class="framesync-panel deforum-job-panel__head">
+        <div class="framesync-header">
+          <div class="framesync-title">
+            <UiIcon class="framesync-title-icon" name="film" />
+            <span class="framesync-accent">Deforum job</span>
+          </div>
+          <span
+            class="perf-mode-badge"
+            :class="deforumPlaying ? 'mode-animate' : 'mode-preview'"
+          >
+            {{ deforumPlaying ? 'Animating' : 'Ready' }}
+          </span>
+        </div>
+        <p class="framesync-subtitle deforum-job-panel__summary">
+          Batch <strong>{{ deforumSettings.batch_name || '—' }}</strong>
+          · {{ deforumSettings.max_frames || 0 }} frames @ {{ deforumSettings.fps || 24 }} fps
+        </p>
+        <div class="deforum-job-panel__transport">
+          <button type="button" class="framesync-button" :class="{ active: deforumPlaying }" @click="toggleDeforumPlay">
+            {{ deforumPlaying ? 'Pause job' : 'Play job' }}
+          </button>
+          <button type="button" class="framesync-button" @click="stopDeforumPlay">Stop</button>
+        </div>
+        <div v-if="deforumSettingsStatus" class="framesync-subtitle deforum-job-panel__status">{{ deforumSettingsStatus }}</div>
+      </div>
+      <div class="param-drawer-body deforum-settings-body">
         <div class="deforum-settings-toolbar">
           <button type="button" class="framesync-button" :disabled="deforumSettingsLoading" @click="loadDeforumSettings">
             <span v-if="deforumSettingsLoading" class="lazy-loading-indicator lazy-loading-indicator--button">
@@ -456,16 +524,104 @@
         </div>
       </div>
     </div>
+    </template>
+
+    <template v-else-if="currentSubTab.LIVE === 'ADD_SOURCE'">
+    <div class="rack live-add-source" data-testid="live-add-source">
+      <div class="framesync-panel">
+        <div class="framesync-header">
+          <div class="framesync-title">
+            <UiIcon class="framesync-title-icon" name="plus" />
+            <span class="framesync-accent">Add source</span>
+          </div>
+          <span class="framesync-subtitle" style="margin:0;">Pick from the library or link a cloud folder.</span>
+        </div>
+
+        <div class="chips live-add-source__mode" style="margin-top:10px;">
+          <button
+            type="button"
+            class="chip"
+            :class="{ active: liveSourcePanel === 'library' }"
+            @click="liveSourcePanel = 'library'; saveSessionState()"
+          >
+            Library (video-swarm)
+          </button>
+          <button
+            type="button"
+            class="chip"
+            :class="{ active: liveSourcePanel === 'cloud' }"
+            @click="liveSourcePanel = 'cloud'; saveSessionState()"
+          >
+            Link cloud drive
+          </button>
+        </div>
+
+        <div v-if="liveSourceStatus" class="framesync-subtitle live-add-source__status">{{ liveSourceStatus }}</div>
+
+        <div v-if="liveSources.length" class="live-source-list">
+          <div class="framesync-subtitle">Active sources</div>
+          <div
+            v-for="source in liveSources"
+            :key="source.id"
+            class="live-source-row"
+          >
+            <div class="live-source-row__meta">
+              <span class="live-source-row__type">{{ source.type === 'cloud' ? 'Cloud' : 'Library' }}</span>
+              <span class="live-source-row__label">{{ source.label }}</span>
+            </div>
+            <div class="live-source-row__actions">
+              <button type="button" class="framesync-button framesync-button--compact" @click="applyLiveSourceAsFeed(source)">Use</button>
+              <button type="button" class="framesync-button framesync-button--compact framesync-button--danger" @click="removeLiveSource(source.id)">Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <div v-if="liveSourcePanel === 'library'" class="live-add-source__library">
+          <div class="live-add-source__library-actions">
+            <button type="button" class="framesync-button" @click="addLiveSourcesFromSelection">Add selected to sources</button>
+          </div>
+          <VideoSwarmBrowser :app="app" />
+        </div>
+
+        <div v-else class="live-add-source__cloud framesync-stack" style="margin-top:12px;">
+          <label class="framesync-stack">
+            <span class="framesync-subtitle">Provider</span>
+            <select class="framesync-select" v-model="cloudDriveDraft.provider">
+              <option value="google_drive">Google Drive</option>
+              <option value="dropbox">Dropbox</option>
+              <option value="onedrive">OneDrive</option>
+              <option value="other">Other</option>
+            </select>
+          </label>
+          <label class="framesync-stack">
+            <span class="framesync-subtitle">Share link</span>
+            <input
+              type="url"
+              class="framesync-input"
+              v-model.trim="cloudDriveDraft.url"
+              placeholder="https://drive.google.com/…"
+              @keyup.enter="linkCloudDriveSource"
+            >
+          </label>
+          <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
+          <p class="framesync-subtitle live-add-source__hint">
+            Paste a public share URL. Playback opens in a new tab until direct streaming is wired in.
+          </p>
+        </div>
+      </div>
+    </div>
+    </template>
   </div>
 </template>
 
 <script>
 import UiIcon from '../UiIcon.vue'
+import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'LiveView',
-  components: { UiIcon },
+  components: { UiIcon, VideoSwarmBrowser },
   props: {
     app: { type: Object, required: true },
   },

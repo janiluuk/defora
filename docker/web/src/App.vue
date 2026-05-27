@@ -794,7 +794,27 @@ export default {
         { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
-      currentSubTab: { PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
+      currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
+      liveSourcePanel: 'library',
+      liveSources: [],
+      liveSourceStatus: '',
+      cloudDriveDraft: { url: '', provider: 'google_drive' },
+      systemFiles: {
+        roots: [],
+        rootId: 'frames',
+        currentPath: '',
+        parent: '',
+        videos: [],
+        videoCount: null,
+        loading: false,
+        status: '',
+        recursive: false,
+        showFilenames: true,
+        sortKey: 'name',
+        zoomLevel: 2,
+        selectedPaths: [],
+        fullscreenIndex: -1,
+      },
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -1033,7 +1053,8 @@ export default {
       streamSrc: "/hls/live/deforum.m3u8",
       defaultAnimation: {
         preferDeforumVideo: false,
-        mode: 'volume',
+        mode: 'instancing',
+        instCount: 12000,
         beamCount: 7,
         speed: 0.75,
         spread: 0.68,
@@ -2208,11 +2229,16 @@ export default {
    const allowed = ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS'];
    return allowed.includes(sub) ? sub : 'LFO';
  },
+ normalizeLiveSubTab(sub) {
+   const allowed = ['MONITOR', 'DEFORUM_JOB', 'ADD_SOURCE'];
+   return allowed.includes(sub) ? sub : 'MONITOR';
+ },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
+  if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
   if (tab === 'PROMPTS' && sub !== 'LORA') {
@@ -2223,6 +2249,9 @@ export default {
   }
   if (tab === 'PROMPTS' && (sub === 'LORA' || sub === 'CROSSFADER') && !this.lorasLoading && !this.loras.available.length) {
     this.refreshLoras();
+  }
+  if (tab === 'LIVE' && sub === 'ADD_SOURCE' && !this.systemFiles.roots.length) {
+    void this.initSystemFilesBrowser();
   }
  },
  toggleLoraCrossfaderPicker(group) {
@@ -2401,13 +2430,14 @@ async stopOutboundStream() {
 },
 normalizeDefaultAnimationSettings(input = {}) {
   const next = input && typeof input === 'object' ? input : {};
-  const mode = ['volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'volume';
+  const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'instancing';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
     mode,
+    instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
     speed: Math.max(0.1, Math.min(2.5, Number(next.speed) || 0.75)),
-    spread: Math.max(0.2, Math.min(1.4, Number(next.spread) || 0.68)),
+    spread: Math.max(0.2, Math.min(2.5, Number(next.spread) || 0.68)),
     glow: Math.max(0.1, Math.min(1.4, Number(next.glow) || 0.78)),
     hue: Math.max(0, Math.min(1, Number.isFinite(Number(next.hue)) ? Number(next.hue) : 0.6)),
     pulse: Math.max(0, Math.min(1, Number.isFinite(Number(next.pulse)) ? Number(next.pulse) : 0.36)),
@@ -2467,6 +2497,164 @@ setPreferDeforumVideo(prefer) {
     this.attachPlayer();
   }
   this.saveSessionState();
+},
+async initSystemFilesBrowser() {
+  if (this.systemFiles.roots.length) return;
+  try {
+    const res = await fetch('/api/video-swarm/roots');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load library roots');
+    this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
+    const preferred = this.systemFiles.roots.find((r) => r.id === 'frames') || this.systemFiles.roots[0];
+    if (preferred) {
+      this.systemFiles.rootId = preferred.id;
+      await this.browseSystemFiles(preferred.path, { rootId: preferred.id });
+    }
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Library unavailable';
+  }
+},
+async browseSystemFiles(targetPath, { rootId } = {}) {
+  this.systemFiles.loading = true;
+  try {
+    const q = new URLSearchParams();
+    if (targetPath) q.set('path', targetPath);
+    if (rootId || this.systemFiles.rootId) q.set('rootId', rootId || this.systemFiles.rootId);
+    if (this.systemFiles.recursive) q.set('recursive', '1');
+    q.set('sort', this.systemFiles.sortKey || 'name');
+    const res = await fetch(`/api/video-swarm/browse?${q.toString()}`);
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Browse failed');
+    this.systemFiles.currentPath = data.path || '';
+    this.systemFiles.parent = data.parent || '';
+    this.systemFiles.videos = Array.isArray(data.videos) ? data.videos : [];
+    this.systemFiles.videoCount = Number.isFinite(Number(data.videoCount))
+      ? Number(data.videoCount)
+      : this.systemFiles.videos.length;
+    this.systemFiles.status = '';
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Could not browse folder';
+    this.systemFiles.videos = [];
+    this.systemFiles.videoCount = 0;
+  } finally {
+    this.systemFiles.loading = false;
+  }
+},
+toggleSystemFilesRecursive() {
+  this.systemFiles.recursive = !this.systemFiles.recursive;
+  void this.browseSystemFiles(this.systemFiles.currentPath);
+},
+toggleSystemFilesShowNames() {
+  this.systemFiles.showFilenames = !this.systemFiles.showFilenames;
+},
+toggleSystemFileSelection(filePath) {
+  const paths = Array.isArray(this.systemFiles.selectedPaths) ? [...this.systemFiles.selectedPaths] : [];
+  const idx = paths.indexOf(filePath);
+  if (idx >= 0) paths.splice(idx, 1);
+  else paths.push(filePath);
+  this.systemFiles.selectedPaths = paths;
+},
+openSystemFileFullscreen(index) {
+  const list = this.systemFiles.videos || [];
+  if (index >= 0 && index < list.length) this.systemFiles.fullscreenIndex = index;
+},
+closeSystemFileFullscreen() {
+  this.systemFiles.fullscreenIndex = -1;
+},
+stepSystemFileFullscreen(delta) {
+  const list = this.systemFiles.videos || [];
+  if (!list.length) return;
+  let idx = this.systemFiles.fullscreenIndex;
+  if (idx < 0) idx = 0;
+  idx = (idx + delta + list.length) % list.length;
+  this.systemFiles.fullscreenIndex = idx;
+},
+async deleteSystemFile(filePath) {
+  this.systemFiles.status = 'Delete is not available from the web UI yet';
+},
+systemFilePlaybackUrl(video) {
+  if (!video || !video.path) return '';
+  const q = new URLSearchParams({ path: video.path });
+  if (video.rootId) q.set('rootId', video.rootId);
+  return `/api/video-swarm/file?${q.toString()}`;
+},
+systemFileMediaUrl(filePath) {
+  const video = (this.systemFiles.videos || []).find((v) => v.path === filePath);
+  if (video) return this.systemFilePlaybackUrl(video);
+  const q = new URLSearchParams({ path: filePath });
+  if (this.systemFiles.rootId) q.set('rootId', this.systemFiles.rootId);
+  return `/api/video-swarm/file?${q.toString()}`;
+},
+addLiveSourceFromVideo(video) {
+  if (!video || !video.path) return;
+  const entry = {
+    id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    type: 'library',
+    label: video.name || 'Video',
+    path: video.path,
+    rootId: video.rootId || this.systemFiles.rootId || 'frames',
+    playbackUrl: this.systemFilePlaybackUrl(video),
+  };
+  this.liveSources = [...(this.liveSources || []), entry];
+  this.liveSourceStatus = `Added library source: ${entry.label}`;
+  this.saveSessionState();
+},
+addLiveSourcesFromSelection() {
+  const selected = (this.systemFiles.selectedPaths || [])
+    .map((p) => (this.systemFiles.videos || []).find((v) => v.path === p))
+    .filter(Boolean);
+  if (!selected.length) {
+    const hovered = (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
+    if (hovered) selected.push(hovered);
+  }
+  if (!selected.length) {
+    this.liveSourceStatus = 'Select a video in the library grid first';
+    return;
+  }
+  selected.forEach((video) => this.addLiveSourceFromVideo(video));
+},
+linkCloudDriveSource() {
+  const url = String(this.cloudDriveDraft.url || '').trim();
+  if (!url) {
+    this.liveSourceStatus = 'Enter a cloud share link';
+    return;
+  }
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch (_e) {
+    this.liveSourceStatus = 'Enter a valid https:// link';
+    return;
+  }
+  const entry = {
+    id: `cloud-${Date.now()}`,
+    type: 'cloud',
+    label: parsed.hostname.replace(/^www\./, ''),
+    url: parsed.href,
+    provider: this.cloudDriveDraft.provider || 'other',
+    playbackUrl: parsed.href,
+  };
+  this.liveSources = [...(this.liveSources || []), entry];
+  this.cloudDriveDraft.url = '';
+  this.liveSourceStatus = `Linked cloud source: ${entry.label}`;
+  this.saveSessionState();
+},
+removeLiveSource(sourceId) {
+  this.liveSources = (this.liveSources || []).filter((s) => s.id !== sourceId);
+  this.saveSessionState();
+},
+applyLiveSourceAsFeed(source) {
+  if (!source) return;
+  if (source.type === 'library' && source.playbackUrl) {
+    this.streamSrc = source.playbackUrl;
+    this.attachPlayer();
+    this.liveSourceStatus = `Previewing ${source.label}`;
+    return;
+  }
+  if (source.type === 'cloud' && source.url) {
+    window.open(source.url, '_blank', 'noopener');
+    this.liveSourceStatus = `Opened ${source.label} in a new tab`;
+  }
 },
 markVideoReady(ready) {
   this.videoReady = !!ready;
@@ -6177,6 +6365,27 @@ async generateStory() {
      if (typeof s.showFrames === 'boolean') this.showFrames = s.showFrames;
      if (typeof s.liveMainModsOpen === 'boolean') this.liveMainModsOpen = s.liveMainModsOpen;
      if (typeof s.liveMainCrossfaderOpen === 'boolean') this.liveMainCrossfaderOpen = s.liveMainCrossfaderOpen;
+    if (s.currentSubTab && s.currentSubTab.LIVE) {
+      this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
+    }
+    if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
+    if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
+    if (s.cloudDriveDraft && typeof s.cloudDriveDraft === 'object') {
+      this.cloudDriveDraft = {
+        url: String(s.cloudDriveDraft.url || ''),
+        provider: String(s.cloudDriveDraft.provider || 'google_drive'),
+      };
+    }
+    if (s.systemFiles && typeof s.systemFiles === 'object') {
+      this.systemFiles = {
+        ...this.systemFiles,
+        ...s.systemFiles,
+        videos: [],
+        loading: false,
+        selectedPaths: Array.isArray(s.systemFiles.selectedPaths) ? s.systemFiles.selectedPaths : [],
+        fullscreenIndex: -1,
+      };
+    }
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
@@ -6237,6 +6446,17 @@ async generateStory() {
       showFrames: this.showFrames,
       liveMainModsOpen: this.liveMainModsOpen,
       liveMainCrossfaderOpen: this.liveMainCrossfaderOpen,
+      currentSubTab: { ...this.currentSubTab },
+      liveSources: this.liveSources,
+      liveSourcePanel: this.liveSourcePanel,
+      cloudDriveDraft: { ...this.cloudDriveDraft },
+      systemFiles: {
+        rootId: this.systemFiles.rootId,
+        recursive: this.systemFiles.recursive,
+        showFilenames: this.systemFiles.showFilenames,
+        sortKey: this.systemFiles.sortKey,
+        zoomLevel: this.systemFiles.zoomLevel,
+      },
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,

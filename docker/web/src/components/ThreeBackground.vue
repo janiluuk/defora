@@ -29,9 +29,51 @@ function lfoColors() {
   return [v('--accent'), '#2de2ff', v('--warn'), v('--b-group'), v('--live'), v('--accent-text')]
 }
 
+const INSTANCING_MAX = 50000
+
+const INSTANCING_VERTEX = `
+attribute vec3 offset;
+attribute vec4 color;
+attribute vec4 orientationStart;
+attribute vec4 orientationEnd;
+
+uniform float sineTime;
+uniform float spreadScale;
+
+varying vec3 vPosition;
+varying vec4 vColor;
+
+void main() {
+  vec3 pos = offset * spreadScale * max(abs(sineTime * 2.0 + 1.0), 0.5) + position;
+  vec4 orientation = normalize(mix(orientationStart, orientationEnd, sineTime));
+  vec3 vcV = cross(orientation.xyz, pos);
+  pos = vcV * (2.0 * orientation.w) + (cross(orientation.xyz, vcV) * 2.0 + pos);
+  vPosition = pos;
+  vColor = color;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
+}
+`
+
+const INSTANCING_FRAGMENT = `
+uniform float time;
+uniform float hueShift;
+uniform float shimmer;
+
+varying vec3 vPosition;
+varying vec4 vColor;
+
+void main() {
+  vec4 color = vec4(vColor);
+  color.rgb += vec3(hueShift * 0.35, hueShift * 0.18, hueShift * 0.5);
+  color.r += sin(vPosition.x * 10.0 + time) * shimmer;
+  gl_FragColor = color;
+}
+`
+
 function defaultSettings() {
   return {
-    mode: 'volume',
+    mode: 'instancing',
+    instCount: 12000,
     beamCount: 7,
     speed: 0.75,
     spread: 0.68,
@@ -173,6 +215,8 @@ export default {
       oceanPmremTarget: null,
       oceanNormalsTexture: null,
       oceanSettingsKey: '',
+      instancingRoot: null,
+      instancingMesh: null,
       baseRendererToneMapping: null,
       baseRendererExposure: 1,
     }
@@ -228,6 +272,7 @@ export default {
       this.createFatLines()
       this.createMarchingField()
       this.createOceanScene()
+      this.createInstancingField()
       this.createLfoGroups()
       this.handleResize()
 
@@ -532,6 +577,90 @@ export default {
       this.renderer.toneMapping = this.baseRendererToneMapping ?? THREE.NoToneMapping
       this.renderer.toneMappingExposure = this.baseRendererExposure ?? 1
     },
+    createInstancingField() {
+      const vector = new THREE.Vector4()
+      const offsets = []
+      const colors = []
+      const orientationsStart = []
+      const orientationsEnd = []
+
+      for (let i = 0; i < INSTANCING_MAX; i += 1) {
+        offsets.push(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5)
+        colors.push(Math.random(), Math.random(), Math.random(), Math.random())
+        vector.set(
+          Math.random() * 2 - 1,
+          Math.random() * 2 - 1,
+          Math.random() * 2 - 1,
+          Math.random() * 2 - 1
+        )
+        vector.normalize()
+        orientationsStart.push(vector.x, vector.y, vector.z, vector.w)
+        vector.set(
+          Math.random() * 2 - 1,
+          Math.random() * 2 - 1,
+          Math.random() * 2 - 1,
+          Math.random() * 2 - 1
+        )
+        vector.normalize()
+        orientationsEnd.push(vector.x, vector.y, vector.z, vector.w)
+      }
+
+      const positions = [
+        0.025, -0.025, 0,
+        -0.025, 0.025, 0,
+        0, 0, 0.025,
+      ]
+
+      const geometry = new THREE.BufferGeometry()
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+      geometry.setAttribute('offset', new THREE.InstancedBufferAttribute(new Float32Array(offsets), 3))
+      geometry.setAttribute('color', new THREE.InstancedBufferAttribute(new Float32Array(colors), 4))
+      geometry.setAttribute('orientationStart', new THREE.InstancedBufferAttribute(new Float32Array(orientationsStart), 4))
+      geometry.setAttribute('orientationEnd', new THREE.InstancedBufferAttribute(new Float32Array(orientationsEnd), 4))
+      geometry.instanceCount = defaultSettings().instCount
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: {
+          time: { value: 0 },
+          sineTime: { value: 0 },
+          spreadScale: { value: 1 },
+          hueShift: { value: 0.6 },
+          shimmer: { value: 0.5 },
+        },
+        vertexShader: INSTANCING_VERTEX,
+        fragmentShader: INSTANCING_FRAGMENT,
+        side: THREE.DoubleSide,
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+
+      this.instancingMesh = new THREE.Mesh(geometry, material)
+      this.instancingRoot = new THREE.Group()
+      this.instancingRoot.add(this.instancingMesh)
+      this.instancingRoot.visible = false
+      this.scene.add(this.instancingRoot)
+    },
+    updateInstancingScene(elapsed, config, audioLevel) {
+      if (!this.instancingRoot || !this.instancingMesh) return
+
+      const geometry = this.instancingMesh.geometry
+      const material = this.instancingMesh.material
+      const count = clamp(Math.round(Number(config.instCount) || defaultSettings().instCount), 1000, INSTANCING_MAX)
+      if (geometry.instanceCount !== count) geometry.instanceCount = count
+
+      const spread = clamp(Number(config.spread) || 1, 0.2, 2.5)
+      material.uniforms.spreadScale.value = spread
+      material.uniforms.hueShift.value = clamp01(config.hue == null ? 0.6 : Number(config.hue))
+      material.uniforms.shimmer.value = 0.15 + clamp(Number(config.glow) || 0.78, 0.1, 1.4) * 0.55 + audioLevel * 0.25
+
+      const rate = Math.max(0.1, Number(config.speed) || 0.75)
+      const time = performance.now()
+      this.instancingRoot.visible = true
+      this.instancingMesh.rotation.y = elapsed * 0.0005 * rate * 12
+      material.uniforms.time.value = time * 0.005 * rate * (1 + audioLevel * 0.35)
+      material.uniforms.sineTime.value = Math.sin(material.uniforms.time.value * 0.05)
+    },
     createLfoGroups() {
       this.lfoGroups = Array.from({ length: 6 }).map((_, index) => {
         const colors = lfoColors()
@@ -578,10 +707,11 @@ export default {
     resolvedSettings() {
       const merged = { ...defaultSettings(), ...(this.settings || {}) }
       return {
-        mode: ['volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(merged.mode) ? merged.mode : 'volume',
+        mode: ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(merged.mode) ? merged.mode : 'instancing',
+        instCount: clamp(Math.round(Number(merged.instCount) || defaultSettings().instCount), 1000, INSTANCING_MAX),
         beamCount: clamp(Math.round(Number(merged.beamCount) || 7), 3, 12),
         speed: clamp(Number(merged.speed) || 0.75, 0.1, 2.5),
-        spread: clamp(Number(merged.spread) || 0.68, 0.2, 1.4),
+        spread: clamp(Number(merged.spread) || 0.68, 0.2, 2.5),
         glow: clamp(Number(merged.glow) || 0.78, 0.1, 1.4),
         hue: clamp01(merged.hue == null ? 0.6 : Number(merged.hue)),
         pulse: clamp01(merged.pulse == null ? 0.36 : Number(merged.pulse)),
@@ -847,7 +977,23 @@ export default {
         this.camera.position.set(24 + Math.sin(elapsed * 0.08) * 2, 16 + Math.cos(elapsed * 0.06) * 1.5, 38)
         this.camera.lookAt(0, 6, 0)
         return
+      } else if (config.mode === 'instancing') {
+        if (this.camera.fov !== 50) {
+          this.camera.fov = 50
+          this.camera.near = 0.5
+          this.camera.far = 20
+          this.camera.updateProjectionMatrix()
+        }
+        this.camera.position.set(0, 0, 3.2 + config.orbit * 0.8)
+        this.camera.lookAt(0, 0, 0)
+        return
       } else {
+        if (this.camera.fov !== 45) {
+          this.camera.fov = 45
+          this.camera.near = 0.1
+          this.camera.far = 100
+          this.camera.updateProjectionMatrix()
+        }
         this.camera.position.set(0, 0, 18 - config.orbit * 2)
       }
       this.camera.lookAt(0, 0, 0)
@@ -868,7 +1014,8 @@ export default {
         const raycastMode = config.mode === 'raycast'
         const marchingMode = config.mode === 'marching'
         const oceanMode = config.mode === 'ocean'
-        const presetMode = raycastMode || marchingMode || oceanMode
+        const instancingMode = config.mode === 'instancing'
+        const presetMode = raycastMode || marchingMode || oceanMode || instancingMode
         const delta = this.clock.getDelta()
 
         if (this.particleSystem) this.particleSystem.visible = !presetMode
@@ -878,6 +1025,7 @@ export default {
         if (raycastMode) {
           if (this.marchingRoot) this.marchingRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
           this.restoreRendererToneMapping()
           if (this.scene) this.scene.environment = null
           this.lfoGroups.forEach((group) => { group.visible = false })
@@ -885,6 +1033,7 @@ export default {
         } else if (marchingMode) {
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
           this.restoreRendererToneMapping()
           if (this.scene) this.scene.environment = null
           this.lfoGroups.forEach((group) => { group.visible = false })
@@ -892,9 +1041,19 @@ export default {
         } else if (oceanMode) {
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
           this.lfoGroups.forEach((group) => { group.visible = false })
           this.updateOceanScene(elapsed, config, delta)
+        } else if (instancingMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateInstancingScene(elapsed, config, audioLevel * tabBoost)
         } else {
+          if (this.instancingRoot) this.instancingRoot.visible = false
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.marchingRoot) this.marchingRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
@@ -962,6 +1121,10 @@ export default {
         if (this.oceanMesh.geometry) this.oceanMesh.geometry.dispose()
         if (this.oceanMesh.material) this.oceanMesh.material.dispose()
       }
+      if (this.instancingMesh) {
+        if (this.instancingMesh.geometry) this.instancingMesh.geometry.dispose()
+        if (this.instancingMesh.material) this.instancingMesh.material.dispose()
+      }
 
       this.renderer = null
       this.scene = null
@@ -994,6 +1157,8 @@ export default {
       this.oceanPmremTarget = null
       this.oceanNormalsTexture = null
       this.oceanSettingsKey = ''
+      this.instancingRoot = null
+      this.instancingMesh = null
     },
   },
 }
