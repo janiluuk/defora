@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.26] - 2026-05-27
+
+## What's Changed
+
+- test(web): Playwright E2E for recording + clip metadata (#67) (2efa57f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.25...v0.6.26
+
+
 ## [0.6.25] - 2026-05-27
 
 ## What's Changed
