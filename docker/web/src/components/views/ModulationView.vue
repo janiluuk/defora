@@ -76,12 +76,13 @@
               <div class="framesync-subtitle">Targets</div>
               <div class="modulation-target-board__hint" v-if="selectedModulationLfo">
                 Armed: LFO {{ selectedModulationLfo.id }}. Click a target to toggle its route.
+                Standby / Three.js targets drive the default animation (not Deforum).
               </div>
             </div>
           </div>
           <div class="modulation-target-board__grid">
             <TargetCell
-              v-for="target in lfoTargets"
+              v-for="target in modulationTargets"
               :key="'shared-target-' + target.key"
               :label="target.label"
               :param-key="target.key"
@@ -235,7 +236,7 @@
               <label class="switch modulation-macro-pill__switch"><input type="checkbox" v-model="macro.on"> Macro {{ idx + 1 }}</label>
               <select class="framesync-select modulation-macro-pill__select" v-model="macro.target">
                 <option value="">None</option>
-                <option v-for="target in lfoTargets" :key="'macro-target-' + idx + '-' + target.key" :value="target.key">{{ target.label }}</option>
+                <option v-for="target in modulationTargets" :key="'macro-target-' + idx + '-' + target.key" :value="target.key">{{ target.label }}</option>
               </select>
               <select class="framesync-select modulation-macro-pill__select" v-model="macro.shape">
                 <option v-for="shape in [...lfoShapes, 'Noise']" :key="'macro-shape-' + idx + '-' + shape" :value="shape">{{ shape }}</option>

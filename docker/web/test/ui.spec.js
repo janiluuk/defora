@@ -847,6 +847,26 @@ describe("Deforumation Web UI behavior", () => {
     expect(last.payload).to.have.property(param.key, 0.9);
   });
 
+  it("routes modulation to Three.js standby animation fields", () => {
+    const instance = instantiate(appDef);
+    expect(instance.animationTargets.some((t) => t.key === "anim_hue")).to.equal(true);
+    expect(instance.modulationTargets.length).to.be.greaterThan(instance.lfoTargets.length);
+
+    instance.applyAnimationModulation("hue", 0.22);
+    expect(instance.defaultAnimation.hue).to.equal(0.22);
+
+    const payload = {};
+    const cnUpdates = {};
+    instance.routeModulationValue("anim_glow", 1.1, payload, cnUpdates);
+    expect(payload).to.deep.equal({});
+    expect(Object.keys(cnUpdates)).to.have.length(0);
+    expect(instance.defaultAnimation.glow).to.equal(1.1);
+
+    instance.ws = new FakeSocket();
+    instance.routeModulationValue("cfg", 8, payload, cnUpdates);
+    expect(payload.cfg).to.equal(8);
+  });
+
   it("addMacro respects the six-slot cap", () => {
     const instance = instantiate(appDef);
     instance.macrosRack = [
