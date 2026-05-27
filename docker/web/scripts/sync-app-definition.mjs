@@ -73,15 +73,17 @@ for (const mod of UTIL_MODULES) {
 if (inlinedUtils) inlinedUtils += '\n';
 
 const componentStubs = [];
+let needsAppViewProxyStub = false;
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
     if (relPath.includes('/views/')) {
+      needsAppViewProxyStub = true;
       const componentPath = join(root, 'src', relPath.replace(/^\.\//, ''));
       const componentSrc = readFileSync(componentPath, 'utf8');
       const componentTemplate = extractVueTemplate(componentSrc, relPath);
       componentStubs.push(
-        `const ${name} = { props: ['app'], setup(props) { return props.app; }, template: ${JSON.stringify(componentTemplate)} };`
+        `const ${name} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: ${JSON.stringify(componentTemplate)} };`
       );
       return '';
     }
@@ -89,8 +91,34 @@ script = script.replace(
     return '';
   }
 );
+const proxyStubBlock = needsAppViewProxyStub
+  ? `function __proxyAppView(props) {
+  return new Proxy({}, {
+    get(_target, key) {
+      return Reflect.get(props.app, key);
+    },
+    set(_target, key, value) {
+      Reflect.set(props.app, key, value);
+      return true;
+    },
+    has(_target, key) {
+      return key in props.app;
+    },
+    getOwnPropertyDescriptor(_target, key) {
+      return {
+        configurable: true,
+        enumerable: true,
+        value: Reflect.get(props.app, key),
+        writable: true,
+      };
+    },
+  });
+}
+
+`
+  : '';
 const stubBlock = componentStubs.length
-  ? `${componentStubs.join('\n')}\n\n`
+  ? `${proxyStubBlock}${componentStubs.join('\n')}\n\n`
   : '';
 
 script = script.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '').trim();

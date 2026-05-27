@@ -23,26 +23,32 @@ fs.mkdirSync(outDir, { recursive: true });
 /** @type {Array<{ file: string, tab: string, subTab?: { group: string, id: string } }>} */
 const shots = [
   { file: 'live-tab.png', tab: 'LIVE' },
+  { file: 'stream-tab.png', tab: 'STREAM' },
+  { file: 'library-tab.png', tab: 'LIBRARY' },
   { file: 'prompts-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'PROMPTS' } },
   { file: 'lora-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'LORA' } },
   { file: 'cn-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'CONTROLNET' } },
   { file: 'motion-tab.png', tab: 'MOTION' },
   { file: 'modulation-tab.png', tab: 'MODULATION' },
-  { file: 'audio-tab.png', tab: 'AUDIO' },
-  { file: 'runs-tab.png', tab: 'RUNS' },
   { file: 'settings-tab.png', tab: 'SETTINGS' },
   { file: 'generate-tab.png', tab: 'GENERATE' },
+  { file: 'main.png', tab: 'LIVE' },
 ];
 
 const browser = await chromium.launch({ headless: true });
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({ viewport: { width: 1600, height: 1040 } });
 
 await page.goto(base, { waitUntil: 'networkidle', timeout: 60000 });
 await page.waitForSelector('.tab', { timeout: 30000 });
 await page.waitForTimeout(800);
 
 async function clickTopTab(name) {
-  await page.locator('header .tab').filter({ hasText: name }).first().click();
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const button = page.locator('header .tab').filter({ hasText: new RegExp(`^${escaped}`) }).first();
+  const className = (await button.getAttribute('class')) || '';
+  if (!className.includes('active')) {
+    await button.click({ force: true });
+  }
   await page.waitForTimeout(600);
 }
 
@@ -53,7 +59,7 @@ async function clickSubPill(group, id) {
     const el = pills.nth(i);
     const text = (await el.textContent())?.trim() || '';
     if (text === id || text.includes(id)) {
-      await el.click();
+      await el.click({ force: true });
       await page.waitForTimeout(500);
       return;
     }

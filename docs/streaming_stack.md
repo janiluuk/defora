@@ -52,5 +52,6 @@ open http://localhost:8080
 
 ## Notes
 - The ffmpeg encoder waits for at least one frame in `/data/frames` before starting.
+- The encoder worker only launches ffmpeg for frames newer than the last streamed frame and backs off while the newest frame is unchanged, so idle stacks do not keep replaying old material.
 - HLS fragments are written to the `hls` volume; Nginx serves them with permissive CORS.
 - This is a starter stack; extend the Node server to add richer control schemas or auth flows, and tailor the bridge to your mediator parameters.

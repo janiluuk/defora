@@ -13,7 +13,7 @@
 #   LAB_PATH / DEPLOY_PATH     — default /srv/defora
 #   LAB_USER / DEPLOY_USER     — default root
 #   SSH_PROXY_JUMP             — e.g. pi@sparkki.dudeisland.eu:4322 (GitHub Actions / remote deploy)
-#   COMPOSE_FILE               — compose file to use (default docker-compose.yml)
+#   COMPOSE_FILE               — compose file to use (default docker-compose.external-forge.yml)
 #   COMPOSE_SERVICES           — space-separated services (default below)
 #   WEB_PORT                   — host port for web UI (default 8080)
 #   RSYNC_DELETE=1             — rsync --delete (careful)
@@ -38,10 +38,8 @@ REMOTE_PATH="${LAB_PATH:-${DEPLOY_PATH:-/srv/defora}}"
 REMOTE_USER="${LAB_USER:-${DEPLOY_USER:-root}}"
 PROXY_JUMP="${SSH_PROXY_JUMP:-}"
 WEB_PORT="${WEB_PORT:-8080}"
-COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.yml}"
-COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge sd-forge}"
-
-REMOTE_KILL_REGEX="${REMOTE_KILL_REGEX:-python(3)? /app/mediator\\.py|python(3)? -m defora_cli\\.control_bridge|python3? -m defora_cli\\.(stream_helper|ableton_link|timecode_sync|cloud_gpu|dmx_control)|node server\\.js|ffmpeg .*deforum|(^| )mv -i defora_frames( |$)}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.external-forge.yml}"
+COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge encoder}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -65,25 +63,55 @@ fi
 
 echo "==> Remote: stop Defora host processes and tear down old stack"
 # shellcheck disable=SC2029
-ssh_remote "${REMOTE_USER}@${HOST}" \
-  "set -eu
-   regex='${REMOTE_KILL_REGEX}'
-   self=\$\$
-   matches=\$(ps -eo pid=,cmd= | awk -v self=\"\$self\" -v re=\"\$regex\" '\$0 ~ re && \$1 != self { print \$0 }')
-   pids=\$(printf '%s\n' \"\$matches\" | awk '{print \$1}' | xargs 2>/dev/null || true)
-   if [ -n \"\$matches\" ]; then
-     echo '==> Killing remote Defora processes:'
-     printf '%s\n' \"\$matches\"
-     kill -TERM \$pids 2>/dev/null || true
-     sleep 2
-     for pid in \$pids; do
-       kill -0 \"\$pid\" 2>/dev/null && kill -KILL \"\$pid\" 2>/dev/null || true
-     done
-   fi
-   if [ -d '${REMOTE_PATH}' ]; then
-     cd '${REMOTE_PATH}'
-     docker compose -f '${COMPOSE_FILE}' down --remove-orphans 2>/dev/null || true
-   fi"
+ssh_remote "${REMOTE_USER}@${HOST}" bash -s -- "${REMOTE_PATH}" "${COMPOSE_FILE}" <<'EOF'
+set -eu
+
+remote_path="$1"
+compose_file="$2"
+self="$$"
+parent="${PPID:-}"
+matches=""
+pids=""
+
+while IFS= read -r line; do
+  [ -n "$line" ] || continue
+  pid="${line%% *}"
+  cmd="${line#* }"
+  [ "$pid" = "$self" ] && continue
+  [ -n "$parent" ] && [ "$pid" = "$parent" ] && continue
+
+  case "$cmd" in
+    *"/app/mediator.py"*|\
+    *"defora_cli.control_bridge"*|\
+    *"defora_cli.stream_helper"*|\
+    *"defora_cli.ableton_link"*|\
+    *"defora_cli.timecode_sync"*|\
+    *"defora_cli.cloud_gpu"*|\
+    *"defora_cli.dmx_control"*|\
+    *"node server.js"*|\
+    *"mv -i defora_frames "*|\
+    *"ffmpeg "*deforum*)
+      matches+="${line}"$'\n'
+      pids+="${pid} "
+      ;;
+  esac
+done < <(ps -eo pid=,cmd=)
+
+if [ -n "$matches" ]; then
+  echo '==> Killing remote Defora processes:'
+  printf '%s' "$matches"
+  kill -TERM $pids 2>/dev/null || true
+  sleep 2
+  for pid in $pids; do
+    kill -0 "$pid" 2>/dev/null && kill -KILL "$pid" 2>/dev/null || true
+  done
+fi
+
+if [ -d "$remote_path" ]; then
+  cd "$remote_path"
+  docker compose -f "$compose_file" down --remove-orphans 2>/dev/null || true
+fi
+EOF
 
 echo "==> Sync → ${REMOTE_USER}@${HOST}:${REMOTE_PATH}"
 ssh_remote "${REMOTE_USER}@${HOST}" "mkdir -p '${REMOTE_PATH}'"
@@ -126,6 +154,10 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo "  Defora UI:     ${BASE_URL}"
 echo "  Health:        ${BASE_URL}/api/health"
 echo "  HLS:           ${BASE_URL}/hls/live/deforum.m3u8"
-echo "  SD-Forge:      http://${HOST}:7860"
+if [[ " ${COMPOSE_SERVICES} " == *" sd-forge "* ]]; then
+  echo "  SD-Forge:      http://${HOST}:7860"
+else
+  echo "  SD-Forge:      external pool (${COMPOSE_FILE})"
+fi
 echo "  RabbitMQ UI:   http://${HOST}:15672"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
