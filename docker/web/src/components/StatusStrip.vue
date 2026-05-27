@@ -5,6 +5,7 @@
         type="button"
         class="header-transport__btn"
         :class="playing ? 'header-transport__btn--pause header-transport__btn--active' : 'header-transport__btn--play'"
+        :disabled="previewGenerating"
         :title="playing ? 'Pause Deforum animation' : 'Play Deforum animation'"
         :aria-label="playing ? 'Pause animation' : 'Play animation'"
         data-testid="header-play"
@@ -15,6 +16,7 @@
       <button
         type="button"
         class="header-transport__btn header-transport__btn--stop"
+        :disabled="!playing || previewGenerating"
         title="Stop animation"
         aria-label="Stop animation"
         data-testid="header-stop"
@@ -26,6 +28,7 @@
         type="button"
         class="header-transport__btn header-transport__btn--record"
         :class="{ 'header-transport__btn--active': recording }"
+        :disabled="playing || previewGenerating"
         :title="recording ? 'Stop recording' : 'Start recording'"
         :aria-label="recording ? 'Stop recording' : 'Start recording'"
         data-testid="header-record"
@@ -56,53 +59,131 @@
       </button>
     </div>
 
-    <button
-      type="button"
-      class="ss-pill ss-pill--button"
-      :class="{
-        'ss-pill--live': gpuActiveCount > 0,
-        'ss-pill--error': gpuTotalCount > 0 && gpuActiveCount === 0,
-        'ss-pill--warn': gpuTotalCount === 0,
-      }"
-      title="Open GPU pool settings"
-      @click="$emit('open-gpus')"
-    >
-      <span class="ss-dot"></span>
-      <span class="ss-key">GPU</span>
-      <strong>{{ gpuActiveCount }}({{ gpuTotalCount }})</strong>
-    </button>
+    <div class="ss-health">
+      <button
+        type="button"
+        class="ss-pill ss-pill--button ss-pill--health"
+        :class="{
+          'ss-pill--live': !healthHasIssues,
+          'ss-pill--warn': healthHasIssues,
+        }"
+        title="Health status"
+        data-testid="health-dropdown"
+        @click.stop="toggleHealth"
+      >
+        <span class="ss-dot"></span>
+        <span class="ss-key">Health</span>
+        <strong v-if="healthHasIssues">!</strong>
+        <strong v-else>ok</strong>
+      </button>
 
-    <button
-      v-if="midiSupported"
-      type="button"
-      class="ss-pill ss-pill--button"
-      :class="{ 'ss-pill--live': midiSelected }"
-      title="Open MIDI settings"
-      @click="$emit('open-midi')"
-    >
-      <span class="ss-dot"></span>
-      <span class="ss-key">MIDI</span>
-      <strong>{{ midiSelected ? 'on' : 'off' }}</strong>
-    </button>
+      <div v-if="healthOpen" class="ss-health-popover" @click.stop>
+        <div class="ss-health-popover__header">
+          <div class="ss-health-popover__title">Health</div>
+          <button type="button" class="ss-help-popover__close" @click="healthOpen = false">
+            <UiIcon class="ss-icon" name="close" />
+          </button>
+        </div>
 
-    <button
-      type="button"
-      class="ss-pill ss-pill--button"
-      :class="{
-        'ss-pill--live': wsStatus === 'connected',
-        'ss-pill--warn': wsStatus !== 'connected' && wsStatus !== 'offline',
-      }"
-      :title="wsStatus === 'connected' ? 'Go offline and disable collaboration' : 'Reconnect collaboration'"
-      @click="$emit('toggle-ws')"
-    >
-      <span class="ss-dot"></span>
-      <span class="ss-key">WS</span>
-      <strong>{{ wsStatus }}</strong>
-    </button>
+        <div class="ss-health-grid">
+          <button
+            type="button"
+            class="ss-pill ss-pill--button"
+            :class="{
+              'ss-pill--live': gpuActiveCount > 0,
+              'ss-pill--error': gpuTotalCount > 0 && gpuActiveCount === 0,
+              'ss-pill--warn': gpuTotalCount === 0,
+            }"
+            title="Open GPU pool settings"
+            @click="$emit('open-gpus'); healthOpen = false"
+          >
+            <span class="ss-dot"></span>
+            <span class="ss-key">GPU</span>
+            <strong>{{ gpuActiveCount }}({{ gpuTotalCount }})</strong>
+          </button>
 
-    <div class="ss-pill">
-      <span class="ss-key">Session</span>
-      <strong>{{ session }}</strong>
+          <button
+            v-if="midiSupported"
+            type="button"
+            class="ss-pill ss-pill--button"
+            :class="{ 'ss-pill--live': midiSelected }"
+            title="Open MIDI settings"
+            @click="$emit('open-midi'); healthOpen = false"
+          >
+            <span class="ss-dot"></span>
+            <span class="ss-key">MIDI</span>
+            <strong>{{ midiSelected ? 'on' : 'off' }}</strong>
+          </button>
+
+          <button
+            type="button"
+            class="ss-pill ss-pill--button"
+            :class="{
+              'ss-pill--live': wsStatus === 'connected',
+              'ss-pill--warn': wsStatus !== 'connected' && wsStatus !== 'offline',
+            }"
+            :title="wsStatus === 'connected' ? 'Go offline and disable collaboration' : 'Reconnect collaboration'"
+            @click="$emit('toggle-ws'); healthOpen = false"
+          >
+            <span class="ss-dot"></span>
+            <span class="ss-key">WS</span>
+            <strong>{{ wsStatus }}</strong>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ss-session">
+      <button
+        type="button"
+        class="ss-pill ss-pill--button"
+        title="Session manager"
+        :aria-expanded="sessionOpen ? 'true' : 'false'"
+        data-testid="session-dropdown"
+        @click.stop="toggleSession"
+      >
+        <span class="ss-key">Session</span>
+        <strong>{{ session }}</strong>
+        <UiIcon class="ss-icon" :name="sessionOpen ? 'chevron-up' : 'chevron-down'" />
+      </button>
+      <button
+        type="button"
+        class="ss-btn ss-btn--ghost ss-session__new"
+        title="New session"
+        aria-label="New session"
+        data-testid="session-new"
+        @click.stop="$emit('new-session')"
+      >
+        +
+      </button>
+
+      <div v-if="sessionOpen" class="ss-session-popover" @click.stop>
+        <div class="ss-help-popover__header">
+          <div class="ss-help-popover__title">Sessions</div>
+          <button type="button" class="ss-help-popover__close" @click="sessionOpen = false">
+            <UiIcon class="ss-icon" name="close" />
+          </button>
+        </div>
+
+        <div v-if="!sessions.length" class="ss-session-empty">No saved sessions yet.</div>
+        <div v-else class="ss-session-list">
+          <div
+            v-for="s in sessions"
+            :key="s.name"
+            class="ss-session-row"
+            :class="{ 'ss-session-row--active': s.name === session }"
+          >
+            <button type="button" class="ss-session-pick" @click="$emit('select-session', s.name); sessionOpen=false">
+              <span class="ss-session-name">{{ s.name }}</span>
+              <span class="ss-session-meta">{{ s.images }} img · {{ s.videos }} vid</span>
+            </button>
+            <div class="ss-session-actions">
+              <button type="button" class="ss-btn ss-btn--ghost" @click="$emit('restore-session', s.name); sessionOpen=false">Restore</button>
+              <button type="button" class="ss-btn ss-btn--ghost" @click="$emit('purge-session', s.name)">Purge</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="ss-help">
@@ -163,7 +244,7 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus', 'select-session', 'new-session', 'purge-session', 'restore-session'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
@@ -176,17 +257,30 @@ export default {
     midiSelected:  { default: null },
     wsStatus:      { type: String,  default: 'disconnected' },
     session:       { type: String,  default: '' },
+    sessions:      { type: Array, default: () => [] },
   },
   data() {
     return {
       helpOpen: false,
+      healthOpen: false,
+      sessionOpen: false,
     }
+  },
+  computed: {
+    healthHasIssues() {
+      const gpuOff = this.gpuTotalCount > 0 && this.gpuActiveCount === 0;
+      const gpuMissing = this.gpuTotalCount === 0;
+      const wsIssue = this.wsStatus !== 'connected' && this.wsStatus !== 'offline';
+      return !!(gpuOff || gpuMissing || wsIssue);
+    },
   },
   mounted() {
     if (typeof document !== 'undefined') {
       this._statusStripHelpClose = (event) => {
         if (!this.$el || this.$el.contains(event.target)) return
         this.helpOpen = false
+        this.healthOpen = false
+        this.sessionOpen = false
       }
       document.addEventListener('click', this._statusStripHelpClose)
     }
@@ -199,6 +293,18 @@ export default {
   methods: {
     toggleHelp() {
       this.helpOpen = !this.helpOpen
+      this.healthOpen = false
+      this.sessionOpen = false
+    },
+    toggleHealth() {
+      this.healthOpen = !this.healthOpen
+      this.helpOpen = false
+      this.sessionOpen = false
+    },
+    toggleSession() {
+      this.sessionOpen = !this.sessionOpen
+      this.helpOpen = false
+      this.healthOpen = false
     },
   },
 }
@@ -211,6 +317,95 @@ export default {
   align-items: center;
   justify-content: flex-end;
   flex-wrap: wrap;
+}
+
+.ss-session {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ss-session__new {
+  padding: 4px 10px;
+  min-width: 30px;
+  justify-content: center;
+}
+
+.ss-session-popover {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: min(520px, 92vw);
+  max-height: min(60vh, 520px);
+  overflow: auto;
+  border-radius: 14px;
+  border: 0.5px solid var(--border);
+  background: rgba(10, 12, 18, 0.92);
+  box-shadow: 0 24px 70px rgba(0,0,0,0.45);
+  padding: 10px;
+  z-index: 40;
+}
+
+.ss-session-empty {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 8px 2px;
+}
+
+.ss-session-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.ss-session-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px;
+  border-radius: 12px;
+  border: 0.5px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.02);
+}
+
+.ss-session-row--active {
+  border-color: rgba(127, 119, 221, 0.45);
+  box-shadow: inset 0 0 0 1px rgba(127, 119, 221, 0.12);
+}
+
+.ss-session-pick {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  color: var(--text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  min-width: 0;
+}
+
+.ss-session-name {
+  font-size: 12px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ss-session-meta {
+  font-size: 10px;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ss-session-actions {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
 }
 
 .ss-transport {
@@ -337,6 +532,45 @@ export default {
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
+}
+
+.ss-health {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.ss-health-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  width: min(320px, calc(100vw - 28px));
+  padding: 12px;
+  border-radius: 14px;
+  border: 0.5px solid var(--border);
+  background: rgba(8, 9, 13, 0.96);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.ss-health-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.ss-health-popover__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ss-health-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+  margin-top: 10px;
 }
 
 .ss-help-popover__header {

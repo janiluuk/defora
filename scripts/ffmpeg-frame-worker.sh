@@ -6,8 +6,9 @@ RTMP_TARGET="${RTMP_TARGET:-rtmp://vimage3:1935/live/deforum}"
 QUALITY_PRESET="${ENCODER_QUALITY:-medium}"
 FPS_VALUE="${FPS:-24}"
 RESOLUTION_VALUE="${RESOLUTION:-960:540}"
-SCAN_INTERVAL="${ENCODER_SCAN_INTERVAL:-2}"
-IDLE_MAX_SLEEP="${ENCODER_IDLE_MAX_SLEEP:-4}"
+SCAN_INTERVAL="${ENCODER_SCAN_INTERVAL:-0.5}"
+IDLE_MAX_SLEEP="${ENCODER_IDLE_MAX_SLEEP:-2}"
+ENCODER_REALTIME="${ENCODER_REALTIME:-0}"
 
 case "$QUALITY_PRESET" in
   turbo)
@@ -132,7 +133,12 @@ while true; do
   wait_reason=""
   idle_sleep="$SCAN_INTERVAL"
 
-  if ffmpeg -hide_banner -loglevel warning -re \
+  ffmpeg_input_rate=""
+  if [ "$ENCODER_REALTIME" = "1" ]; then
+    ffmpeg_input_rate="-re"
+  fi
+
+  if ffmpeg -hide_banner -loglevel warning $ffmpeg_input_rate \
       -framerate "$current_fps" \
       -start_number "$start_frame" \
       -i "$FRAMES_DIR/frame_%05d.png" \

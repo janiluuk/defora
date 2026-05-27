@@ -9,7 +9,7 @@ https://defora.dudeisland.eu/
 
 ## Current Browser Tour
 
-These screenshots were recaptured from the current web UI after generating fresh material in the `GENERATE` view. The shared preview therefore shows a real recent render instead of placeholder content.
+These screenshots were recaptured from the current web UI after generating fresh material in the **MOTION → Animation Sequencer** view. The shared preview therefore shows a real recent render instead of placeholder content.
 
 <table>
 <tr>
@@ -28,7 +28,7 @@ These screenshots were recaptured from the current web UI after generating fresh
 <td width="50%">
 <h4>MOTION</h4>
 <img src="screenshots/motion-tab.png" alt="Web UI Motion Tab" width="100%" />
-<p>The motion view exposes the XY performance pad and camera presets for fast spatial moves without burying the performer in curve editors.</p>
+<p>The motion view exposes the XY performance pad and camera presets for fast spatial moves. Use the <b>Animation Sequencer</b> sub-tab for timeline edits, story status, and sequencer controls.</p>
 </td>
 <td width="50%">
 <h4>MODULATION</h4>
@@ -55,9 +55,9 @@ These screenshots were recaptured from the current web UI after generating fresh
 <p>Engine, controller, and GPU pool controls are available without leaving the same performance shell as the rest of the instrument.</p>
 </td>
 <td width="50%">
-<h4>GENERATE</h4>
-<img src="screenshots/generate-tab.png" alt="Web UI Generate Tab" width="100%" />
-<p>The generator now pairs story/image creation with the timeline dock, so fresh source material and sequencer edits happen in the same view.</p>
+<h4>MOTION — Animation Sequencer</h4>
+<img src="screenshots/motion-sequencer-tab.png" alt="Web UI Motion Animation Sequencer" width="100%" />
+<p>Timeline, playhead, and story-generation status live under MOTION so spatial performance and sequencer edits stay in one tab.</p>
 </td>
 </tr>
 </table>

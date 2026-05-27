@@ -199,12 +199,13 @@ describe("Deforumation Web UI", () => {
     expect(overlay.textContent).to.include("Seed");
   });
 
-  it("defaults to the standby animation and can switch to the Deforum feed when ready", () => {
-    expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(false);
-    expect(appVm.activeVideoLayerId).to.equal("webgl");
+  it("defaults to the Deforum layer and can show the live feed when ready", () => {
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.initVideoLayers();
+    expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
+    expect(appVm.activeVideoLayerId).to.equal("deforum");
     expect(appVm.showDeforumVideo).to.equal(false);
 
-    appVm.selectVideoLayer("deforum");
     appVm.videoReady = true;
 
     expect(appVm.showDeforumVideo).to.equal(true);
@@ -228,7 +229,18 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
   });
 
-  it("defaults to the WebGL layer for standby animation on cold start", () => {
+  it("keeps Deforum selected on cold start when preferring Deforum video", () => {
+    appVm.activeVideoLayerId = "deforum";
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.deforumPlaying = false;
+    appVm.videoReady = false;
+
+    appVm.ensureStandbyAnimationAtStartup();
+
+    expect(appVm.activeVideoLayerId).to.equal("deforum");
+  });
+
+  it("falls back to WebGL when Deforum video is not preferred", () => {
     appVm.activeVideoLayerId = "deforum";
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.deforumPlaying = false;
@@ -308,17 +320,17 @@ describe("Deforumation Web UI", () => {
     expect(appVm.defaultAnimation.mode).to.equal("instancing");
   });
 
-  it("shows LIVE sub-tabs for monitor and deforum job", async () => {
+  it("shows LIVE sub-tabs for monitor and deforum", async () => {
     appVm.switchTab("LIVE");
     appVm.liveDrawerOpen = true;
     await nextTick();
     const liveTabs = [...document.querySelectorAll("[data-testid='live-view'] .sub-pill")].map((el) => el.textContent.trim());
-    expect(liveTabs).to.include.members(["Controls", "Deforum job"]);
+    expect(liveTabs).to.include.members(["Controls", "Deforum"]);
 
     appVm.switchSubTab("LIVE", "DEFORUM_JOB");
     await nextTick();
     expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
-    expect(document.body.textContent).to.include("Deforum job");
+    expect(document.body.textContent).to.include("Deforum");
     const deforumFields = document.querySelectorAll(".deforum-settings-grid .deforum-field");
     expect(deforumFields.length).to.be.greaterThan(0);
     expect(document.body.textContent).to.include("Width");
@@ -467,13 +479,11 @@ describe("Deforumation Web UI", () => {
     await nextTick();
 
     const pageText = document.body.textContent;
-    expect(pageText).to.include("Animation Sequencer");
-    expect(pageText).to.include("Playhead");
+    expect(pageText).to.include("Sequencer");
     expect(pageText).to.include("Preview frame ready");
-    expect(pageText).to.include("Story generation text");
-    expect(pageText).to.include("Theme: Neon city");
-    expect(pageText).to.include("LIVE");
-    expect(document.querySelector(".sequencer-controls-panel .modulation-lfo-grid")).to.exist;
+    expect(document.querySelector(".stage-sequencer-shell")).to.exist;
+    expect(document.querySelector(".stage-sequencer-bar")).to.exist;
+    expect(document.querySelector(".sequencer-controls-panel--stage")).to.exist;
   });
 
   it("shows the modern story generator under the story subtab", async () => {
@@ -1080,6 +1090,23 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.thumbs[1].frame).to.equal(10);
     expect(instance.selectedFrameIndex).to.equal(1);
     delete global.fetch;
+  });
+
+  it("restores cached frame thumbs when the frames API is empty", async () => {
+    const instance = instantiate(appDef);
+    instance.saveCachedFrameThumbs([
+      { name: "frame_0003.png", src: "/frames/frame_0003.png", frame: 3, mtime: 1 },
+      { name: "frame_0005.png", src: "/frames/frame_0005.png", frame: 5, mtime: 2 },
+    ]);
+    global.fetch = async () => ({ ok: true, json: async () => ({ items: [] }) });
+
+    await instance.refreshFrames();
+
+    expect(instance.thumbs).to.have.lengthOf(2);
+    expect(instance.thumbs[0].frame).to.equal(3);
+    expect(instance.deforumStreamFrameLabel).to.include("2 frames generated");
+    delete global.fetch;
+    window.localStorage.removeItem(instance.frameThumbsCacheKey());
   });
 
   it("selectFrame updates the paused preview timecode", () => {

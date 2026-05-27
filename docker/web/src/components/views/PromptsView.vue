@@ -283,11 +283,26 @@
             </span>
           </div>
 
-          <p class="generate-sequencer__live-hint">
-            Builds scene prompts and motion keyframes from your theme. Configure
-            <button type="button" class="generate-sequencer__live-link" @click="switchTab('SETTINGS'); switchSubTab('SETTINGS', 'GPUS')">Ollama nodes</button>
-            in Settings → GPUs for LLM-backed plans, or use the local fallback engine.
-          </p>
+          <div class="generate-story__ollama-row">
+            <span
+              class="generate-story__ollama-status"
+              :class="{
+                'generate-story__ollama-status--ready': storyOllamaStatusTone === 'ready',
+                'generate-story__ollama-status--warn': storyOllamaStatusTone === 'warn',
+                'generate-story__ollama-status--off': storyOllamaStatusTone === 'off',
+              }"
+            >
+              {{ storyOllamaStatusLabel }}
+            </span>
+            <button
+              v-if="storyOllamaNeedsConfigure"
+              type="button"
+              class="framesync-button framesync-button--compact"
+              @click="openGpuSettings"
+            >
+              Configure
+            </button>
+          </div>
 
           <div class="generate-sequencer__hero-grid">
             <div class="generate-sequencer__hero-card">

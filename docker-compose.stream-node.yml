@@ -1,0 +1,22 @@
+# RTMP ingest + HLS packaging for a dedicated host (default: vimage3).
+# Deploy with: docker compose -f docker-compose.stream-node.yml up -d
+services:
+  stream:
+    build:
+      context: .
+      dockerfile: docker/stream/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${STREAM_RTMP_PORT:-1935}:1935"
+      - "${STREAM_HTTP_PORT:-80}:80"
+    volumes:
+      - hls:/var/www/hls
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://127.0.0.1/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+volumes:
+  hls:

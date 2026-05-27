@@ -16,6 +16,9 @@
 #   COMPOSE_FILE               — compose file to use (default docker-compose.external-forge.yml)
 #   COMPOSE_SERVICES           — space-separated services (default below)
 #   WEB_PORT                   — host port for web UI (default 8080)
+#   DEPLOY_STREAM_NODE=1       — also bring up RTMP/HLS on the stream host (default vimage3)
+#   STREAM_DEPLOY_HOST         — stream node IP/hostname (default VIMAGE3_IP / 192.168.2.103)
+#   VIMAGE3_IP                 — extra_hosts target for vimage3 (default 192.168.2.103)
 #   RSYNC_DELETE=1             — rsync --delete (careful)
 #
 # `.env` is synced from repo root when present locally.
@@ -40,6 +43,10 @@ PROXY_JUMP="${SSH_PROXY_JUMP:-}"
 WEB_PORT="${WEB_PORT:-8080}"
 COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.external-forge.yml}"
 COMPOSE_SERVICES="${COMPOSE_SERVICES:-mq mediator web control-bridge encoder}"
+VIMAGE3_IP="${VIMAGE3_IP:-192.168.2.103}"
+STREAM_DEPLOY_HOST="${STREAM_DEPLOY_HOST:-$VIMAGE3_IP}"
+STREAM_COMPOSE_FILE="${STREAM_COMPOSE_FILE:-docker-compose.stream-node.yml}"
+DEPLOY_STREAM_NODE="${DEPLOY_STREAM_NODE:-1}"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
@@ -146,14 +153,67 @@ ssh_remote "${REMOTE_USER}@${HOST}" \
    fi
    if [ -f .env ]; then set -a; . ./.env; set +a; fi
    ${BUILD_CMD}
-   WEB_PORT=${WEB_PORT} docker compose -f '${COMPOSE_FILE}' up -d ${COMPOSE_SERVICES}"
+   VIMAGE3_IP=${VIMAGE3_IP} WEB_PORT=${WEB_PORT} docker compose -f '${COMPOSE_FILE}' up -d ${COMPOSE_SERVICES}"
+
+deploy_stream_node() {
+  if [[ "${DEPLOY_STREAM_NODE}" != "1" ]]; then
+    return 0
+  fi
+  if [[ -z "${STREAM_DEPLOY_HOST}" ]]; then
+    echo "==> Skip stream node (STREAM_DEPLOY_HOST empty)"
+    return 0
+  fi
+  if [[ "${STREAM_DEPLOY_HOST}" == "${HOST}" ]]; then
+    echo "==> Stream node on lab host (${HOST})"
+    # shellcheck disable=SC2029
+    ssh_remote "${REMOTE_USER}@${HOST}" \
+      "set -e
+       cd '${REMOTE_PATH}'
+       if [ -f .env ]; then set -a; . ./.env; set +a; fi
+       docker compose -f '${STREAM_COMPOSE_FILE}' build --pull stream
+       docker compose -f '${STREAM_COMPOSE_FILE}' up -d stream"
+    return 0
+  fi
+
+  echo "==> Sync stream node → ${REMOTE_USER}@${STREAM_DEPLOY_HOST}:${REMOTE_PATH}"
+  ssh_remote "${REMOTE_USER}@${STREAM_DEPLOY_HOST}" "mkdir -p '${REMOTE_PATH}'"
+  rsync "${RSYNC_FLAGS[@]}" \
+    -e "$RSYNC_RSH" \
+    --exclude node_modules \
+    --exclude .git \
+    --exclude __pycache__ \
+    --exclude .pytest_cache \
+    --exclude '*.pyc' \
+    --exclude docker/web/node_modules \
+    --exclude docker/web/uploads \
+    --exclude .cursor \
+    --exclude .env.local \
+    --exclude '.env.*.local' \
+    ./ "${REMOTE_USER}@${STREAM_DEPLOY_HOST}:${REMOTE_PATH}/"
+
+  echo "==> Remote: build + up stream (${STREAM_COMPOSE_FILE}) on ${STREAM_DEPLOY_HOST}"
+  # shellcheck disable=SC2029
+  ssh_remote "${REMOTE_USER}@${STREAM_DEPLOY_HOST}" \
+    "set -e
+     cd '${REMOTE_PATH}'
+     if [ -f .env ]; then set -a; . ./.env; set +a; fi
+     docker compose -f '${STREAM_COMPOSE_FILE}' build --pull stream
+     docker compose -f '${STREAM_COMPOSE_FILE}' up -d stream"
+}
+
+deploy_stream_node
 
 BASE_URL="http://${HOST}:${WEB_PORT}"
+STREAM_HTTP_PORT="${STREAM_HTTP_PORT:-80}"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  Defora UI:     ${BASE_URL}"
 echo "  Health:        ${BASE_URL}/api/health"
-echo "  HLS:           ${BASE_URL}/hls/live/deforum.m3u8"
+echo "  HLS (UI proxy): ${BASE_URL}/hls/live/deforum.m3u8"
+if [[ "${DEPLOY_STREAM_NODE}" == "1" && -n "${STREAM_DEPLOY_HOST}" ]]; then
+  echo "  HLS (origin):   http://${STREAM_DEPLOY_HOST}:${STREAM_HTTP_PORT}/hls/live/deforum.m3u8"
+  echo "  RTMP ingest:    rtmp://${STREAM_DEPLOY_HOST}:1935/live/deforum"
+fi
 if [[ " ${COMPOSE_SERVICES} " == *" sd-forge "* ]]; then
   echo "  SD-Forge:      http://${HOST}:7860"
 else

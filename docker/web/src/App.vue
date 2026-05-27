@@ -44,6 +44,7 @@
         :midi-selected="midi.selected"
         :ws-status="wsStatus"
         :session="session"
+        :sessions="sessionCatalog"
         @toggle-play="toggleDeforumPlay"
         @stop-play="stopDeforumPlay"
         @toggle-record="toggleStreamRecord"
@@ -51,6 +52,10 @@
         @open-gpus="openGpuSettings"
         @toggle-ws="toggleCollaboration"
         @open-midi="openMidiSettings"
+        @select-session="selectSession"
+        @new-session="createNewSession"
+        @purge-session="purgeSession"
+        @restore-session="restoreSession"
       />
     </header>
 
@@ -147,10 +152,17 @@
               <div style="font-size:11px; color:var(--text-secondary);">
                 {{ currentProjectLabel }} · {{ currentBatchLabel }}
               </div>
+              <div
+                v-if="isDeforumLayerActive && deforumStreamFrameLabel"
+                class="video-feed-frames"
+                data-testid="deforum-stream-frame-count"
+              >
+                {{ deforumStreamFrameLabel }}
+              </div>
             </div>
             <div style="display:flex; align-items:flex-start; gap:8px; text-align:right;">
               <div>
-                <div>{{ stats.fps }} fps</div>
+                <div>{{ masterFps }} fps</div>
                 <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
                 <div class="video-feed-status" :class="{ 'video-feed-status--ready': videoReady && isDeforumLayerActive, 'video-feed-status--selected': isDeforumLayerActive }">
                   {{ videoLayerStatusLabel }}
@@ -245,26 +257,32 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div v-if="showMotionSequencerDock" class="generate-dock-shell">
-          <GlassPanel size="lg" class="generate-dock">
-            <template #header>
-              <div class="generate-dock__header">
-                <span>Animation Sequencer</span>
-                <span
-                  class="generate-sequencer__frame-counter"
-                  :class="{ 'generate-sequencer__frame-counter--live': sequencerJobFrameLive }"
-                  data-testid="sequencer-job-frame-counter"
-                >
-                  {{ sequencerJobFrameLabel }}
-                </span>
-                <span class="generate-sequencer__status" :class="{ 'generate-sequencer__status--live': sequencerPlaying }">
-                  {{ sequencerPlaying ? 'Playing' : 'Stopped' }}
-                </span>
-              </div>
-            </template>
+        <div v-if="currentTab === 'MOTION'" class="stage-motion-tabs">
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: currentSubTab.MOTION === 'PERFORMANCE' }"
+            @click="switchSubTab('MOTION', 'PERFORMANCE')"
+          >
+            Performance
+          </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: currentSubTab.MOTION === 'SEQUENCER' }"
+            @click="switchSubTab('MOTION', 'SEQUENCER')"
+          >
+            Sequencer
+          </button>
+        </div>
 
-            <SequencerControlsPanel :app="appViewModel" show-timeline />
-          </GlassPanel>
+        <div v-if="showMotionSequencerDock" class="stage-sequencer-shell">
+          <SequencerControlsPanel :app="appViewModel" stage show-timeline />
+          <GenerateView
+            v-if="generator.result || generator.status || performance.status || sequencerStatus"
+            :app="appViewModel"
+            story-only
+          />
         </div>
         <template v-else>
           <div v-if="currentTab !== 'LIBRARY'" class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
@@ -272,7 +290,7 @@
               <div class="frame-rail__title-wrap">
                 <span class="frame-rail__title">Frames</span>
                 <span class="frame-rail__meta" v-if="frameStripThumbs.length">
-                  {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} loaded
+                  {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} generated
                 </span>
                 <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
               </div>
@@ -498,7 +516,7 @@
       <!-- Right: control rack per tab -->
       <transition name="right-panel-slide">
         <div v-if="currentTab !== 'LIVE' && showRightPanel" :class="{
-          'stage-rack-overlay': currentTab === 'MOTION',
+          'stage-rack-overlay': currentTab === 'MOTION' && currentSubTab.MOTION === 'PERFORMANCE',
           'studio-right-column': currentTab === 'MODULATION'
         }">
           <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
@@ -693,13 +711,14 @@ import LibraryView from './components/views/LibraryView.vue'
 import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
+import GenerateView from './components/views/GenerateView.vue'
 import ModulationView from './components/views/ModulationView.vue'
 import SettingsView from './components/views/SettingsView.vue'
 import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, ThreeBackground, LoraCrossfaderPanel, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, LoraCrossfaderPanel, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView },
   data() {
     return {
        showFrames: false,
@@ -724,7 +743,7 @@ export default {
       deforumPanelOpen: false,
       liveDrawerOpen: true,
       videoStageSize: 'medium', // small | medium | full
-      liveAnimationBoxOpen: false,
+      liveAnimationBoxOpen: true,
       libraryFullscreen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       deforumFieldGroups: DEFORUM_FIELD_GROUPS.filter((g) => !CONTROLNET_GROUP_IDS.has(g.id)),
@@ -865,6 +884,7 @@ export default {
         result: null,
       },
       session: "clown_set_01",
+      _syncingGlobalFps: false,
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
@@ -884,7 +904,7 @@ export default {
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
-      activeVideoLayerId: 'webgl',
+      activeVideoLayerId: 'deforum',
       videoLayerAddOpen: false,
       inputLayerPlaybackUrl: null,
       inputLayerLabel: 'Input',
@@ -916,7 +936,7 @@ export default {
       speechPromptSupported: false,
       speechPromptListening: false,
       speechPromptError: '',
-      stats: { fps: 27, lat: 120 },
+      stats: { lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
       liveVibe: [
@@ -1210,7 +1230,7 @@ export default {
       wsReconnectTimer: null,
       streamSrc: "/hls/live/deforum.m3u8",
       defaultAnimation: {
-        preferDeforumVideo: false,
+        preferDeforumVideo: true,
         mode: 'instancing',
         instCount: 12000,
         beamCount: 7,
@@ -1405,10 +1425,12 @@ export default {
       }));
     },
     rtmpStreamHref() {
-      const host = typeof window !== 'undefined' && window.location && window.location.hostname
-        ? window.location.hostname
-        : '192.168.2.100';
-      return `rtmp://${host}:1935/live/deforum`;
+      const nodes = this.infrastructure && Array.isArray(this.infrastructure.transcoders)
+        ? this.infrastructure.transcoders
+        : [];
+      const primary = nodes.find((n) => n && n.rtmpTarget) || nodes[0];
+      if (primary && primary.rtmpTarget) return primary.rtmpTarget;
+      return 'rtmp://vimage3:1935/live/deforum';
     },
     hlsStreamHref() {
       return '/hls/live/deforum.m3u8';
@@ -1462,6 +1484,17 @@ export default {
     currentBatchLabel() {
       return String((this.deforumSettings && this.deforumSettings.batch_name) || '').trim() || '—';
     },
+    deforumGeneratedFrameCount() {
+      return this.frameStripThumbs.length;
+    },
+    deforumStreamFrameLabel() {
+      const count = this.deforumGeneratedFrameCount;
+      if (!count) return '';
+      const latest = this.frameStripThumbs[count - 1];
+      const latestNum = latest ? this.frameLabel(latest) : count;
+      if (count === 1) return `1 frame generated (#${latestNum})`;
+      return `${count} frames generated · latest #${latestNum}`;
+    },
     activePreviewStillPath() {
       if (!this.deforumPlaying && this.currentTab === 'LIBRARY') {
         return this.librarySelectedFrameSrc || '';
@@ -1486,6 +1519,9 @@ export default {
       return this.currentTab === 'MOTION' && this.currentSubTab.MOTION === 'SEQUENCER';
     },
     showRightPanel() {
+      if (this.currentTab === 'MOTION' && this.currentSubTab.MOTION === 'SEQUENCER') {
+        return false;
+      }
       return this.currentTab !== 'LIVE' || this.liveDrawerOpen;
     },
     rightPanelToggleIcon() {
@@ -1537,10 +1573,12 @@ export default {
       if (!layer) return '—';
       if (layer.kind === 'webgl') return 'WebGL engine';
       if (layer.kind === 'deforum') {
-        if (this.showDeforumVideo) return 'Deforum live';
-        if (this.videoReady) return 'Deforum ready';
-        if (this.deforumPlaying) return 'Deforum warming up';
-        return 'Waiting for Deforum';
+        const frames = this.deforumGeneratedFrameCount;
+        const frameSuffix = frames ? ` · ${frames} frame${frames === 1 ? '' : 's'}` : '';
+        if (this.showDeforumVideo) return `Deforum live${frameSuffix}`;
+        if (this.videoReady) return `Deforum ready${frameSuffix}`;
+        if (this.deforumPlaying) return `Deforum warming up${frameSuffix}`;
+        return frames ? `Deforum · ${frames} frame${frames === 1 ? '' : 's'}` : 'Waiting for Deforum';
       }
       if (layer.kind === 'input') {
         return this.activeLayerPlaybackUrl ? `Input · ${this.inputLayerLabel || 'Video'}` : 'Input · no source';
@@ -1572,6 +1610,34 @@ export default {
     availableOllamaNodes() {
       return (this.gpuPool.nodes || []).filter((node) => node && node.enabled && node.backend === 'ollama');
     },
+    healthyOllamaNodes() {
+      return this.availableOllamaNodes.filter((node) => node.status === 'healthy');
+    },
+    storyOllamaStatusLabel() {
+      const healthy = this.healthyOllamaNodes;
+      if (healthy.length) {
+        const primary = healthy[0];
+        const model = primary.model || primary.currentModel;
+        const name = primary.name || primary.url || 'Ollama';
+        const suffix = healthy.length > 1 ? ` (+${healthy.length - 1} more)` : '';
+        return model ? `Ollama ready — ${model} on ${name}${suffix}` : `Ollama ready — ${name}${suffix}`;
+      }
+      const configured = this.availableOllamaNodes;
+      if (configured.length) {
+        const node = configured[0];
+        return `Ollama unreachable — ${node.name || node.url}`;
+      }
+      if (this.gpuPool && this.gpuPool.loading) return 'Checking Ollama…';
+      return 'Ollama not configured';
+    },
+    storyOllamaStatusTone() {
+      if (this.healthyOllamaNodes.length) return 'ready';
+      if (this.availableOllamaNodes.length) return 'warn';
+      return 'off';
+    },
+    storyOllamaNeedsConfigure() {
+      return this.healthyOllamaNodes.length === 0;
+    },
     storyGeneratorSourceLabel() {
       const activeResult = this.generator && this.generator.result && this.generator.result.source;
       if (activeResult && activeResult.model) {
@@ -1600,10 +1666,7 @@ export default {
         || 96;
     },
     storyGeneratorFps() {
-      return Number(this.sequencer && this.sequencer.fps)
-        || Number(this.framesync && this.framesync.fps)
-        || Number(this.generator.fps)
-        || 24;
+      return this.masterFps;
     },
     storyGeneratorSceneMeta() {
       const scenes = this.storyGeneratorSceneCount;
@@ -2013,6 +2076,49 @@ export default {
       const parsed = this.parseFrameNumber(this.librarySelectedFrameResolved);
       return Number.isFinite(parsed) && parsed >= 0 ? `Frame ${parsed}` : this.librarySelectedFrameResolved;
     },
+    sessionCatalog() {
+      try {
+        if (typeof window === 'undefined' || !window.localStorage) return [];
+        const storage = window.localStorage;
+        const names = new Set();
+        for (let i = 0; i < storage.length; i++) {
+          const key = storage.key(i);
+          if (!key) continue;
+          if (key.startsWith('defora_session_') && !key.endsWith('__touchedAt') && !key.endsWith('__restoreDeclinedAt')) {
+            names.add(key.replace(/^defora_session_/, ''));
+          }
+        }
+        names.add(String(this.session || 'default'));
+
+        const sessionList = [...names].map((name) => {
+          const touchedRaw = storage.getItem(`defora_session_${name}__touchedAt`);
+          const touchedAt = touchedRaw != null ? Number(touchedRaw) : NaN;
+          const runs = (this.runsAll || []).filter((r) => {
+            const id = String(r && r.run_id ? r.run_id : '');
+            if (!id) return false;
+            return id === name || id.startsWith(`${name}_`) || id.startsWith(`${name}-`) || id.includes(name);
+          });
+          let images = 0;
+          let videos = 0;
+          runs.forEach((r) => {
+            const frames = Number(r && (r.frame_count ?? r.frames ?? r.length_frames ?? 0)) || 0;
+            if (frames > 1) videos += 1;
+            else images += 1;
+          });
+          return {
+            name,
+            touchedAt: Number.isFinite(touchedAt) ? touchedAt : 0,
+            images,
+            videos,
+            runs: runs.length,
+          };
+        });
+
+        return sessionList.sort((a, b) => (b.touchedAt || 0) - (a.touchedAt || 0) || a.name.localeCompare(b.name));
+      } catch (_e) {
+        return [];
+      }
+    },
     targetOwners() {
       const map = {};
       this.lfos.forEach(l => {
@@ -2127,14 +2233,12 @@ export default {
       const count = (type) => clips.filter((c) => c.type === type).length;
       return { prompt: count('prompt'), lora: count('lora'), controlnet: count('controlnet') };
     },
+    masterFps() {
+      const n = Number(this.deforumSettings && this.deforumSettings.fps);
+      return Math.max(1, Math.min(120, Number.isFinite(n) && n > 0 ? Math.round(n) : 24));
+    },
     sequencerJobFps() {
-      return Math.max(
-        1,
-        Number(this.deforumSettings && this.deforumSettings.fps)
-          || Number(this.sequencer && this.sequencer.fps)
-          || Number(this.framesync && this.framesync.fps)
-          || 24,
-      );
+      return this.masterFps;
     },
     sequencerJobTotalFrames() {
       const fromDeforum = Number(this.deforumSettings && this.deforumSettings.max_frames);
@@ -2285,6 +2389,14 @@ export default {
       },
       deep: true,
     },
+    'sequencer.fps'(next) {
+      if (this._syncingGlobalFps) return;
+      this.setGlobalFps(next, { source: 'sequencer' });
+    },
+    'generator.fps'(next) {
+      if (this._syncingGlobalFps) return;
+      this.setGlobalFps(next, { source: 'generator' });
+    },
     sequencerPlayhead() {
       this.$nextTick(() => this.drawTimeline());
     },
@@ -2329,6 +2441,11 @@ export default {
     this.connectWebSocket();
     this.attachPlayer();
     if (typeof fetch === "function") {
+      const cachedThumbs = this.loadCachedFrameThumbs();
+      if (cachedThumbs.length) {
+        this.thumbs = cachedThumbs;
+        this.updateFrameSelection("");
+      }
       const scheduleFramesPoll = () => {
         this.refreshFrames().finally(() => {
           this.framesTimer = setTimeout(scheduleFramesPoll, this.framesRefreshBackoffMs || 5000);
@@ -2388,6 +2505,52 @@ export default {
 
   themeColor(name, fallback) {
     return this.cssVar(name) || fallback
+  },
+
+  sanitizeSessionName(raw) {
+    return String(raw || '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .replace(/[^a-zA-Z0-9_-]/g, '_')
+      .slice(0, 60) || 'default';
+  },
+  selectSession(name) {
+    const next = this.sanitizeSessionName(name);
+    this.session = next;
+    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_session', next); } catch (_e) {}
+    this.loadSessionState();
+    this.saveSessionState();
+  },
+  createNewSession() {
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const next = this.sanitizeSessionName(`session_${stamp}`);
+    this.selectSession(next);
+  },
+  purgeSession(name) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      const clean = this.sanitizeSessionName(name);
+      window.localStorage.removeItem(`defora_session_${clean}`);
+      window.localStorage.removeItem(`defora_session_${clean}__touchedAt`);
+      window.localStorage.removeItem(`defora_session_${clean}__restoreDeclinedAt`);
+      if (clean === this.session) {
+        this.selectSession('default');
+      }
+    } catch (_e) {}
+  },
+  restoreSession(name) {
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      const clean = this.sanitizeSessionName(name);
+      const raw = window.localStorage.getItem(`defora_session_${clean}`);
+      if (!raw) return;
+      this.pendingSessionStateRaw = raw;
+      this.session = clean;
+      try { window.localStorage.setItem('defora_session', clean); } catch (_e) {}
+      this.clearSessionRestoreDeclined();
+      this.loadSessionState();
+      this.saveSessionState();
+    } catch (_e) {}
   },
 
   async refreshApiHealth() {
@@ -2803,6 +2966,17 @@ export default {
     }
   },
  switchTab(id) {
+   if (id === 'GENERATE') {
+     this.currentTab = 'MOTION';
+     this.currentSubTab.MOTION = 'SEQUENCER';
+     try {
+       if (typeof window !== 'undefined' && window.localStorage) {
+         window.localStorage.setItem('defora_tab', 'MOTION');
+         window.localStorage.setItem('defora_subtab_MOTION', 'SEQUENCER');
+       }
+     } catch (_e) {}
+     return;
+   }
    if (id === 'AUDIO') {
      this.currentTab = 'MODULATION';
      this.currentSubTab.MODULATION = 'AUDIO_REACTIVE';
@@ -4326,8 +4500,66 @@ ollamaModelOptions(url) {
   const normalized = String(url || '').trim().replace(/\/+$/, '');
   return (map[url] || map[normalized] || []).filter(Boolean);
 },
+frameThumbsCacheKey() {
+  return "defora.frameThumbs.v1";
+},
+frameThumbsCacheLimit() {
+  return 48;
+},
 frameSrcKey(value) {
   return String(value || "").split("?")[0];
+},
+loadCachedFrameThumbs() {
+  try {
+    if (!window.localStorage) return [];
+    const raw = window.localStorage.getItem(this.frameThumbsCacheKey());
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => this.normalizeFrameThumb(item)).filter(Boolean);
+  } catch (_e) {
+    return [];
+  }
+},
+saveCachedFrameThumbs(thumbs) {
+  try {
+    if (!window.localStorage) return;
+    const payload = (Array.isArray(thumbs) ? thumbs : [])
+      .slice(-this.frameThumbsCacheLimit())
+      .map((thumb) => ({
+        name: thumb.name,
+        src: this.frameSrcKey(thumb.src || thumb.url || thumb.path || ""),
+        frame: thumb.frame,
+        mtime: thumb.mtime,
+      }))
+      .filter((thumb) => thumb.name || thumb.src);
+    window.localStorage.setItem(this.frameThumbsCacheKey(), JSON.stringify(payload));
+  } catch (_e) {
+    /* ignore quota errors */
+  }
+},
+mergeFrameThumbs(apiItems, { keepCachedOnEmpty = true } = {}) {
+  const cached = this.loadCachedFrameThumbs();
+  const apiThumbs = (Array.isArray(apiItems) ? apiItems : [])
+    .map((item) => this.normalizeFrameThumb(item))
+    .filter(Boolean);
+  const byName = new Map();
+  if (keepCachedOnEmpty || apiThumbs.length) {
+    cached.forEach((thumb) => {
+      if (thumb && thumb.name) byName.set(thumb.name, thumb);
+    });
+  }
+  apiThumbs.forEach((thumb) => {
+    if (thumb && thumb.name) byName.set(thumb.name, thumb);
+  });
+  return [...byName.values()]
+    .sort((a, b) => {
+      const aFrame = Number(a && a.frame);
+      const bFrame = Number(b && b.frame);
+      if (Number.isFinite(aFrame) && Number.isFinite(bFrame)) return aFrame - bFrame;
+      return String(a && a.name || "").localeCompare(String(b && b.name || ""));
+    })
+    .slice(-this.frameThumbsCacheLimit());
 },
 normalizeFrameThumb(item) {
   if (!item) return null;
@@ -4364,6 +4596,7 @@ mergeFrameThumb(item) {
       return String(a && a.name || "").localeCompare(String(b && b.name || ""));
     });
   this.thumbs = next;
+  this.saveCachedFrameThumbs(next);
   this.updateFrameSelection(selectedSrcKey);
 },
 scheduleFrameRefresh(delay = 0) {
@@ -5446,12 +5679,9 @@ toggleLfoTarget(lfo, targetKey) {
      }
      const json = await res.json();
      if (Array.isArray(json.items)) {
-     this.thumbs = json.items.map((item) => this.normalizeFrameThumb(item)).filter(Boolean).sort((a, b) => {
-        const aFrame = Number(a && a.frame);
-        const bFrame = Number(b && b.frame);
-        if (Number.isFinite(aFrame) && Number.isFinite(bFrame)) return aFrame - bFrame;
-        return String(a && a.name || '').localeCompare(String(b && b.name || ''));
-      });
+      const merged = this.mergeFrameThumbs(json.items, { keepCachedOnEmpty: true });
+      this.thumbs = merged.length ? merged : this.thumbs;
+      this.saveCachedFrameThumbs(this.thumbs);
       this.updateFrameSelection(previousSelectedSrc);
      }
     this.framesRefreshBackoffMs = this.nextFramesPollDelay();
@@ -5489,7 +5719,7 @@ toggleLfoTarget(lfo, targetKey) {
        headers: { "Content-Type": "application/json" },
        body: JSON.stringify({
          audioPath: this.audio.track,
-         fps: this.stats.fps || 24,
+         fps: this.masterFps,
          mappings,
          live: true,
        }),
@@ -6535,16 +6765,20 @@ onAudioUpload(evt) {
    const allowed = new Set(['prompt', 'lora', 'controlnet']);
    if (!allowed.has(type)) return;
    this.clampSequencerPlayhead();
-   const d = Number(this.sequencer.durationSec) || 0;
-   if (!Array.isArray(this.sequencer.clips)) this.sequencer.clips = [];
-   if (this.sequencer.clips.length >= 96) {
+   const d = Math.max(0, Number(this.sequencer.durationSec) || 0);
+   if (d < 0.1) {
+     this.sequencerStatus = 'Set timeline duration above 0s first';
+     return;
+   }
+   const existing = Array.isArray(this.sequencer.clips) ? this.sequencer.clips : [];
+   if (existing.length >= 96) {
      this.sequencerStatus = 'Maximum 96 timeline clips';
      return;
    }
    const t = Math.min(Math.max(0, this.sequencerPlayhead), d);
    const span = Math.max(0.1, Number(this.sequencerClipDurationSec) || 2);
    const endT = Math.min(d, t + span);
-   const count = this.sequencer.clips.filter((c) => c.type === type).length + 1;
+   const count = existing.filter((c) => c.type === type).length + 1;
    const labels = { prompt: 'Prompt', lora: 'LoRA', controlnet: 'ControlNet' };
    let payload = {};
    if (type === 'prompt') payload = this.snapshotSequencerPromptPayload();
@@ -6559,10 +6793,16 @@ onAudioUpload(evt) {
      label: `${labels[type]} ${count}`,
      payload,
    };
-   this.sequencer.clips.push(clip);
+   this.sequencer.clips = [...existing, clip];
    this.sequencerSelectedClipId = id;
    this.sequencerStatus = `Added ${clip.label} at ${t.toFixed(2)}s`;
-   this.applySequencerClip(clip);
+   this.saveSessionState();
+   this.$nextTick(() => this.drawTimeline());
+   try {
+     this.applySequencerClip(clip);
+   } catch (err) {
+     console.warn('[sequencer] apply clip failed', err);
+   }
  },
  removeSequencerClip(clipId) {
    if (!Array.isArray(this.sequencer.clips)) return;
@@ -8096,6 +8336,57 @@ syncStepsAcrossControls(rawSteps, {
   }
   return next;
 },
+syncFpsAcrossControls(rawFps, {
+  syncDeforum = true,
+  syncSequencer = true,
+  syncGenerator = true,
+  syncStreaming = true,
+  syncFramesync = true,
+} = {}) {
+  const fallback =
+    Number(this.deforumSettings && this.deforumSettings.fps)
+    || Number(this.sequencer && this.sequencer.fps)
+    || Number(this.generator && this.generator.fps)
+    || Number(this.framesync && this.framesync.fps)
+    || 24;
+  const next = Math.max(1, Math.min(120, Math.round(Number(rawFps) || fallback || 24)));
+  if (syncDeforum) {
+    this.deforumSettings = this.normalizedDeforumSettings();
+    this.deforumSettings.fps = next;
+  }
+  if (syncSequencer && this.sequencer) {
+    this.sequencer.fps = next;
+  }
+  if (syncGenerator && this.generator) {
+    this.generator.fps = next;
+  }
+  if (syncFramesync && this.framesync) {
+    this.framesync.fps = next;
+  }
+  if (syncStreaming && this.streaming && Array.isArray(this.streaming.destinations)) {
+    this.streaming.destinations = this.streaming.destinations.map((dest) => ({
+      ...(dest || {}),
+      fps: next,
+    }));
+  }
+  return next;
+},
+setGlobalFps(rawFps, { source = 'ui' } = {}) {
+  if (this._syncingGlobalFps) return;
+  this._syncingGlobalFps = true;
+  try {
+    const next = this.syncFpsAcrossControls(rawFps);
+    // Persist + push to live patch (Deforum)
+    this.onDeforumFieldInput('fps', next, 'number');
+    if (source !== 'deforum') {
+      // onDeforumFieldInput already saved, but non-deforum sources might skip if the value was identical.
+      this.saveSessionState();
+    }
+    return next;
+  } finally {
+    this._syncingGlobalFps = false;
+  }
+},
 normalizeModelName(name) {
   const normalized = typeof name === 'string' ? name.trim() : '';
   if (!normalized || normalized.toLowerCase() === 'unknown') return '';
@@ -8831,6 +9122,16 @@ activeDeforumSettings() {
   }
   if (keyPath === 'H' && Number.isFinite(value)) {
     this.syncResolutionAcrossControls(this.deforumSettings && this.deforumSettings.W, value, { syncGpuModal: true });
+  }
+  if (keyPath === 'fps' && Number.isFinite(value)) {
+    if (!this._syncingGlobalFps) {
+      this._syncingGlobalFps = true;
+      try {
+        this.syncFpsAcrossControls(value, { syncDeforum: true });
+      } finally {
+        this._syncingGlobalFps = false;
+      }
+    }
   }
   if (keyPath === 'sd_model_name') {
     this.forge.selectedModel = this.normalizeModelName(value);

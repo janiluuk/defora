@@ -28,6 +28,7 @@
       type="button"
       class="header-transport__btn header-transport__btn--record"
       :class="{ 'header-transport__btn--active': recording }"
+      :disabled="playing"
       :title="recording ? 'Stop recording' : 'Start recording'"
       :aria-label="recording ? 'Stop recording' : 'Start recording'"
       data-testid="header-record"

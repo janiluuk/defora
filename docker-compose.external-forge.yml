@@ -12,6 +12,8 @@ services:
       - FPS=${FPS:-24}
       - RESOLUTION=${RESOLUTION:-960:540}
       - FRAMES_DIR=/data/frames
+      - ENCODER_SCAN_INTERVAL=${ENCODER_SCAN_INTERVAL:-0.5}
+      - ENCODER_REALTIME=${ENCODER_REALTIME:-0}
       - RTMP_TARGET=${RTMP_INGEST_TARGET:-rtmp://vimage3:1935/live/deforum}
     depends_on:
       - web
@@ -30,8 +32,8 @@ services:
       - "vimage3:${VIMAGE3_IP:-192.168.2.103}"
     volumes:
       - frames:/data/frames:ro
-      - hls:/var/www/hls
       - runs:/data/runs
+      - ./docker/web/nginx.external-forge.conf:/etc/nginx/nginx.conf:ro
     environment:
       - NODE_OPTIONS=--max-old-space-size=768
       - RABBIT_URL=amqp://mq
@@ -41,6 +43,8 @@ services:
       - UPLOADS_DIR=/data/runs/uploads
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
+      - HLS_UPSTREAM=http://vimage3
+      - HLS_INGEST_HOST=vimage3
       # VideoSwarm lives alongside runs/projects so storage is shared.
       - VIDEOSWARM_DIR=/data/runs/videoswarm
       # Optional: point Defora at an external VideoSwarm host (served/proxied via /api/videoswarm-proxy/*)
@@ -52,6 +56,8 @@ services:
       - DISTRIBUTED_ENABLED=${DISTRIBUTED_ENABLED:-true}
       - DISTRIBUTED_STRATEGY=${DISTRIBUTED_STRATEGY:-least_busy}
       - DISTRIBUTED_NODES=${DISTRIBUTED_NODES:-http://vimage2:7860,http://vimage5:7860}
+      # Forge URL that writes into the shared FRAMES_DIR (required when Forge is remote).
+      - FRAMES_FORGE_URL=${FRAMES_FORGE_URL:-http://vimage2:7860}
       - DISTRIBUTED_HEALTH_CHECK_INTERVAL=${DISTRIBUTED_HEALTH_CHECK_INTERVAL:-30}
       - DISTRIBUTED_TIMEOUT=${DISTRIBUTED_TIMEOUT:-300}
       - DISTRIBUTED_RETRY_ATTEMPTS=${DISTRIBUTED_RETRY_ATTEMPTS:-2}
@@ -138,6 +144,5 @@ services:
 
 volumes:
   frames:
-  hls:
   mqdata:
   runs:

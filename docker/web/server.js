@@ -30,6 +30,35 @@ async function start(opts = {}) {
    const spawner = opts.spawner || spawn;
 
   const playlistPath = path.join(hlsDir, hlsStream.replace(/^\/hls\//, ""));
+  const hlsUpstream = String(opts.hlsUpstream || process.env.HLS_UPSTREAM || "")
+    .trim()
+    .replace(/\/$/, "");
+  const hlsPlaylistUrl = hlsUpstream
+    ? `${hlsUpstream}${hlsStream.startsWith("/") ? hlsStream : `/${hlsStream}`}`
+    : "";
+
+  async function readPlaylistUpdatedMs() {
+    if (hlsPlaylistUrl) {
+      try {
+        const res = await fetch(hlsPlaylistUrl, { method: "HEAD" });
+        if (!res.ok) return null;
+        const lm = res.headers.get("last-modified");
+        if (lm) {
+          const parsed = Date.parse(lm);
+          if (Number.isFinite(parsed)) return parsed;
+        }
+        return Date.now();
+      } catch (_e) {
+        return null;
+      }
+    }
+    try {
+      const stat = await fsp.stat(playlistPath);
+      return stat.mtimeMs;
+    } catch (_e) {
+      return null;
+    }
+  }
 
   // Track API availability status
   const apiStatus = {
@@ -359,6 +388,16 @@ async function start(opts = {}) {
     return forgeTarget(req).url;
   }
 
+  /** Forge node that writes into FRAMES_DIR — required when GPUs are remote but frames are on a shared mount. */
+  function previewForgeTarget(req) {
+    const pinnedUrl = String(process.env.FRAMES_FORGE_URL || process.env.PREVIEW_FORGE_URL || "").trim();
+    if (pinnedUrl) {
+      const url = pinnedUrl.replace(/\/$/, "");
+      return { url, node: null, backend: "sd-forge", release: () => {} };
+    }
+    return forgeTarget(req);
+  }
+
   function writableForgeTargets() {
     const nodes = Array.isArray(gpuPool.state?.nodes)
       ? gpuPool.state.nodes.filter((node) => node.enabled && node.backend === "sd-forge")
@@ -443,6 +482,10 @@ async function start(opts = {}) {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   async function latestFrameInfo() {
+    const cached = Array.isArray(framesIndexCache.items) ? framesIndexCache.items[0] : null;
+    if (cached && framesIndexCache.builtAt && Date.now() - framesIndexCache.builtAt < 2000) {
+      return cached;
+    }
     const items = await buildFramesIndex(1);
     return items[0] || null;
   }
@@ -554,7 +597,7 @@ async function start(opts = {}) {
 
     let status = "pending";
     for (let i = 0; i < 120; i++) {
-      const framePollMs = i < 20 ? 150 : (i < 60 ? 250 : 400);
+      const framePollMs = i < 30 ? 75 : (i < 60 ? 150 : 300);
       await sleep(framePollMs);
       const frame = await latestFrameInfo();
       if (frame && (!baselineFrame || frame.mtime > baselineFrame.mtime || frame.name !== baselineFrame.name)) {
@@ -755,7 +798,12 @@ async function start(opts = {}) {
 
   const app = express();
   app.use(express.json({ limit: "50mb" }));
-  app.use("/frames", express.static(framesDir, { maxAge: "30s" }));
+  app.use("/frames", express.static(framesDir, {
+    maxAge: "1h",
+    immutable: true,
+    etag: true,
+    lastModified: true,
+  }));
   
   // Serve static files from public directory
   const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
@@ -767,12 +815,18 @@ async function start(opts = {}) {
   });
 
   app.get("/api/health", async (_req, res) => {
-    try {
-      const stat = await fsp.stat(playlistPath);
-      res.json({ ok: true, stream: hlsStream, updated: stat.mtimeMs });
-    } catch (_e) {
-      res.json({ ok: true, stream: hlsStream, updated: null });
-    }
+    const updated = await readPlaylistUpdatedMs();
+    res.json({
+      ok: true,
+      stream: hlsStream,
+      updated,
+      hlsUpstream: hlsUpstream || null,
+      rtmpIngest:
+        process.env.ENCODER_RTMP_TARGET ||
+        process.env.RTMP_INGEST_TARGET ||
+        process.env.RTMP_TARGET ||
+        null,
+    });
   });
   
   // Streaming API endpoints
@@ -1568,7 +1622,7 @@ async function start(opts = {}) {
     if (!settings) {
       return res.status(400).json({ error: "settings object required" });
     }
-    const target = forgeTarget(req);
+    const target = previewForgeTarget(req);
     try {
       const result = await renderDeforumPreview(settings, target, body.options_overrides || {});
       if (result && result.batchId) {
@@ -1612,7 +1666,7 @@ async function start(opts = {}) {
     const body = req.body || {};
     const maxFrames = Math.max(1, Math.min(480, parseInt(body.maxFrames, 10) || 48));
     const fps = Math.max(1, Math.min(60, parseInt(body.fps, 10) || 12));
-    const target = forgeTarget(req);
+    const target = previewForgeTarget(req);
     try {
       let baseSettings = {};
       if (fs.existsSync(deforumSettingsFile)) {
@@ -2231,7 +2285,7 @@ async function start(opts = {}) {
     async function respondWithDeforumFallback(reason) {
       if (!fallbackSettings) return false;
       try {
-        const result = await renderDeforumPreview(fallbackSettings, target, body.options_overrides || {});
+        const result = await renderDeforumPreview(fallbackSettings, previewForgeTarget(req), body.options_overrides || {});
         if (result && result.batchId) {
           persistRunJobSnapshot(result.batchId, {
             kind: "txt2img_fallback",
@@ -4586,13 +4640,13 @@ async function start(opts = {}) {
   let lastPlaylistMtime = 0;
   const pollTimer = setInterval(async () => {
     try {
-      const stat = await fsp.stat(playlistPath);
-      if (stat.mtimeMs > lastPlaylistMtime) {
-        lastPlaylistMtime = stat.mtimeMs;
-        broadcast({ type: "stream", src: hlsStream, updated: stat.mtimeMs });
+      const updated = await readPlaylistUpdatedMs();
+      if (updated != null && updated > lastPlaylistMtime) {
+        lastPlaylistMtime = updated;
+        broadcast({ type: "stream", src: hlsStream, updated });
       }
     } catch (err) {
-      if (err.code !== "ENOENT") console.error("[hls] poll error", err);
+      console.error("[hls] poll error", err);
     }
   }, 2000);
 

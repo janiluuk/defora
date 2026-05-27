@@ -10,6 +10,8 @@ services:
       - FPS=${FPS:-24}
       - RESOLUTION=${RESOLUTION:-1280:720}
       - FRAMES_DIR=/data/frames
+      - ENCODER_SCAN_INTERVAL=${ENCODER_SCAN_INTERVAL:-0.5}
+      - ENCODER_REALTIME=${ENCODER_REALTIME:-0}
       - RTMP_TARGET=rtmp://web:1935/live/deforum
     depends_on:
       - web
