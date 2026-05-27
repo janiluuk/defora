@@ -76,8 +76,8 @@
               </select>
             </div>
             <div class="framesync-stack">
-              <div class="framesync-subtitle">FPS</div>
-              <select class="framesync-select" :value="deforumSettings.fps" @change="onDeforumFieldInput('fps', +$event.target.value, 'number')">
+              <div class="framesync-subtitle">Global FPS</div>
+              <select class="framesync-select" :value="deforumSettings.fps" @change="setGlobalFps(+$event.target.value)">
                 <option :value="8">8</option>
                 <option :value="12">12</option>
                 <option :value="24">24</option>

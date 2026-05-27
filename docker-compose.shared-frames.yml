@@ -1,0 +1,18 @@
+# Override: bind a host/NFS path so web + encoder see the same frames Forge writes.
+#
+# On the Forge GPU host, set OUTPUT_DIR to the same directory (or NFS export).
+#
+# Usage:
+#   export FRAMES_SHARED_PATH=/mnt/nvme/defora-frames   # or NFS mount
+#   docker compose -f docker-compose.external-forge.yml -f docker-compose.shared-frames.yml up -d
+#
+services:
+  web:
+    volumes:
+      - ${FRAMES_SHARED_PATH}:/data/frames:ro
+  encoder:
+    volumes:
+      - ${FRAMES_SHARED_PATH}:/data/frames
+  dev-frame-seeder:
+    volumes:
+      - ${FRAMES_SHARED_PATH}:/data/frames

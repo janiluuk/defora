@@ -167,19 +167,30 @@ script = script.replace(
   }
 );
 const proxyStubBlock = needsAppViewProxyStub
-  ? `function __proxyAppView(props) {
+  ? `function __hasOwnProp(props, key) {
+  return Object.prototype.hasOwnProperty.call(props, key);
+}
+
+function __proxyAppView(props) {
   return new Proxy({}, {
     get(_target, key) {
-      return Reflect.get(props.app, key);
+      if (__hasOwnProp(props, key) && key !== 'app') return props[key];
+      const value = Reflect.get(props.app, key);
+      if (typeof value === 'function') return value.bind(props.app);
+      return value;
     },
     set(_target, key, value) {
+      if (__hasOwnProp(props, key) && key !== 'app') return false;
       Reflect.set(props.app, key, value);
       return true;
     },
     has(_target, key) {
-      return key in props.app;
+      return (__hasOwnProp(props, key) && key !== 'app') || key in props.app;
     },
     getOwnPropertyDescriptor(_target, key) {
+      if (__hasOwnProp(props, key) && key !== 'app') {
+        return { configurable: true, enumerable: true, value: props[key], writable: false };
+      }
       return {
         configurable: true,
         enumerable: true,

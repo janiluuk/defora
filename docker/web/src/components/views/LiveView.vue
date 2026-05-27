@@ -15,7 +15,7 @@
         :class="{ active: currentSubTab.LIVE === 'DEFORUM_JOB' }"
         @click="switchSubTab('LIVE', 'DEFORUM_JOB')"
       >
-        Deforum job
+        Deforum
       </button>
     </div>
 
@@ -591,7 +591,7 @@
         <div class="framesync-header">
           <div class="framesync-title">
             <UiIcon class="framesync-title-icon" name="film" />
-            <span class="framesync-accent">Deforum job</span>
+            <span class="framesync-accent">Deforum</span>
           </div>
           <span
             class="perf-mode-badge"

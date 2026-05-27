@@ -6,7 +6,7 @@ This document explains how to manage Docker volumes for the Defora project.
 
 Defora uses several Docker volumes to persist data across container restarts:
 
-- **frames**: Stores generated image frames
+- **frames**: Stores generated image frames (hot path for live Deforum — see [IMAGE_PIPELINE_PERFORMANCE.md](./IMAGE_PIPELINE_PERFORMANCE.md))
 - **hls**: Stores HLS video segments for streaming
 - **mqdata**: RabbitMQ data directory
 - **models**: SD-Forge model storage (if used)

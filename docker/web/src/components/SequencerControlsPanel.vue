@@ -1,6 +1,70 @@
 <template>
-  <div class="sequencer-controls-panel" data-testid="sequencer-controls-panel">
+  <div
+    class="sequencer-controls-panel"
+    :class="{ 'sequencer-controls-panel--stage': stage }"
+    data-testid="sequencer-controls-panel"
+  >
+    <div v-if="stage" class="stage-sequencer-bar">
+      <div class="stage-sequencer-bar__left">
+        <button
+          type="button"
+          class="stage-sequencer-bar__btn"
+          :class="{ 'stage-sequencer-bar__btn--live': sequencerPlaying }"
+          :title="sequencerPlaying ? 'Stop' : 'Play'"
+          @click="toggleSequencerPlayback"
+        >
+          <UiIcon :name="sequencerPlaying ? 'stop' : 'play'" />
+        </button>
+        <button type="button" class="stage-sequencer-bar__btn" title="Preview frame" @click="previewSequencerFrame">
+          <UiIcon name="sparkles" />
+        </button>
+        <span
+          class="stage-sequencer-bar__frame"
+          :class="{ 'stage-sequencer-bar__frame--live': sequencerJobFrameLive }"
+          data-testid="sequencer-job-frame-counter"
+        >
+          {{ sequencerJobFrameNumber }}<span class="stage-sequencer-bar__frame-total">/{{ sequencerJobTotalFrames }}</span>
+        </span>
+      </div>
+      <label class="stage-sequencer-bar__scrub">
+        <input
+          type="range"
+          class="stage-sequencer-bar__scrub-input"
+          min="0"
+          :max="Math.max(0.01, Number(sequencer.durationSec) || 0)"
+          step="0.01"
+          v-model.number="sequencerPlayhead"
+          @input="previewSequencerFrame"
+        >
+      </label>
+      <div class="stage-sequencer-bar__right">
+        <span v-if="sequencerStatus" class="stage-sequencer-bar__status stage-sequencer-bar__status--clip">{{ sequencerStatus }}</span>
+        <span v-else-if="performance.status" class="stage-sequencer-bar__status">{{ performance.status }}</span>
+        <span class="stage-sequencer-bar__meta">{{ sequencerPlayhead.toFixed(2) }}s</span>
+        <span class="stage-sequencer-bar__meta">{{ masterFps }} fps</span>
+        <label class="stage-sequencer-bar__loop" title="Loop timeline">
+          <input type="checkbox" v-model="sequencer.loop">
+          <span>Loop</span>
+        </label>
+        <button type="button" class="stage-sequencer-bar__text-btn" @click="addSequencerClip('prompt')">+ Prompt</button>
+        <button type="button" class="stage-sequencer-bar__text-btn" @click="addSequencerClip('lora')">+ LoRA</button>
+        <button type="button" class="stage-sequencer-bar__text-btn" @click="addSequencerClip('controlnet')">+ CN</button>
+        <button
+          type="button"
+          class="stage-sequencer-bar__text-btn"
+          :class="{ 'stage-sequencer-bar__text-btn--active': generateDockExpanded }"
+          @click="generateDockExpanded = !generateDockExpanded; saveSessionState()"
+        >
+          {{ generateDockExpanded ? 'Less' : 'Edit' }}
+        </button>
+        <button type="button" class="stage-sequencer-bar__text-btn stage-sequencer-bar__text-btn--accent" @click="applySequencerToDeforumSettings">
+          Apply
+        </button>
+      </div>
+    </div>
+
     <div
+      v-if="!stage && !summaryOnly"
       class="generate-sequencer__frame-hero"
       :class="{ 'generate-sequencer__frame-hero--live': sequencerJobFrameLive }"
       data-testid="sequencer-job-frame-hero"
@@ -19,7 +83,7 @@
       </div>
     </div>
 
-    <div class="modulation-lfo-grid generate-sequencer__control-grid">
+    <div v-if="!stage" class="modulation-lfo-grid generate-sequencer__control-grid">
       <div class="modulation-lfo-card modulation-lfo-card--static modulation-lfo-card--active">
         <div class="modulation-lfo-card__header">
           <div class="modulation-lfo-card__title">
@@ -207,8 +271,8 @@
       :job-frame-number="sequencerJobFrameNumber"
       :job-total-frames="sequencerJobTotalFrames"
       :job-frame-live="sequencerJobFrameLive"
-      :compact="!generateDockExpanded"
-      :expandable="true"
+      :compact="stage ? false : !generateDockExpanded"
+      :expandable="!stage"
       @seek="seekSequencer"
       @jump-marker="jumpToSequencerMarker"
       @jump-clip="jumpToSequencerClip"
@@ -217,7 +281,7 @@
       @update-keyframe="updateSequencerKeyframe"
     />
 
-    <template v-if="!summaryOnly">
+    <template v-if="!summaryOnly && (!stage || generateDockExpanded)">
       <div class="modulation-lfo-grid generate-sequencer__control-grid generate-sequencer__control-grid--edit">
         <div class="modulation-lfo-card modulation-lfo-card--static modulation-lfo-card--active generate-sequencer__control-span">
           <div class="modulation-lfo-card__header">
@@ -420,19 +484,21 @@
 </template>
 
 <script>
+import UiIcon from './UiIcon.vue'
 import Timeline from './generate/Timeline.vue'
 import { proxyAppView } from './views/app-view-proxy.js'
 
 export default {
   name: 'SequencerControlsPanel',
-  components: { Timeline },
+  components: { UiIcon, Timeline },
   props: {
     app: { type: Object, required: true },
     showTimeline: { type: Boolean, default: true },
     summaryOnly: { type: Boolean, default: false },
+    stage: { type: Boolean, default: false },
   },
   setup(props) {
-    return proxyAppView(props)
+    return proxyAppView(props);
   },
 }
 </script>

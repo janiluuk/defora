@@ -1,24 +1,5 @@
 <template>
   <div class="rack motion-view">
-    <div class="sub-pills motion-view__tabs">
-      <button
-        type="button"
-        class="sub-pill"
-        :class="{ active: currentSubTab.MOTION === 'PERFORMANCE' }"
-        @click="switchSubTab('MOTION', 'PERFORMANCE')"
-      >
-        Performance
-      </button>
-      <button
-        type="button"
-        class="sub-pill"
-        :class="{ active: currentSubTab.MOTION === 'SEQUENCER' }"
-        @click="switchSubTab('MOTION', 'SEQUENCER')"
-      >
-        Sequencer
-      </button>
-    </div>
-
     <template v-if="currentSubTab.MOTION === 'PERFORMANCE'">
       <div class="framesync-panel motion-panel">
         <div class="framesync-header">
@@ -125,20 +106,17 @@
         </div>
       </div>
     </template>
-
-    <GenerateView v-else-if="currentSubTab.MOTION === 'SEQUENCER'" :app="$props.app" />
   </div>
 </template>
 
 <script>
 import UiIcon from '../UiIcon.vue'
-import GenerateView from './GenerateView.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, GenerateView, MotionPathPreview },
+  components: { UiIcon, MotionPathPreview },
   props: {
     app: { type: Object, required: true },
   },

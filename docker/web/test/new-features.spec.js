@@ -108,6 +108,18 @@ describe("New Features Tests", () => {
   });
 
   describe("Sequencer content clips", () => {
+    it("adds clips when invoked through app-view proxy (child panel context)", () => {
+      const { proxyAppView } = require("../src/components/views/app-view-proxy.js");
+      const panel = proxyAppView({ app: appVm });
+      appVm.sequencer.clips = [];
+      appVm.sequencer.durationSec = 8;
+      appVm.sequencerPlayhead = 2;
+      panel.addSequencerClip("prompt");
+      expect(appVm.sequencer.clips).to.have.lengthOf(1);
+      expect(appVm.sequencer.clips[0].type).to.equal("prompt");
+      expect(appVm.sequencerStatus).to.include("Added Prompt");
+    });
+
     it("adds prompt, lora, and controlnet clips at the playhead", () => {
       appVm.prompts.pos = "neon alley";
       appVm.prompts.neg = "low quality";
