@@ -1216,19 +1216,53 @@ module.exports = {
     rightPanelToggleTitle() {
       return this.showRightPanel ? 'Hide controls menu' : 'Show controls menu';
     },
+    deforumVideoOpacity() {
+      if (!this.videoReady) return 0;
+      const d = this.defaultAnimation || {};
+      if (d.preferDeforumVideo) return 1;
+      if (!d.deforumAutoBlend) return 0;
+      return Math.max(0, Math.min(1, Number.isFinite(Number(d.deforumBlend)) ? Number(d.deforumBlend) : 0.72));
+    },
+    deforumVideoMixBlendMode() {
+      const modes = [
+        'normal', 'multiply', 'screen', 'overlay', 'lighten', 'soft-light',
+        'hard-light', 'color-dodge', 'difference',
+      ];
+      const mode = this.defaultAnimation && this.defaultAnimation.deforumBlendMode;
+      return modes.includes(mode) ? mode : 'screen';
+    },
+    deforumVideoLayerStyle() {
+      const opacity = this.deforumVideoOpacity;
+      return {
+        opacity: String(opacity),
+        mixBlendMode: opacity > 0.01 ? this.deforumVideoMixBlendMode : 'normal',
+      };
+    },
+    defaultAnimationLayerOpacity() {
+      const blend = this.deforumVideoOpacity;
+      if (blend <= 0) return 1;
+      return Math.max(0.04, 1 - blend * 0.96);
+    },
+    defaultAnimationLayerStyle() {
+      return { opacity: String(this.defaultAnimationLayerOpacity) };
+    },
     showDeforumVideo() {
-      return !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo && this.videoReady);
+      return this.videoReady && this.deforumVideoOpacity > 0.01;
     },
     showPreviewStill() {
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
         || !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo);
-      return !!(!this.showDeforumVideo && !this.deforumPlaying && this.activePreviewStillPath && shouldSurfaceStill);
+      const deforumCoversPreview = this.showDeforumVideo && this.deforumVideoOpacity >= 0.92;
+      return !!(!deforumCoversPreview && !this.deforumPlaying && this.activePreviewStillPath && shouldSurfaceStill);
     },
     deforumFeedStatusLabel() {
-      if (this.showDeforumVideo) return 'Deforum feed live';
+      const blend = this.deforumVideoOpacity;
+      if (blend >= 0.99) return 'Deforum feed live';
+      if (blend > 0.01) return `Blended ${Math.round(blend * 100)}% · ${this.deforumVideoMixBlendMode}`;
       if (this.videoReady) return 'Deforum feed ready';
       if (this.deforumPlaying) return 'Deforum feed warming up';
       if (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo) return 'Waiting for Deforum feed';
+      if (this.defaultAnimation && this.defaultAnimation.deforumAutoBlend) return 'Default animation · auto-blend on connect';
       return 'Default animation';
     },
     backgroundAudioMetrics() {
@@ -2439,6 +2473,9 @@ normalizeDefaultAnimationSettings(input = {}) {
   const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'instancing';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
+    deforumBlend: Math.max(0, Math.min(1, Number.isFinite(Number(next.deforumBlend)) ? Number(next.deforumBlend) : 0.72)),
+    deforumBlendMode: blendModes.includes(next.deforumBlendMode) ? next.deforumBlendMode : 'screen',
+    deforumAutoBlend: next.deforumAutoBlend !== false,
     mode,
     instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
@@ -2534,6 +2571,8 @@ setPreferDeforumVideo(prefer) {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
     preferDeforumVideo: prefer,
+    deforumBlend: prefer ? 1 : (Number(this.defaultAnimation.deforumBlend) || 0.72),
+    deforumAutoBlend: prefer ? false : true,
   });
   if (prefer) {
     this.videoReady = false;
