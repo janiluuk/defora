@@ -67,14 +67,14 @@ try {
   if ((await audioReactivePanel.count()) === 0) {
     throw new Error('Audio reactive panel not found under MODULATION -> Reactive');
   }
-  await clickTab(page, 'SETTINGS');
-  await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^RUNS$/ }).first().click();
+  await clickTab(page, 'LIBRARY');
   await page.waitForTimeout(300);
   const runsBrowser = page.locator('.runs-browser');
   if ((await runsBrowser.count()) === 0) {
-    throw new Error('Runs browser not found under SETTINGS -> RUNS');
+    throw new Error('Runs browser not found under LIBRARY');
   }
+  await clickTab(page, 'SETTINGS');
+  await page.waitForTimeout(300);
   await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(300);
   const infraPanel = page.locator('[data-testid="infrastructure-panel"]');

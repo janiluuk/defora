@@ -667,58 +667,52 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
   });
 
-  it("lists library runs and inspects frames one by one", async () => {
+  it("shows the runs browser under Library with table and details", async () => {
     appVm.runsAll = [
-      { run_id: "run-a-002", batch_name: "session_a", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a" },
-      { run_id: "run-a-001", batch_name: "session_a", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a" },
-      { run_id: "run-b-001", batch_name: "session_b", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false, frame_count: 1, model: "xl-b" },
+      { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a", tag: "defora" },
+      { run_id: "run-a-001", status: "completed", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a", tag: "defora" },
+      { run_id: "run-b-001", status: "queued", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false, frame_count: 1, model: "xl-b", tag: "preview" },
     ];
     appVm.applyRunsFilters();
     global.fetch = async (url) => {
       const path = String(url);
-      if (path.includes("run-a-002")) {
-        return { ok: true, json: async () => ({ run_id: "run-a-002", frames: ["frame_0001.png", "frame_0002.png"] }) };
-      }
       if (path.includes("run-b-001")) {
-        return { ok: true, json: async () => ({ run_id: "run-b-001", frames: ["frame_0001.png"] }) };
+        return { ok: true, json: async () => ({ run_id: "run-b-001", status: "queued", frames: ["frame_0001.png"], model: "xl-b" }) };
       }
-      return { ok: true, json: async () => ({ run_id: "run-a-001", frames: ["frame_0001.png", "frame_0002.png", "frame_0003.png"] }) };
+      return { ok: true, json: async () => ({ run_id: "run-a-002", status: "completed", frames: ["frame_0001.png", "frame_0002.png"], model: "xl-a" }) };
     };
 
-    appVm.showFrames = true;
     appVm.switchTab("LIBRARY");
-    appVm.librarySubTab = "RUNS";
     await nextTick();
+    await nextTick();
+
+    const runsBrowser = document.querySelector(".runs-browser");
+    expect(runsBrowser).to.exist;
+    expect(document.body.textContent).to.include("Runs Browser");
+    expect(document.body.textContent).to.include("Storage Browser");
+
+    const rows = [...document.querySelectorAll(".runs-browser__table tbody tr")].filter(
+      (row) => !row.querySelector(".runs-browser__empty")
+    );
+    expect(rows.length).to.equal(3);
+
+    const detailsBtn = rows[0].querySelector(".runs-browser__action");
+    detailsBtn.click();
     await nextTick();
     await Promise.resolve();
     await nextTick();
 
-    const runCards = [...document.querySelectorAll(".library-run-card")];
-    expect(runCards.length).to.equal(3);
-
-    runCards[0].click();
-    await nextTick();
-    await Promise.resolve();
-    await nextTick();
-
-    expect(appVm.library.selectedRunId).to.match(/^run-(a|b)-/);
-    expect(document.body.textContent).to.include("Frame Inspector");
-    expect(appVm.librarySelectedFrameSrc).to.include(`/api/runs/${appVm.library.selectedRunId}/frames/frame_0001.png`);
-
-    appVm.stepLibraryFrame(1);
-    await nextTick();
-    expect(appVm.library.selectedFrameName).to.equal("frame_0002.png");
-
-    const runB = runCards.find((el) => el.textContent.includes("run-b-001"));
-    expect(runB).to.exist;
-    runB.click();
-    await nextTick();
-    await Promise.resolve();
-    await nextTick();
-    expect(appVm.library.selectedRunId).to.equal("run-b-001");
-    expect(document.querySelectorAll("[data-testid='library-frame-thumbs'] .frame-rail__item").length).to.equal(1);
+    expect(appVm.runsDetailView).to.exist;
+    expect(appVm.runsDetailView.run_id).to.equal("run-a-002");
+    expect(document.body.textContent).to.include("Run Details");
 
     delete global.fetch;
+  });
+
+  it("openRunsSettings navigates to Library runs browser", () => {
+    appVm.openRunsSettings();
+    expect(appVm.currentTab).to.equal("LIBRARY");
+    expect(document.querySelector(".runs-browser")).to.exist;
   });
 });
 

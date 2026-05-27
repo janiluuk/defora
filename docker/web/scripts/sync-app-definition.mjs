@@ -101,7 +101,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
       if (nestedRel.includes('/views/')) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (!emittedComponentStubs.has(importName)) {
-        lines.push(`const ${importName} = { template: '<div></div>' };`);
+        lines.push(`const ${importName} = { props: ['app'], template: '<div></div>' };`);
         emittedComponentStubs.add(importName);
       }
       childComponents.push(`${importName}: ${importName}`);
@@ -128,7 +128,7 @@ script = script.replace(
       return '';
     }
     if (!emittedComponentStubs.has(name)) {
-      componentStubs.push(`const ${name} = { template: '<div></div>' };`);
+      componentStubs.push(`const ${name} = { props: ['app'], template: '<div></div>' };`);
       emittedComponentStubs.add(name);
     }
     return '';

@@ -2676,8 +2676,9 @@ export default {
     this.switchSubTab('SETTINGS', 'GPUS');
   },
   openRunsSettings() {
-    this.switchTab('SETTINGS');
-    this.switchSubTab('SETTINGS', 'RUNS');
+    this.switchTab('LIBRARY');
+    this.librarySubTab = 'BROWSER';
+    void this.refreshRuns();
   },
   openRecentRun(run) {
     if (!run) return;
@@ -2893,14 +2894,14 @@ export default {
      return;
    }
    if (id === 'RUNS') {
-     this.currentTab = 'SETTINGS';
-     this.currentSubTab.SETTINGS = 'RUNS';
+     this.currentTab = 'LIBRARY';
+     this.librarySubTab = 'BROWSER';
      try {
        if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'SETTINGS');
-         window.localStorage.setItem('defora_subtab_SETTINGS', 'RUNS');
+         window.localStorage.setItem('defora_tab', 'LIBRARY');
        }
      } catch (_e) {}
+     void this.refreshRuns();
      return;
    }
   if (id === 'MOTION') {
@@ -2935,6 +2936,10 @@ export default {
    return allowed.includes(sub) ? sub : 'PERFORMANCE';
  },
  switchSubTab(tab, sub) {
+  if (tab === 'SETTINGS' && sub === 'RUNS') {
+    this.openRunsSettings();
+    return;
+  }
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
@@ -7629,7 +7634,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       };
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
-    if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') this.librarySubTab = s.librarySubTab;
+    if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
+      this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
+    }
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
