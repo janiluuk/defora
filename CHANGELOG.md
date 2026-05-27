@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.24] - 2026-05-27
+
+## What's Changed
+
+- feat(web): GPU active jobs panel, batch kill, and motion path preview (c89e2fd)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.23...v0.6.24
+
+
 ## [0.6.23] - 2026-05-27
 
 ## What's Changed
