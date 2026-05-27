@@ -321,14 +321,54 @@
               <span class="pill" :class="{ danger: !loraCrossfaderEnabled }">
                 <span class="dot"></span>{{ loraCrossfaderStatusLabel }}
               </span>
-              <button class="framesync-button" @click="loraCrossfaderCollapsed = !loraCrossfaderCollapsed">{{ loraCrossfaderCollapsed ? 'Show' : 'Hide' }}</button>
+              <button class="framesync-button" @click="refreshLoras">Refresh</button>
             </div>
           </div>
           <div class="lora-crossfader-shell">
             <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
-            <div v-if="!loraCrossfaderCollapsed" class="prompt-ab-summary">
+            <div class="prompt-ab-summary">
               <div class="prompt-ab-column prompt-ab-column--a">
-                <div class="prompt-ab-column__title">A Group</div>
+                <div class="prompt-ab-column__head">
+                  <div class="prompt-ab-column__title">A Group</div>
+                  <button
+                    type="button"
+                    class="framesync-button lora-picker-trigger"
+                    :title="loraCrossfaderPickerGroup === 'A' ? 'Close LoRA picker' : 'Add LoRA to A group'"
+                    @click="toggleLoraCrossfaderPicker('A')"
+                  >
+                    {{ loraCrossfaderPickerGroup === 'A' ? '×' : '+' }}
+                  </button>
+                </div>
+                <div v-if="loraCrossfaderPickerGroup === 'A'" class="lora-picker-panel lora-picker-panel--column">
+                  <div class="framesync-subtitle lora-browser-summary">Add LoRAs to the A group for crossfading.</div>
+                  <div class="lora-picker-families">
+                    <section v-for="family in compatibleLoraFamilies" :key="'xfpick-a-' + family.key" class="lora-picker-family">
+                      <div class="lora-picker-family__title">{{ family.label }}</div>
+                      <div class="lora-picker-list">
+                        <div v-for="lora in family.items" :key="'xfpick-a-row-' + lora.id" class="lora-picker-row">
+                          <div class="lora-picker-row__copy">
+                            <div class="lora-picker-row__name">{{ lora.name }}</div>
+                            <div class="lora-picker-row__path">{{ lora.path }}</div>
+                          </div>
+                          <div class="lora-picker-row__actions">
+                            <button
+                              type="button"
+                              class="framesync-button prompt-group-button prompt-group-button--a"
+                              :class="{ active: lora.group === 'A' }"
+                              @click.stop="assignLoraToGroup(lora, 'A')"
+                            >
+                              {{ lora.group === 'A' ? 'In A' : 'Add' }}
+                            </button>
+                            <button type="button" class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                  <div v-if="!compatibleLoraFamilies.length" class="lora-picker-empty">
+                    No LoRA models found. Refresh or check SD-Forge connection.
+                  </div>
+                </div>
                 <div v-for="lora in loras.groupA.slice(0, 3)" :key="'xfa-'+lora.id" class="prompt-ab-card">
                   <div class="prompt-ab-card__name">{{ lora.name }}</div>
                   <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
@@ -374,7 +414,47 @@
               </div>
 
               <div class="prompt-ab-column prompt-ab-column--b">
-                <div class="prompt-ab-column__title">B Group</div>
+                <div class="prompt-ab-column__head">
+                  <div class="prompt-ab-column__title">B Group</div>
+                  <button
+                    type="button"
+                    class="framesync-button lora-picker-trigger"
+                    :title="loraCrossfaderPickerGroup === 'B' ? 'Close LoRA picker' : 'Add LoRA to B group'"
+                    @click="toggleLoraCrossfaderPicker('B')"
+                  >
+                    {{ loraCrossfaderPickerGroup === 'B' ? '×' : '+' }}
+                  </button>
+                </div>
+                <div v-if="loraCrossfaderPickerGroup === 'B'" class="lora-picker-panel lora-picker-panel--column">
+                  <div class="framesync-subtitle lora-browser-summary">Add LoRAs to the B group for crossfading.</div>
+                  <div class="lora-picker-families">
+                    <section v-for="family in compatibleLoraFamilies" :key="'xfpick-b-' + family.key" class="lora-picker-family">
+                      <div class="lora-picker-family__title">{{ family.label }}</div>
+                      <div class="lora-picker-list">
+                        <div v-for="lora in family.items" :key="'xfpick-b-row-' + lora.id" class="lora-picker-row">
+                          <div class="lora-picker-row__copy">
+                            <div class="lora-picker-row__name">{{ lora.name }}</div>
+                            <div class="lora-picker-row__path">{{ lora.path }}</div>
+                          </div>
+                          <div class="lora-picker-row__actions">
+                            <button
+                              type="button"
+                              class="framesync-button prompt-group-button prompt-group-button--b"
+                              :class="{ active: lora.group === 'B' }"
+                              @click.stop="assignLoraToGroup(lora, 'B')"
+                            >
+                              {{ lora.group === 'B' ? 'In B' : 'Add' }}
+                            </button>
+                            <button type="button" class="framesync-button" v-if="lora.group" @click.stop="unassignLora(lora)">Remove</button>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+                  </div>
+                  <div v-if="!compatibleLoraFamilies.length" class="lora-picker-empty">
+                    No LoRA models found. Refresh or check SD-Forge connection.
+                  </div>
+                </div>
                 <div v-for="lora in loras.groupB.slice(0, 3)" :key="'xfb-'+lora.id" class="prompt-ab-card">
                   <div class="prompt-ab-card__name">{{ lora.name }}</div>
                   <input type="range" min="0" max="2" step="0.01" :value="lora.strength" @input="lora.strength=parseFloat($event.target.value)" class="framesync-input prompt-ab-card__slider">
@@ -388,7 +468,7 @@
                 </div>
               </div>
             </div>
-            <div v-if="!loraCrossfaderCollapsed" class="framesync-footer" style="margin-top:12px;">
+            <div class="framesync-footer" style="margin-top:12px;">
               <button class="framesync-button" @click="applyLoras">Apply LoRAs</button>
             </div>
           </div>

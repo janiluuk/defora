@@ -149,7 +149,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
+    appVm.currentSubTab = { PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
@@ -302,9 +302,21 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Current model");
     expect(pageText).to.include("Current CFG");
     expect(pageText).to.include("Current steps");
-    expect(pageText).to.include("Checkpoint");
+    expect(pageText).to.include("Click to browse checkpoints");
+    expect(pageText).to.not.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
+
+    const modelCard = document.querySelector(".engine-main-card--picker");
+    expect(modelCard).to.exist;
+    modelCard.click();
+    await nextTick();
+    await nextTick();
+    expect(appVm.engineModelPickerOpen).to.equal(true);
+    expect(document.body.textContent).to.include("Select Checkpoint");
+    expect(document.body.textContent).to.include("SD1.5");
+    expect(document.body.textContent).to.include("Z-Image");
+
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.not.include("FORGE");
     expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
@@ -478,19 +490,27 @@ describe("Deforumation Web UI", () => {
     expect(appVm.cn.slots[0].enabled).to.equal(true);
   });
 
-  it("shows a dedicated collapsed LoRA crossfader tab", async () => {
+  it("shows the LoRA crossfader tab expanded by default with group pickers", async () => {
     appVm.switchTab("PROMPTS");
-    appVm.switchSubTab("PROMPTS", "CROSSFADER");
     await nextTick();
     await nextTick();
 
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.include("CROSSFADER");
-    expect(appVm.loraCrossfaderCollapsed).to.equal(true);
+    expect(appVm.currentSubTab.PROMPTS).to.equal("CROSSFADER");
+    expect(appVm.loraCrossfaderCollapsed).to.equal(false);
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
     expect(titles.join(" ")).to.include("LoRA Crossfader");
-    expect(document.querySelector(".prompt-ab-summary")).to.not.exist;
+    expect(document.querySelector(".prompt-ab-summary")).to.exist;
+
+    const groupPickers = [...document.querySelectorAll(".prompt-ab-column .lora-picker-trigger")];
+    expect(groupPickers.length).to.equal(2);
+
+    groupPickers[0].click();
+    await nextTick();
+    expect(appVm.loraCrossfaderPickerGroup).to.equal("A");
+    expect(document.querySelector(".prompt-ab-column--a .lora-picker-panel")).to.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {
@@ -504,13 +524,20 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos.length).to.equal(6);
     expect(appVm.macrosRack.length).to.be.greaterThan(0);
     
-    // Switch to MODULATION -> AUDIO
+    // Switch to MODULATION -> Reactive (legacy AUDIO tab alias)
     appVm.switchTab("AUDIO");
-    appVm.avSyncCollapsed = false;
     await nextTick();
     
     expect(appVm.currentTab).to.equal("MODULATION");
-    expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO");
+    expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO_REACTIVE");
+
+    appVm.switchSubTab("MODULATION", "AV_SYNC");
+    await nextTick();
+    expect(appVm.currentSubTab.MODULATION).to.equal("AV_SYNC");
+
+    appVm.switchSubTab("MODULATION", "BEAT_MACROS");
+    await nextTick();
+    expect(appVm.currentSubTab.MODULATION).to.equal("BEAT_MACROS");
     expect(appVm.audioMappings.length).to.be.greaterThan(0);
     
     appVm.audio.uploadedFile = "song.wav";
@@ -617,9 +644,10 @@ describe("Deforumation Web UI behavior", () => {
     global.localStorage = localStorageMock;
   });
 
-  it("defaults prompts to the image subtab", () => {
+  it("defaults prompts to the LoRA crossfader subtab", () => {
     const instance = instantiate(appDef);
-    expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
+    expect(instance.currentSubTab.PROMPTS).to.equal("CROSSFADER");
+    expect(instance.loraCrossfaderCollapsed).to.equal(false);
     expect(instance.img2img.show).to.equal(true);
   });
 
@@ -684,9 +712,10 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.gpuPool.editId).to.equal(null);
   });
 
-  it("defaults prompts to the image subtab", () => {
+  it("defaults prompts to the LoRA crossfader subtab", () => {
     const instance = instantiate(appDef);
-    expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
+    expect(instance.currentSubTab.PROMPTS).to.equal("CROSSFADER");
+    expect(instance.loraCrossfaderCollapsed).to.equal(false);
     expect(instance.img2img.show).to.equal(true);
   });
 
@@ -1678,9 +1707,9 @@ describe("Reference A/V sync mounted e2e", () => {
   it("renders hidden sync audio element and LIVE controls", async () => {
     // Check app state instead of DOM (JSDOM Vue mounting limitations)
     expect(appVm.$refs.avSyncAudio).to.exist;
-    appVm.avSyncCollapsed = false;
+    appVm.switchSubTab("MODULATION", "AV_SYNC");
     await nextTick();
-    expect(appVm.avSyncCollapsed).to.equal(false);
+    expect(appVm.currentSubTab.MODULATION).to.equal("AV_SYNC");
   });
 
   it("upload binds blob URL to the sync audio element src", async () => {
@@ -1711,7 +1740,7 @@ describe("Reference A/V sync mounted e2e", () => {
     const wav = new File([Buffer.alloc(64)], "e.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
-    appVm.avSyncCollapsed = false;
+    appVm.switchSubTab("MODULATION", "AV_SYNC");
     await nextTick();
     // Check state instead of DOM
     expect(appVm.audio.objectUrl).to.be.a("string");

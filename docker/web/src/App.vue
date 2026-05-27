@@ -629,6 +629,7 @@ import MotionView from './components/views/MotionView.vue'
 import ModulationView from './components/views/ModulationView.vue'
 import SettingsView from './components/views/SettingsView.vue'
 import GenerateView from './components/views/GenerateView.vue'
+import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
@@ -793,7 +794,7 @@ export default {
         { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
-      currentSubTab: { PROMPTS: 'IMAGE', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
+      currentSubTab: { PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -887,11 +888,14 @@ export default {
       audioBeatMacrosCollapsed: true,
       audioStatus: "Idle",
       audioMappings: [
-        { param: "strength", freq_min: 20, freq_max: 300, out_min: 0, out_max: 1.5 },
-        { param: "cfg", freq_min: 300, freq_max: 1200, out_min: 0, out_max: 30 },
-        { param: "translation_z", freq_min: 1200, freq_max: 3000, out_min: -5, out_max: 5 },
+        { param: "strength", band: "low", freq_min: 20, freq_max: 250, out_min: 0, out_max: 1.5 },
+        { param: "cfg", band: "mid", freq_min: 250, freq_max: 2000, out_min: 0, out_max: 30 },
+        { param: "translation_z", band: "high", freq_min: 2000, freq_max: 8000, out_min: -5, out_max: 5 },
       ],
       audioMappingLevels: [0, 0, 0],
+      audioActiveBandTab: "low",
+      audioSpectrumBins: [],
+      _audioSpectrumPaintTs: 0,
       audioBandPresets: {
         sub: { label: "Sub", freq_min: 20, freq_max: 60 },
         bass: { label: "Bass", freq_min: 60, freq_max: 250 },
@@ -1091,7 +1095,10 @@ export default {
       avSyncCollapsed: true,
       morphCollapsed: true,
       loraPickerOpen: false,
-      loraCrossfaderCollapsed: true,
+      loraCrossfaderPickerGroup: null,
+      loraCrossfaderCollapsed: false,
+      engineModelPickerOpen: false,
+      engineModelPickerTab: 'sd15',
       forgeAdvancedCollapsed: true,
       storyResultCollapsed: false,
        lfoCanvasRefs: {},
@@ -1259,7 +1266,7 @@ export default {
       );
     },
     currentLoraModelFamilyLabel() {
-      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' };
+      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', zimage: 'Z-Image', svd: 'SVD' };
       return labels[this.currentLoraModelFamily] || 'Unknown';
     },
     loraBrowserFamilies() {
@@ -1325,8 +1332,36 @@ export default {
       return this.detectModelFamilyFromValue(this.forge.modelInfo, this.engineCurrentModelName);
     },
     engineCurrentModelFamilyLabel() {
-      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' };
+      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', zimage: 'Z-Image', svd: 'SVD' };
       return labels[this.engineCurrentModelFamily] || 'Generic';
+    },
+    engineModelFamilyTabs() {
+      return [
+        { key: 'sd15', label: 'SD1.5' },
+        { key: 'sdxl', label: 'SDXL' },
+        { key: 'flux', label: 'Flux' },
+        { key: 'zimage', label: 'Z-Image' },
+        { key: 'other', label: 'Other' },
+      ];
+    },
+    groupedEngineModels() {
+      const groups = { sd15: [], sdxl: [], flux: [], zimage: [], other: [] };
+      (this.forge.models || []).forEach((model) => {
+        const family = this.detectModelFamilyFromValue(
+          model.metadata,
+          `${model.title || ''} ${model.model_name || ''}`
+        );
+        const bucket = groups[family] ? family : 'other';
+        groups[bucket].push(model);
+      });
+      Object.keys(groups).forEach((key) => {
+        groups[key].sort((a, b) => String(a.title || a.model_name || '').localeCompare(String(b.title || b.model_name || '')));
+      });
+      return groups;
+    },
+    activeEngineModelList() {
+      const tab = this.engineModelPickerTab || 'sd15';
+      return this.groupedEngineModels[tab] || [];
     },
     engineCurrentCfgScale() {
       const fallback = Number(this.forge.options && this.forge.options.cfg_scale)
@@ -1379,6 +1414,32 @@ export default {
     },
     audioReactiveActive() {
       return ['Audio sent to mediator', 'Streaming'].includes(this.audioStatus);
+    },
+    audioSpectrumPlaying() {
+      const el = this.$refs && this.$refs.avSyncAudio;
+      return !!(el && this.audio.objectUrl && !el.paused && !el.ended);
+    },
+    audioBandTabDefs() {
+      return [
+        { key: 'low', label: 'Low' },
+        { key: 'mid', label: 'Mid' },
+        { key: 'high', label: 'High' },
+      ];
+    },
+    activeAudioMappingIndex() {
+      const tabs = this.audioBandTabDefs;
+      const key = this.audioActiveBandTab;
+      const idx = tabs.findIndex((tab) => tab.key === key);
+      return idx >= 0 ? idx : 0;
+    },
+    activeAudioMapping() {
+      return this.audioMappings[this.activeAudioMappingIndex] || this.audioMappings[0] || null;
+    },
+    audioSpectrumBandLabels() {
+      return this.audioBandTabDefs.map((tab) => tab.label);
+    },
+    audioSpectrumBandColors() {
+      return ['#5cc8ff', '#7f77dd', '#50fa7b'];
     },
     liveModulating() {
       const paramMap = {};
@@ -1666,6 +1727,24 @@ export default {
         groups[label].push(t);
       });
       return Object.entries(groups).map(([label, items]) => ({ label, items }));
+    },
+    modulationSubtabSummary() {
+      const sub = this.normalizeModulationSubTab(this.currentSubTab.MODULATION);
+      if (sub === 'LFO') {
+        const active = this.lfos.filter((l) => l.on).length;
+        return `${active}/${this.lfos.length} LFO active`;
+      }
+      if (sub === 'AV_SYNC') {
+        if (this.avSyncEnabled && this.audio.objectUrl) return 'A/V sync on';
+        return this.audio.objectUrl ? 'A/V sync off' : 'Upload track';
+      }
+      if (sub === 'AUDIO_REACTIVE') {
+        return this.audioReactiveActive ? 'Audio live' : 'Audio idle';
+      }
+      if (sub === 'BEAT_MACROS') {
+        return this.beatMacroOn ? 'Beat macros on' : 'Beat macros off';
+      }
+      return '';
     },
   },
   watch: {
@@ -2076,11 +2155,11 @@ export default {
  switchTab(id) {
    if (id === 'AUDIO') {
      this.currentTab = 'MODULATION';
-     this.currentSubTab.MODULATION = 'AUDIO';
+     this.currentSubTab.MODULATION = 'AUDIO_REACTIVE';
      try {
        if (typeof window !== 'undefined' && window.localStorage) {
          window.localStorage.setItem('defora_tab', 'MODULATION');
-         window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO');
+         window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO_REACTIVE');
        }
      } catch (_e) {}
      return;
@@ -2109,18 +2188,34 @@ export default {
     void this.refreshStreamStatus();
   }
  },
+ normalizeModulationSubTab(sub) {
+   if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
+   const allowed = ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS'];
+   return allowed.includes(sub) ? sub : 'LFO';
+ },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
+  if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
   if (tab === 'PROMPTS' && sub !== 'LORA') {
     this.loraPickerOpen = false;
   }
-   if (tab === 'PROMPTS' && sub === 'LORA' && !this.lorasLoading && !this.loras.available.length) {
-     this.refreshLoras();
-   }
+  if (tab === 'PROMPTS' && sub !== 'CROSSFADER') {
+    this.loraCrossfaderPickerGroup = null;
+  }
+  if (tab === 'PROMPTS' && (sub === 'LORA' || sub === 'CROSSFADER') && !this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
+ },
+ toggleLoraCrossfaderPicker(group) {
+  if (group !== 'A' && group !== 'B') return;
+  this.loraCrossfaderPickerGroup = this.loraCrossfaderPickerGroup === group ? null : group;
+  if (this.loraCrossfaderPickerGroup && !this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
  },
  togglePlayPause() {
    this.toggleDeforumPlay();
@@ -2621,6 +2716,10 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
      const buf = this._liveSpecFreqBuf;
      if (analyser && buf && buf.length) {
        try { analyser.getByteFrequencyData(buf); } catch (_) {}
+       if (!REDUCED && ts - (this._audioSpectrumPaintTs || 0) > 48) {
+         this._audioSpectrumPaintTs = ts;
+         this.audioSpectrumBins = Array.from(buf);
+       }
        const sampleRate = (analyser.context && analyser.context.sampleRate) || 44100;
        const nyquist = sampleRate / 2;
        const binCount = buf.length;
@@ -2634,6 +2733,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
          this.audioMappingLevels[idx] = Math.min(1, sum / (count * 255));
        });
      } else {
+       if (this.audioSpectrumBins.length) this.audioSpectrumBins = [];
        this.audioMappings.forEach((_, idx) => {
          if (this.audioMappingLevels.length > idx) this.audioMappingLevels[idx] = 0;
        });
@@ -3662,6 +3762,7 @@ applyMotionPresetAndSelect(name) {
           break;
         case "b":
           if (self.currentTab === "MODULATION") {
+            self.switchSubTab("MODULATION", "BEAT_MACROS");
             self.beatMacroOn = !self.beatMacroOn;
             e.preventDefault();
           }
@@ -3811,8 +3912,23 @@ toggleLoraFamilyCollapse(familyKey) {
    this.macrosRack.splice(index, 1);
  },
  addAudioMapping() {
-   this.audioMappings.push({ param: "", freq_min: 60, freq_max: 500, out_min: 0, out_max: 1 });
+   this.audioMappings.push({ param: "", band: "mid", freq_min: 250, freq_max: 2000, out_min: 0, out_max: 1 });
    this.audioMappingLevels.push(0);
+ },
+ setAudioActiveBandTab(tabKey) {
+   const allowed = this.audioBandTabDefs.map((tab) => tab.key);
+   if (!allowed.includes(tabKey)) return;
+   this.audioActiveBandTab = tabKey;
+ },
+ onAudioSpectrumSelectBand(index) {
+   const tab = this.audioBandTabDefs[Number(index)];
+   if (tab) this.setAudioActiveBandTab(tab.key);
+ },
+ updateAudioMappingBand({ index, freq_min, freq_max }) {
+   const row = this.audioMappings[index];
+   if (!row) return;
+   row.freq_min = freq_min;
+   row.freq_max = freq_max;
  },
  removeAudioMapping(index) {
    this.audioMappings.splice(index, 1);
@@ -4223,7 +4339,7 @@ audioBandWindowStyle(mapping) {
   const right = toPct(mapping && mapping.freq_max);
   return {
     left: `${Math.min(left, right)}%`,
-    width: `${Math.max(4, Math.abs(right - left))}%`,
+    width: `${Math.max(1.5, Math.abs(right - left))}%`,
   };
 },
  async scanMidi() {
@@ -4725,7 +4841,10 @@ audioBandWindowStyle(mapping) {
        ctx2.fillRect(0, 0, w, h);
        continue;
      }
-     paintLiveSpectrumBandBars(ctx2, freqBytes, w, h);
+     paintSpectrumBars(ctx2, freqBytes, w, h, {
+       bgColor: this.themeColor('--bg-0', 'rgb(8, 9, 13)'),
+       barColor: 'rgba(80, 250, 123, 0.9)',
+     });
    }
  },
  // Audio file upload methods
@@ -6194,6 +6313,7 @@ normalizeModelName(name) {
 detectModelFamilyFromText(rawValue) {
   const value = String(rawValue || '').toLowerCase();
   if (!value) return '';
+  if (/\bz[-_. ]?image\b|zimage/.test(value)) return 'zimage';
   if (/\bflux\b|flux\.1/.test(value)) return 'flux';
   if (/(?:^|[^a-z0-9])svd(?:[^a-z0-9]|$)|stable video diffusion|\bvideo\b/.test(value)) return 'svd';
   if (/(?:^|[^a-z0-9])sdxl(?:[^a-z0-9]|$)|stable diffusion xl|\bpony\b|illustrious|\bxl\b/.test(value)) return 'sdxl';
@@ -6262,7 +6382,7 @@ optimizedDefaultsForModel(modelLike) {
     metadata && metadata.name,
     modelName,
   ].filter(Boolean).join(' ').toLowerCase();
-  const familyLabel = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' }[family] || 'Generic';
+  const familyLabel = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', zimage: 'Z-Image', svd: 'SVD' }[family] || 'Generic';
   const isTurboLike = /(turbo|lightning|lcm|hyper|distill|schnell)/.test(profileText);
   const isFluxDev = family === 'flux' && /\bdev\b/.test(profileText);
   const baseResolution = Number(metadata && metadata.base_resolution) || (family === 'sd15' ? 512 : 1024);
@@ -6380,6 +6500,29 @@ async onModelSelectChange() {
   });
    this.saveSessionState();
  },
+openEngineModelPicker() {
+  const family = this.engineCurrentModelFamily;
+  const allowed = ['sd15', 'sdxl', 'flux', 'zimage', 'other'];
+  this.engineModelPickerTab = allowed.includes(family) ? family : 'other';
+  this.engineModelPickerOpen = true;
+  if (!this.forge.models.length && !this.forge.loading) {
+    this.refreshForgeModels();
+  }
+},
+closeEngineModelPicker() {
+  this.engineModelPickerOpen = false;
+},
+setEngineModelPickerTab(tab) {
+  const allowed = ['sd15', 'sdxl', 'flux', 'zimage', 'other'];
+  if (!allowed.includes(tab)) return;
+  this.engineModelPickerTab = tab;
+},
+async selectEngineModel(model) {
+  const name = this.normalizeModelName(model && (model.model_name || model.title));
+  if (!name) return;
+  await this.onDeforumModelCommit(name);
+  this.closeEngineModelPicker();
+},
 async onDeforumModelCommit(rawValue) {
   const nextModel = this.normalizeModelName(rawValue != null ? rawValue : this.deforumSettings && this.deforumSettings.sd_model_name);
   if (!nextModel) return;
