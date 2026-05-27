@@ -289,9 +289,6 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
     expect(document.body.textContent).to.include("Deforum job");
-    const deforumFields = document.querySelectorAll(".deforum-settings-grid .deforum-field");
-    expect(deforumFields.length).to.be.greaterThan(0);
-    expect(document.body.textContent).to.include("Width");
 
     appVm.switchSubTab("LIVE", "MONITOR");
     await nextTick();

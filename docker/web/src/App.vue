@@ -1021,13 +1021,6 @@ export default {
        lfoOn: true,
       beatMacroOn: true,
       apiHealth: { sdForge: null },
-      serviceHealth: {
-        loading: false,
-        lastChecked: null,
-        web: { ok: true },
-        hls: { updated: null, ageMs: null },
-        stream: { status: 'unknown' },
-      },
       forgeHost: process.env.SD_FORGE_HOST || '192.168.2.101',
       availablePresets: [],
       currentPreset: null,
@@ -2431,7 +2424,6 @@ export default {
       setTimeout(() => this.drawTimeline(), 200);
     });
     this.initPromptHistory();
-    this.refreshServiceHealth();
   },
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
@@ -2483,67 +2475,6 @@ export default {
       this.apiHealthBackoffMs = 15000;
     } catch (_e) {
       this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
-    }
-  },
-
-  async refreshServiceHealth() {
-    if (typeof fetch !== 'function') return;
-    const startedAt = Date.now();
-    this.serviceHealth.loading = true;
-    this.serviceHealth.lastChecked = new Date().toISOString();
-    const next = {
-      web: { ok: false },
-      hls: { updated: null, ageMs: null },
-      stream: { status: 'unknown' },
-    };
-
-    const safeJson = async (res) => {
-      try { return await res.json(); } catch (_e) { return null; }
-    };
-
-    await Promise.allSettled([
-      (async () => {
-        try {
-          const res = await fetch('/health', { cache: 'no-store' });
-          next.web.ok = !!res.ok;
-        } catch (_e) {
-          next.web.ok = false;
-        }
-      })(),
-      (async () => {
-        try {
-          const res = await fetch('/api/health', { cache: 'no-store' });
-          if (!res.ok) return;
-          const j = await safeJson(res);
-          const updated = j && j.updated != null ? Number(j.updated) : null;
-          next.hls.updated = Number.isFinite(updated) ? updated : null;
-          if (next.hls.updated != null) next.hls.ageMs = Math.max(0, Date.now() - next.hls.updated);
-        } catch (_e) {
-          /* ignore */
-        }
-      })(),
-      (async () => {
-        try {
-          const res = await fetch('/api/stream/status', { cache: 'no-store' });
-          if (!res.ok) return;
-          const j = await safeJson(res);
-          next.stream.status = (j && j.status) ? String(j.status) : 'unknown';
-        } catch (_e) {
-          /* ignore */
-        }
-      })(),
-    ]);
-
-    this.serviceHealth.web = next.web;
-    this.serviceHealth.hls = next.hls;
-    this.serviceHealth.stream = next.stream;
-    this.serviceHealth.lastChecked = new Date().toISOString();
-    this.serviceHealth.loading = false;
-    // keep a tiny status breadcrumb
-    const dt = Date.now() - startedAt;
-    if (dt > 1500 && this.performance && this.performance.status === '') {
-      this.performance.status = `Service health refreshed (${dt}ms)`;
-      setTimeout(() => { if (this.performance.status && this.performance.status.startsWith('Service health refreshed')) this.performance.status = ''; }, 2500);
     }
   },
   runPrefixSource(run) {
@@ -7430,33 +7361,6 @@ async generateStory() {
  sessionStorageKey() {
    return `defora_session_${this.session || 'default'}`;
  },
-sessionStorageTouchedKey() {
-  return `${this.sessionStorageKey()}__touchedAt`;
-},
-hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 } = {}) {
-  try {
-    if (typeof window === 'undefined') return false;
-    const storage = window.localStorage;
-    if (!storage) return false;
-    const touchedRaw = storage.getItem(this.sessionStorageTouchedKey());
-    const touchedAt = touchedRaw != null ? Number(touchedRaw) : NaN;
-    const fresh = Number.isFinite(touchedAt) && touchedAt > 0 && (now - touchedAt) <= maxAgeMs;
-    if (!fresh) return false;
-
-    // "cookie or similar": accept either an actual cookie or our localStorage touch marker.
-    // If a cookie exists, great; if not, the touch marker still counts as "similar".
-    try {
-      const cookie = (typeof document !== 'undefined' && document.cookie) ? String(document.cookie) : '';
-      if (!cookie) return true;
-      const sessionName = String(this.session || 'default');
-      return cookie.includes('defora_session=') || cookie.includes(`defora_session_${sessionName}=`) || cookie.includes('defora=');
-    } catch (_e) {
-      return true;
-    }
-  } catch (_e) {
-    return false;
-  }
-},
  loadSessionState() {
    try {
      const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
@@ -7598,7 +7502,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
-    window.localStorage.setItem(this.sessionStorageTouchedKey(), String(Date.now()));
    } catch (_e) { /* ignore */ }
  },
 getCurrentSessionSnapshotRaw() {
@@ -7660,18 +7563,6 @@ checkAndPromptSessionRestore() {
     if (!storage) return false;
     const savedRaw = storage.getItem(this.sessionStorageKey());
     if (!savedRaw) return false;
-
-    // Only offer session continuation if we have a recent "resume token" (cookie or similar)
-    // and the saved session is not older than 24h.
-    if (!this.hasRecentSessionResumeToken()) {
-      // Stale or no token: don't restore, don't prompt.
-      try {
-        storage.removeItem(this.sessionStorageKey());
-        storage.removeItem(this.sessionStorageTouchedKey());
-      } catch (_e) {}
-      return true;
-    }
-
     const currentRaw = this.getCurrentSessionSnapshotRaw();
     if (!currentRaw) return false;
     // If it differs, prompt instead of auto-restoring.

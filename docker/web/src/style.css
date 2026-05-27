@@ -1147,15 +1147,6 @@
       max-width: 140px;
     }
     .deforum-settings-body { max-height: min(70vh, 520px); overflow-y: auto; }
-    .deforum-settings-tabs {
-      margin-bottom: 10px;
-      flex-wrap: wrap;
-    }
-    .deforum-settings-panel {
-      margin-top: 10px;
-      padding: 10px;
-      background: var(--bg-1);
-    }
     .deforum-settings-toolbar {
       display: flex;
       flex-wrap: wrap;
@@ -1196,7 +1187,8 @@
     .deforum-settings-grid {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 10px 12px;
+      gap: 8px 10px;
+      padding: 0 10px 10px;
     }
     @media (max-width: 900px) {
       .deforum-settings-grid { grid-template-columns: 1fr; }
@@ -1229,30 +1221,14 @@
       text-transform: uppercase;
       letter-spacing: 0.04em;
     }
-    .deforum-field-toggle .chip--compact {
-      padding: 2px 8px;
-      font-size: 9px;
-      min-height: 20px;
-    }
-    .deforum-field-slider {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 8px;
-      align-items: center;
-    }
-    .deforum-field-slider__value {
-      font-size: 10px;
-      font-variant-numeric: tabular-nums;
-      color: var(--text-secondary);
-      min-width: 2.5rem;
-      text-align: right;
-    }
-    .deforum-field-bool {
-      margin-top: 2px;
+    .deforum-field-toggle input[type="checkbox"] {
+      align-self: auto;
+      margin: 0;
     }
     .deforum-field--disabled {
       opacity: 0.72;
     }
+    .deforum-field input[type="checkbox"] { align-self: flex-start; margin-top: 4px; }
     .morph-blend-bar { padding: 0 2px; }
     .morph-blend-labels {
       display: flex;
@@ -3037,37 +3013,6 @@
     }
     .infra-panel__hint code {
       font-size: 10px;
-    }
-
-    .service-health-grid {
-      margin-top: 12px;
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 10px;
-    }
-    @media (max-width: 900px) {
-      .service-health-grid { grid-template-columns: 1fr; }
-    }
-    .service-health-card {
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      background: rgba(3, 27, 45, 0.35);
-      padding: 10px;
-      min-width: 0;
-    }
-    .service-health-card__head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-    }
-    .service-health-card__meta {
-      margin-top: 6px;
-      font-size: 11px;
-      color: var(--text-secondary);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
     .infra-mediator-card {
       padding: 12px;
