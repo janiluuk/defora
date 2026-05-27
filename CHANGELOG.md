@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.25] - 2026-05-27
+
+## What's Changed
+
+- feat(web): motion sequencer layout, vimage3 HLS, and frame pipeline tuning (#66) (edd3e1f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.24...v0.6.25
+
+
 ## [0.6.24] - 2026-05-27
 
 ## What's Changed
