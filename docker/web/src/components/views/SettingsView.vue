@@ -354,6 +354,9 @@
               <button class="framesync-button" @click="addMidiMapping">+ Add Mapping</button>
               <button class="framesync-button">Status: {{ midiStatus }}</button>
             </div>
+            <div class="framesync-subtitle" style="margin-top:10px;">
+              Quick targets: <strong>Modulation 1–6</strong> map to the LIVE drawer performance widgets.
+            </div>
             <div style="margin-top:12px; background:var(--bg-0); border:1px solid var(--border); border-radius:8px; overflow:hidden;">
               <table class="table">
                 <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>
@@ -364,6 +367,11 @@
                     <td>
                       <select class="framesync-select" v-model="m.key" @change="saveMidiMappings" style="width:120px; padding:4px;">
                         <option value="">None</option>
+                        <optgroup label="Modulation 1–6">
+                          <option v-for="n in 6" :key="'modslot-'+n" :value="'mod_slot_' + n">
+                            {{ 'Modulation ' + n }}
+                          </option>
+                        </optgroup>
                         <option v-for="t in modulationTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
                       </select>
                     </td>
@@ -571,6 +579,30 @@
               <button class="framesync-button" @click="refreshGpuPool(true)" :disabled="gpuPool.loading">Refresh stats</button>
             </div>
           </div>
+          <div class="framesync-row" style="grid-template-columns: 2fr 1fr; gap:10px; margin-top:10px;">
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Default SD-Forge model</div>
+              <select class="framesync-select" v-model="gpuPool.defaultForgeModel" :disabled="gpuPool.loading || forge.switching || !forge.models || !forge.models.length">
+                <option value="">(no default)</option>
+                <option v-for="m in (forge.models || [])" :key="'gpu-default-model-' + (m.title || m.model_name)" :value="m.title || m.model_name">
+                  {{ m.title || m.model_name }}
+                </option>
+              </select>
+            </div>
+            <div class="framesync-stack" style="justify-content:flex-end;">
+              <button
+                class="framesync-button"
+                @click="saveDefaultForgeModel({ preload: true })"
+                :disabled="gpuPool.loading || forge.switching || !gpuPool.defaultForgeModel"
+                title="Switch model on healthy SD-Forge nodes now so new jobs start instantly"
+              >
+                Save + preload
+              </button>
+            </div>
+          </div>
+          <div v-if="gpuPool.defaultForgeModelStatus" class="framesync-subtitle" style="margin-top:10px;">
+            {{ gpuPool.defaultForgeModelStatus }}
+          </div>
           <p style="font-size:11px; color:var(--text-dim); margin:12px 0 0;">
             Add SD-Forge (A1111 API), ComfyUI, or Ollama instances. Disable a node to edit or remove it.
             Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum, while the story generator uses configured <strong>Ollama</strong> nodes.
@@ -624,6 +656,12 @@
                   <span title="VRAM" style="font-size:10px; color:var(--text-dim);">{{ formatGpuMemory(n) }}</span>
                   <span title="GPU utilization" style="font-size:10px; color:var(--text-dim);">{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</span>
                   <span title="Active jobs" style="font-size:10px; color:var(--text-dim);">{{ n.activeJobs }} jobs</span>
+                  <span v-if="n.backend === 'sd-forge'" title="Forge queue (running/pending)" style="font-size:10px; color:var(--text-dim);">
+                    q {{ n.queueRunning != null ? n.queueRunning : '—' }}/{{ n.queuePending != null ? n.queuePending : '—' }}
+                  </span>
+                  <span v-if="n.backend === 'sd-forge'" title="Forge progress" style="font-size:10px; color:var(--text-dim);">
+                    {{ n.progress != null ? Math.round(n.progress * 100) + '%' : '—' }}
+                  </span>
                 </div>
                 <div class="framesync-footer" style="flex-wrap:wrap; gap:4px; margin:0;">
                   <template v-if="n.enabled">

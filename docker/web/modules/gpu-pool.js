@@ -101,6 +101,10 @@ function defaultNode(input = {}) {
     memoryTotalMb: input.memoryTotalMb ?? null,
     gpuUtilization: input.gpuUtilization ?? null,
     statsError: input.statsError ?? null,
+    queuePending: input.queuePending ?? null,
+    queueRunning: input.queueRunning ?? null,
+    progress: input.progress ?? null,
+    etaRelative: input.etaRelative ?? null,
     forgeSettings: normalizeForgeSettings(input.forgeSettings),
     requestLog: [],
   };
@@ -135,6 +139,7 @@ function createGpuPool(options = {}) {
   const state = {
     enabled: env.DISTRIBUTED_ENABLED === "true",
     strategy: STRATEGIES.includes(env.DISTRIBUTED_STRATEGY) ? env.DISTRIBUTED_STRATEGY : "least_busy",
+    defaultForgeModel: "",
     nodes: parseEnvNodes(env),
     currentIndex: 0,
     healthCheckInterval: parseInt(env.DISTRIBUTED_HEALTH_CHECK_INTERVAL, 10) || 30,
@@ -152,6 +157,7 @@ function createGpuPool(options = {}) {
       const data = JSON.parse(raw);
       if (typeof data.enabled === "boolean") state.enabled = data.enabled;
       if (STRATEGIES.includes(data.strategy)) state.strategy = data.strategy;
+      if (typeof data.defaultForgeModel === "string") state.defaultForgeModel = data.defaultForgeModel.trim();
       if (typeof data.healthCheckInterval === "number") state.healthCheckInterval = data.healthCheckInterval;
       if (typeof data.timeout === "number") state.timeout = data.timeout;
       if (typeof data.retryAttempts === "number") state.retryAttempts = data.retryAttempts;
@@ -167,6 +173,7 @@ function createGpuPool(options = {}) {
     const payload = {
       enabled: state.enabled,
       strategy: state.strategy,
+      defaultForgeModel: state.defaultForgeModel || "",
       healthCheckInterval: state.healthCheckInterval,
       timeout: state.timeout,
       retryAttempts: state.retryAttempts,
@@ -206,6 +213,10 @@ function createGpuPool(options = {}) {
       memoryTotalMb: n.memoryTotalMb,
       gpuUtilization: n.gpuUtilization,
       statsError: n.statsError,
+      queuePending: n.queuePending,
+      queueRunning: n.queueRunning,
+      progress: n.progress,
+      etaRelative: n.etaRelative,
       forgeSettings: normalizeForgeSettings(n.forgeSettings),
       editable: !n.enabled,
       requestLog: (n.requestLog || []).slice(0, 30),
@@ -304,12 +315,13 @@ function createGpuPool(options = {}) {
   }
 
   function requestedModelName(req) {
-    return (
+    const raw =
       req?.body?.settings?.sd_model_name ||
       req?.body?.model_name ||
       req?.query?.model_name ||
-      ""
-    );
+      "";
+    const trimmed = String(raw || "").trim();
+    return trimmed || String(state.defaultForgeModel || "").trim() || "";
   }
 
   function resolveForgeTarget(req, { sdApiOnly = true, allowDirectPreferred = false } = {}) {
@@ -494,6 +506,56 @@ function createGpuPool(options = {}) {
         node.currentModel = optRes.data.sd_model_checkpoint || null;
       }
 
+      // Best-effort queue + progress (Forge/A1111 APIs)
+      try {
+        const tp = Date.now();
+        const prRes = await fetchJson(
+          `${base}/sdapi/v1/progress?skip_current_image=true`,
+          { headers: { Accept: "application/json" } },
+          3000
+        );
+        pushNodeLog(node, { type: "stats", path: "/sdapi/v1/progress", statusCode: prRes.status, durationMs: Date.now() - tp, ok: prRes.ok });
+        if (prRes.ok && prRes.data) {
+          const p = Number(prRes.data.progress);
+          node.progress = Number.isFinite(p) ? Math.max(0, Math.min(1, p)) : null;
+          const eta = Number(prRes.data.eta_relative ?? prRes.data.etaRelative);
+          node.etaRelative = Number.isFinite(eta) ? Math.max(0, eta) : null;
+        } else {
+          node.progress = null;
+          node.etaRelative = null;
+        }
+      } catch (_e) {
+        node.progress = null;
+        node.etaRelative = null;
+      }
+
+      try {
+        const tq = Date.now();
+        const qRes = await fetchJson(`${base}/sdapi/v1/queue/status`, { headers: { Accept: "application/json" } }, 3000);
+        pushNodeLog(node, { type: "stats", path: "/sdapi/v1/queue/status", statusCode: qRes.status, durationMs: Date.now() - tq, ok: qRes.ok });
+        if (qRes.ok && qRes.data) {
+          const pending =
+            qRes.data.queue_size ??
+            qRes.data.pending ??
+            qRes.data.pending_count ??
+            qRes.data.pendingCount ??
+            null;
+          const running =
+            qRes.data.running ??
+            qRes.data.running_count ??
+            qRes.data.runningCount ??
+            null;
+          node.queuePending = pending == null ? null : Math.max(0, Number(pending) || 0);
+          node.queueRunning = running == null ? null : Math.max(0, Number(running) || 0);
+        } else {
+          node.queuePending = null;
+          node.queueRunning = null;
+        }
+      } catch (_e) {
+        node.queuePending = null;
+        node.queueRunning = null;
+      }
+
       const t2 = Date.now();
       const sysRes = await fetchJson(`${base}/internal/sysinfo`, { headers: { Accept: "application/json" } }, 3000);
       pushNodeLog(node, { type: "stats", path: "/internal/sysinfo", statusCode: sysRes.status, durationMs: Date.now() - t2, ok: sysRes.ok });
@@ -564,6 +626,7 @@ function createGpuPool(options = {}) {
       res.json({
         enabled: state.enabled,
         strategy: state.strategy,
+        defaultForgeModel: state.defaultForgeModel || "",
         healthCheckInterval: state.healthCheckInterval,
         timeout: state.timeout,
         retryAttempts: state.retryAttempts,
@@ -592,6 +655,61 @@ function createGpuPool(options = {}) {
         res.json({ success: true, ...publicStatus() });
       } catch (err) {
         console.error("[gpu-pool] PUT /api/gpu-pool error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    async function setForgeModelOnNode(node, modelName) {
+      if (!node || node.backend !== "sd-forge") return { ok: false, error: "not an sd-forge node" };
+      const name = String(modelName || "").trim();
+      if (!name) return { ok: false, error: "model required" };
+      const t0 = Date.now();
+      const res = await fetchJson(
+        `${node.url}/sdapi/v1/options`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ sd_model_checkpoint: name }),
+        },
+        20000
+      );
+      pushNodeLog(node, {
+        type: "options",
+        path: "/sdapi/v1/options [default model]",
+        statusCode: res.status,
+        durationMs: Date.now() - t0,
+        ok: res.ok,
+      });
+      if (!res.ok) {
+        return { ok: false, status: res.status, error: res.data?.error || `HTTP ${res.status}` };
+      }
+      node.currentModel = name;
+      return { ok: true, model: name };
+    }
+
+    app.put("/api/gpu-pool/default-forge-model", async (req, res) => {
+      try {
+        const model = String(req.body?.model || "").trim();
+        const preload = req.body?.preload === true;
+        state.defaultForgeModel = model;
+        await saveConfig();
+
+        let preloadResults = null;
+        if (preload && model) {
+          const nodes = eligibleNodes({ sdApiOnly: true, backend: "sd-forge" });
+          preloadResults = await Promise.all(
+            nodes.map(async (node) => {
+              try {
+                const r = await setForgeModelOnNode(node, model);
+                return { id: node.id, name: node.name, url: node.url, ...r };
+              } catch (e) {
+                return { id: node.id, name: node.name, url: node.url, ok: false, error: e.message };
+              }
+            })
+          );
+        }
+        res.json({ ok: true, defaultForgeModel: state.defaultForgeModel, preloadResults });
+      } catch (err) {
         res.status(500).json({ error: err.message });
       }
     });

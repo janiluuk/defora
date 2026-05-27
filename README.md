@@ -38,21 +38,21 @@ These screenshots were recaptured from the current web UI after generating fresh
 </tr>
 <tr>
 <td width="50%">
-<h4>AUDIO</h4>
-<img src="screenshots/audio-tab.png" alt="Web UI Audio Tab" width="100%" />
-<p>Audio routing shows live band mappings and target ranges, turning the latest render into an audio-reactive control surface instead of a separate setup screen.</p>
+<h4>LIBRARY</h4>
+<img src="screenshots/library-tab.png" alt="Web UI Library Tab" width="100%" />
+<p>Library focuses on runs + frame inspection, with an optional fullscreen expand mode for browsing and review.</p>
 </td>
 <td width="50%">
-<h4>RUNS</h4>
-<img src="screenshots/runs-tab.png" alt="Web UI Runs Tab" width="100%" />
-<p>The runs browser collects saved generations, filters, exports, and comparison tools so previous material can be reused as part of a live set.</p>
+<h4>TOOLS</h4>
+<img src="screenshots/tools-tab.png" alt="Web UI Tools Tab" width="100%" />
+<p>VideoSwarm and shared source browsing live under Tools so the Library view stays focused.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>SETTINGS</h4>
 <img src="screenshots/settings-tab.png" alt="Web UI Settings Tab" width="100%" />
-<p>Engine, Forge, controller, preset, and GPU pool controls are available without leaving the same performance shell as the rest of the instrument.</p>
+<p>Engine, controller, and GPU pool controls are available without leaving the same performance shell as the rest of the instrument.</p>
 </td>
 <td width="50%">
 <h4>GENERATE</h4>
@@ -61,6 +61,12 @@ These screenshots were recaptured from the current web UI after generating fresh
 </td>
 </tr>
 </table>
+
+<p align="center">
+  <img src="screenshots/stream-tab.png" alt="Web UI Stream Tab" width="92%" />
+  <br />
+  <sub>STREAM: output routing, encoder destinations, and recording controls.</sub>
+</p>
 
 ## ✨ Feature Highlights
 

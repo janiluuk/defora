@@ -1,6 +1,25 @@
 <template>
   <div class="library-shell" :class="{ 'library-shell--fullscreen': libraryFullscreen }">
-    <div class="library-browser">
+    <div class="sub-pills" style="margin-bottom:10px;">
+      <button
+        type="button"
+        class="sub-pill"
+        :class="{ active: librarySubTab === 'RUNS' }"
+        @click="librarySubTab = 'RUNS'; saveSessionState()"
+      >
+        RUNS
+      </button>
+      <button
+        type="button"
+        class="sub-pill"
+        :class="{ active: librarySubTab === 'BROWSER' }"
+        @click="librarySubTab = 'BROWSER'; saveSessionState()"
+      >
+        BROWSER
+      </button>
+    </div>
+
+    <div v-if="librarySubTab === 'RUNS'" class="library-browser">
       <div class="framesync-panel library-browser__folders">
         <div class="framesync-header">
           <div class="framesync-title">Library <span class="framesync-accent">Prefixes</span></div>
@@ -161,13 +180,23 @@
     </div>
 
   </div>
+
+  <div v-else class="framesync-panel">
+    <div class="framesync-header">
+      <div class="framesync-title">Storage <span class="framesync-accent">Browser</span></div>
+      <span class="framesync-subtitle" style="margin:0;">Projects, runs, and mounted videos</span>
+    </div>
+    <VideoSwarmBrowser :app="app" />
+  </div>
 </template>
 
 <script>
 import { proxyAppView } from './app-view-proxy.js'
+import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
 
 export default {
   name: 'LibraryView',
+  components: { VideoSwarmBrowser },
   props: {
     app: { type: Object, required: true },
   },
