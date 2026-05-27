@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.21] - 2026-05-27
+
+## What's Changed
+
+- fix(web): repair storage browser paths and default to browser (#63) (880ba3d)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.20...v0.6.21
+
+
 ## [0.6.20] - 2026-05-27
 
 ## What's Changed
