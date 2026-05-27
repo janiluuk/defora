@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.10] - 2026-05-27
+
+## What's Changed
+
+- Feat/web status gpu collab (#50) (09de0ac)
+- update(web): refresh control surfaces and add library browsing (#47) (dc84ffc)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.9...v0.6.10
+
+
 ## [0.6.9] - 2026-05-26
 
 ## What's Changed

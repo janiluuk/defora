@@ -220,10 +220,18 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(document.body.textContent).to.include("Mist");
 
+    appVm.setDefaultAnimationMode("raycast");
+    await nextTick();
+    expect(document.body.textContent).to.include("Line type");
+    expect(document.body.textContent).to.include("Threshold");
+    expect(document.body.textContent).to.include("Visualize threshold");
+    expect(document.body.textContent).to.not.include("Beam count");
+    expect(document.body.textContent).to.not.include("Mist");
+
     appVm.defaultAnimation.preferDeforumVideo = true;
     await nextTick();
 
-    expect(document.body.textContent).to.not.include("Mist");
+    expect(document.body.textContent).to.not.include("Visualize threshold");
 
     appVm.resetDefaultAnimationSettings();
     expect(appVm.defaultAnimation.mode).to.equal("volume");

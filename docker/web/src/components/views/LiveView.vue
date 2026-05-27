@@ -7,7 +7,7 @@
             <UiIcon class="framesync-title-icon" name="film" />
             <span class="framesync-accent">Default Animation</span>
           </div>
-          <span class="framesync-subtitle" style="margin:0;">Volume-lighting style standby scene inspired by the referenced Three.js demo.</span>
+          <span class="framesync-subtitle" style="margin:0;">Choose the standby animation and tune the controls used by that scene.</span>
         </div>
 
         <div class="framesync-stack" style="margin-top:10px;">
@@ -36,6 +36,15 @@
         </div>
 
         <template v-if="!defaultAnimation.preferDeforumVideo">
+          <div class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Animation style</div>
+            <select class="framesync-select" :value="defaultAnimation.mode" @change="setDefaultAnimationMode($event.target.value)">
+              <option value="volume">Volume lighting</option>
+              <option value="orbital">Orbital pulse</option>
+              <option value="nebula">Nebula drift</option>
+              <option value="raycast">Fat lines raycast</option>
+            </select>
+          </div>
           <div v-if="defaultAnimation.mode === 'volume'" class="slider-row">
             <label>Beam count</label>
             <input type="range" min="3" max="12" step="1" v-model.number="defaultAnimation.beamCount" @input="onDefaultAnimationInput">
@@ -48,27 +57,61 @@
             <label>Mist</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.mist" @input="onDefaultAnimationInput">
           </div>
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode === 'raycast'" class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Line type</div>
+            <select class="framesync-select" v-model="defaultAnimation.lineType" @change="onDefaultAnimationInput">
+              <option value="segments">LineSegmentsGeometry</option>
+              <option value="line">LineGeometry</option>
+            </select>
+          </div>
+          <div v-if="defaultAnimation.mode === 'raycast'" class="slider-row">
+            <label>Width</label>
+            <input type="range" min="1" max="10" step="0.1" v-model.number="defaultAnimation.lineWidth" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'raycast'" class="slider-row">
+            <label>Threshold</label>
+            <input type="range" min="0" max="10" step="0.1" v-model.number="defaultAnimation.lineThreshold" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'raycast'" class="slider-row">
+            <label>Translation</label>
+            <input type="range" min="0" max="10" step="0.1" v-model.number="defaultAnimation.lineTranslation" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'raycast'" class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Line material</div>
+            <div class="chips">
+              <button type="button" class="chip" :class="{ active: defaultAnimation.lineWorldUnits }" @click="defaultAnimation.lineWorldUnits = true; onDefaultAnimationInput()">World units</button>
+              <button type="button" class="chip" :class="{ active: !defaultAnimation.lineWorldUnits }" @click="defaultAnimation.lineWorldUnits = false; onDefaultAnimationInput()">Pixels</button>
+              <button type="button" class="chip" :class="{ active: defaultAnimation.lineAlphaToCoverage }" @click="defaultAnimation.lineAlphaToCoverage = !defaultAnimation.lineAlphaToCoverage; onDefaultAnimationInput()">Alpha coverage</button>
+            </div>
+          </div>
+          <div v-if="defaultAnimation.mode === 'raycast'" class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Behavior</div>
+            <div class="chips">
+              <button type="button" class="chip" :class="{ active: defaultAnimation.lineVisualizeThreshold }" @click="defaultAnimation.lineVisualizeThreshold = !defaultAnimation.lineVisualizeThreshold; onDefaultAnimationInput()">Visualize threshold</button>
+              <button type="button" class="chip" :class="{ active: defaultAnimation.lineAnimate }" @click="defaultAnimation.lineAnimate = !defaultAnimation.lineAnimate; onDefaultAnimationInput()">Animate</button>
+            </div>
+          </div>
+          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
             <label>Speed</label>
             <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
           </div>
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
             <label>Spread</label>
             <input type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
           </div>
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
             <label>Glow</label>
             <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
           </div>
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
             <label>Hue</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
           </div>
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
             <label>Pulse</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.pulse" @input="onDefaultAnimationInput">
           </div>
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
             <label>Drift</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
           </div>

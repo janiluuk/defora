@@ -12,14 +12,11 @@ export function proxyAppView(props) {
       has(_target, key) {
         return key in props.app;
       },
-      ownKeys() {
-        return Reflect.ownKeys(props.app);
-      },
       getOwnPropertyDescriptor(_target, key) {
         return {
           configurable: true,
           enumerable: true,
-          value: props.app[key],
+          value: Reflect.get(props.app, key),
           writable: true,
         };
       },
