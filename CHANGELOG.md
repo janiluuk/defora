@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.15] - 2026-05-27
+
+## What's Changed
+
+- feat(web): LIVE sources, GPU instancing, and Three.js modulation routing (#55) (2c11861)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.14...v0.6.15
+
+
 ## [0.6.14] - 2026-05-27
 
 ## What's Changed
