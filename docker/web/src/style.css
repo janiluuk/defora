@@ -958,6 +958,21 @@
       text-align: right;
       font-variant-numeric: tabular-nums;
     }
+
+  .restore-session-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  .restore-session-modal__dialog {
+    width: min(520px, 100%);
+  }
     .live-active-mod-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;

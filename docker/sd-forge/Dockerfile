@@ -1,21 +1,17 @@
-FROM ghcr.io/lllyasviel/stable-diffusion-webui-forge:latest
+FROM pytorch/pytorch:2.3.0-cuda12.1-cudnn8-runtime
 
 ARG DEFORUM_MEDIATOR_URL=ws://host.docker.internal:8765
 ENV DEFORUM_MEDIATOR_URL=${DEFORUM_MEDIATOR_URL}
 
-WORKDIR /stable-diffusion-webui
-
-# Install tools needed to fetch Deforum.
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends git && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      git libgl1 libglib2.0-0 && \
     rm -rf /var/lib/apt/lists/*
 
-# Ensure the extensions directory exists and seed it with Tok's Deforum (for any supporting assets).
-RUN mkdir -p extensions && \
-    if [ ! -d extensions/sd-forge-deforum ]; then \
-      git clone --depth=1 https://github.com/Tok/sd-forge-deforum.git extensions/sd-forge-deforum; \
-    fi
+WORKDIR /stable-diffusion-webui
 
-# Point the Deforum extension at the mediator.
+RUN git clone --depth=1 https://github.com/lllyasviel/stable-diffusion-webui-forge.git . && \
+    git clone --depth=1 https://github.com/Tok/sd-forge-deforum.git extensions/sd-forge-deforum
+
 RUN set -eux; \
     echo "${DEFORUM_MEDIATOR_URL}" > extensions/sd-forge-deforum/scripts/deforum_helpers/deforum_mediator.cfg

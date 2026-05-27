@@ -1,5 +1,19 @@
 <template>
   <div id="app">
+    <div v-if="restoreSessionPromptOpen" class="restore-session-modal" @click.self="dismissSessionRestore(false)">
+      <div class="restore-session-modal__dialog framesync-panel">
+        <div class="framesync-header">
+          <div class="framesync-title">Restore <span class="framesync-accent">last UI state</span>?</div>
+        </div>
+        <div class="framesync-subtitle" style="margin-top:8px;">
+          Found a saved session state that doesn’t match the current UI defaults.
+        </div>
+        <div class="framesync-footer" style="margin-top:12px; gap:10px; justify-content:flex-end;">
+          <button type="button" class="framesync-button" @click="dismissSessionRestore(false)">Discard</button>
+          <button type="button" class="framesync-button framesync-button--live" @click="dismissSessionRestore(true)">Restore</button>
+        </div>
+      </div>
+    </div>
     <header>
       <div class="tabs">
         <button
@@ -649,7 +663,12 @@
               </button>
             </div>
             <div v-else-if="showFrames" class="frame-rail__empty">
-              Rendered frames will appear here in a single scrub row once the preview or animation produces them.
+              <span class="lazy-loading-indicator">
+                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>{{ framesEmptyStatus.label }}</span>
+                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
             </div>
           </div>
         </template>
@@ -1120,6 +1139,8 @@ export default {
       librarySubTab: 'RUNS',
       liveBottomDrawerOpen: false,
       liveBottomDrawerTab: 'MODULATION',
+      restoreSessionPromptOpen: false,
+      pendingSessionStateRaw: '',
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -1504,6 +1525,8 @@ export default {
        runsFiltered: [],
        runsFilter: { search: "", status: "", tag: "", model: "" },
        runsSort: { field: "started_at", order: "desc" },
+       deforumBatches: [],
+       deforumBatchesStatus: "",
        runsSelected: [],
        runsCompareFields: [
          'status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag',
@@ -1553,6 +1576,37 @@ export default {
     },
     frameStripThumbs() {
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
+    },
+    framesEmptyStatus() {
+      const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
+      if (!forgeUp) {
+        return {
+          label: 'Waiting for frames…',
+          detail: 'Unknown (offline)',
+          kind: 'unknown',
+        };
+      }
+      const nextPollMs = Math.max(0, Number(this.framesRefreshBackoffMs) || 0);
+      const etaSec = nextPollMs ? Math.max(1, Math.round(nextPollMs / 1000)) : 0;
+      if (this.previewGenerating) {
+        return {
+          label: 'Rendering…',
+          detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+          kind: 'loading',
+        };
+      }
+      if (this.deforumPlaying) {
+        return {
+          label: 'Animating…',
+          detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+          kind: 'loading',
+        };
+      }
+      return {
+        label: 'Waiting for frames…',
+        detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+        kind: 'loading',
+      };
     },
     selectedFrameThumb() {
       if (!this.frameStripThumbs.length) return null;
@@ -2313,7 +2367,10 @@ export default {
     },
   },
   mounted() {
-    this.loadSessionState();
+    // Restore prompt: if we have saved UI state and current state differs, ask before applying.
+    if (!this.checkAndPromptSessionRestore()) {
+      this.loadSessionState();
+    }
     this.initVideoLayers();
     this.syncMotionPadFromPayload(this.motionPresets[this.motionSelectedPreset] || { translation_x: 0, translation_y: 0 });
     this.applyCrossfadeMorph();
@@ -2477,6 +2534,42 @@ export default {
       if (!res.ok) return;
       const data = await res.json();
       this.runsAll = data.runs || [];
+      // Best-effort: fetch Deforum batch queue from Forge and merge into runs list.
+      try {
+        const bres = await fetch("/api/deforum/batches", { cache: "no-store" });
+        if (bres.ok) {
+          const bj = await bres.json();
+          const batches = Array.isArray(bj.batches) ? bj.batches : [];
+          this.deforumBatches = batches;
+          this.deforumBatchesStatus = "";
+        } else {
+          this.deforumBatches = [];
+          this.deforumBatchesStatus = "Deforum batches unavailable";
+        }
+      } catch (_e) {
+        this.deforumBatches = [];
+        this.deforumBatchesStatus = "Deforum batches unavailable";
+      }
+      if (this.deforumBatches.length) {
+        const mapped = this.deforumBatches.map((b) => {
+          const id = b.batch_id || b.id || b.batchId || "";
+          const status = String(b.status || b.state || "queued").toLowerCase();
+          const started = b.started_at || b.created_at || b.createdAt || null;
+          const model = b.model || b.sd_model_name || b.sd_model_checkpoint || "";
+          return {
+            run_id: id ? `batch:${id}` : `batch:unknown:${Math.random().toString(36).slice(2, 8)}`,
+            status: status.includes("run") ? "running" : status.includes("queue") ? "queued" : status,
+            model,
+            tag: "deforum-batch",
+            started_at: started,
+            frame_count: b.frame_count ?? b.frames ?? b.max_frames ?? null,
+            _isBatch: true,
+            _batch: b,
+          };
+        });
+        const existing = this.runsAll.filter((r) => !String(r.run_id || "").startsWith("batch:"));
+        this.runsAll = [...mapped, ...existing];
+      }
       this.applyRunsFilters();
       this.syncLibrarySelection();
       if (this.currentTab === 'LIBRARY') {
@@ -7265,8 +7358,10 @@ async generateStory() {
  loadSessionState() {
    try {
      const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
-     if (!raw) return;
-     const s = JSON.parse(raw);
+    const sourceRaw = this.pendingSessionStateRaw || raw;
+    if (!sourceRaw) return;
+    const s = JSON.parse(sourceRaw);
+    this.pendingSessionStateRaw = '';
     this.sessionDeforumSettingsLoaded = false;
      if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
@@ -7403,6 +7498,92 @@ async generateStory() {
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
    } catch (_e) { /* ignore */ }
  },
+getCurrentSessionSnapshotRaw() {
+  try {
+    if (typeof window === 'undefined') return '';
+    if (!window.localStorage) return '';
+    // mirror saveSessionState payload
+    const blob = {
+      crossfader: this.performance.crossfader,
+      genericPrompt: this.performance.genericPrompt,
+      slots: this.performance.slots,
+      showFrames: this.showFrames,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
+      currentSubTab: { ...this.currentSubTab },
+      liveSources: this.liveSources,
+      liveSourcePanel: this.liveSourcePanel,
+      activeVideoLayerId: this.activeVideoLayerId,
+      videoLayerAddOpen: this.videoLayerAddOpen,
+      inputLayerPlaybackUrl: this.inputLayerPlaybackUrl,
+      inputLayerLabel: this.inputLayerLabel,
+      videoStageSize: this.videoStageSize,
+      liveAnimationBoxOpen: this.liveAnimationBoxOpen,
+      cloudDriveDraft: { ...this.cloudDriveDraft },
+      systemFiles: {
+        rootId: this.systemFiles.rootId,
+        recursive: this.systemFiles.recursive,
+        showFilenames: this.systemFiles.showFilenames,
+        sortKey: this.systemFiles.sortKey,
+        zoomLevel: this.systemFiles.zoomLevel,
+      },
+      libraryFullscreen: this.libraryFullscreen,
+      librarySubTab: this.librarySubTab,
+      paramPanelOpen: this.paramPanelOpen,
+      deforumPanelOpen: this.deforumPanelOpen,
+      deforumActiveTab: this.deforumActiveTab,
+      deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
+      generateDockExpanded: this.generateDockExpanded,
+      collabEnabled: this.collabEnabled,
+      streaming: {
+        destinations: this.streaming.destinations,
+        activeDestinationId: this.streaming.activeDestinationId,
+        status: this.streaming.status,
+      },
+      defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
+      deforumSettings: this.normalizedDeforumSettings(),
+      lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
+      prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+    };
+    return JSON.stringify(blob);
+  } catch (_e) {
+    return '';
+  }
+},
+checkAndPromptSessionRestore() {
+  try {
+    if (typeof window === 'undefined') return false;
+    const storage = window.localStorage;
+    if (!storage) return false;
+    const savedRaw = storage.getItem(this.sessionStorageKey());
+    if (!savedRaw) return false;
+    const currentRaw = this.getCurrentSessionSnapshotRaw();
+    if (!currentRaw) return false;
+    // If it differs, prompt instead of auto-restoring.
+    if (savedRaw !== currentRaw) {
+      this.pendingSessionStateRaw = savedRaw;
+      this.restoreSessionPromptOpen = true;
+      return true;
+    }
+    return false;
+  } catch (_e) {
+    return false;
+  }
+},
+dismissSessionRestore(shouldRestore) {
+  try {
+    this.restoreSessionPromptOpen = false;
+    if (shouldRestore) {
+      // Apply saved state
+      this.loadSessionState();
+    } else {
+      // Overwrite saved state with current, so we won't prompt again.
+      this.saveSessionState();
+    }
+  } catch (_e) {
+    this.restoreSessionPromptOpen = false;
+  }
+},
 normalizedDeforumSettings() {
   return mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, this.deforumSettings || {});
 },
