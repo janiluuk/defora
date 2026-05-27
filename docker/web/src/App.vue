@@ -2,8 +2,20 @@
   <div id="app">
     <header>
       <div class="tabs">
-        <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
-          {{ tab.label }}
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+            <span class="tab__hint">{{ tab.hint }}</span>
+          </span>
         </button>
       </div>
       <StatusStrip
@@ -542,6 +554,7 @@ export default {
        liveDrawerOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
        deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+       deforumActiveTab: 'canvas',
        deforumSectionOpen: {},
        deforumAdvancedOpen: false,
        sessionDeforumSettingsLoaded: false,
@@ -646,12 +659,12 @@ export default {
       },
       session: "clown_set_01",
       tabs: [
-        { id: "LIVE", label: "LIVE" },
-        { id: "PROMPTS", label: "PROMPTS" },
-        { id: "MOTION", label: "MOTION" },
-        { id: "MODULATION", label: "MODULATION" },
-        { id: "SETTINGS", label: "SETTINGS" },
-        { id: "GENERATE", label: "GENERATE" },
+        { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
+        { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
+        { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
+        { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
+        { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { PROMPTS: 'IMAGE', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
@@ -998,6 +1011,9 @@ export default {
       return this.selectedFrameThumb ? `Frame ${this.frameLabel(this.selectedFrameThumb)}` : 'No frames';
     },
     activePreviewStillPath() {
+      if (!this.deforumPlaying && this.currentTab === 'LIBRARY') {
+        return this.librarySelectedFrameSrc || '';
+      }
       if (!this.deforumPlaying && this.currentTab !== 'GENERATE' && this.selectedFrameThumb) {
         return this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '';
       }
@@ -1176,6 +1192,16 @@ export default {
         ...(this.forge.samplers || []),
       ].map((value) => String(value || '').trim()).filter(Boolean))];
     },
+    engineSchedulerOptions() {
+      return [...new Set([
+        this.deforumSettings && this.deforumSettings.scheduler,
+        this.forge.options && this.forge.options.scheduler,
+        ...(this.forge.schedulers || []),
+      ].map((value) => String(value || '').trim()).filter(Boolean))];
+    },
+    activeDeforumFieldGroup() {
+      return this.deforumFieldGroups.find((group) => group.id === this.deforumActiveTab) || this.deforumFieldGroups[0] || null;
+    },
     engineOptimizedDefaults() {
       return this.optimizedDefaultsForModel(this.engineCurrentModelName);
     },
@@ -1243,6 +1269,70 @@ export default {
           return bTime - aTime;
         })
         .slice(0, 4);
+    },
+    libraryPrefixGroups() {
+      const groups = new Map();
+      [...this.runsAll]
+        .sort((a, b) => {
+          const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
+          const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
+          return bTime - aTime;
+        })
+        .forEach((run) => {
+          const key = this.runPrefixKey(run);
+          if (!groups.has(key)) {
+            groups.set(key, { key, label: this.runPrefixLabel(run), runs: [] });
+          }
+          groups.get(key).runs.push(run);
+        });
+      return [...groups.values()];
+    },
+    librarySelectedPrefixKey() {
+      return this.libraryPrefixGroups.some((group) => group.key === this.library.selectedPrefix)
+        ? this.library.selectedPrefix
+        : (this.libraryPrefixGroups[0] && this.libraryPrefixGroups[0].key) || '';
+    },
+    libraryRunsForSelectedPrefix() {
+      const group = this.libraryPrefixGroups.find((entry) => entry.key === this.librarySelectedPrefixKey);
+      return group ? group.runs : [];
+    },
+    librarySelectedRunSummary() {
+      return this.libraryRunsForSelectedPrefix.find((run) => run.run_id === this.library.selectedRunId)
+        || this.libraryRunsForSelectedPrefix[0]
+        || null;
+    },
+    librarySelectedRunDetail() {
+      return this.library.runDetail && this.librarySelectedRunSummary && this.library.runDetail.run_id === this.librarySelectedRunSummary.run_id
+        ? this.library.runDetail
+        : null;
+    },
+    librarySelectedFrames() {
+      return Array.isArray(this.librarySelectedRunDetail && this.librarySelectedRunDetail.frames)
+        ? this.librarySelectedRunDetail.frames
+        : [];
+    },
+    librarySelectedFrameResolved() {
+      if (!this.librarySelectedFrames.length) return '';
+      if (this.librarySelectedFrames.includes(this.library.selectedFrameName)) return this.library.selectedFrameName;
+      return this.librarySelectedFrames[0];
+    },
+    librarySelectedFrameIndex() {
+      return this.librarySelectedFrames.indexOf(this.librarySelectedFrameResolved);
+    },
+    libraryVisibleFrames() {
+      if (!this.librarySelectedFrames.length) return [];
+      const current = this.librarySelectedFrameIndex >= 0 ? this.librarySelectedFrameIndex : 0;
+      const start = Math.max(0, current - 24);
+      return this.librarySelectedFrames.slice(start, start + 49);
+    },
+    librarySelectedFrameSrc() {
+      if (!this.librarySelectedRunSummary || !this.librarySelectedFrameResolved) return '';
+      return `/api/runs/${encodeURIComponent(this.librarySelectedRunSummary.run_id)}/frames/${encodeURIComponent(this.librarySelectedFrameResolved)}`;
+    },
+    librarySelectedFrameLabel() {
+      if (!this.librarySelectedFrameResolved) return 'No frame selected';
+      const parsed = this.parseFrameNumber(this.librarySelectedFrameResolved);
+      return Number.isFinite(parsed) && parsed >= 0 ? `Frame ${parsed}` : this.librarySelectedFrameResolved;
     },
     targetOwners() {
       const map = {};
@@ -5466,6 +5556,7 @@ async generateStory() {
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
+    if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
     if (typeof s.collabEnabled === 'boolean') {
       this.collabEnabled = s.collabEnabled;
@@ -5496,6 +5587,7 @@ async generateStory() {
        slots: this.performance.slots,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
+      deforumActiveTab: this.deforumActiveTab,
       generateDockExpanded: this.generateDockExpanded,
       collabEnabled: this.collabEnabled,
       defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
