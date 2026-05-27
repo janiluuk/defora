@@ -1039,6 +1039,14 @@ export default {
         drift: 0.44,
         mist: 0.58,
         orbit: 0.52,
+        lineType: 'segments',
+        lineWidth: 2.4,
+        lineThreshold: 0.8,
+        lineTranslation: 0,
+        lineWorldUnits: true,
+        lineVisualizeThreshold: false,
+        lineAlphaToCoverage: true,
+        lineAnimate: true,
       },
       thumbs: [],
       framesTimer: null,
@@ -2283,7 +2291,7 @@ async stopOutboundStream() {
 },
 normalizeDefaultAnimationSettings(input = {}) {
   const next = input && typeof input === 'object' ? input : {};
-  const mode = ['volume', 'orbital', 'nebula'].includes(next.mode) ? next.mode : 'volume';
+  const mode = ['volume', 'orbital', 'nebula', 'raycast'].includes(next.mode) ? next.mode : 'volume';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
     mode,
@@ -2291,11 +2299,19 @@ normalizeDefaultAnimationSettings(input = {}) {
     speed: Math.max(0.1, Math.min(2.5, Number(next.speed) || 0.75)),
     spread: Math.max(0.2, Math.min(1.4, Number(next.spread) || 0.68)),
     glow: Math.max(0.1, Math.min(1.4, Number(next.glow) || 0.78)),
-    hue: Math.max(0, Math.min(1, Number(next.hue) || 0.6)),
-    pulse: Math.max(0, Math.min(1, Number(next.pulse) || 0.36)),
-    drift: Math.max(0, Math.min(1, Number(next.drift) || 0.44)),
-    mist: Math.max(0, Math.min(1, Number(next.mist) || 0.58)),
-    orbit: Math.max(0, Math.min(1, Number(next.orbit) || 0.52)),
+    hue: Math.max(0, Math.min(1, Number.isFinite(Number(next.hue)) ? Number(next.hue) : 0.6)),
+    pulse: Math.max(0, Math.min(1, Number.isFinite(Number(next.pulse)) ? Number(next.pulse) : 0.36)),
+    drift: Math.max(0, Math.min(1, Number.isFinite(Number(next.drift)) ? Number(next.drift) : 0.44)),
+    mist: Math.max(0, Math.min(1, Number.isFinite(Number(next.mist)) ? Number(next.mist) : 0.58)),
+    orbit: Math.max(0, Math.min(1, Number.isFinite(Number(next.orbit)) ? Number(next.orbit) : 0.52)),
+    lineType: next.lineType === 'line' ? 'line' : 'segments',
+    lineWidth: Math.max(1, Math.min(10, Number(next.lineWidth) || 2.4)),
+    lineThreshold: Math.max(0, Math.min(10, Number.isFinite(Number(next.lineThreshold)) ? Number(next.lineThreshold) : 0.8)),
+    lineTranslation: Math.max(0, Math.min(10, Number.isFinite(Number(next.lineTranslation)) ? Number(next.lineTranslation) : 0)),
+    lineWorldUnits: next.lineWorldUnits !== false,
+    lineVisualizeThreshold: !!next.lineVisualizeThreshold,
+    lineAlphaToCoverage: next.lineAlphaToCoverage !== false,
+    lineAnimate: next.lineAnimate !== false,
   };
 },
 onDefaultAnimationInput() {
