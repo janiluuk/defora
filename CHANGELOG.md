@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.18] - 2026-05-27
+
+## What's Changed
+
+- feat(web): HLS fast-start + UI restore prompt + job snapshots (#60) (616d8ff)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.17...v0.6.18
+
+
 ## [0.6.17] - 2026-05-27
 
 ## What's Changed
