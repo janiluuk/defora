@@ -51,7 +51,7 @@ export default {
     spectrumBins: { type: Array, default: () => [] },
     live: { type: Boolean, default: false },
     bandLabels: { type: Array, default: () => ['Low', 'Mid', 'High'] },
-    bandColors: { type: Array, default: () => ['#5cc8ff', '#7f77dd', '#50fa7b'] },
+    bandColors: { type: Array, default: () => [] },
     canvasWidth: { type: Number, default: 640 },
     canvasHeight: { type: Number, default: 120 },
   },
@@ -82,6 +82,29 @@ export default {
     this.paint()
   },
   methods: {
+    cssVar(name, fallback = '') {
+      try {
+        const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+        return value || fallback
+      } catch (_e) {
+        return fallback
+      }
+    },
+    toRgba(color, alpha) {
+      const a = Number(alpha)
+      if (!Number.isFinite(a)) return String(color || '')
+      const c = String(color || '').trim()
+      if (c.startsWith('#') && (c.length === 7 || c.length === 4)) {
+        const hex = c.length === 4
+          ? `#${c[1]}${c[1]}${c[2]}${c[2]}${c[3]}${c[3]}`
+          : c
+        const r = parseInt(hex.slice(1, 3), 16)
+        const g = parseInt(hex.slice(3, 5), 16)
+        const b = parseInt(hex.slice(5, 7), 16)
+        if ([r, g, b].every((n) => Number.isFinite(n))) return `rgba(${r}, ${g}, ${b}, ${a})`
+      }
+      return c
+    },
     bandLabel(index) {
       return this.bandLabels[index] || `Band ${index + 1}`
     },
@@ -91,7 +114,8 @@ export default {
       const left = hzToRatio(mapping && mapping.freq_min, minHz, maxHz) * 100
       const right = hzToRatio(mapping && mapping.freq_max, minHz, maxHz) * 100
       const index = this.mappings.indexOf(mapping)
-      const color = this.bandColors[index] || 'var(--live)'
+      const fallbackColors = [this.cssVar('--band-low'), this.cssVar('--band-mid'), this.cssVar('--band-high')]
+      const color = this.bandColors[index] || fallbackColors[index] || this.cssVar('--live') || 'var(--live)'
       return {
         left: `${Math.min(left, right)}%`,
         width: `${Math.max(2, Math.abs(right - left))}%`,
@@ -104,8 +128,8 @@ export default {
       const ctx = canvas.getContext('2d')
       const bins = this.live && this.spectrumBins.length ? this.spectrumBins : null
       paintSpectrumBars(ctx, bins, canvas.width, canvas.height, {
-        bgColor: 'rgb(8, 9, 13)',
-        barColor: 'rgba(80, 250, 123, 0.9)',
+        bgColor: this.cssVar('--bg-0') || 'rgb(8, 9, 13)',
+        barColor: this.toRgba(this.cssVar('--band-high') || this.cssVar('--success'), 0.9),
       })
     },
     canvasRect() {

@@ -112,7 +112,7 @@
 <script>
 import UiIcon from '../UiIcon.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'MotionView',

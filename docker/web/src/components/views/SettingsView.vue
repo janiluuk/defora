@@ -772,7 +772,7 @@
 
 <script>
 import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',

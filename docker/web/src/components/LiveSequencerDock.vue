@@ -189,7 +189,7 @@
 </template>
 
 <script>
-import { proxyAppView } from './views/app-view-proxy.js'
+import { proxyAppView } from './views/app-view-proxy.mjs'
 import Timeline from './generate/Timeline.vue'
 
 export default {

@@ -175,7 +175,7 @@
 <script>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiIcon from '../UiIcon.vue'
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'StreamView',
@@ -333,7 +333,7 @@ export default {
   width: 100%;
   min-height: 260px;
   display: block;
-  background: #000;
+  background: var(--media-bg);
 }
 
 .stream-endpoint,
@@ -395,13 +395,13 @@ export default {
 }
 
 .stream-status-pill--error {
-  color: #ffd5d4;
+  color: var(--error-text);
   border-color: rgba(226, 75, 74, 0.45);
   background: rgba(226, 75, 74, 0.16);
 }
 
 .stream-status-pill--idle {
-  color: #ffdca8;
+  color: var(--warn-text);
   border-color: rgba(239, 159, 39, 0.45);
   background: rgba(239, 159, 39, 0.16);
 }

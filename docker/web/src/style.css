@@ -18,6 +18,12 @@
       --b-group: #e879b0;       /* pink — B side everywhere */
       --warn: #ef9f27;          /* amber — performance headers */
       --error: #e24b4a;         /* red — failures */
+      --warn-text: #ffdca8;
+      --error-text: #ffd5d4;
+      --cyan: #2de2ff;
+      --band-low: #5cc8ff;
+      --band-mid: var(--accent);
+      --band-high: var(--success);
 
       /* ── Text ─────────────────────────────────── */
       --text-primary: #e6e8f0;

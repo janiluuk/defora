@@ -1,10 +1,10 @@
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const path = require('path');
+const { loadEsm } = require('./load-esm');
 
 describe('deforum-schedule', () => {
   it('parses keyframed schedule strings', async () => {
-    const mod = await import(path.join('..', 'src', 'deforum-schedule.js'));
+    const mod = await loadEsm('..', 'src', 'deforum-schedule.mjs');
     const kf = mod.parseDeforumSchedule('0: (0), 30: (10), 60: (0)');
     assert.deepEqual(kf, [
       { frame: 0, value: 0 },
@@ -16,7 +16,7 @@ describe('deforum-schedule', () => {
   });
 
   it('builds a non-empty camera path from live translation values', async () => {
-    const mod = await import(path.join('..', 'src', 'deforum-schedule.js'));
+    const mod = await loadEsm('..', 'src', 'deforum-schedule.mjs');
     const pathPoints = mod.buildCameraPath({
       settings: { max_frames: 48, fps: 24 },
       live: { translation_x: 2, translation_y: 0, translation_z: 1 },

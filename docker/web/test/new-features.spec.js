@@ -108,8 +108,15 @@ describe("New Features Tests", () => {
   });
 
   describe("Sequencer content clips", () => {
-    it("adds clips when invoked through app-view proxy (child panel context)", () => {
-      const { proxyAppView } = require("../src/components/views/app-view-proxy.js");
+    it("adds clips when invoked through app-view proxy (child panel context)", async () => {
+      const { loadEsm } = require("./load-esm");
+      const { proxyAppView } = await loadEsm(
+        "..",
+        "src",
+        "components",
+        "views",
+        "app-view-proxy.mjs",
+      );
       const panel = proxyAppView({ app: appVm });
       appVm.sequencer.clips = [];
       appVm.sequencer.durationSec = 8;

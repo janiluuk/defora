@@ -32,7 +32,8 @@ const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
 try {
-  await page.goto(base, { waitUntil: 'networkidle', timeout: 60000 });
+  // "networkidle" can be blocked by live polling/streaming; DOM loaded is enough for these assertions.
+  await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await page.waitForSelector('header .tab', { timeout: 30000 });
   const trimmed = await getTabLabels(page);
   for (const name of expected) {

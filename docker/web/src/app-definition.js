@@ -1815,7 +1815,13 @@ module.exports = {
       return this.audioBandTabDefs.map((tab) => tab.label);
     },
     audioSpectrumBandColors() {
-      return ['#5cc8ff', '#7f77dd', '#50fa7b'];
+      try {
+        const s = getComputedStyle(document.documentElement)
+        const v = (name) => s.getPropertyValue(name).trim()
+        return [v('--band-low'), v('--band-mid'), v('--band-high')].filter(Boolean);
+      } catch (_e) {
+        return [];
+      }
     },
     liveModulating() {
       const paramMap = {};
@@ -2591,6 +2597,7 @@ module.exports = {
       if (!res.ok) return;
       const data = await res.json();
       this.runsAll = data.runs || [];
+      this.applyRunsFilters();
       void this.refreshGpuPool(true);
       // Best-effort: fetch Deforum batch queue from all Forge GPUs and merge into runs list.
       try {

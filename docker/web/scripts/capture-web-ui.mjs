@@ -38,7 +38,9 @@ const shots = [
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1040 } });
 
-await page.goto(base, { waitUntil: 'networkidle', timeout: 60000 });
+// "networkidle" can be blocked by the live HLS/WS polling.
+// "domcontentloaded" is enough because we later wait for the tab selector.
+await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 90000 });
 await page.waitForSelector('.tab', { timeout: 30000 });
 await page.waitForTimeout(800);
 

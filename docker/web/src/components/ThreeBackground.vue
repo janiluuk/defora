@@ -26,7 +26,7 @@ function clamp(value, min, max) {
 function lfoColors() {
   const s = getComputedStyle(document.documentElement)
   const v = (name) => s.getPropertyValue(name).trim()
-  return [v('--accent'), '#2de2ff', v('--warn'), v('--b-group'), v('--live'), v('--accent-text')]
+  return [v('--accent'), v('--cyan'), v('--warn'), v('--b-group'), v('--live'), v('--accent-text')]
 }
 
 const INSTANCING_MAX = 50000

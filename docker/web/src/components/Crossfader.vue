@@ -126,14 +126,14 @@ export default {
   transition: opacity 0.08s linear, box-shadow 0.08s linear, filter 0.08s linear;
 }
 .crossfader-track__half--a {
-  background: linear-gradient(90deg, color-mix(in srgb, var(--a-group) 88%, #000), color-mix(in srgb, var(--a-group) 42%, transparent));
+  background: linear-gradient(90deg, color-mix(in srgb, var(--a-group) 88%, var(--media-bg)), color-mix(in srgb, var(--a-group) 42%, transparent));
   opacity: calc(0.12 + var(--crossfade-a-weight) * 0.78);
   box-shadow:
     inset 0 0 calc(var(--crossfade-a-weight) * 28px) color-mix(in srgb, var(--a-group) 55%, transparent),
     0 0 calc(var(--crossfade-a-weight) * 18px) color-mix(in srgb, var(--a-group) 45%, transparent);
 }
 .crossfader-track__half--b {
-  background: linear-gradient(270deg, color-mix(in srgb, var(--b-group) 88%, #000), color-mix(in srgb, var(--b-group) 42%, transparent));
+  background: linear-gradient(270deg, color-mix(in srgb, var(--b-group) 88%, var(--media-bg)), color-mix(in srgb, var(--b-group) 42%, transparent));
   opacity: calc(0.12 + var(--crossfade-b-weight) * 0.78);
   box-shadow:
     inset 0 0 calc(var(--crossfade-b-weight) * 28px) color-mix(in srgb, var(--b-group) 55%, transparent),
@@ -145,8 +145,8 @@ export default {
   bottom: 0;
   width: 2px;
   transform: translateX(-50%);
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.35);
+  background: color-mix(in srgb, var(--media-text) 82%, transparent);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--media-text) 35%, transparent);
   pointer-events: none;
   z-index: 2;
   transition: left 0.04s linear;
@@ -157,7 +157,7 @@ export default {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--media-text);
   transform: translate(-50%, -50%);
   box-shadow:
     0 0 0 2px color-mix(in srgb, var(--a-group) calc(var(--crossfade-a-weight) * 100%), var(--b-group)),
