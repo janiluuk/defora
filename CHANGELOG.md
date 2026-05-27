@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.13] - 2026-05-27
+
+## What's Changed
+
+- Feat/web status gpu collab (#51) (2f12fc7)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.12...v0.6.13
+
+
 ## [0.6.12] - 2026-05-27
 
 ## What's Changed
