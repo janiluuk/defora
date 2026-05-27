@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.17] - 2026-05-27
+
+## What's Changed
+
+- feat(web): streamline LIVE player layers and tools library (#59) (8606064)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.16...v0.6.17
+
+
 ## [0.6.16] - 2026-05-27
 
 ## What's Changed
