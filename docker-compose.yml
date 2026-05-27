@@ -27,11 +27,17 @@ services:
     volumes:
       - frames:/data/frames:ro
       - hls:/var/www/hls
+      - runs:/data/runs
     environment:
       - RABBIT_URL=amqp://mq
       - FRAMES_DIR=/data/frames
+      - RUNS_DIR=/data/runs
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
+      # VideoSwarm lives alongside runs/projects so storage is shared.
+      - VIDEOSWARM_DIR=/data/runs/videoswarm
+      # Optional: point Defora at an external VideoSwarm host (served/proxied via /api/videoswarm-proxy/*)
+      # - VIDEOSWARM_API_BASE=http://videoswarm-host:8081
       - SD_FORGE_HOST=${SD_FORGE_HOST:-192.168.2.101}
       - SD_FORGE_PORT=${SD_FORGE_PORT:-7860}
       - MEDIATOR_HOST=${MEDIATOR_HOST:-vimage2}
@@ -170,3 +176,4 @@ volumes:
   mqdata:
   models:
   outputs:
+  runs:

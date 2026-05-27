@@ -20,7 +20,27 @@
             </div>
           </div>
 
-          <div v-if="!morphCollapsed">
+          <div v-if="morphCollapsed && prompts.morphOn" class="morph-crossfader-mini" data-testid="prompt-morph-mini">
+            <div class="framesync-subtitle" style="margin:0;">Morph Crossfader</div>
+            <div class="framesync-gradient-bar"></div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              :value="prompts.morphBlend"
+              class="framesync-input"
+              data-testid="prompt-morph-blend"
+              @input="applyPromptMorphBlend($event.target.value, { commitBase: true })"
+            />
+            <div class="morph-blend-labels">
+              <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
+              <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+            </div>
+            <button type="button" class="framesync-button framesync-button--compact" @click="morphCollapsed = false">Expand</button>
+          </div>
+
+          <div v-else-if="!morphCollapsed">
             <div v-if="prompts.morphOn" class="morph-slot-weights" style="margin-top:12px;">
               <div
                 v-for="slot in morphSlots"

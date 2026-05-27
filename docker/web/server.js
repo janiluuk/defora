@@ -7,6 +7,7 @@ const WebSocket = require("ws");
 const amqp = require("amqplib");
 const { spawn } = require("child_process");
 const { EventEmitter } = require("events");
+const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
 
@@ -19,6 +20,7 @@ async function start(opts = {}) {
     opts.framesDir ||
     process.env.FRAMES_DIR ||
     path.join(__dirname, "frames");
+  const runsDir = opts.runsDir || process.env.RUNS_DIR || "/data/runs";
   const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
   const hlsDir =
     opts.hlsDir ||
@@ -852,6 +854,8 @@ async function start(opts = {}) {
   const sequencersDir =
     opts.sequencersDir || process.env.SEQUENCER_DIR || path.join(__dirname, "sequencers");
   const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
+  const videoswarmDir =
+    opts.videoswarmDir || process.env.VIDEOSWARM_DIR || path.join(__dirname, "videoswarm");
   const pluginsDir = opts.pluginsDir || process.env.PLUGINS_DIR || path.join(__dirname, "plugins");
   const uploadRetentionHours = parseInt(process.env.UPLOAD_RETENTION_HOURS || "24", 10);
   
@@ -865,6 +869,9 @@ async function start(opts = {}) {
     await fsp.mkdir(uploadsDir, { recursive: true });
   } catch (_e) {}
   try {
+    await fsp.mkdir(videoswarmDir, { recursive: true });
+  } catch (_e) {}
+  try {
     await fsp.mkdir(pluginsDir, { recursive: true });
   } catch (_e) {}
 
@@ -875,8 +882,10 @@ async function start(opts = {}) {
   function videoSwarmRoots() {
     return [
       { id: "frames", label: "Frames", path: framesDir },
+      { id: "runs", label: "Runs", path: runsDir },
       { id: "uploads", label: "Uploads", path: uploadsDir },
       { id: "hls", label: "HLS", path: hlsDir },
+      { id: "videoswarm", label: "VideoSwarm", path: videoswarmDir },
     ];
   }
 
@@ -998,6 +1007,43 @@ async function start(opts = {}) {
     } catch (err) {
       if (err.code === "ENOENT") return res.status(404).json({ error: "file not found" });
       res.status(500).json({ error: err.message || "file unavailable" });
+    }
+  });
+
+  const videoswarmApiBase = String(process.env.VIDEOSWARM_API_BASE || "").trim().replace(/\/+$/, "");
+  app.all("/api/videoswarm-proxy/*", async (req, res) => {
+    if (!videoswarmApiBase) return res.status(501).json({ error: "VIDEOSWARM_API_BASE not configured" });
+    if (!["GET", "HEAD"].includes(req.method)) return res.status(405).json({ error: "method not allowed" });
+    try {
+      const tail = String(req.params[0] || "").replace(/^\/+/, "");
+      const url = `${videoswarmApiBase}/${tail}${req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""}`;
+      const upstream = await fetch(url, {
+        method: req.method,
+        headers: {
+          accept: req.headers.accept || "*/*",
+          range: req.headers.range || undefined,
+        },
+      });
+
+      res.status(upstream.status);
+      const passthrough = new Set([
+        "content-type",
+        "content-length",
+        "content-range",
+        "accept-ranges",
+        "cache-control",
+        "etag",
+        "last-modified",
+      ]);
+      upstream.headers.forEach((value, key) => {
+        if (passthrough.has(key.toLowerCase())) res.setHeader(key, value);
+      });
+
+      if (req.method === "HEAD" || !upstream.body) return res.end();
+      Readable.fromWeb(upstream.body).pipe(res);
+    } catch (err) {
+      console.error("[api] videoswarm proxy", err);
+      res.status(502).json({ error: "upstream unavailable" });
     }
   });
 
@@ -1396,6 +1442,103 @@ async function start(opts = {}) {
     } finally {
       target.release();
     }
+  });
+
+  let warmupBatchId = null;
+  let warmupRunning = false;
+
+  /** Kick off a short warmup animation (default 4s @ 12fps = 48 frames).
+   *  Responds immediately with the batchId; frames stream to HLS as they render. */
+  app.post("/api/deforum/warmup", async (req, res) => {
+    if (warmupRunning) {
+      return res.json({ ok: true, batchId: warmupBatchId, status: "already_running" });
+    }
+    const body = req.body || {};
+    const maxFrames = Math.max(1, Math.min(480, parseInt(body.maxFrames, 10) || 48));
+    const fps = Math.max(1, Math.min(60, parseInt(body.fps, 10) || 12));
+    const target = forgeTarget(req);
+    try {
+      let baseSettings = {};
+      if (fs.existsSync(deforumSettingsFile)) {
+        try { baseSettings = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8")); } catch (_e) {}
+      }
+      const settings = {
+        animation_mode: "2D",
+        zoom: "0:(1.02)",
+        translation_x: "0:(0)",
+        translation_y: "0:(0)",
+        angle: "0:(0)",
+        noise_schedule: "0:(0.02)",
+        strength_schedule: "0:(0.65)",
+        cfg_scale_schedule: "0:(7)",
+        steps_schedule: "0:(20)",
+        ...baseSettings,
+        max_frames: maxFrames,
+        fps,
+        skip_video_creation: false,
+        motion_preview_mode: false,
+      };
+      if (!settings.prompts || !Object.keys(settings.prompts).length) {
+        settings.prompts = { "0": settings.animation_prompts_positive || "cinematic scene, high quality, detailed" };
+      }
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available" });
+      }
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      let response;
+      try {
+        response = await fetch(`${target.url}/deforum_api/batches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ deforum_settings: settings }),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(t);
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: "warmup batch submit failed", detail: text.slice(0, 300) });
+      }
+      const data = await response.json();
+      warmupBatchId = data.batch_id || null;
+      warmupRunning = true;
+      broadcast({ type: "warmup_started", batchId: warmupBatchId, maxFrames, fps });
+      console.log(`[warmup] Started ${maxFrames}-frame batch at ${fps}fps, batchId=${warmupBatchId}`);
+      res.json({ ok: true, batchId: warmupBatchId, maxFrames, fps });
+      // Clear running flag once Forge reports completion (best-effort background poll)
+      if (warmupBatchId) {
+        (async () => {
+          for (let i = 0; i < 300; i++) {
+            await sleep(2000);
+            try {
+              const pr = await fetch(`${target.url}/deforum_api/batches/${warmupBatchId}`);
+              if (!pr.ok) break;
+              const pd = await pr.json();
+              const st = String(pd.status || pd.state || "").toLowerCase();
+              if (["completed", "failed", "cancelled", "canceled", "done"].includes(st)) {
+                warmupRunning = false;
+                broadcast({ type: "warmup_done", batchId: warmupBatchId, status: st });
+                console.log(`[warmup] Batch ${warmupBatchId} ${st}`);
+                break;
+              }
+            } catch (_e) { break; }
+          }
+          warmupRunning = false;
+        })();
+      }
+    } catch (err) {
+      warmupRunning = false;
+      console.error("[api] warmup error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
+    }
+  });
+
+  app.get("/api/deforum/warmup/status", (_req, res) => {
+    res.json({ running: warmupRunning, batchId: warmupBatchId });
   });
 
   // Shared settings for collaborative features
@@ -2874,7 +3017,6 @@ async function start(opts = {}) {
   infrastructure.attachRoutes(app);
 
   // Runs browser API
-  const runsDir = opts.runsDir || process.env.RUNS_DIR || "/data/runs";
   
   function loadRunManifest(runPath) {
     const manifestPath = path.join(runPath, "run.json");

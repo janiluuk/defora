@@ -105,7 +105,7 @@ function parseTranscoderNodes(env = process.env) {
   }
   if (!nodes.length) {
     const rtmpTarget =
-      String(env.ENCODER_RTMP_TARGET || env.RTMP_TARGET || "rtmp://web:1935/live/deforum").trim();
+      String(env.ENCODER_RTMP_TARGET || env.RTMP_TARGET || "rtmp://vimage3:1935/live/deforum").trim();
     const { host, port } = parseHostPort(rtmpTarget, 1935);
     nodes.push({
       id: "transcoder-local",

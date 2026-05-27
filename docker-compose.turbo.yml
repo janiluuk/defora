@@ -84,11 +84,17 @@ services:
     volumes:
       - frames:/data/frames:ro
       - hls:/var/www/hls
+      - runs:/data/runs
     environment:
       - RABBIT_URL=amqp://mq
       - FRAMES_DIR=/data/frames
+      - RUNS_DIR=/data/runs
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
+      # VideoSwarm lives alongside runs/projects so storage is shared.
+      - VIDEOSWARM_DIR=/data/runs/videoswarm
+      # Optional: point Defora at an external VideoSwarm host (served/proxied via /api/videoswarm-proxy/*)
+      # - VIDEOSWARM_API_BASE=http://videoswarm-host:8081
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://192.168.2.104:11434}
       # Turbo model optimization hints
       - DEFAULT_STEPS=2
@@ -236,3 +242,4 @@ volumes:
   mqdata:
   models:
   outputs:
+  runs:
