@@ -63,7 +63,148 @@
           </div>
         </div>
 
-        <template v-else-if="isWebglLayerActive">
+        <template v-else>
+          <div class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Video layers</div>
+            <div class="video-layer-tabs video-layer-tabs--engine" data-testid="video-layer-tabs">
+              <div class="video-layer-tabs__transport" data-testid="live-transport-top">
+                <button class="control-btn control-btn--top" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
+                  <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
+                  <span>{{ deforumPlaying ? 'Pause' : 'Play' }}</span>
+                </button>
+                <button
+                  class="control-btn control-btn--top control-btn--frame"
+                  :class="{ 'control-btn--loading': previewGenerating }"
+                  @click="generatePreviewFrame"
+                  :disabled="previewGenerating || deforumPlaying"
+                  data-testid="preview-frame"
+                >
+                  <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
+                    <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                    <span>Frame</span>
+                    <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                  </span>
+                  <template v-else>
+                    <UiIcon class="control-btn__icon" name="image" />
+                    <span>Frame</span>
+                  </template>
+                </button>
+                <button class="control-btn control-btn--top control-btn--record" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
+                  <UiIcon class="control-btn__icon" :name="isRecording ? 'stop' : 'record'" />
+                  <span>{{ isRecording ? 'Stop Rec' : 'Record' }}</span>
+                </button>
+                <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
+                  {{ deforumPlaying ? 'Animating' : 'Preview' }}
+                </span>
+              </div>
+
+              <div
+                v-for="layer in videoLayers"
+                :key="'video-layer-' + layer.id"
+                role="button"
+                tabindex="0"
+                class="video-layer-tab"
+                :class="{
+                  active: activeVideoLayerId === layer.id,
+                  'video-layer-tab--builtin': layer.builtin,
+                }"
+                @click="selectVideoLayer(layer.id)"
+                @keyup.enter="selectVideoLayer(layer.id)"
+              >
+                <span
+                  class="video-layer-tab__dot"
+                  :class="[
+                    'video-layer-tab__dot--' + layerStatus(layer),
+                    { active: activeVideoLayerId === layer.id },
+                  ]"
+                  aria-hidden="true"
+                ></span>
+                <span class="video-layer-tab__label">{{ layer.label }}</span>
+                <button
+                  v-if="!layer.builtin"
+                  type="button"
+                  class="video-layer-tab__close"
+                  title="Remove layer"
+                  @click.stop="closeVideoLayer(layer.id)"
+                >
+                  ×
+                </button>
+              </div>
+              <button
+                type="button"
+                class="video-layer-tab video-layer-tab--add"
+                :class="{ active: videoLayerAddOpen }"
+                data-testid="video-layer-add-toggle"
+                @click="toggleVideoLayerAdd"
+              >
+                + Add source
+              </button>
+              <button
+                type="button"
+                class="video-layer-tab video-layer-tab--size"
+                :title="videoStageSize === 'small' ? 'Small stage' : videoStageSize === 'medium' ? 'Medium stage' : 'Full stage'"
+                @click="toggleVideoStageSize()"
+              >
+                <UiIcon
+                  :name="videoStageSize === 'small' ? 'size-small' : videoStageSize === 'medium' ? 'size-medium' : 'size-full'"
+                  aria-hidden="true"
+                />
+              </button>
+            </div>
+          </div>
+
+          <div
+            v-if="currentTab === 'LIVE' && videoLayerAddOpen"
+            class="video-layer-add framesync-panel"
+            data-testid="video-layer-add"
+            style="margin-top:10px;"
+          >
+            <div class="framesync-header">
+              <div class="framesync-title">
+                <UiIcon class="framesync-title-icon" name="plus" />
+                <span class="framesync-accent">Add source</span>
+              </div>
+              <button type="button" class="framesync-button framesync-button--compact" @click="toggleVideoLayerAdd(false)">Close</button>
+            </div>
+            <p class="framesync-subtitle video-layer-add__hint">
+              New sources open as preview tabs. Built-in layers: WebGL, Deforum, and Input.
+            </p>
+            <div class="chips video-layer-add__mode">
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: liveSourcePanel === 'library' }"
+                @click="liveSourcePanel = 'library'; saveSessionState()"
+              >
+                Video library
+              </button>
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: liveSourcePanel === 'cloud' }"
+                @click="liveSourcePanel = 'cloud'; saveSessionState()"
+              >
+                Cloud drive
+              </button>
+            </div>
+            <div v-if="liveSourcePanel === 'library'" style="margin-top:10px;">
+              <VideoSwarmBrowser :app="app" />
+            </div>
+            <div v-else style="margin-top:10px;">
+              <div class="framesync-row" style="grid-template-columns: 1fr 0.8fr; gap:10px;">
+                <input class="framesync-input" v-model.trim="cloudDriveDraft.url" placeholder="https://drive.google.com/...">
+                <select class="framesync-select" v-model="cloudDriveDraft.provider">
+                  <option value="google_drive">Google Drive</option>
+                  <option value="dropbox">Dropbox</option>
+                  <option value="onedrive">OneDrive</option>
+                </select>
+              </div>
+              <div class="framesync-footer" style="margin-top:8px;">
+                <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
+              </div>
+            </div>
+          </div>
+          <div v-if="isWebglLayerActive">
           <div class="framesync-stack" style="margin-top:10px;">
             <div class="framesync-subtitle">Animation style</div>
             <select class="framesync-select" :value="defaultAnimation.mode" @change="setDefaultAnimationMode($event.target.value)">
@@ -239,6 +380,7 @@
             <span class="framesync-subtitle" style="margin:0;">Drift</span>
             <input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
           </div>
+          </div>
         </template>
       </div>
     </div>
@@ -255,7 +397,67 @@
 
         <div class="framesync-stack" style="margin-top:10px;">
           <div class="framesync-subtitle">Generic prompt</div>
-          <textarea class="framesync-input" v-model="performance.genericPrompt" rows="2" placeholder="Base prompt for this session…" @input="onPerformanceInput"></textarea>
+          <div class="prompt-input-row">
+            <textarea
+              class="framesync-input prompt-input-row__input"
+              v-model="performance.genericPrompt"
+              rows="2"
+              placeholder="Base prompt for this session…"
+              @input="onPerformanceInput"
+            ></textarea>
+            <div class="prompt-input-row__actions">
+              <button
+                type="button"
+                class="framesync-button framesync-button--compact"
+                :class="{ 'framesync-button--live': speechPromptListening }"
+                :title="speechPromptListening ? 'Stop microphone' : (speechPromptSupported ? 'Speak prompt' : 'Microphone not supported')"
+                :disabled="!speechPromptSupported"
+                @click="toggleSpeechPrompt"
+              >
+                <UiIcon name="mic" />
+              </button>
+              <button
+                type="button"
+                class="framesync-button framesync-button--compact"
+                title="Clear prompt"
+                :disabled="!(performance.genericPrompt || '').trim()"
+                @click="clearGenericPrompt"
+              >
+                <UiIcon name="close" />
+              </button>
+              <button
+                type="button"
+                class="framesync-button framesync-button--compact"
+                :class="{ active: promptHistoryOpen }"
+                :title="promptHistoryOpen ? 'Close prompt history' : 'Open prompt history'"
+                @click="togglePromptHistory"
+              >
+                <UiIcon name="history" />
+              </button>
+            </div>
+          </div>
+          <div v-if="speechPromptError" class="framesync-subtitle" style="margin-top:6px;color:var(--warn);">
+            {{ speechPromptError }}
+          </div>
+          <div v-if="promptHistoryOpen" class="prompt-history-panel">
+            <div class="prompt-history-panel__header">
+              <div class="framesync-subtitle" style="margin:0;">History</div>
+              <button type="button" class="framesync-button framesync-button--compact" @click="togglePromptHistory(false)">Close</button>
+            </div>
+            <div v-if="!promptHistory.length" class="prompt-history-panel__empty">No prompts yet.</div>
+            <div v-else class="prompt-history-panel__list">
+              <button
+                v-for="(p, idx) in promptHistory"
+                :key="'prompt-hist-' + idx"
+                type="button"
+                class="prompt-history-panel__item"
+                @click="restorePromptFromHistory(p)"
+                :title="p"
+              >
+                {{ p }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="crossfade-deck" style="margin-top:14px;">

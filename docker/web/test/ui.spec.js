@@ -164,7 +164,6 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("STREAM");
     expect(tabs.join(" ")).to.include("LIBRARY");
-    expect(tabs.join(" ")).to.include("TOOLS");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
@@ -172,8 +171,8 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("GENERATE");
     expect(tabs.join(" ")).to.not.include("AUDIO");
     expect(tabs.join(" ")).to.not.include("RUNS");
-    expect(tabs.length).to.equal(9);
-    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(9);
+    expect(tabs.length).to.equal(8);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(8);
   });
 
   it("has a video player and overlay HUD", () => {

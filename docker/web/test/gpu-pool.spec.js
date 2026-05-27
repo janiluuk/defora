@@ -39,6 +39,7 @@ describe("GPU pool API", () => {
     expect(res.status).to.equal(200);
     expect(res.body).to.have.property("enabled");
     expect(res.body).to.have.property("strategy");
+    expect(res.body).to.have.property("defaultForgeModel");
     expect(res.body).to.have.property("nodes");
     expect(res.body.nodes).to.be.an("array");
   });
@@ -181,6 +182,10 @@ describe("GPU pool API", () => {
       "memoryUsedMb",
       "memoryTotalMb",
       "gpuUtilization",
+      "queuePending",
+      "queueRunning",
+      "progress",
+      "etaRelative",
       "editable"
     );
   });

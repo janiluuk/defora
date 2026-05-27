@@ -1,5 +1,19 @@
 <template>
   <div id="app">
+    <div v-if="restoreSessionPromptOpen" class="restore-session-modal" @click.self="dismissSessionRestore(false)">
+      <div class="restore-session-modal__dialog framesync-panel">
+        <div class="framesync-header">
+          <div class="framesync-title">Restore <span class="framesync-accent">last UI state</span>?</div>
+        </div>
+        <div class="framesync-subtitle" style="margin-top:8px;">
+          Found a saved session state that doesn’t match the current UI defaults.
+        </div>
+        <div class="framesync-footer" style="margin-top:12px; gap:10px; justify-content:flex-end;">
+          <button type="button" class="framesync-button" @click="dismissSessionRestore(false)">Discard</button>
+          <button type="button" class="framesync-button framesync-button--live" @click="dismissSessionRestore(true)">Restore</button>
+        </div>
+      </div>
+    </div>
     <header>
       <div class="tabs">
         <button
@@ -43,7 +57,9 @@
       'layout--studio': currentTab === 'MODULATION'
     }">
       <!-- Left: video + mini timeline -->
-      <div class="preview">
+      <div class="preview" :class="{
+        'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full'
+      }">
         <div
           class="video-wrap"
           :class="{
@@ -51,97 +67,16 @@
             'video-wrap--preview-loading': previewGenerating,
           }"
         >
-          <div v-if="currentTab === 'LIVE'" class="video-layer-tabs" data-testid="video-layer-tabs">
-            <div class="video-layer-tabs__transport" data-testid="live-transport-top">
-              <button class="control-btn control-btn--top" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
-                <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
-                <span>{{ deforumPlaying ? 'Pause' : 'Play' }}</span>
-              </button>
-              <button
-                class="control-btn control-btn--top control-btn--frame"
-                :class="{ 'control-btn--loading': previewGenerating }"
-                @click="generatePreviewFrame"
-                :disabled="previewGenerating || deforumPlaying"
-                data-testid="preview-frame"
-              >
-                <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
-                  <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-                  <span>Frame</span>
-                  <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-                </span>
-                <template v-else>
-                  <UiIcon class="control-btn__icon" name="image" />
-                  <span>Frame</span>
-                </template>
-              </button>
-              <button class="control-btn control-btn--top control-btn--record" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
-                <UiIcon class="control-btn__icon" :name="isRecording ? 'stop' : 'record'" />
-                <span>{{ isRecording ? 'Stop Rec' : 'Record' }}</span>
-              </button>
-              <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
-                {{ deforumPlaying ? 'Animating' : 'Preview' }}
-              </span>
-            </div>
-            <div
-              v-for="layer in videoLayers"
-              :key="'video-layer-' + layer.id"
-              role="button"
-              tabindex="0"
-              class="video-layer-tab"
-              :class="{
-                active: activeVideoLayerId === layer.id,
-                'video-layer-tab--builtin': layer.builtin,
-              }"
-              @click="selectVideoLayer(layer.id)"
-              @keyup.enter="selectVideoLayer(layer.id)"
-            >
-              <span
-                class="video-layer-tab__dot"
-                :class="[
-                  'video-layer-tab__dot--' + layerStatus(layer),
-                  { active: activeVideoLayerId === layer.id },
-                ]"
-                aria-hidden="true"
-              ></span>
-              <span class="video-layer-tab__label">{{ layer.label }}</span>
-              <button
-                v-if="!layer.builtin"
-                type="button"
-                class="video-layer-tab__close"
-                title="Remove layer"
-                @click.stop="closeVideoLayer(layer.id)"
-              >
-                ×
-              </button>
-            </div>
-            <button
-              type="button"
-              class="video-layer-tab video-layer-tab--add"
-              :class="{ active: videoLayerAddOpen }"
-              data-testid="video-layer-add-toggle"
-              @click="toggleVideoLayerAdd"
-            >
-              + Add source
-            </button>
-            <button
-              type="button"
-              class="video-layer-tab video-layer-tab--size"
-              :title="videoStageSize === 'normal' ? 'Normal size' : videoStageSize === 'preview' ? 'Preview size' : 'Fullscreen'"
-              @click="toggleVideoStageSize()"
-            >
-              {{ videoStageSize === 'normal' ? 'Normal' : videoStageSize === 'preview' ? 'Preview' : 'Fullscreen' }}
-            </button>
-          </div>
-
           <div
             class="video-wrap__stage"
             :class="{
-              'video-wrap__stage--preview': videoStageSize === 'preview',
-              'video-wrap__stage--fullscreen': videoStageSize === 'fullscreen',
+              'video-wrap__stage--preview': videoStageSize === 'small',
+              'video-wrap__stage--canvas': videoStageSize === 'medium',
+              'video-wrap__stage--full': videoStageSize === 'full',
             }"
           >
             <ThreeBackground
-              :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': isWebglLayerActive || (isDeforumLayerActive && !videoReady) }]"
+              :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]"
               :lfos="lfos"
               :audio-metrics="backgroundAudioMetrics"
               :active-tab="currentTab"
@@ -306,66 +241,146 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div v-if="currentTab === 'LIVE'" class="live-main-dock">
-          <div class="live-main-dock__toggles">
-            <button
-              type="button"
-              class="live-main-dock__toggle"
-              :class="{ active: liveMainModsOpen }"
-              :aria-expanded="liveMainModsOpen ? 'true' : 'false'"
-              @click="liveMainModsOpen = !liveMainModsOpen; saveSessionState()"
-            >
-              <span>ACTIVE MODS</span>
-              <UiIcon class="live-main-dock__toggle-icon" :name="liveMainModsOpen ? 'chevron-up' : 'chevron-down'" />
-            </button>
-            <button
-              type="button"
-              class="live-main-dock__toggle"
-              :class="{ active: liveMainCrossfaderOpen }"
-              :aria-expanded="liveMainCrossfaderOpen ? 'true' : 'false'"
-              @click="liveMainCrossfaderOpen = !liveMainCrossfaderOpen; saveSessionState()"
-            >
-              <span>CROSSFADER</span>
-              <UiIcon class="live-main-dock__toggle-icon" :name="liveMainCrossfaderOpen ? 'chevron-up' : 'chevron-down'" />
-            </button>
-          </div>
+        <div v-if="currentTab === 'LIVE'" class="live-bottom-drawer">
+          <button
+            type="button"
+            class="live-bottom-drawer__toggle"
+            :class="{ active: liveBottomDrawerOpen }"
+            :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
+            title="Expand performance drawer"
+            @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
+          >
+            <UiIcon :name="liveBottomDrawerOpen ? 'chevron-down' : 'chevron-up'" />
+          </button>
 
-          <GlassPanel v-if="liveMainModsOpen" size="sm" class="live-main-dock__panel">
-            <template #header>Active Mods</template>
-            <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
-            <LiveParamRow
-              v-for="p in liveModulating"
-              :key="'live-mod-' + p.key"
-              :label="p.label"
-              :param-key="p.key"
-              :value="p.val"
-              :min="p.min"
-              :max="p.max"
-              :source="p.source"
-              :modulated="true"
-            />
-          </GlassPanel>
+          <div class="live-bottom-drawer__panel" :class="{ open: liveBottomDrawerOpen }">
+            <div class="live-bottom-drawer__tabs">
+              <button
+                type="button"
+                class="sub-pill"
+                :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
+                @click="liveBottomDrawerTab = 'MODULATION'; saveSessionState()"
+              >
+                MODULATION
+              </button>
+              <button
+                type="button"
+                class="sub-pill"
+                :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
+                @click="liveBottomDrawerTab = 'CROSSFADER'; saveSessionState()"
+              >
+                CROSSFADER
+              </button>
+            </div>
 
-          <GlassPanel v-if="liveMainCrossfaderOpen" size="sm" class="live-main-dock__panel live-main-dock__panel--crossfader">
-            <template #header>CROSSFADER</template>
-            <div class="live-main-crossfader__summary">
-              <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
-              <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
+            <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
+              <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
+              <template v-else>
+                <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
+                  <div class="live-mod-slot__head">
+                    <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
+                    <span v-if="slot.mappingLabel" class="live-mod-slot__map">
+                      <UiIcon name="arrow-left" />
+                      <span>{{ slot.mappingLabel }}</span>
+                    </span>
+                    <div class="live-mod-slot__actions">
+                      <button
+                        v-if="slot.paramKey"
+                        type="button"
+                        class="framesync-button framesync-button--compact"
+                        title="Remove mapping"
+                        @click="clearParamMapping(slot.paramKey)"
+                      >
+                        <UiIcon name="close" />
+                      </button>
+                      <button
+                        v-if="slot.paramKey"
+                        type="button"
+                        class="framesync-button framesync-button--compact"
+                        title="Add mapping"
+                        @click="openModulationMapping(slot.paramKey)"
+                      >
+                        <UiIcon name="sliders" />
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Slider -->
+                  <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
+                    <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
+                      <input
+                        type="range"
+                        class="framesync-input live-mod-slider__input"
+                        :min="slot.min"
+                        :max="slot.max"
+                        :step="slot.step"
+                        :value="slot.value"
+                        @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                      />
+                      <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
+                    </div>
+                  </div>
+
+                  <!-- XY pad -->
+                  <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
+                    <div
+                      class="live-mod-pad"
+                      @mousedown="livePadDown($event, slot)"
+                      @mousemove="livePadMove($event, slot)"
+                      @mouseup="livePadUp"
+                      @mouseleave="livePadUp"
+                      @touchstart.prevent="livePadDown($event, slot)"
+                      @touchmove.prevent="livePadMove($event, slot)"
+                      @touchend.prevent="livePadUp"
+                    >
+                      <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
+                      <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
+                      <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
+                    </div>
+                    <div class="live-mod-pad__axes">
+                      <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
+                      <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
+                    </div>
+                  </div>
+
+                  <!-- Knob -->
+                  <div v-else class="live-mod-slot__body">
+                    <div class="live-mod-knob">
+                      <input
+                        type="range"
+                        class="framesync-input live-mod-knob__input"
+                        :min="slot.min"
+                        :max="slot.max"
+                        :step="slot.step"
+                        :value="slot.value"
+                        @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                      />
+                      <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
+                    </div>
+                  </div>
+                </div>
+              </template>
             </div>
-            <Crossfader
-              :model-value="performance.crossfader"
-              @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
-              testid="performance-crossfader"
-            />
-            <div class="crossfade-deck-head live-main-crossfader__builder">
-              <span class="framesync-subtitle" style="margin:0;">Add to groups</span>
-              <select class="framesync-select" style="max-width:160px;" v-model="performance.newSlotType">
-                <option v-for="st in crossfadeSlotTypes" :key="'live-main-slot-' + st.id" :value="st.id">{{ st.label }}</option>
-              </select>
-              <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add item</button>
-            </div>
-            <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
-            <div v-for="slot in performance.slots" :key="'live-main-crossfade-' + slot.id" class="crossfade-slot-row">
+
+            <div v-else class="live-main-crossfader">
+              <div class="live-main-crossfader__summary">
+                <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
+                <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
+              </div>
+              <Crossfader
+                :model-value="performance.crossfader"
+                @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+                testid="performance-crossfader"
+              />
+              <div class="crossfade-deck-head live-main-crossfader__builder">
+                <span class="framesync-subtitle" style="margin:0;">Add to groups</span>
+                <select class="framesync-select" style="max-width:160px;" v-model="performance.newSlotType">
+                  <option v-for="st in crossfadeSlotTypes" :key="'live-main-slot-' + st.id" :value="st.id">{{ st.label }}</option>
+                </select>
+                <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add item</button>
+              </div>
+              <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
+              <div v-for="slot in performance.slots" :key="'live-main-crossfade-' + slot.id" class="crossfade-slot-row">
               <div class="crossfade-side crossfade-side-a">
                 <span class="crossfade-side-label">A</span>
                 <template v-if="slot.type === 'prompt'">
@@ -421,8 +436,9 @@
                 <span class="framesync-subtitle" style="margin:0;font-size:9px;">→</span>
                 <code class="crossfade-morphed-val">{{ formatMorphedPreview(slot) }}</code>
               </div>
+              </div>
             </div>
-          </GlassPanel>
+          </div>
         </div>
 
         <div v-if="currentTab==='GENERATE'" class="generate-dock-shell">
@@ -647,7 +663,12 @@
               </button>
             </div>
             <div v-else-if="showFrames" class="frame-rail__empty">
-              Rendered frames will appear here in a single scrub row once the preview or animation produces them.
+              <span class="lazy-loading-indicator">
+                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>{{ framesEmptyStatus.label }}</span>
+                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
             </div>
           </div>
         </template>
@@ -841,7 +862,6 @@
           'studio-right-column': currentTab === 'MODULATION'
         }">
           <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
-          <ToolsView v-else-if="currentTab==='TOOLS'" :app="appViewModel" />
           <StreamView v-else-if="currentTab==='STREAM'" :app="appViewModel" />
           <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
@@ -901,10 +921,10 @@ import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
 import Timeline from './components/generate/Timeline.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
+import Crossfader from './components/Crossfader.vue'
 import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LibraryView from './components/views/LibraryView.vue'
-import ToolsView from './components/views/ToolsView.vue'
 import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
@@ -915,7 +935,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, VideoSwarmBrowser, LiveView, LibraryView, ToolsView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, Crossfader, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
        showFrames: false,
@@ -939,7 +959,7 @@ export default {
       paramPanelOpen: false,
       deforumPanelOpen: false,
       liveDrawerOpen: true,
-      videoStageSize: 'normal', // normal | preview | fullscreen
+      videoStageSize: 'medium', // small | medium | full
       liveAnimationBoxOpen: false,
       libraryFullscreen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
@@ -1023,6 +1043,7 @@ export default {
       gpuPool: {
         enabled: false,
         strategy: 'least_busy',
+        defaultForgeModel: '',
         healthyNodes: 0,
         nodes: [],
         loading: false,
@@ -1051,6 +1072,7 @@ export default {
         },
         expandedLog: null,
         modelOptions: {},
+        defaultForgeModelStatus: '',
       },
       infrastructure: {
         loading: false,
@@ -1076,7 +1098,6 @@ export default {
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
-        { id: "TOOLS", label: "TOOLS", hint: "Sources", icon: "wrench" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -1115,6 +1136,16 @@ export default {
         selectedPaths: [],
         fullscreenIndex: -1,
       },
+      librarySubTab: 'RUNS',
+      liveBottomDrawerOpen: false,
+      liveBottomDrawerTab: 'MODULATION',
+      restoreSessionPromptOpen: false,
+      pendingSessionStateRaw: '',
+      promptHistoryOpen: false,
+      promptHistory: [],
+      speechPromptSupported: false,
+      speechPromptListening: false,
+      speechPromptError: '',
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -1499,6 +1530,8 @@ export default {
        runsFiltered: [],
        runsFilter: { search: "", status: "", tag: "", model: "" },
        runsSort: { field: "started_at", order: "desc" },
+       deforumBatches: [],
+       deforumBatchesStatus: "",
        runsSelected: [],
        runsCompareFields: [
          'status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag',
@@ -1549,6 +1582,37 @@ export default {
     frameStripThumbs() {
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
     },
+    framesEmptyStatus() {
+      const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
+      if (!forgeUp) {
+        return {
+          label: 'Waiting for frames…',
+          detail: 'Unknown (offline)',
+          kind: 'unknown',
+        };
+      }
+      const nextPollMs = Math.max(0, Number(this.framesRefreshBackoffMs) || 0);
+      const etaSec = nextPollMs ? Math.max(1, Math.round(nextPollMs / 1000)) : 0;
+      if (this.previewGenerating) {
+        return {
+          label: 'Rendering…',
+          detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+          kind: 'loading',
+        };
+      }
+      if (this.deforumPlaying) {
+        return {
+          label: 'Animating…',
+          detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+          kind: 'loading',
+        };
+      }
+      return {
+        label: 'Waiting for frames…',
+        detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+        kind: 'loading',
+      };
+    },
     selectedFrameThumb() {
       if (!this.frameStripThumbs.length) return null;
       if (!Number.isFinite(Number(this.selectedFrameIndex))) return this.frameStripThumbs[this.frameStripThumbs.length - 1] || null;
@@ -1596,6 +1660,13 @@ export default {
     },
     showDeforumVideo() {
       return !!(this.isDeforumLayerActive && this.videoReady);
+    },
+    showDefaultAnimation() {
+      // Ensure the stage is never empty on startup.
+      if (this.isWebglLayerActive) return true;
+      if (this.isDeforumLayerActive) return !this.showDeforumVideo;
+      if (!this.activeLayerPlaybackUrl && !this.showLayerInputVideo) return true;
+      return false;
     },
     activeVideoLayer() {
       const layers = Array.isArray(this.videoLayers) ? this.videoLayers : [];
@@ -1928,6 +1999,83 @@ export default {
         return { ...p, source: entry.sources.join(' + ') };
       });
     },
+    liveModulationSlots() {
+      const mods = Array.isArray(this.liveModulating) ? this.liveModulating : [];
+      const pick = (i) => mods[i] || null;
+      const fmtVal = (v) => {
+        const n = Number(v);
+        if (!Number.isFinite(n)) return '—';
+        return Math.abs(n) >= 10 ? n.toFixed(1) : n.toFixed(2);
+      };
+      const shadeFrom = (p) => {
+        if (!p) return 35;
+        const min = Number(p.min ?? 0);
+        const max = Number(p.max ?? 1);
+        const val = Number(p.val ?? 0);
+        const t = (val - min) / ((max - min) || 1);
+        return Math.round(30 + Math.max(0, Math.min(1, t)) * 70);
+      };
+
+      const sliderSlot = (p, label) => ({
+        kind: 'slider',
+        label,
+        paramKey: p?.key || '',
+        mappingLabel: p?.source && p.source !== 'Manual' ? p.source : '',
+        min: p?.min ?? 0,
+        max: p?.max ?? 1,
+        step: p?.step ?? 0.01,
+        value: p?.val ?? 0,
+        valueLabel: fmtVal(p?.val),
+        shade: shadeFrom(p),
+      });
+
+      const knobSlot = (p, label) => ({
+        kind: 'knob',
+        label,
+        paramKey: p?.key || '',
+        mappingLabel: p?.source && p.source !== 'Manual' ? p.source : '',
+        min: p?.min ?? 0,
+        max: p?.max ?? 1,
+        step: p?.step ?? 0.01,
+        value: p?.val ?? 0,
+        valueLabel: fmtVal(p?.val),
+      });
+
+      const xySlot = (px, py, label) => {
+        const xMin = Number(px?.min ?? 0);
+        const xMax = Number(px?.max ?? 1);
+        const yMin = Number(py?.min ?? 0);
+        const yMax = Number(py?.max ?? 1);
+        const xVal = Number(px?.val ?? 0);
+        const yVal = Number(py?.val ?? 0);
+        const nx = (xVal - xMin) / ((xMax - xMin) || 1);
+        const ny = (yVal - yMin) / ((yMax - yMin) || 1);
+        const clx = Math.max(0, Math.min(1, Number.isFinite(nx) ? nx : 0));
+        const cly = Math.max(0, Math.min(1, Number.isFinite(ny) ? ny : 0));
+        return {
+          kind: 'xypad',
+          label,
+          paramKey: '',
+          paramKeyX: px?.key || '',
+          paramKeyY: py?.key || '',
+          mappingLabel: [px?.source, py?.source].filter((s) => s && s !== 'Manual').join(' · '),
+          x: clx,
+          y: cly,
+          xLabel: fmtVal(xVal),
+          yLabel: fmtVal(yVal),
+          puckStyle: { left: `${clx * 100}%`, top: `${(1 - cly) * 100}%` },
+        };
+      };
+
+      return [
+        sliderSlot(pick(0), 'Slider 1'),
+        sliderSlot(pick(1), 'Slider 2'),
+        xySlot(pick(2), pick(3), 'XY Pad 1'),
+        xySlot(pick(4), pick(5), 'XY Pad 2'),
+        knobSlot(pick(6), 'Knob 1'),
+        knobSlot(pick(7), 'Knob 2'),
+      ];
+    },
     recentRunsRail() {
       return [...this.runsAll]
         .sort((a, b) => {
@@ -2224,7 +2372,10 @@ export default {
     },
   },
   mounted() {
-    this.loadSessionState();
+    // Restore prompt: if we have saved UI state and current state differs, ask before applying.
+    if (!this.checkAndPromptSessionRestore()) {
+      this.loadSessionState();
+    }
     this.initVideoLayers();
     this.syncMotionPadFromPayload(this.motionPresets[this.motionSelectedPreset] || { translation_x: 0, translation_y: 0 });
     this.applyCrossfadeMorph();
@@ -2272,6 +2423,7 @@ export default {
       this.refreshSequencerList();
       setTimeout(() => this.drawTimeline(), 200);
     });
+    this.initPromptHistory();
   },
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
@@ -2388,6 +2540,42 @@ export default {
       if (!res.ok) return;
       const data = await res.json();
       this.runsAll = data.runs || [];
+      // Best-effort: fetch Deforum batch queue from Forge and merge into runs list.
+      try {
+        const bres = await fetch("/api/deforum/batches", { cache: "no-store" });
+        if (bres.ok) {
+          const bj = await bres.json();
+          const batches = Array.isArray(bj.batches) ? bj.batches : [];
+          this.deforumBatches = batches;
+          this.deforumBatchesStatus = "";
+        } else {
+          this.deforumBatches = [];
+          this.deforumBatchesStatus = "Deforum batches unavailable";
+        }
+      } catch (_e) {
+        this.deforumBatches = [];
+        this.deforumBatchesStatus = "Deforum batches unavailable";
+      }
+      if (this.deforumBatches.length) {
+        const mapped = this.deforumBatches.map((b) => {
+          const id = b.batch_id || b.id || b.batchId || "";
+          const status = String(b.status || b.state || "queued").toLowerCase();
+          const started = b.started_at || b.created_at || b.createdAt || null;
+          const model = b.model || b.sd_model_name || b.sd_model_checkpoint || "";
+          return {
+            run_id: id ? `batch:${id}` : `batch:unknown:${Math.random().toString(36).slice(2, 8)}`,
+            status: status.includes("run") ? "running" : status.includes("queue") ? "queued" : status,
+            model,
+            tag: "deforum-batch",
+            started_at: started,
+            frame_count: b.frame_count ?? b.frames ?? b.max_frames ?? null,
+            _isBatch: true,
+            _batch: b,
+          };
+        });
+        const existing = this.runsAll.filter((r) => !String(r.run_id || "").startsWith("batch:"));
+        this.runsAll = [...mapped, ...existing];
+      }
       this.applyRunsFilters();
       this.syncLibrarySelection();
       if (this.currentTab === 'LIBRARY') {
@@ -3084,27 +3272,12 @@ openCloudLayer(layer) {
   window.open(layer.url, '_blank', 'noopener');
 },
 toggleVideoStageSize(next) {
-  const allowed = ['normal', 'preview', 'fullscreen'];
+  const allowed = ['small', 'medium', 'full'];
   const target = allowed.includes(String(next)) ? String(next) : null;
-  const order = ['normal', 'preview', 'fullscreen'];
-  const current = allowed.includes(this.videoStageSize) ? this.videoStageSize : 'normal';
+  const order = ['small', 'medium', 'full'];
+  const current = allowed.includes(this.videoStageSize) ? this.videoStageSize : 'medium';
   const desired = target || order[(order.indexOf(current) + 1) % order.length];
   this.videoStageSize = desired;
-  if (desired === 'fullscreen') {
-    try {
-      const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.video-wrap__stage') : null;
-      const req = el && (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen);
-      if (req) req.call(el);
-    } catch (_e) {}
-  } else {
-    try {
-      const doc = typeof document !== 'undefined' ? document : null;
-      if (doc && (doc.fullscreenElement || doc.webkitFullscreenElement)) {
-        const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
-        if (exit) exit.call(doc);
-      }
-    } catch (_e) {}
-  }
   this.saveSessionState();
 },
 layerStatus(layer) {
@@ -4070,6 +4243,7 @@ toggleCollaboration() {
        const data = poolResult.value.data;
        this.gpuPool.enabled = !!data.enabled;
        this.gpuPool.strategy = data.strategy || "round_robin";
+      this.gpuPool.defaultForgeModel = data.defaultForgeModel || "";
        this.gpuPool.healthyNodes = data.healthyNodes ?? 0;
        this.gpuPool.nodes = data.nodes || [];
        const modelOptions = { ...(this.gpuPool.modelOptions || {}) };
@@ -4413,6 +4587,36 @@ async applyGpuForgeModalOptions() {
      this.gpuPool.status = err.message;
    }
  },
+
+ async saveDefaultForgeModel({ preload = true } = {}) {
+   try {
+     this.gpuPool.defaultForgeModelStatus = "Saving default model…";
+     const res = await apiFetch(
+       "/api/gpu-pool/default-forge-model",
+       {
+         method: "PUT",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify({
+           model: this.gpuPool.defaultForgeModel || "",
+           preload: preload === true,
+         }),
+       },
+       "default forge model"
+     );
+     const results = res.data?.preloadResults;
+     if (Array.isArray(results) && results.length) {
+       const ok = results.filter((r) => r && r.ok).length;
+       const fail = results.filter((r) => r && !r.ok).length;
+       this.gpuPool.defaultForgeModelStatus = `Default model saved. Preload: ${ok} ok, ${fail} failed.`;
+     } else {
+       this.gpuPool.defaultForgeModelStatus = "Default model saved.";
+     }
+     await this.refreshGpuPool(true);
+   } catch (err) {
+     this.gpuPool.defaultForgeModelStatus = err.message;
+     this.gpuPool.status = err.message;
+   }
+ },
  async addGpuNode() {
    const url = (this.gpuPool.draft.url || "").trim();
    if (!url) return;
@@ -4534,6 +4738,57 @@ syncMotionPadFromPayload(payload) {
    this.paramSources[key] = source;
    this.sendControl("paramSource", { key, source });
  },
+ clearParamMapping(paramKey) {
+   if (!paramKey) return;
+   this.setSource(paramKey, 'Manual');
+ },
+ openModulationMapping(paramKey) {
+   // Best-effort: jump to modulation view where mappings are managed.
+   if (!paramKey) return;
+   this.switchTab('MODULATION');
+   this.currentSubTab.MODULATION = 'ACTIVE_MODS';
+   try { window.localStorage && window.localStorage.setItem('defora_subtab_MODULATION', 'ACTIVE_MODS'); } catch (_e) {}
+ },
+ setLiveModValue(paramKey, value) {
+   if (!paramKey) return;
+   const v = Number(value);
+   if (!Number.isFinite(v)) return;
+   const t = this.modulationTargetByKey(paramKey);
+   if (t && t.field) {
+     this.applyAnimationModulation(t.field, v);
+   } else {
+     this.queueLiveParam(paramKey, v);
+   }
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ livePadDown(evt, slot) {
+   this._livePadDragging = true;
+   this.livePadMove(evt, slot);
+ },
+ livePadMove(evt, slot) {
+   if (!this._livePadDragging || !slot) return;
+   const el = evt.currentTarget;
+   if (!el || !el.getBoundingClientRect) return;
+   const rect = el.getBoundingClientRect();
+   const point = evt.touches && evt.touches[0] ? evt.touches[0] : evt;
+   const nx = (point.clientX - rect.left) / (rect.width || 1);
+   const ny = (point.clientY - rect.top) / (rect.height || 1);
+   const x = Math.max(0, Math.min(1, nx));
+   const y = Math.max(0, Math.min(1, 1 - ny));
+   const px = this.modulationTargetByKey(slot.paramKeyX);
+   const py = this.modulationTargetByKey(slot.paramKeyY);
+   if (slot.paramKeyX && px) {
+     const xv = (px.min ?? 0) + x * (((px.max ?? 1) - (px.min ?? 0)) || 1);
+     this.setLiveModValue(slot.paramKeyX, xv);
+   }
+   if (slot.paramKeyY && py) {
+     const yv = (py.min ?? 0) + y * (((py.max ?? 1) - (py.min ?? 0)) || 1);
+     this.setLiveModValue(slot.paramKeyY, yv);
+   }
+ },
+ livePadUp() {
+   this._livePadDragging = false;
+ },
  sourceTip(p) {
    const src = this.paramSources[p.key];
    if (src === "Beat") return "Beat/LFO";
@@ -4651,7 +4906,18 @@ applyMotionPresetAndSelect(name) {
     document.addEventListener("keydown", this._keyHandler);
   },
  midiTarget(key) {
-   return this.modulationTargetByKey(key);
+   const k = String(key || "");
+   const m = k.match(/^mod_slot_(\d)$/);
+   if (m) {
+     const idx = Math.max(1, Math.min(6, Number(m[1]) || 1));
+     const slots = Array.isArray(this.liveModulationSlots) ? this.liveModulationSlots : [];
+     const slot = slots[idx - 1];
+     if (!slot) return null;
+     if (slot.kind === 'xypad') return null; // XY handled separately
+     if (!slot.paramKey) return null;
+     return this.modulationTargetByKey(slot.paramKey);
+   }
+   return this.modulationTargetByKey(k);
  },
  updateMidiMapping(map) {
    // noop hook for now; v-model already updates
@@ -5988,7 +6254,42 @@ onAudioUpload(evt) {
    const mapping = this.midi.mappings.find((m) => m.cc === cc);
    const norm = value / 127;
    if (mapping && mapping.key) {
-     const target = this.midiTarget(mapping.key);
+     const k = String(mapping.key || "");
+     const modSlot = k.match(/^mod_slot_(\d)$/);
+     if (modSlot) {
+       const idx = Math.max(1, Math.min(6, Number(modSlot[1]) || 1));
+       const slots = Array.isArray(this.liveModulationSlots) ? this.liveModulationSlots : [];
+       const slot = slots[idx - 1];
+       if (slot) {
+         if (slot.kind === 'xypad') {
+           // For XY slots we drive X only (Y is mod_slot_(idx+1) or map separately)
+           const px = this.modulationTargetByKey(slot.paramKeyX);
+           if (px) {
+             const scaled = px.min + norm * (px.max - px.min);
+             const payload = {};
+             const cnUpdates = {};
+             this.routeModulationValue(px.key, scaled, payload, cnUpdates);
+             if (Object.keys(payload).length) this.sendControl('liveParam', payload);
+             Object.values(cnUpdates).forEach((slot) => this.updateControlNet(slot));
+           }
+         } else if (slot.paramKey) {
+           const target = this.modulationTargetByKey(slot.paramKey);
+           if (target) {
+             const scaled = target.min + norm * (target.max - target.min);
+             const payload = {};
+             const cnUpdates = {};
+             this.routeModulationValue(target.key, scaled, payload, cnUpdates);
+             if (Object.keys(payload).length) this.sendControl('liveParam', payload);
+             Object.values(cnUpdates).forEach((slot) => this.updateControlNet(slot));
+           } else {
+             this.sendControl("liveParam", { [slot.paramKey]: norm });
+           }
+         }
+       }
+       return;
+     }
+
+     const target = this.midiTarget(k);
      if (target) {
        const scaled = target.min + norm * (target.max - target.min);
        const payload = {};
@@ -5997,7 +6298,7 @@ onAudioUpload(evt) {
        if (Object.keys(payload).length) this.sendControl('liveParam', payload);
        Object.values(cnUpdates).forEach((slot) => this.updateControlNet(slot));
      } else {
-       this.sendControl("liveParam", { [mapping.key]: norm });
+       this.sendControl("liveParam", { [k]: norm });
      }
    }
  },
@@ -7063,15 +7364,17 @@ async generateStory() {
  loadSessionState() {
    try {
      const raw = window.localStorage && window.localStorage.getItem(this.sessionStorageKey());
-     if (!raw) return;
-     const s = JSON.parse(raw);
+    const sourceRaw = this.pendingSessionStateRaw || raw;
+    if (!sourceRaw) return;
+    const s = JSON.parse(sourceRaw);
+    this.pendingSessionStateRaw = '';
     this.sessionDeforumSettingsLoaded = false;
      if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
      if (typeof s.showFrames === 'boolean') this.showFrames = s.showFrames;
-     if (typeof s.liveMainModsOpen === 'boolean') this.liveMainModsOpen = s.liveMainModsOpen;
-     if (typeof s.liveMainCrossfaderOpen === 'boolean') this.liveMainCrossfaderOpen = s.liveMainCrossfaderOpen;
+     if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
+     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER') this.liveBottomDrawerTab = s.liveBottomDrawerTab;
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
@@ -7081,7 +7384,7 @@ async generateStory() {
     if (typeof s.videoLayerAddOpen === 'boolean') this.videoLayerAddOpen = s.videoLayerAddOpen;
     if (typeof s.inputLayerPlaybackUrl === 'string') this.inputLayerPlaybackUrl = s.inputLayerPlaybackUrl;
     if (typeof s.inputLayerLabel === 'string') this.inputLayerLabel = s.inputLayerLabel;
-    if (s.videoStageSize === 'normal' || s.videoStageSize === 'preview' || s.videoStageSize === 'fullscreen') {
+    if (s.videoStageSize === 'small' || s.videoStageSize === 'medium' || s.videoStageSize === 'full') {
       this.videoStageSize = s.videoStageSize;
     }
     if (typeof s.liveAnimationBoxOpen === 'boolean') this.liveAnimationBoxOpen = s.liveAnimationBoxOpen;
@@ -7102,6 +7405,7 @@ async generateStory() {
       };
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
+    if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') this.librarySubTab = s.librarySubTab;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
@@ -7160,8 +7464,8 @@ async generateStory() {
        genericPrompt: this.performance.genericPrompt,
        slots: this.performance.slots,
       showFrames: this.showFrames,
-      liveMainModsOpen: this.liveMainModsOpen,
-      liveMainCrossfaderOpen: this.liveMainCrossfaderOpen,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
       liveSourcePanel: this.liveSourcePanel,
@@ -7180,6 +7484,7 @@ async generateStory() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      librarySubTab: this.librarySubTab,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
@@ -7199,6 +7504,92 @@ async generateStory() {
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
    } catch (_e) { /* ignore */ }
  },
+getCurrentSessionSnapshotRaw() {
+  try {
+    if (typeof window === 'undefined') return '';
+    if (!window.localStorage) return '';
+    // mirror saveSessionState payload
+    const blob = {
+      crossfader: this.performance.crossfader,
+      genericPrompt: this.performance.genericPrompt,
+      slots: this.performance.slots,
+      showFrames: this.showFrames,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
+      currentSubTab: { ...this.currentSubTab },
+      liveSources: this.liveSources,
+      liveSourcePanel: this.liveSourcePanel,
+      activeVideoLayerId: this.activeVideoLayerId,
+      videoLayerAddOpen: this.videoLayerAddOpen,
+      inputLayerPlaybackUrl: this.inputLayerPlaybackUrl,
+      inputLayerLabel: this.inputLayerLabel,
+      videoStageSize: this.videoStageSize,
+      liveAnimationBoxOpen: this.liveAnimationBoxOpen,
+      cloudDriveDraft: { ...this.cloudDriveDraft },
+      systemFiles: {
+        rootId: this.systemFiles.rootId,
+        recursive: this.systemFiles.recursive,
+        showFilenames: this.systemFiles.showFilenames,
+        sortKey: this.systemFiles.sortKey,
+        zoomLevel: this.systemFiles.zoomLevel,
+      },
+      libraryFullscreen: this.libraryFullscreen,
+      librarySubTab: this.librarySubTab,
+      paramPanelOpen: this.paramPanelOpen,
+      deforumPanelOpen: this.deforumPanelOpen,
+      deforumActiveTab: this.deforumActiveTab,
+      deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
+      generateDockExpanded: this.generateDockExpanded,
+      collabEnabled: this.collabEnabled,
+      streaming: {
+        destinations: this.streaming.destinations,
+        activeDestinationId: this.streaming.activeDestinationId,
+        status: this.streaming.status,
+      },
+      defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
+      deforumSettings: this.normalizedDeforumSettings(),
+      lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
+      prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+    };
+    return JSON.stringify(blob);
+  } catch (_e) {
+    return '';
+  }
+},
+checkAndPromptSessionRestore() {
+  try {
+    if (typeof window === 'undefined') return false;
+    const storage = window.localStorage;
+    if (!storage) return false;
+    const savedRaw = storage.getItem(this.sessionStorageKey());
+    if (!savedRaw) return false;
+    const currentRaw = this.getCurrentSessionSnapshotRaw();
+    if (!currentRaw) return false;
+    // If it differs, prompt instead of auto-restoring.
+    if (savedRaw !== currentRaw) {
+      this.pendingSessionStateRaw = savedRaw;
+      this.restoreSessionPromptOpen = true;
+      return true;
+    }
+    return false;
+  } catch (_e) {
+    return false;
+  }
+},
+dismissSessionRestore(shouldRestore) {
+  try {
+    this.restoreSessionPromptOpen = false;
+    if (shouldRestore) {
+      // Apply saved state
+      this.loadSessionState();
+    } else {
+      // Overwrite saved state with current, so we won't prompt again.
+      this.saveSessionState();
+    }
+  } catch (_e) {
+    this.restoreSessionPromptOpen = false;
+  }
+},
 normalizedDeforumSettings() {
   return mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, this.deforumSettings || {});
 },
@@ -7715,8 +8106,147 @@ reapplyEngineModelDefaults() {
  onPerformanceInput() {
    this.applyCrossfadeMorph();
    this.saveSessionState();
+  this.queuePromptHistorySave(this.performance.genericPrompt);
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
+promptHistoryKey() {
+  return `defora_prompt_history_${this.session || 'default'}`;
+},
+initPromptHistory() {
+  try {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    this.speechPromptSupported = !!SpeechRecognition;
+  } catch (_e) {
+    this.speechPromptSupported = false;
+  }
+  try {
+    const raw = window.localStorage && window.localStorage.getItem(this.promptHistoryKey());
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) {
+      this.promptHistory = data.filter((x) => typeof x === 'string' && x.trim()).slice(0, 50);
+    }
+  } catch (_e) { /* ignore */ }
+},
+savePromptHistory() {
+  try {
+    if (!window.localStorage) return;
+    window.localStorage.setItem(this.promptHistoryKey(), JSON.stringify(this.promptHistory.slice(0, 50)));
+  } catch (_e) { /* ignore */ }
+},
+queuePromptHistorySave(rawPrompt) {
+  const s = String(rawPrompt || '').trim();
+  if (!s) return;
+  clearTimeout(this.promptHistoryDebounceTimer);
+  this.promptHistoryDebounceTimer = setTimeout(() => {
+    this.addPromptToHistory(s);
+  }, 650);
+},
+addPromptToHistory(prompt) {
+  const s = String(prompt || '').trim();
+  if (!s) return;
+  const next = [s, ...this.promptHistory.filter((p) => p !== s)];
+  this.promptHistory = next.slice(0, 50);
+  this.savePromptHistory();
+},
+togglePromptHistory(force) {
+  const next = typeof force === 'boolean' ? force : !this.promptHistoryOpen;
+  this.promptHistoryOpen = next;
+  if (next) {
+    // refresh from storage in case multiple tabs
+    this.initPromptHistory();
+  }
+},
+restorePromptFromHistory(prompt) {
+  const s = String(prompt || '').trim();
+  if (!s) return;
+  this.performance.genericPrompt = s;
+  this.onPerformanceInput();
+  this.promptHistoryOpen = false;
+},
+clearGenericPrompt() {
+  this.performance.genericPrompt = '';
+  this.speechPromptError = '';
+  this.onPerformanceInput();
+},
+toggleSpeechPrompt() {
+  if (this.speechPromptListening) {
+    this.stopSpeechPrompt();
+  } else {
+    this.startSpeechPrompt();
+  }
+},
+startSpeechPrompt() {
+  this.speechPromptError = '';
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    this.speechPromptSupported = false;
+    this.speechPromptError = 'Microphone input not supported in this browser.';
+    return;
+  }
+  try {
+    if (this._speechPromptRecognizer) {
+      try { this._speechPromptRecognizer.abort(); } catch (_e) {}
+    }
+    const r = new SpeechRecognition();
+    this._speechPromptRecognizer = r;
+    r.lang = (navigator && navigator.language) ? navigator.language : 'en-US';
+    r.interimResults = true;
+    r.continuous = false;
+    let finalText = '';
+    r.onstart = () => {
+      this.speechPromptListening = true;
+    };
+    r.onerror = (evt) => {
+      const code = evt && evt.error ? String(evt.error) : 'error';
+      this.speechPromptError = code === 'not-allowed'
+        ? 'Microphone permission denied.'
+        : `Speech error: ${code}`;
+      this.speechPromptListening = false;
+    };
+    r.onend = () => {
+      this.speechPromptListening = false;
+      if (finalText.trim()) {
+        const base = String(this.performance.genericPrompt || '').trim();
+        const merged = base ? `${base}, ${finalText.trim()}` : finalText.trim();
+        this.performance.genericPrompt = merged;
+        this.onPerformanceInput();
+        this.addPromptToHistory(merged);
+      }
+    };
+    r.onresult = (evt) => {
+      try {
+        const res = evt && evt.results ? evt.results : [];
+        let acc = '';
+        for (let i = evt.resultIndex || 0; i < res.length; i++) {
+          const item = res[i];
+          const alt = item && item[0] ? item[0] : null;
+          if (!alt) continue;
+          acc += String(alt.transcript || '');
+          if (item.isFinal) finalText += String(alt.transcript || '');
+        }
+        // Show interim in the input (without committing to history yet)
+        const base = String(this.performance.genericPrompt || '').trim();
+        const interim = acc.trim();
+        if (interim) {
+          this.performance.genericPrompt = base ? `${base}, ${interim}` : interim;
+        }
+      } catch (_e) {}
+    };
+    r.start();
+  } catch (e) {
+    this.speechPromptError = String(e.message || e);
+    this.speechPromptListening = false;
+  }
+},
+stopSpeechPrompt() {
+  try {
+    if (this._speechPromptRecognizer) {
+      try { this._speechPromptRecognizer.stop(); } catch (_e) {}
+    }
+  } catch (_e) {}
+  this.speechPromptListening = false;
+},
 queuePreviewRequest(kind, delay) {
   if (this.deforumPlaying) return;
   const nextKind = kind === 'deforum' ? 'deforum' : 'auto';

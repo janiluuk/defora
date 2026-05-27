@@ -608,6 +608,48 @@ async function start(opts = {}) {
     };
   }
 
+  async function persistRunJobSnapshot(runId, snapshot) {
+    if (!runId) return;
+    try {
+      const safeId = String(runId).replace(/[^a-zA-Z0-9._:-]/g, "_");
+      const dir = path.join(runsDir, safeId);
+      await fsp.mkdir(dir, { recursive: true });
+      const out = {
+        run_id: safeId,
+        captured_at: new Date().toISOString(),
+        snapshot,
+      };
+      await fsp.writeFile(path.join(dir, "defora-job.json"), JSON.stringify(out, null, 2), "utf-8");
+      const manifestPath = path.join(dir, "run.json");
+      if (!fs.existsSync(manifestPath)) {
+        await fsp.writeFile(
+          manifestPath,
+          JSON.stringify(
+            {
+              run_id: safeId,
+              status: "queued",
+              started_at: new Date().toISOString(),
+              tag: "defora",
+              job: out,
+            },
+            null,
+            2
+          ),
+          "utf-8"
+        );
+      } else {
+        try {
+          const prev = JSON.parse(await fsp.readFile(manifestPath, "utf-8"));
+          await fsp.writeFile(manifestPath, JSON.stringify({ ...prev, job: out }, null, 2), "utf-8");
+        } catch (_e) {
+          /* ignore */
+        }
+      }
+    } catch (e) {
+      console.warn("[runs] persist job snapshot failed", e.message);
+    }
+  }
+
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
   async function probeSdForge() {
     if (typeof fetch === "undefined") return;
@@ -1429,6 +1471,14 @@ async function start(opts = {}) {
     const target = forgeTarget(req);
     try {
       const result = await renderDeforumPreview(settings, target, body.options_overrides || {});
+      if (result && result.batchId) {
+        persistRunJobSnapshot(result.batchId, {
+          kind: "deforum_preview",
+          settings,
+          options_overrides: body.options_overrides || {},
+          node: result.node || null,
+        });
+      }
       res.json(result);
     } catch (err) {
       console.error("[api] deforum preview error", err);
@@ -1504,6 +1554,15 @@ async function start(opts = {}) {
       const data = await response.json();
       warmupBatchId = data.batch_id || null;
       warmupRunning = true;
+      if (warmupBatchId) {
+        persistRunJobSnapshot(warmupBatchId, {
+          kind: "deforum_warmup",
+          maxFrames,
+          fps,
+          settings,
+          node: target.node ? { name: target.node.name, url: target.node.url } : null,
+        });
+      }
       broadcast({ type: "warmup_started", batchId: warmupBatchId, maxFrames, fps });
       console.log(`[warmup] Started ${maxFrames}-frame batch at ${fps}fps, batchId=${warmupBatchId}`);
       res.json({ ok: true, batchId: warmupBatchId, maxFrames, fps });
@@ -1539,6 +1598,44 @@ async function start(opts = {}) {
 
   app.get("/api/deforum/warmup/status", (_req, res) => {
     res.json({ running: warmupRunning, batchId: warmupBatchId });
+  });
+
+  // List active Deforum batches from SD-Forge (best-effort).
+  // Used by RUNS browser so you can track queued/running/completed batches.
+  app.get("/api/deforum/batches", async (req, res) => {
+    const target = forgeTarget(req, { allowDirectPreferred: true });
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available" });
+      }
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5000);
+      let response;
+      try {
+        response = await fetch(`${target.url}/deforum_api/batches`, {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(t);
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: `Forge batches unavailable (${response.status})`, detail: text.slice(0, 200) });
+      }
+      const data = await response.json();
+      const batches = Array.isArray(data?.batches) ? data.batches : (Array.isArray(data) ? data : []);
+      res.json({
+        ok: true,
+        node: target.node ? { id: target.node.id, name: target.node.name, url: target.node.url } : null,
+        batches,
+      });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
+    } finally {
+      target.release();
+    }
   });
 
   // Shared settings for collaborative features
