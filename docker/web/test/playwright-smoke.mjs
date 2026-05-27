@@ -5,7 +5,21 @@
 import { chromium } from 'playwright';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS', 'GENERATE'];
+const expected = ['LIVE', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS', 'GENERATE'];
+
+function escapeRegex(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function clickTab(page, label) {
+  const tab = page.locator('header .tab').filter({
+    hasText: new RegExp(`^${escapeRegex(label)}`),
+  }).first();
+  if ((await tab.count()) === 0) {
+    throw new Error(`Tab button "${label}" not found`);
+  }
+  await tab.click();
+}
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -16,14 +30,14 @@ try {
   const tabs = await page.locator('header .tab').allTextContents();
   const trimmed = tabs.map((t) => t.trim()).filter(Boolean);
   for (const name of expected) {
-    if (!trimmed.includes(name)) {
+    if (!trimmed.some((tab) => tab.startsWith(name))) {
       throw new Error(`Missing tab "${name}" — got: ${trimmed.join(', ')}`);
     }
   }
   if (trimmed.length < expected.length) {
     throw new Error(`Expected at least ${expected.length} tabs, got ${trimmed.length}`);
   }
-  await page.getByRole('button', { name: 'PROMPTS', exact: true }).click();
+  await clickTab(page, 'PROMPTS');
   await page.waitForTimeout(400);
   await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
   await page.waitForTimeout(300);
@@ -37,7 +51,7 @@ try {
   if ((await morphBlend.count()) === 0) {
     throw new Error('Prompt morph blend slider not found on PROMPTS tab');
   }
-  await page.getByRole('button', { name: 'MODULATION', exact: true }).click();
+  await clickTab(page, 'MODULATION');
   await page.waitForTimeout(300);
   await page.locator('.sub-pill').filter({ hasText: /^AUDIO$/ }).first().click();
   await page.waitForTimeout(300);
@@ -45,7 +59,7 @@ try {
   if ((await audioReactivePanel.count()) === 0) {
     throw new Error('Audio reactive panel not found under MODULATION -> AUDIO');
   }
-  await page.getByRole('button', { name: 'SETTINGS', exact: true }).click();
+  await clickTab(page, 'SETTINGS');
   await page.waitForTimeout(300);
   await page.locator('.sub-pill').filter({ hasText: /^RUNS$/ }).first().click();
   await page.waitForTimeout(300);
