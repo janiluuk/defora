@@ -41,12 +41,14 @@
         <div v-if="!liveAnimationBoxOpen" class="live-animation-summary" data-testid="live-animation-summary">
           <div class="framesync-subtitle" style="margin:0;">Layers</div>
           <div class="chips">
-            <span
+            <button
               v-for="layer in videoLayers.filter((l) => l && l.builtin)"
               :key="'anim-layer-summary-' + layer.id"
+              type="button"
               class="chip"
               :class="{ active: activeVideoLayerId === layer.id }"
               style="display:inline-flex; align-items:center; gap:6px;"
+              @click="selectVideoLayer(layer.id)"
             >
               <span
                 style="width:8px;height:8px;border-radius:999px;display:inline-block;"
@@ -56,7 +58,7 @@
                 aria-hidden="true"
               ></span>
               {{ layer.label }}
-            </span>
+            </button>
           </div>
           <div class="framesync-subtitle" style="margin:0;margin-top:6px;">
             WebGL mode: <strong>{{ defaultAnimation.mode }}</strong>
@@ -66,7 +68,7 @@
         <template v-else>
           <div class="framesync-stack" style="margin-top:10px;">
             <div class="framesync-subtitle">Video layers</div>
-            <div class="video-layer-tabs video-layer-tabs--engine" data-testid="video-layer-tabs">
+            <div class="video-layer-tabs video-layer-tabs--engine" data-testid="video-layer-tabs-engine">
               <div class="video-layer-tabs__transport" data-testid="live-transport-top">
                 <button class="control-btn control-btn--top" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
                   <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />

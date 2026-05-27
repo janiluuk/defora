@@ -85,6 +85,7 @@
           >
             <ThreeBackground
               ref="threeBackgroundRef"
+              data-testid="preview-standby-animation"
               :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]"
               :lfos="lfos"
               :audio-metrics="backgroundAudioMetrics"
@@ -99,7 +100,7 @@
               class="video-still-preview"
             />
             <video
-              :class="['video-feed', { 'video-feed--visible': showDeforumVideo }]"
+              :class="['video-feed', { 'video-feed--visible': showDeforumVideo, 'video-feed--blended': isBlendLayerActive && showDeforumVideo }]"
               id="player"
               ref="videoEl"
               autoplay
@@ -186,6 +187,37 @@
               />
             </GlassPanel>
           </div>
+          </div>
+
+          <div class="video-layer-tabs video-layer-tabs--preview" data-testid="video-layer-tabs">
+            <button
+              v-for="layer in videoLayers.filter((l) => l && l.builtin)"
+              :key="'preview-layer-' + layer.id"
+              type="button"
+              class="video-layer-tab"
+              :class="{
+                active: activeVideoLayerId === layer.id,
+                'video-layer-tab--builtin': layer.builtin,
+              }"
+              @click="selectVideoLayer(layer.id)"
+            >
+              <span
+                class="video-layer-tab__dot"
+                :class="'video-layer-tab__dot--' + layerStatus(layer)"
+                aria-hidden="true"
+              ></span>
+              <span class="video-layer-tab__label">{{ layer.label }}</span>
+            </button>
+            <button
+              type="button"
+              class="video-layer-tab video-layer-tab--add"
+              :class="{ active: videoLayerAddOpen }"
+              data-testid="video-layer-add-toggle"
+              title="Add video source"
+              @click="toggleVideoLayerAdd()"
+            >
+              + Add source
+            </button>
           </div>
 
           <div
@@ -902,9 +934,11 @@ export default {
       videoLayers: [
         { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
+        { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
-      activeVideoLayerId: 'deforum',
+      _userPickedPreviewLayer: false,
+      activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
       inputLayerPlaybackUrl: null,
       inputLayerLabel: 'Input',
@@ -1230,7 +1264,8 @@ export default {
       wsReconnectTimer: null,
       streamSrc: "/hls/live/deforum.m3u8",
       defaultAnimation: {
-        preferDeforumVideo: true,
+        preferDeforumVideo: false,
+        autoTransitionToDeforum: true,
         mode: 'instancing',
         instCount: 12000,
         beamCount: 7,
@@ -1531,10 +1566,15 @@ export default {
       return this.showRightPanel ? 'Hide controls menu' : 'Show controls menu';
     },
     showDeforumVideo() {
-      return !!(this.isDeforumLayerActive && this.videoReady);
+      if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
+      if (!this.isDeforumLayerActive && !this.isBlendLayerActive) return false;
+      if (!this.videoReady) return false;
+      // Empty HLS can reach "ready" without frames; keep WebGL visible until Deforum is actually running.
+      return this.deforumPlaying || this.deforumGeneratedFrameCount > 0;
     },
     showDefaultAnimation() {
       // Ensure the stage is never empty on startup.
+      if (this.isBlendLayerActive) return true;
       if (this.isWebglLayerActive) return true;
       if (this.isDeforumLayerActive) return !this.showDeforumVideo;
       if (!this.activeLayerPlaybackUrl && !this.showLayerInputVideo) return true;
@@ -1549,6 +1589,9 @@ export default {
     },
     isDeforumLayerActive() {
       return this.activeVideoLayer?.kind === 'deforum';
+    },
+    isBlendLayerActive() {
+      return this.activeVideoLayer?.kind === 'blend';
     },
     isInputLayerActive() {
       return this.activeVideoLayer?.kind === 'input';
@@ -1572,6 +1615,10 @@ export default {
       const layer = this.activeVideoLayer;
       if (!layer) return '—';
       if (layer.kind === 'webgl') return 'WebGL engine';
+      if (layer.kind === 'blend') {
+        if (this.showDeforumVideo) return 'WebGL + Deforum';
+        return 'WebGL · waiting for Deforum';
+      }
       if (layer.kind === 'deforum') {
         const frames = this.deforumGeneratedFrameCount;
         const frameSuffix = frames ? ` · ${frames} frame${frames === 1 ? '' : 's'}` : '';
@@ -1588,6 +1635,7 @@ export default {
       return layer.label || 'Layer';
     },
     showPreviewStill() {
+      if (this.isWebglLayerActive) return false;
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
         || this.isDeforumLayerActive;
       return !!(!this.showDeforumVideo && !this.deforumPlaying && this.activePreviewStillPath && shouldSurfaceStill);
@@ -2416,6 +2464,18 @@ export default {
     showDefaultAnimation(visible) {
       if (visible) this.$nextTick(() => this.kickstandbyAnimation());
     },
+    deforumGeneratedFrameCount(count) {
+      if (count > 0) this.maybePromoteDeforumPreview();
+    },
+    deforumPlaying(playing) {
+      if (playing) this.maybePromoteDeforumPreview();
+    },
+    videoReady(ready) {
+      if (ready) this.maybePromoteDeforumPreview();
+    },
+    currentTab(tab) {
+      if (tab === 'LIBRARY') void this.refreshRuns();
+    },
   },
   mounted() {
     // Restore prompt: if we have saved UI state and current state differs, ask before applying.
@@ -2423,6 +2483,7 @@ export default {
       this.loadSessionState();
     }
     this.initVideoLayers();
+    this.applyStartupVideoPreview();
     this.ensureStandbyAnimationAtStartup();
     this.syncMotionPadFromPayload(this.motionPresets[this.motionSelectedPreset] || { translation_x: 0, translation_y: 0 });
     this.applyCrossfadeMorph();
@@ -3132,8 +3193,7 @@ export default {
      if (!res.ok) return;
      const data = await res.json();
      if (data.ok && data.status !== 'already_running') {
-       this.selectVideoLayer('deforum');
-       this.performance.status = 'Startup clip generating…';
+       this.performance.status = 'Startup clip generating… (WebGL stays visible until frames arrive)';
      }
    } catch (_e) {}
  },
@@ -3270,6 +3330,7 @@ normalizeDefaultAnimationSettings(input = {}) {
   const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'instancing';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
+    autoTransitionToDeforum: next.autoTransitionToDeforum !== false,
     mode,
     instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
@@ -3387,6 +3448,7 @@ rebuildVideoLayers() {
   this.videoLayers = [
     { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
     { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
+    { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
     {
       id: 'input',
       kind: 'input',
@@ -3413,12 +3475,30 @@ initVideoLayers() {
 ensureStandbyAnimationAtStartup() {
   const preferDeforum = !!this.defaultAnimation?.preferDeforumVideo;
   const deforumLive = this.deforumPlaying && this.videoReady;
-  if (!preferDeforum && !deforumLive && this.activeVideoLayerId !== 'webgl') {
+  if (!preferDeforum && !deforumLive && this.activeVideoLayerId !== 'webgl' && !this.isBlendLayerActive) {
     this.activeVideoLayerId = 'webgl';
   }
   if (!this.defaultAnimation?.mode) {
     this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
   }
+},
+applyStartupVideoPreview() {
+  this._userPickedPreviewLayer = false;
+  this.activeVideoLayerId = 'webgl';
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+    ...this.defaultAnimation,
+    preferDeforumVideo: false,
+    autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
+  });
+  this.$nextTick(() => this.kickstandbyAnimation());
+},
+maybePromoteDeforumPreview() {
+  const anim = this.defaultAnimation || {};
+  if (anim.autoTransitionToDeforum === false) return;
+  if (this._userPickedPreviewLayer) return;
+  if (this.activeVideoLayerId !== 'webgl') return;
+  if (!this.deforumPlaying && !this.deforumGeneratedFrameCount) return;
+  this.selectVideoLayer('deforum', { userInitiated: false });
 },
 kickstandbyAnimation(attempts = 0) {
   const bg = this.$refs.threeBackgroundRef;
@@ -3430,12 +3510,25 @@ kickstandbyAnimation(attempts = 0) {
     requestAnimationFrame(() => this.kickstandbyAnimation(attempts + 1));
   }
 },
-selectVideoLayer(id) {
+selectVideoLayer(id, opts = {}) {
   if (!this.videoLayers.find((layer) => layer.id === id)) return;
+  if (opts.userInitiated !== false) this._userPickedPreviewLayer = true;
   this.activeVideoLayerId = id;
   const layer = this.activeVideoLayer;
   if (layer?.kind === 'webgl') {
     this.setPreferDeforumVideo(false);
+    this.kickstandbyAnimation();
+    return;
+  }
+  if (layer?.kind === 'blend') {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+      ...this.defaultAnimation,
+      preferDeforumVideo: true,
+    });
+    this.videoReady = false;
+    this.attachPlayer();
+    this.kickstandbyAnimation();
+    this.saveSessionState();
     return;
   }
   if (layer?.kind === 'deforum') {
@@ -3460,7 +3553,7 @@ toggleVideoLayerAdd(open) {
   this.saveSessionState();
 },
 closeVideoLayer(id) {
-  if (id === 'webgl' || id === 'deforum' || id === 'input') return;
+  if (id === 'webgl' || id === 'deforum' || id === 'blend' || id === 'input') return;
   this.removeLiveSource(id);
   if (this.activeVideoLayerId === id) {
     this.selectVideoLayer('input');
@@ -3508,6 +3601,11 @@ toggleVideoStageSize(next) {
 layerStatus(layer) {
   if (!layer) return 'red';
   if (layer.kind === 'webgl') return 'green';
+  if (layer.kind === 'blend') {
+    if (this.showDeforumVideo) return 'green';
+    if (this.deforumPlaying || this.videoReady) return 'yellow';
+    return 'green';
+  }
   if (layer.kind === 'deforum') {
     if (this.videoReady) return 'green';
     if (this.deforumPlaying || (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo)) return 'yellow';
