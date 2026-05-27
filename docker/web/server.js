@@ -8,6 +8,7 @@ const amqp = require("amqplib");
 const { spawn } = require("child_process");
 const { EventEmitter } = require("events");
 const { createGpuPool } = require("./modules/gpu-pool");
+const { createInfrastructureStatus } = require("./modules/infrastructure-status");
 
 async function start(opts = {}) {
   const port = opts.port ?? process.env.PORT ?? 3000;
@@ -341,6 +342,12 @@ async function start(opts = {}) {
     env: process.env,
   });
   await gpuPool.init();
+
+  const infrastructure = createInfrastructureStatus({
+    env: process.env,
+    framesDir,
+    fsp,
+  });
 
   function forgeTarget(req, options = {}) {
     return gpuPool.resolveForgeTarget(req, options);
@@ -2864,6 +2871,7 @@ async function start(opts = {}) {
   });
 
   gpuPool.attachRoutes(app);
+  infrastructure.attachRoutes(app);
 
   // Runs browser API
   const runsDir = opts.runsDir || process.env.RUNS_DIR || "/data/runs";

@@ -77,11 +77,19 @@ try {
   }
   await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(300);
+  const infraPanel = page.locator('[data-testid="infrastructure-panel"]');
+  if ((await infraPanel.count()) === 0) {
+    throw new Error('Infrastructure panel not found under SETTINGS → GPUS');
+  }
+  const mediatorCard = page.locator('[data-testid="infra-mediator-card"]');
+  if ((await mediatorCard.count()) === 0) {
+    throw new Error('Active mediator card not found under SETTINGS → GPUS');
+  }
   const gpuPanel = page.locator('[data-testid="gpu-pool-panel"]');
   if ((await gpuPanel.count()) === 0) {
     throw new Error('GPU pool panel not found under SETTINGS → GPUS');
   }
-  console.log(`OK: ${trimmed.length} tabs, nested audio/runs views, morph blend, GPU pool panel present`);
+  console.log(`OK: ${trimmed.length} tabs, nested audio/runs views, morph blend, infrastructure + GPU pool present`);
 } finally {
   await browser.close();
 }

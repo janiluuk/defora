@@ -478,6 +478,73 @@
 
     <div v-else-if="currentSubTab.SETTINGS==='GPUS'">
       <div class="rack">
+        <div class="framesync-panel infra-panel" data-testid="infrastructure-panel">
+          <div class="framesync-header">
+            <div class="framesync-title">Stack <span class="framesync-accent">Services</span></div>
+            <button class="framesync-button framesync-button--compact" @click="refreshGpuPool(true)" :disabled="infrastructure.loading || gpuPool.loading">
+              Refresh
+            </button>
+          </div>
+
+          <div class="infra-section">
+            <div class="framesync-subtitle">Active mediator server</div>
+            <div v-if="infrastructure.loading && !infrastructure.mediator" class="infra-panel__empty">Loading mediator…</div>
+            <div v-else-if="infrastructure.mediator" class="infra-mediator-card" data-testid="infra-mediator-card">
+              <div class="infra-mediator-card__head">
+                <span class="gpu-status-pill" :class="infrastructure.mediator.status === 'healthy' ? 'st-healthy' : 'st-unhealthy'">
+                  {{ infrastructure.mediator.status }}
+                </span>
+                <strong>{{ infrastructure.mediator.address }}</strong>
+                <span class="infra-mediator-card__source">{{ infrastructure.mediator.source }}</span>
+              </div>
+              <div class="infra-mediator-card__meta">
+                <span>Deforumation <code>{{ infrastructure.mediator.wsUrl }}</code></span>
+                <span>Deforum <code>{{ infrastructure.mediator.deforumWsUrl }}</code> · {{ infrastructure.mediator.deforumStatus }}</span>
+              </div>
+            </div>
+            <div v-else class="infra-panel__empty">Mediator configuration unavailable.</div>
+          </div>
+
+          <div class="infra-section">
+            <div class="framesync-subtitle">FFmpeg transcoder nodes</div>
+            <div v-if="infrastructure.loading && !infrastructure.transcoders.length" class="infra-panel__empty">Loading transcoders…</div>
+            <div v-else-if="!infrastructure.transcoders.length" class="infra-panel__empty">No transcoder nodes configured.</div>
+            <div v-else class="gpu-pool-table-wrap" data-testid="infra-transcoder-table">
+              <table class="gpu-pool-table infra-transcoder-table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Address</th>
+                    <th>CPU</th>
+                    <th>Jobs</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="node in infrastructure.transcoders" :key="node.id">
+                    <td><strong>{{ node.name }}</strong></td>
+                    <td>
+                      <code class="infra-address">{{ node.address }}</code>
+                      <span v-if="node.rtmpTarget && node.rtmpTarget !== node.address" class="infra-address-sub">{{ node.rtmpTarget }}</span>
+                    </td>
+                    <td>{{ node.cpuLabel }}</td>
+                    <td>{{ node.jobsLabel }}</td>
+                    <td>
+                      <span class="gpu-status-pill" :class="'st-' + (node.status === 'streaming' ? 'healthy' : node.status === 'idle' ? 'unknown' : 'unhealthy')">
+                        {{ node.status }}
+                      </span>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="infra-panel__hint">
+              Configure extra nodes with <code>TRANSCODER_NODES</code> (format: <code>name|host:port|rtmp://target|statusUrl</code>).
+              Optional <code>statusUrl</code> returns JSON <code>{ "cpu": 12.5, "activeJobs": 1 }</code>.
+            </p>
+          </div>
+        </div>
+
         <div class="framesync-panel" data-testid="gpu-pool-panel">
           <div class="framesync-header">
             <div class="framesync-title">GPU <span class="framesync-accent">Pool</span></div>
@@ -705,7 +772,7 @@
         <div class="framesync-panel">
           <div class="framesync-header">
             <div class="framesync-title"><span class="framesync-accent">Collaboration</span></div>
-            <button class="framesync-button" :class="{ active: collabEnabled }" @click="toggleCollaboration">
+            <button class="framesync-button" :class="{ 'framesync-button--live': collabEnabled }" @click="toggleCollaboration">
               {{ collabEnabled ? 'WS ' + wsStatus : 'WS offline' }}
             </button>
           </div>
@@ -733,7 +800,7 @@
           <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">Only you (open another browser tab to test multi-user).</div>
           <div class="framesync-subtitle" style="margin-top:14px;">Session recording</div>
           <div class="framesync-footer" style="margin-top:8px;">
-            <button class="framesync-button" :class="{active: collab.recording}" @click="toggleSessionRecording">
+            <button class="framesync-button" :class="{ 'framesync-button--live': collab.recording }" @click="toggleSessionRecording">
               {{ collab.recording ? 'Stop recording' : 'Start recording' }}
             </button>
             <button class="framesync-button" @click="listSessionRecordings">List recordings</button>

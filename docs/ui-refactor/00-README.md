@@ -1,5 +1,7 @@
 # Defora instrument-UI handoff
 
+**Button / control spec:** [../ui-migration/style-guide.md](../ui-migration/style-guide.md)
+
 Two files, used together:
 
 1. **`01-declutter-brief.md`** — the instructions. What to remove, what to wire, the execution

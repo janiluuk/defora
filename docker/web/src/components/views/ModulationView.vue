@@ -10,6 +10,8 @@
         <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AV_SYNC'}" @click="switchSubTab('MODULATION','AV_SYNC')">A/V sync</button>
         <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AUDIO_REACTIVE'}" @click="switchSubTab('MODULATION','AUDIO_REACTIVE')">Reactive</button>
         <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='BEAT_MACROS'}" @click="switchSubTab('MODULATION','BEAT_MACROS')">Beat</button>
+        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='ACTIVE_MODS'}" @click="switchSubTab('MODULATION','ACTIVE_MODS')">Active</button>
+        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='CROSSFADER'}" @click="switchSubTab('MODULATION','CROSSFADER')">Crossfader</button>
       </div>
 
       <template v-if="currentSubTab.MODULATION==='LFO'">
@@ -92,6 +94,14 @@
             />
           </div>
         </div>
+      </template>
+
+      <template v-else-if="currentSubTab.MODULATION==='ACTIVE_MODS'">
+        <ModulationActiveModsPanel :app="app" />
+      </template>
+
+      <template v-else-if="currentSubTab.MODULATION==='CROSSFADER'">
+        <MorphCrossfaderPanel :app="app" />
       </template>
 
       <template v-else-if="currentSubTab.MODULATION==='AV_SYNC'">
@@ -255,11 +265,13 @@
 import Waveform from '../Waveform.vue'
 import TargetCell from '../TargetCell.vue'
 import AudioSpectrumEditor from '../AudioSpectrumEditor.vue'
+import MorphCrossfaderPanel from '../MorphCrossfaderPanel.vue'
+import ModulationActiveModsPanel from '../ModulationActiveModsPanel.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'ModulationView',
-  components: { Waveform, TargetCell, AudioSpectrumEditor },
+  components: { Waveform, TargetCell, AudioSpectrumEditor, MorphCrossfaderPanel, ModulationActiveModsPanel },
   props: {
     app: { type: Object, required: true },
   },

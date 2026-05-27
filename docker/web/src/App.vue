@@ -329,7 +329,7 @@
                 <button type="button" class="framesync-button" @click="addSequencerKeyframe">+ Keyframe @ playhead</button>
               </div>
               <div class="generate-sequencer__transport-actions">
-                <button type="button" class="framesync-button" @click="toggleSequencerPlayback">{{ sequencerPlaying ? 'Stop' : 'Play' }}</button>
+                <button type="button" class="framesync-button" :class="{ 'framesync-button--live': sequencerPlaying }" @click="toggleSequencerPlayback">{{ sequencerPlaying ? 'Stop' : 'Play' }}</button>
                 <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
                 <button type="button" class="framesync-button" @click="saveSequencerTimeline">Save</button>
                 <button type="button" class="framesync-button" @click="exportSequencerDownload">Export JSON</button>
@@ -362,7 +362,7 @@
                         <option value="easeOut">easeOut</option>
                         <option value="easeInOut">easeInOut</option>
                       </select>
-                      <button type="button" class="generate-track-card__delete" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">Remove</button>
+                      <button type="button" class="framesync-button framesync-button--danger framesync-button--compact generate-track-card__delete" title="Remove" @click="removeSequencerKeyframe(tr.id, ki)">Remove</button>
                     </div>
                   </div>
                   <div v-else class="generate-track-card__empty">No keyframes yet.</div>
@@ -392,7 +392,7 @@
                   <span v-else class="generate-marker-row__hint">
                     {{ m.action === 'jump' ? 'jump to time' : (m.action === 'generate' ? 'trigger generation' : (m.action === 'pause' ? 'pause playback' : '')) }}
                   </span>
-                  <button type="button" class="generate-marker-row__delete" title="Remove" @click="removeSequencerMarker(mi)">Remove</button>
+                  <button type="button" class="framesync-button framesync-button--danger framesync-button--compact generate-marker-row__delete" title="Remove" @click="removeSequencerMarker(mi)">Remove</button>
                 </div>
               </div>
               <div v-else class="generate-sequencer__empty-markers">No markers yet.</div>
@@ -405,7 +405,7 @@
           </GlassPanel>
         </div>
         <template v-else>
-          <div class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
+          <div v-if="currentTab !== 'LIBRARY'" class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
             <div class="frame-rail__header">
               <div class="frame-rail__title-wrap">
                 <span class="frame-rail__title">Frames</span>
@@ -462,8 +462,132 @@
             </div>
           </div>
         </template>
-        <div v-if="currentTab === 'LIBRARY'" class="frame-rail__empty" style="margin-top: 4px;">
-          Select a prefix folder and run to inspect frames one by one.
+        <div
+          v-if="currentTab === 'LIBRARY'"
+          class="frame-rail library-frame-rail"
+          :class="{ 'frame-rail--collapsed': !showFrames }"
+          style="margin-top: 4px;"
+          data-testid="library-frame-rail"
+        >
+          <div class="frame-rail__header">
+            <div class="frame-rail__title-wrap">
+              <span class="frame-rail__title">Projects</span>
+              <span class="frame-rail__meta" v-if="librarySelectedRunSummary && librarySelectedFrames.length">
+                {{ librarySelectedFrameLabel }} · {{ librarySelectedFrames.length }} frames
+              </span>
+              <span class="frame-rail__meta" v-else-if="librarySelectedPrefixKey">
+                {{ libraryRunsForSelectedPrefix.length }} runs in {{ librarySelectedPrefixKey }}
+              </span>
+              <span class="frame-rail__meta" v-else-if="runsLoading">Loading projects…</span>
+              <span class="frame-rail__meta" v-else>Pick a project to browse runs</span>
+            </div>
+            <div class="frame-rail__actions">
+              <button
+                type="button"
+                class="frame-rail__toggle"
+                :aria-expanded="showFrames ? 'true' : 'false'"
+                :title="showFrames ? 'Collapse frames' : 'Expand frames'"
+                @click="showFrames = !showFrames; saveSessionState()"
+              >
+                <UiIcon class="frame-rail__toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
+              </button>
+              <div class="frame-rail__controls" v-if="showFrames && librarySelectedFrames.length">
+                <button
+                  type="button"
+                  class="frame-rail__step"
+                  @click="stepLibraryFrame(-1)"
+                  :disabled="librarySelectedFrameIndex <= 0"
+                >
+                  Prev
+                </button>
+                <input
+                  class="frame-rail__scrubber"
+                  type="range"
+                  min="0"
+                  :max="Math.max(0, librarySelectedFrames.length - 1)"
+                  :value="Math.max(0, librarySelectedFrameIndex)"
+                  @input="selectLibraryFrame(librarySelectedFrames[Number($event.target.value)] || '')"
+                >
+                <button
+                  type="button"
+                  class="frame-rail__step"
+                  @click="stepLibraryFrame(1)"
+                  :disabled="librarySelectedFrameIndex >= librarySelectedFrames.length - 1"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="runsLoading" class="frame-rail__empty">Loading projects…</div>
+          <div v-else-if="!libraryPrefixGroups.length" class="frame-rail__empty">No projects yet. Runs will appear here after you render.</div>
+          <template v-else>
+            <div class="library-frame-rail__projects" data-testid="library-project-list">
+              <button
+                v-for="group in libraryPrefixGroups"
+                :key="'library-project-' + group.key"
+                type="button"
+                class="library-frame-rail__project"
+                :class="{ 'library-frame-rail__project--active': librarySelectedPrefixKey === group.key }"
+                @click="openLibraryPrefix(group.key)"
+              >
+                <span class="library-frame-rail__project-name">{{ group.label }}</span>
+                <span class="library-frame-rail__project-count">{{ group.runs.length }} runs</span>
+              </button>
+            </div>
+
+            <div v-if="library.status" class="frame-rail__empty">{{ library.status }}</div>
+            <div v-else-if="library.loading" class="frame-rail__empty">Loading frames…</div>
+            <div v-else-if="!libraryRunsForSelectedPrefix.length" class="frame-rail__empty">No runs in this project yet.</div>
+            <div v-else class="library-frame-rail__runs" data-testid="library-run-thumbs">
+              <button
+                v-for="run in libraryRunsForSelectedPrefix"
+                :key="'library-rail-run-' + run.run_id"
+                type="button"
+                class="frame-rail__item library-frame-rail__run"
+                :class="{ 'frame-rail__item--active': librarySelectedRunSummary && librarySelectedRunSummary.run_id === run.run_id }"
+                @click="openLibraryRun(run)"
+              >
+                <img
+                  v-if="run.has_thumbnail"
+                  class="frame-rail__thumb"
+                  :src="`/api/runs/${run.run_id}/thumb`"
+                  :alt="run.run_id"
+                />
+                <div v-else class="frame-rail__thumb library-frame-rail__run-empty">No img</div>
+                <span class="frame-rail__label">{{ run.run_id }}</span>
+              </button>
+            </div>
+
+            <template v-if="showFrames">
+              <div
+                v-if="librarySelectedRunSummary && !library.loading && !librarySelectedFrames.length"
+                class="frame-rail__empty"
+              >
+                This run has no exported frames to inspect.
+              </div>
+              <div v-if="librarySelectedFrames.length" class="frame-rail__list" data-testid="library-frame-thumbs">
+                <button
+                  v-for="frameName in librarySelectedFrames"
+                  :key="'library-rail-frame-' + librarySelectedRunSummary.run_id + '-' + frameName"
+                  type="button"
+                  class="frame-rail__item"
+                  :class="{ 'frame-rail__item--active': frameName === librarySelectedFrameResolved }"
+                  @click="selectLibraryFrame(frameName)"
+                >
+                  <img
+                    class="frame-rail__thumb"
+                    :src="`/api/runs/${encodeURIComponent(librarySelectedRunSummary.run_id)}/frames/${encodeURIComponent(frameName)}`"
+                    :alt="frameName"
+                  />
+                  <span class="frame-rail__label">
+                    {{ Number.isFinite(parseFrameNumber(frameName)) && parseFrameNumber(frameName) >= 0 ? parseFrameNumber(frameName) : frameName }}
+                  </span>
+                </button>
+              </div>
+            </template>
+          </template>
         </div>
 
         <div v-if="currentTab !== 'LIBRARY'" class="video-controls-panel">
@@ -616,7 +740,6 @@ const DEFORUM_DERIVED_TOGGLE_KEYS = {
 
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
-import Crossfader from './components/Crossfader.vue'
 import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
 import Timeline from './components/generate/Timeline.vue'
@@ -633,12 +756,10 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
        showFrames: false,
-      liveMainModsOpen: true,
-      liveMainCrossfaderOpen: true,
        isPlaying: false,
        isRecording: false,
        deforumPlaying: false,
@@ -768,6 +889,12 @@ export default {
         },
         expandedLog: null,
         modelOptions: {},
+      },
+      infrastructure: {
+        loading: false,
+        mediator: null,
+        transcoders: [],
+        updatedAt: null,
       },
       generator: {
         theme: '',
@@ -1816,6 +1943,12 @@ export default {
       if (sub === 'BEAT_MACROS') {
         return this.beatMacroOn ? 'Beat macros on' : 'Beat macros off';
       }
+      if (sub === 'ACTIVE_MODS') {
+        return this.liveModulating.length ? `${this.liveModulating.length} modulated` : 'No active mods';
+      }
+      if (sub === 'CROSSFADER') {
+        return `${this.morphHudSummary.a} · ${this.morphHudSummary.b}`;
+      }
       return '';
     },
   },
@@ -2262,7 +2395,8 @@ export default {
  },
  normalizeModulationSubTab(sub) {
    if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
-   const allowed = ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS'];
+   if (sub === 'ACTIVE') return 'ACTIVE_MODS';
+   const allowed = ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS', 'ACTIVE_MODS', 'CROSSFADER'];
    return allowed.includes(sub) ? sub : 'LFO';
  },
  normalizeLiveSubTab(sub) {
@@ -3469,26 +3603,45 @@ toggleCollaboration() {
  },
  async refreshGpuPool(refreshStats = false) {
    this.gpuPool.loading = true;
+   this.infrastructure.loading = true;
    try {
      if (refreshStats) {
        await apiFetch("/api/gpu-pool/refresh", { method: "POST" }, "gpu pool refresh");
      }
-     const { data } = await apiFetch("/api/gpu-pool", {}, "gpu pool status");
-     this.gpuPool.enabled = !!data.enabled;
-     this.gpuPool.strategy = data.strategy || "round_robin";
-     this.gpuPool.healthyNodes = data.healthyNodes ?? 0;
-     this.gpuPool.nodes = data.nodes || [];
-    const modelOptions = { ...(this.gpuPool.modelOptions || {}) };
-    this.gpuPool.nodes.forEach((node) => {
-      if (node && node.url && Array.isArray(node.availableModels) && node.availableModels.length) {
-        modelOptions[node.url] = [...node.availableModels];
-      }
-    });
-    this.gpuPool.modelOptions = modelOptions;
+     const [poolResult, infraResult] = await Promise.allSettled([
+       apiFetch("/api/gpu-pool", {}, "gpu pool status"),
+       apiFetch("/api/infrastructure", {}, "infrastructure status"),
+     ]);
+     if (poolResult.status === "fulfilled") {
+       const data = poolResult.value.data;
+       this.gpuPool.enabled = !!data.enabled;
+       this.gpuPool.strategy = data.strategy || "round_robin";
+       this.gpuPool.healthyNodes = data.healthyNodes ?? 0;
+       this.gpuPool.nodes = data.nodes || [];
+       const modelOptions = { ...(this.gpuPool.modelOptions || {}) };
+       this.gpuPool.nodes.forEach((node) => {
+         if (node && node.url && Array.isArray(node.availableModels) && node.availableModels.length) {
+           modelOptions[node.url] = [...node.availableModels];
+         }
+       });
+       this.gpuPool.modelOptions = modelOptions;
+     } else {
+       this.gpuPool.status = poolResult.reason?.message || "Failed to load GPU pool";
+     }
+     if (infraResult.status === "fulfilled") {
+       const infra = infraResult.value.data || {};
+       this.infrastructure.mediator = infra.mediator || null;
+       this.infrastructure.transcoders = Array.isArray(infra.transcoders) ? infra.transcoders : [];
+       this.infrastructure.updatedAt = infra.updatedAt || null;
+     } else {
+       this.infrastructure.mediator = null;
+       this.infrastructure.transcoders = [];
+     }
    } catch (err) {
      this.gpuPool.status = err.message;
    } finally {
      this.gpuPool.loading = false;
+     this.infrastructure.loading = false;
    }
  },
 ollamaModelOptions(url) {
@@ -4120,10 +4273,13 @@ setPromptMorphBlendLfoLink(lfoId) {
 applyLoraCrossfader(value, { commitBase = false, fromModulation = false } = {}) {
   const next = this.clampVal(Number(value) || 0, 0, 1);
   this.prompts.crossfaderValue = next;
+  this.performance.crossfader = next;
   if (commitBase || !fromModulation) {
     this.prompts.loraCrossfaderLfoBase = next;
   }
-  if (this.loras.groupA.length || this.loras.groupB.length) {
+  if (this.performance.slots.length) {
+    this.applyCrossfadeMorph();
+  } else if (this.loras.groupA.length || this.loras.groupB.length) {
     this.applyLoras();
   }
   if (!fromModulation) {
@@ -4134,7 +4290,7 @@ setLoraCrossfaderLfoLink(lfoId) {
   const nextId = Number(lfoId || 0);
   const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
   this.prompts.loraCrossfaderLfoLink = this.prompts.loraCrossfaderLfoLink === allowed ? null : allowed;
-  this.prompts.loraCrossfaderLfoBase = this.prompts.crossfaderValue;
+  this.prompts.loraCrossfaderLfoBase = this.performance.crossfader;
   if (this.prompts.loraCrossfaderLfoLink) {
     const linked = this.lfos.find((lfo) => lfo.id === this.prompts.loraCrossfaderLfoLink);
     if (linked) linked.on = true;

@@ -14,7 +14,7 @@
           <div class="framesync-header">
             <div class="framesync-title">Prompt <span class="framesync-accent">Morphing</span></div>
             <div class="prompt-toolbar">
-              <button class="framesync-button" :class="{active: prompts.morphOn}" @click="setMorph(true)">Enabled</button>
+              <button class="framesync-button" :class="{ 'framesync-button--live': prompts.morphOn }" @click="setMorph(true)">Enabled</button>
               <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">Disabled</button>
               <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? 'Expand' : 'Collapse' }}</button>
             </div>
@@ -533,7 +533,7 @@
                     <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
                   </div>
                   <input type="range" min="0" max="2" step="0.01" :value="lora.strength" class="framesync-input lora-active-group__slider" @input="updateGroupedLoraStrength('COMMON', lora, $event.target.value)">
-                  <button class="framesync-button lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
+                  <button type="button" class="framesync-button framesync-button--danger framesync-button--compact lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
                 </div>
                 <div v-if="loras.common.length === 0" class="lora-active-group__empty">
                   No LoRAs in Common group
@@ -550,7 +550,7 @@
                     <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
                   </div>
                   <input type="range" min="0" max="2" step="0.01" :value="lora.strength" class="framesync-input lora-active-group__slider" @input="updateGroupedLoraStrength('A', lora, $event.target.value)">
-                  <button class="framesync-button lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
+                  <button type="button" class="framesync-button framesync-button--danger framesync-button--compact lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
                 </div>
                 <div v-if="loras.groupA.length === 0" class="lora-active-group__empty">
                   No LoRAs in A group
@@ -567,7 +567,7 @@
                     <span class="lora-active-group__value">{{ lora.strength.toFixed(2) }}</span>
                   </div>
                   <input type="range" min="0" max="2" step="0.01" :value="lora.strength" class="framesync-input lora-active-group__slider" @input="updateGroupedLoraStrength('B', lora, $event.target.value)">
-                  <button class="framesync-button lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
+                  <button type="button" class="framesync-button framesync-button--danger framesync-button--compact lora-active-group__remove" @click="unassignLora(lora)">Remove</button>
                 </div>
                 <div v-if="loras.groupB.length === 0" class="lora-active-group__empty">
                   No LoRAs in B group
