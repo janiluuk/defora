@@ -69,6 +69,56 @@
       <span class="ss-key">Session</span>
       <strong>{{ session }}</strong>
     </div>
+
+    <div class="ss-help">
+      <button
+        type="button"
+        class="ss-btn ss-btn--ghost"
+        :class="{ 'ss-btn--active': helpOpen }"
+        title="Keyboard shortcuts help"
+        @click.stop="toggleHelp"
+      >
+        <UiIcon class="ss-icon" name="help" />
+        <span class="ss-label">Help</span>
+      </button>
+
+      <div v-if="helpOpen" class="ss-help-popover" @click.stop>
+        <div class="ss-help-popover__header">
+          <div class="ss-help-popover__title">Keyboard Shortcuts</div>
+          <button type="button" class="ss-help-popover__close" @click="helpOpen = false">
+            <UiIcon class="ss-icon" name="close" />
+          </button>
+        </div>
+        <div class="ss-help-grid">
+          <div class="ss-help-section">
+            <div class="ss-help-section__title">Navigation</div>
+            <div class="ss-help-section__items">
+              <div><kbd>1</kbd>–<kbd>6</kbd> Switch tabs (LIVE→GENERATE)</div>
+            </div>
+          </div>
+          <div class="ss-help-section">
+            <div class="ss-help-section__title">LIVE Tab</div>
+            <div class="ss-help-section__items">
+              <div><kbd>Space</kbd> Generate image</div>
+              <div><kbd>R</kbd> Reset Vibe & Camera params</div>
+            </div>
+          </div>
+          <div class="ss-help-section">
+            <div class="ss-help-section__title">PROMPTS Tab</div>
+            <div class="ss-help-section__items">
+              <div><kbd>M</kbd> Toggle prompt morphing</div>
+            </div>
+          </div>
+          <div class="ss-help-section">
+            <div class="ss-help-section__title">MODULATION Tab</div>
+            <div class="ss-help-section__items">
+              <div><kbd>L</kbd> Toggle LFO</div>
+              <div><kbd>B</kbd> Toggle Beat Macro (MODULATION → AUDIO)</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -89,6 +139,30 @@ export default {
     midiSelected:  { default: null },
     wsStatus:      { type: String,  default: 'disconnected' },
     session:       { type: String,  default: '' },
+  },
+  data() {
+    return {
+      helpOpen: false,
+    }
+  },
+  mounted() {
+    if (typeof document !== 'undefined') {
+      this._statusStripHelpClose = (event) => {
+        if (!this.$el || this.$el.contains(event.target)) return
+        this.helpOpen = false
+      }
+      document.addEventListener('click', this._statusStripHelpClose)
+    }
+  },
+  beforeUnmount() {
+    if (typeof document !== 'undefined' && this._statusStripHelpClose) {
+      document.removeEventListener('click', this._statusStripHelpClose)
+    }
+  },
+  methods: {
+    toggleHelp() {
+      this.helpOpen = !this.helpOpen
+    },
   },
 }
 </script>
@@ -174,4 +248,108 @@ export default {
 .ss-pill--live  .ss-dot { background: var(--live); box-shadow: 0 0 5px var(--live); }
 .ss-pill--error .ss-dot { background: var(--error); box-shadow: 0 0 5px var(--error); }
 .ss-pill--warn  .ss-dot { background: var(--warn); box-shadow: 0 0 5px var(--warn); }
+
+.ss-help {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ss-help-popover {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  z-index: 30;
+  width: min(360px, calc(100vw - 28px));
+  padding: 12px;
+  border-radius: 14px;
+  border: 0.5px solid var(--border);
+  background: rgba(8, 9, 13, 0.96);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.ss-help-popover__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ss-help-popover__title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ss-help-popover__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  border: 0.5px solid var(--border);
+  background: var(--bg-2);
+  color: var(--text-dim);
+  cursor: pointer;
+}
+
+.ss-help-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ss-help-section {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 0.5px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.ss-help-section__title {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.ss-help-section__items {
+  display: grid;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+
+.ss-help-popover kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 6px;
+  margin: 0 2px;
+  border-radius: 6px;
+  border: 0.5px solid var(--border-strong);
+  background: var(--bg-2);
+  color: var(--text-primary);
+  font-size: 10px;
+  font-family: inherit;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .ss-help-grid {
+    grid-template-columns: 1fr;
+  }
+}
 </style>

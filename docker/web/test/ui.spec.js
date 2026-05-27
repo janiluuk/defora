@@ -105,6 +105,13 @@ function instantiate(appDef, overrides = {}) {
   return instance;
 }
 
+function mountQuietApp(appDef) {
+  const app = createApp(appDef);
+  // CI logs become unusable when Vue dumps the full proxied app object.
+  app.config.warnHandler = () => {};
+  return app.mount("#app");
+}
+
 class FakeSocket {
   constructor() {
     this.sent = [];
@@ -136,19 +143,23 @@ describe("Deforumation Web UI", () => {
 
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
-    appVm = createApp(appDef).mount("#app");
+    appVm = mountQuietApp(appDef);
     document = dom.window.document;
   });
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
     appVm.currentSubTab = { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
+    appVm.videoReady = false;
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    appVm.performance.lastPreviewPath = "";
     await nextTick();
   });
 
   it("renders tabs for all sections", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
+    expect(tabs.join(" ")).to.include("LIBRARY");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
@@ -156,7 +167,8 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("GENERATE");
     expect(tabs.join(" ")).to.not.include("AUDIO");
     expect(tabs.join(" ")).to.not.include("RUNS");
-    expect(tabs.length).to.equal(6);
+    expect(tabs.length).to.equal(7);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(7);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -192,6 +204,25 @@ describe("Deforumation Web UI", () => {
     appVm.currentTab = "LIVE";
     appVm.defaultAnimation.preferDeforumVideo = true;
     expect(appVm.showPreviewStill).to.equal(true);
+  });
+  it("scopes standby controls to the default animation surface and resets them", async () => {
+    expect(document.body.textContent).to.include("Beam count");
+
+    appVm.defaultAnimation.beamCount = 11;
+    appVm.defaultAnimation.speed = 1.9;
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    await nextTick();
+
+    expect(document.body.textContent).to.not.include("Beam count");
+
+    appVm.resetDefaultAnimationSettings();
+    expect(appVm.defaultAnimation.beamCount).to.equal(7);
+    expect(appVm.defaultAnimation.speed).to.equal(0.75);
+    expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
+
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    await nextTick();
+    expect(document.body.textContent).to.include("Beam count");
   });
 
   it("includes video, sliders, and presets", async () => {
@@ -252,6 +283,8 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
+    const engineRanges = [...document.querySelectorAll(".engine-main-slider[type='range']")];
+    expect(engineRanges.length).to.equal(2);
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.not.include("FORGE");
     expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
@@ -326,6 +359,7 @@ describe("Deforumation Web UI", () => {
       { id: "xl-1", name: "portrait-xl", path: "/loras/sdxl/portrait-xl.safetensors", family: "sdxl", strength: 1, selected: false, group: null },
       { id: "sd15-1", name: "portrait-15", path: "/loras/sd15/portrait-15.safetensors", family: "sd15", strength: 1, selected: false, group: null },
     ];
+    appVm.loras.common = [{ id: "utility", name: "utility-xl", path: "/loras/sdxl/utility-xl.safetensors", strength: 0.65 }];
     appVm.loras.groupA = [{ id: "xl-1", name: "portrait-xl", path: "/loras/sdxl/portrait-xl.safetensors", strength: 1 }];
     appVm.loras.groupB = [{ id: "mix-b", name: "mix-b", path: "/loras/sdxl/mix-b.safetensors", strength: 0.8 }];
     appVm.switchTab("PROMPTS");
@@ -340,12 +374,38 @@ describe("Deforumation Web UI", () => {
     expect(buttonsBefore.join(" ")).to.include("+");
     expect(buttonsBefore.join(" ")).to.include("Manual");
     expect(buttonsBefore.join(" ")).to.include("LFO 6");
+    expect(document.body.textContent).to.include("Common Group (1)");
     expect([...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim()).join(" ")).to.include("LoRA Crossfader");
     expect(document.querySelectorAll(".lora-picker-row").length).to.equal(0);
 
     appVm.loraPickerOpen = true;
     await nextTick();
     expect(document.querySelectorAll(".lora-picker-row").length).to.equal(1);
+    const pickerButtons = [...document.querySelectorAll(".lora-picker-row__actions .framesync-button")].map((el) => el.textContent.trim());
+    expect(pickerButtons.join(" ")).to.include("Common");
+  });
+
+  it("applies common LoRAs at full strength outside the A/B crossfade mix", () => {
+    appDef = loadAppDefinition();
+    const calls = [];
+    const instance = instantiate(appDef);
+    instance.sendControl = (type, payload) => {
+      calls.push({ type, payload });
+    };
+    instance.prompts.crossfaderValue = 0.25;
+    instance.loras.common = [{ id: "c-1", name: "utility", path: "/loras/utility.safetensors", strength: 0.6 }];
+    instance.loras.groupA = [{ id: "a-1", name: "style-a", path: "/loras/style-a.safetensors", strength: 1.0 }];
+    instance.loras.groupB = [{ id: "b-1", name: "style-b", path: "/loras/style-b.safetensors", strength: 0.8 }];
+
+    instance.applyLoras();
+
+    expect(calls).to.have.length(1);
+    expect(calls[0].type).to.equal("loras");
+    expect(calls[0].payload.common).to.deep.equal([
+      { name: "utility", path: "/loras/utility.safetensors", strength: 0.6 },
+    ]);
+    expect(calls[0].payload.groupA[0].strength).to.equal(0.75);
+    expect(calls[0].payload.groupB[0].strength).to.equal(0.2);
   });
 
   it("shows a dedicated collapsed LoRA crossfader tab", async () => {
@@ -424,6 +484,42 @@ describe("Deforumation Web UI", () => {
     expect(railItems[0].textContent).to.include("run-005");
     expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
   });
+
+  it("groups library runs by prefix and inspects frames one by one", async () => {
+    appVm.runsAll = [
+      { run_id: "run-a-002", batch_name: "session_a", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a" },
+      { run_id: "run-a-001", batch_name: "session_a", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a" },
+      { run_id: "run-b-001", batch_name: "session_b", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false, frame_count: 1, model: "xl-b" },
+    ];
+    appVm.applyRunsFilters();
+    global.fetch = async (url) => ({
+      ok: true,
+      json: async () => ({
+        run_id: String(url).includes("run-a-002") ? "run-a-002" : "run-a-001",
+        frames: String(url).includes("run-a-002")
+          ? ["frame_0001.png", "frame_0002.png"]
+          : ["frame_0001.png", "frame_0002.png", "frame_0003.png"],
+      }),
+    });
+
+    appVm.switchTab("LIBRARY");
+    await nextTick();
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+
+    expect(document.querySelectorAll(".library-folder-item").length).to.equal(2);
+    expect(document.body.textContent).to.include("session_a");
+    expect(document.body.textContent).to.include("session_b");
+    expect(appVm.library.selectedRunId).to.equal("run-a-002");
+    expect(document.body.textContent).to.include("Frame Inspector");
+    expect(appVm.librarySelectedFrameSrc).to.include("/api/runs/run-a-002/frames/frame_0001.png");
+
+    appVm.stepLibraryFrame(1);
+    await nextTick();
+    expect(appVm.library.selectedFrameName).to.equal("frame_0002.png");
+    delete global.fetch;
+  });
 });
 
 describe("Deforumation Web UI behavior", () => {
@@ -476,6 +572,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
   });
 
+
   it("reports GPU status counts from the pool state", () => {
     const instance = instantiate(appDef);
     instance.gpuPool.healthyNodes = 2;
@@ -502,6 +599,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(openedNode.id).to.equal("forge-1");
     expect(instance.gpuPool.editId).to.equal(null);
   });
+
 
   it("setSource updates state and dispatches payload", () => {
     const instance = instantiate(appDef);
@@ -894,6 +992,50 @@ describe("Deforumation Web UI behavior", () => {
 
     const saved = JSON.parse(testStorage[instance.sessionStorageKey()]);
     expect(saved.deforumSettings.steps).to.equal(14);
+  });
+
+  it("saveDeforumSettings omits disabled deforum fields from the outgoing payload", async () => {
+    const instance = instantiate(appDef);
+    let posted = null;
+    global.fetch = async (_url, opts) => {
+      posted = JSON.parse(opts.body);
+      return { ok: true, json: async () => ({ success: true }) };
+    };
+    instance.saveSessionState = () => {};
+    instance.queueDeforumSettingsSave = () => {};
+    instance.scheduleDeforumPreview = () => {};
+    instance.deforumSettings.steps = 14;
+    instance.deforumSettings.cfg_scale_schedule = "0:(7)";
+    instance.deforumSettings.distilled_cfg_scale_schedule = "0: (7)";
+
+    instance.setDeforumFieldEnabled("steps", false);
+    instance.setDeforumFieldEnabled("cfg_scale_schedule", false);
+    await instance.saveDeforumSettings();
+
+    expect(posted.settings).to.not.have.property("steps");
+    expect(posted.settings).to.not.have.property("cfg_scale_schedule");
+    expect(posted.settings).to.not.have.property("distilled_cfg_scale_schedule");
+    expect(instance.deforumSettings.steps).to.equal(14);
+    delete global.fetch;
+  });
+
+  it("loadSessionState restores deforum field toggles", () => {
+    const instance = instantiate(appDef);
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      deforumSettings: {
+        steps: 18,
+      },
+      deforumFieldEnabled: {
+        steps: false,
+        cfg_scale_schedule: false,
+      },
+    });
+
+    instance.loadSessionState();
+
+    expect(instance.isDeforumFieldEnabled("steps")).to.equal(false);
+    expect(instance.isDeforumFieldEnabled("cfg_scale_schedule")).to.equal(false);
+    expect(instance.isDeforumFieldEnabled("seed")).to.equal(true);
   });
 
   it("loadDeforumSettings preserves session-restored settings on startup", async () => {
@@ -1296,7 +1438,7 @@ describe("Reference A/V sync mounted e2e", () => {
     ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
-    appVm = createApp(appDef).mount("#app");
+    appVm = mountQuietApp(appDef);
     document = dom.window.document;
     ensureVideoEventSurface();
   });

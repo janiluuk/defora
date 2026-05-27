@@ -147,8 +147,8 @@ export const DEFORUM_FIELD_GROUPS = [
     id: 'canvas',
     label: 'Canvas',
     fields: [
-      { key: 'W', label: 'Width', type: 'number', min: 256, max: 4096, step: 64 },
-      { key: 'H', label: 'Height', type: 'number', min: 256, max: 4096, step: 64 },
+      { key: 'W', label: 'Width', type: 'slider', min: 256, max: 4096, step: 64 },
+      { key: 'H', label: 'Height', type: 'slider', min: 256, max: 4096, step: 64 },
       { key: 'fps', label: 'FPS', type: 'select', options: ['8', '12', '24', '30'] },
       { key: 'max_frames', label: 'Max frames', type: 'number', min: 1, max: 99999, step: 1 },
       { key: 'batch_name', label: 'Batch name', type: 'text' },
@@ -159,9 +159,9 @@ export const DEFORUM_FIELD_GROUPS = [
     label: 'Sampling',
     fields: [
       { key: 'seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
-      { key: 'sampler', label: 'Sampler', type: 'text' },
-      { key: 'scheduler', label: 'Scheduler', type: 'text' },
-      { key: 'steps', label: 'Steps', type: 'number', min: 2, max: 150, step: 1 },
+      { key: 'sampler', label: 'Sampler', type: 'select' },
+      { key: 'scheduler', label: 'Scheduler', type: 'select' },
+      { key: 'steps', label: 'Steps', type: 'slider', min: 2, max: 150, step: 1 },
       { key: 'sd_model_name', label: 'Checkpoint', type: 'text' },
     ],
   },
@@ -195,6 +195,16 @@ export const DEFORUM_FIELD_GROUPS = [
     ],
   },
   {
+    id: 'motion3d',
+    label: 'Motion 3D',
+    fields: [
+      { key: 'translation_z', label: 'Zoom Z schedule', type: 'text' },
+      { key: 'rotation_3d_x', label: 'Rotate X schedule', type: 'text' },
+      { key: 'rotation_3d_y', label: 'Rotate Y schedule', type: 'text' },
+      { key: 'rotation_3d_z', label: 'Rotate Z schedule', type: 'text' },
+    ],
+  },
+  {
     id: 'schedules',
     label: 'Schedules',
     fields: [
@@ -210,11 +220,28 @@ export const DEFORUM_FIELD_GROUPS = [
     fields: [
       { key: 'cn_1_enabled', label: 'Enabled', type: 'bool' },
       { key: 'cn_1_weight', label: 'Weight schedule', type: 'text' },
+      { key: 'cn_1_guidance_start', label: 'Guidance start', type: 'text' },
+      { key: 'cn_1_guidance_end', label: 'Guidance end', type: 'text' },
       { key: 'cn_1_module', label: 'Module', type: 'text' },
       { key: 'cn_1_model', label: 'Model', type: 'text' },
+      { key: 'cn_1_processor_res', label: 'Processor res', type: 'slider', min: 64, max: 2048, step: 1 },
+      { key: 'cn_1_threshold_a', label: 'Threshold A', type: 'slider', min: 0, max: 255, step: 1 },
+      { key: 'cn_1_threshold_b', label: 'Threshold B', type: 'slider', min: 0, max: 255, step: 1 },
     ],
   },
 ];
+
+export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
+  group.fields.map((field) => field.key)
+);
+
+export function createDeforumFieldEnabledMap(overrides = {}) {
+  const map = {};
+  DEFORUM_FIELD_KEYS.forEach((key) => {
+    map[key] = overrides[key] !== false;
+  });
+  return map;
+}
 
 export function getNestedValue(obj, keyPath) {
   if (!keyPath || !obj) return undefined;
@@ -236,6 +263,28 @@ export function setNestedValue(obj, keyPath, value) {
     cur = cur[p];
   }
   cur[parts[parts.length - 1]] = value;
+}
+
+export function removeNestedValue(obj, keyPath) {
+  if (!keyPath || !obj) return;
+  const parts = String(keyPath).split('.');
+  const stack = [];
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const part = parts[i];
+    if (cur == null || typeof cur !== 'object' || !(part in cur)) return;
+    stack.push({ parent: cur, key: part });
+    cur = cur[part];
+  }
+  if (cur == null || typeof cur !== 'object') return;
+  delete cur[parts[parts.length - 1]];
+  for (let i = stack.length - 1; i >= 0; i -= 1) {
+    const { parent, key } = stack[i];
+    const value = parent[key];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) break;
+    if (Object.keys(value).length) break;
+    delete parent[key];
+  }
 }
 
 export function patchFromKeyPath(keyPath, value) {

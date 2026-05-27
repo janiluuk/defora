@@ -6,7 +6,6 @@
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='RUNS'}" @click="switchSubTab('SETTINGS','RUNS')">RUNS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='KEYS'}" @click="switchSubTab('SETTINGS','KEYS')">KEYS</button>
     </div>
 
     <div v-if="currentSubTab.SETTINGS==='RUNS'" class="rack runs-browser">
@@ -248,12 +247,34 @@
               </select>
             </div>
             <div class="framesync-stack">
-              <div class="framesync-subtitle">Steps</div>
-              <input type="number" class="framesync-input" :value="engineCurrentSteps" min="1" max="150" step="1" @input="onEngineStepsChange($event.target.value)">
+              <div class="engine-main-slider__header">
+                <div class="framesync-subtitle">Steps</div>
+                <span class="engine-main-slider__value">{{ engineCurrentSteps }}</span>
+              </div>
+              <input
+                type="range"
+                class="framesync-input engine-main-slider"
+                :value="engineCurrentSteps"
+                min="1"
+                max="150"
+                step="1"
+                @input="onEngineStepsChange($event.target.value)"
+              >
             </div>
             <div class="framesync-stack">
-              <div class="framesync-subtitle">CFG</div>
-              <input type="number" class="framesync-input" :value="engineCurrentCfgScale" min="0" max="30" step="0.1" @input="onEngineCfgScaleChange($event.target.value)">
+              <div class="engine-main-slider__header">
+                <div class="framesync-subtitle">CFG</div>
+                <span class="engine-main-slider__value">{{ engineCurrentCfgScale.toFixed(1) }}</span>
+              </div>
+              <input
+                type="range"
+                class="framesync-input engine-main-slider"
+                :value="engineCurrentCfgScale"
+                min="0"
+                max="30"
+                step="0.1"
+                @input="onEngineCfgScaleChange($event.target.value)"
+              >
             </div>
           </div>
           <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px;">
@@ -707,43 +728,6 @@
       </div>
     </div>
 
-    <div v-else-if="currentSubTab.SETTINGS==='KEYS'">
-      <div class="rack">
-        <div class="framesync-panel">
-          <div class="framesync-header">
-            <div class="framesync-title"><span class="framesync-accent">Keyboard Shortcuts</span></div>
-          </div>
-          <div class="framesync-row" style="grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;">
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">Navigation</div>
-              <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
-                <div><kbd>1</kbd>–<kbd>6</kbd> Switch tabs (LIVE→GENERATE)</div>
-              </div>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">LIVE Tab</div>
-              <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
-                <div><kbd>Space</kbd> Generate image</div>
-                <div><kbd>R</kbd> Reset Vibe & Camera params</div>
-              </div>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">PROMPTS Tab</div>
-              <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
-                <div><kbd>M</kbd> Toggle prompt morphing</div>
-              </div>
-            </div>
-            <div class="framesync-stack">
-              <div class="framesync-subtitle">MODULATION Tab</div>
-              <div style="font-size:12px; color:var(--text-secondary); line-height:1.8;">
-                <div><kbd>L</kbd> Toggle LFO</div>
-                <div><kbd>B</kbd> Toggle Beat Macro (MODULATION → AUDIO)</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 

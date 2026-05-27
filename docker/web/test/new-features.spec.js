@@ -13,6 +13,13 @@ function loadAppDefinition() {
   return require(appDefPath);
 }
 
+function mountQuietApp(appDef) {
+  const app = createApp(appDef);
+  // Suppress Vue runtime warnings so CI only shows actionable failures.
+  app.config.warnHandler = () => {};
+  return app.mount("#app");
+}
+
 describe("New Features Tests", () => {
   before(async () => {
     const html = readFileSync(path.join(__dirname, "test-app.html"), "utf-8");
@@ -29,7 +36,7 @@ describe("New Features Tests", () => {
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
     ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
-    appVm = createApp(appDef).mount("#app");
+    appVm = mountQuietApp(appDef);
   });
 
   beforeEach(async () => {

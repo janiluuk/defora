@@ -2,8 +2,20 @@
   <div id="app">
     <header>
       <div class="tabs">
-        <button class="tab" v-for="tab in tabs" :key="tab.id" :class="{active: currentTab===tab.id}" @click="switchTab(tab.id)">
-          {{ tab.label }}
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+            <span class="tab__hint">{{ tab.hint }}</span>
+          </span>
         </button>
       </div>
       <StatusStrip
@@ -348,8 +360,11 @@
             </div>
           </div>
         </template>
+        <div v-if="currentTab === 'LIBRARY'" class="frame-rail__empty" style="margin-top: 4px;">
+          Select a prefix folder and run to inspect frames one by one.
+        </div>
 
-        <div class="video-controls-panel">
+        <div v-if="currentTab !== 'LIBRARY'" class="video-controls-panel">
           <div class="video-controls">
             <button class="control-btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
               <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
@@ -456,7 +471,8 @@
           'stage-rack-overlay': currentTab === 'MOTION',
           'studio-right-column': currentTab === 'MODULATION'
         }">
-          <PromptsView v-if="currentTab==='PROMPTS'" :app="appViewModel" />
+          <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
+          <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
           <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
           <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
@@ -478,8 +494,11 @@ import {
 import {
   DEFORUM_DEFAULT_SETTINGS,
   DEFORUM_FIELD_GROUPS,
+  DEFORUM_FIELD_KEYS,
+  createDeforumFieldEnabledMap,
   getNestedValue,
   setNestedValue,
+  removeNestedValue,
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
@@ -499,6 +518,9 @@ const TIMELINE_GRID_EMPTY = 'rgb(26, 58, 82)'
 const TIMELINE_GRID_LABEL = 'rgb(58, 90, 120)'
 const TIMELINE_GRID_BORDER = 'rgb(12, 48, 72)'
 const TIMELINE_GRID_TEXT = 'rgb(90, 143, 184)'
+const DEFORUM_DERIVED_TOGGLE_KEYS = {
+  distilled_cfg_scale_schedule: 'cfg_scale_schedule',
+}
 
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
@@ -508,6 +530,7 @@ import UiIcon from './components/UiIcon.vue'
 import Timeline from './components/generate/Timeline.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
 import LiveView from './components/views/LiveView.vue'
+import LibraryView from './components/views/LibraryView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
 import ModulationView from './components/views/ModulationView.vue'
@@ -516,7 +539,7 @@ import GenerateView from './components/views/GenerateView.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
        showFrames: true,
@@ -542,6 +565,8 @@ export default {
        liveDrawerOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
        deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+      deforumFieldEnabled: createDeforumFieldEnabledMap(),
+       deforumActiveTab: 'canvas',
        deforumSectionOpen: {},
        deforumAdvancedOpen: false,
        sessionDeforumSettingsLoaded: false,
@@ -646,12 +671,13 @@ export default {
       },
       session: "clown_set_01",
       tabs: [
-        { id: "LIVE", label: "LIVE" },
-        { id: "PROMPTS", label: "PROMPTS" },
-        { id: "MOTION", label: "MOTION" },
-        { id: "MODULATION", label: "MODULATION" },
-        { id: "SETTINGS", label: "SETTINGS" },
-        { id: "GENERATE", label: "GENERATE" },
+        { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
+        { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
+        { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
+        { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
+        { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
+        { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { PROMPTS: 'IMAGE', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
@@ -716,6 +742,7 @@ export default {
       ],
       loras: {
         available: [],
+        common: [],
         groupA: [],
         groupB: [],
         source: "unknown",
@@ -956,6 +983,14 @@ export default {
        ],
        runsDetailView: null,
        runsStatus: "",
+       library: {
+         selectedPrefix: '',
+         selectedRunId: '',
+         selectedFrameName: '',
+         runDetail: null,
+         loading: false,
+         status: '',
+       },
        genData: {
          defaultThemes: ['A journey through light', 'Neon cathedral', 'Ocean depths'],
          sceneDescriptors: { opening: ['ethereal', 'quiet'], buildup: ['rising', 'vivid'], climax: ['intense', 'surreal'], closing: ['soft', 'fading'] },
@@ -998,8 +1033,22 @@ export default {
       return this.selectedFrameThumb ? `Frame ${this.frameLabel(this.selectedFrameThumb)}` : 'No frames';
     },
     activePreviewStillPath() {
+      if (!this.deforumPlaying && this.currentTab === 'LIBRARY') {
+        return this.librarySelectedFrameSrc || '';
+      }
+      if (!this.deforumPlaying && this.currentTab === 'LIVE') {
+        return this.performance.lastPreviewPath
+          || this.generator.lastPath
+          || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
+          || '';
+      }
       if (!this.deforumPlaying && this.currentTab !== 'GENERATE' && this.selectedFrameThumb) {
-        return this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '';
+        return this.selectedFrameThumb.src
+          || this.selectedFrameThumb.url
+          || this.selectedFrameThumb.path
+          || this.performance.lastPreviewPath
+          || this.generator.lastPath
+          || '';
       }
       return this.performance.lastPreviewPath || this.generator.lastPath || '';
     },
@@ -1176,6 +1225,16 @@ export default {
         ...(this.forge.samplers || []),
       ].map((value) => String(value || '').trim()).filter(Boolean))];
     },
+    engineSchedulerOptions() {
+      return [...new Set([
+        this.deforumSettings && this.deforumSettings.scheduler,
+        this.forge.options && this.forge.options.scheduler,
+        ...(this.forge.schedulers || []),
+      ].map((value) => String(value || '').trim()).filter(Boolean))];
+    },
+    activeDeforumFieldGroup() {
+      return this.deforumFieldGroups.find((group) => group.id === this.deforumActiveTab) || this.deforumFieldGroups[0] || null;
+    },
     engineOptimizedDefaults() {
       return this.optimizedDefaultsForModel(this.engineCurrentModelName);
     },
@@ -1243,6 +1302,70 @@ export default {
           return bTime - aTime;
         })
         .slice(0, 4);
+    },
+    libraryPrefixGroups() {
+      const groups = new Map();
+      [...this.runsAll]
+        .sort((a, b) => {
+          const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
+          const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
+          return bTime - aTime;
+        })
+        .forEach((run) => {
+          const key = this.runPrefixKey(run);
+          if (!groups.has(key)) {
+            groups.set(key, { key, label: this.runPrefixLabel(run), runs: [] });
+          }
+          groups.get(key).runs.push(run);
+        });
+      return [...groups.values()];
+    },
+    librarySelectedPrefixKey() {
+      return this.libraryPrefixGroups.some((group) => group.key === this.library.selectedPrefix)
+        ? this.library.selectedPrefix
+        : (this.libraryPrefixGroups[0] && this.libraryPrefixGroups[0].key) || '';
+    },
+    libraryRunsForSelectedPrefix() {
+      const group = this.libraryPrefixGroups.find((entry) => entry.key === this.librarySelectedPrefixKey);
+      return group ? group.runs : [];
+    },
+    librarySelectedRunSummary() {
+      return this.libraryRunsForSelectedPrefix.find((run) => run.run_id === this.library.selectedRunId)
+        || this.libraryRunsForSelectedPrefix[0]
+        || null;
+    },
+    librarySelectedRunDetail() {
+      return this.library.runDetail && this.librarySelectedRunSummary && this.library.runDetail.run_id === this.librarySelectedRunSummary.run_id
+        ? this.library.runDetail
+        : null;
+    },
+    librarySelectedFrames() {
+      return Array.isArray(this.librarySelectedRunDetail && this.librarySelectedRunDetail.frames)
+        ? this.librarySelectedRunDetail.frames
+        : [];
+    },
+    librarySelectedFrameResolved() {
+      if (!this.librarySelectedFrames.length) return '';
+      if (this.librarySelectedFrames.includes(this.library.selectedFrameName)) return this.library.selectedFrameName;
+      return this.librarySelectedFrames[0];
+    },
+    librarySelectedFrameIndex() {
+      return this.librarySelectedFrames.indexOf(this.librarySelectedFrameResolved);
+    },
+    libraryVisibleFrames() {
+      if (!this.librarySelectedFrames.length) return [];
+      const current = this.librarySelectedFrameIndex >= 0 ? this.librarySelectedFrameIndex : 0;
+      const start = Math.max(0, current - 24);
+      return this.librarySelectedFrames.slice(start, start + 49);
+    },
+    librarySelectedFrameSrc() {
+      if (!this.librarySelectedRunSummary || !this.librarySelectedFrameResolved) return '';
+      return `/api/runs/${encodeURIComponent(this.librarySelectedRunSummary.run_id)}/frames/${encodeURIComponent(this.librarySelectedFrameResolved)}`;
+    },
+    librarySelectedFrameLabel() {
+      if (!this.librarySelectedFrameResolved) return 'No frame selected';
+      const parsed = this.parseFrameNumber(this.librarySelectedFrameResolved);
+      return Number.isFinite(parsed) && parsed >= 0 ? `Frame ${parsed}` : this.librarySelectedFrameResolved;
     },
     targetOwners() {
       const map = {};
@@ -1486,6 +1609,61 @@ export default {
       this.apiHealthBackoffMs = Math.min(120000, (this.apiHealthBackoffMs || 15000) * 2);
     }
   },
+  runPrefixSource(run) {
+    return String(
+      (run && (run.batch_name
+        || (run.metadata && run.metadata.batch_name)
+        || (run.metadata && run.metadata.deforum && run.metadata.deforum.batch_name)
+        || run.run_id))
+      || 'ungrouped'
+    ).trim();
+  },
+  runPrefixKey(run) {
+    const raw = this.runPrefixSource(run)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const slug = raw
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return slug || 'ungrouped';
+  },
+  runPrefixLabel(run) {
+    return this.runPrefixSource(run);
+  },
+  syncLibrarySelection() {
+    if (!this.libraryPrefixGroups.length) {
+      this.library.selectedPrefix = '';
+      this.library.selectedRunId = '';
+      this.library.selectedFrameName = '';
+      this.library.runDetail = null;
+      return;
+    }
+    if (!this.libraryPrefixGroups.some((group) => group.key === this.library.selectedPrefix)) {
+      this.library.selectedPrefix = this.libraryPrefixGroups[0].key;
+    }
+    if (!this.libraryRunsForSelectedPrefix.some((run) => run.run_id === this.library.selectedRunId)) {
+      this.library.selectedRunId = (this.libraryRunsForSelectedPrefix[0] && this.libraryRunsForSelectedPrefix[0].run_id) || '';
+      this.library.selectedFrameName = '';
+      this.library.runDetail = null;
+    }
+    if (this.library.runDetail && this.library.runDetail.run_id !== this.library.selectedRunId) {
+      this.library.runDetail = null;
+      this.library.selectedFrameName = '';
+    }
+  },
+  async ensureLibraryRunDetail() {
+    this.syncLibrarySelection();
+    const run = this.librarySelectedRunSummary;
+    if (!run) return;
+    if (this.librarySelectedRunDetail) {
+      if (!this.library.selectedFrameName && this.librarySelectedFrames.length) {
+        this.library.selectedFrameName = this.librarySelectedFrames[0];
+      }
+      return;
+    }
+    await this.openLibraryRun(run);
+  },
   async refreshRuns() {
     if (typeof fetch !== "function") return;
     this.runsLoading = true;
@@ -1495,6 +1673,10 @@ export default {
       const data = await res.json();
       this.runsAll = data.runs || [];
       this.applyRunsFilters();
+      this.syncLibrarySelection();
+      if (this.currentTab === 'LIBRARY') {
+        await this.ensureLibraryRunDetail();
+      }
     } catch (_e) {
       this.runsStatus = "Failed to load runs";
     } finally {
@@ -1517,6 +1699,40 @@ export default {
     if (!run) return;
     this.openRunsSettings();
     this.showRunDetails(run);
+  },
+  async openLibraryPrefix(prefixKey) {
+    this.library.selectedPrefix = prefixKey;
+    this.library.selectedRunId = '';
+    this.library.selectedFrameName = '';
+    this.library.runDetail = null;
+    await this.ensureLibraryRunDetail();
+  },
+  async openLibraryRun(run) {
+    if (!run || !run.run_id || typeof fetch !== 'function') return;
+    this.library.selectedPrefix = this.runPrefixKey(run);
+    this.library.selectedRunId = run.run_id;
+    this.library.selectedFrameName = '';
+    this.library.loading = true;
+    this.library.status = '';
+    try {
+      const res = await fetch(`/api/runs/${run.run_id}`);
+      if (!res.ok) return;
+      this.library.runDetail = await res.json();
+      this.library.selectedFrameName = (this.library.runDetail.frames && this.library.runDetail.frames[0]) || '';
+    } catch (_e) {
+      this.library.status = 'Failed to load run frames';
+    } finally {
+      this.library.loading = false;
+    }
+  },
+  selectLibraryFrame(frameName) {
+    this.library.selectedFrameName = frameName || '';
+  },
+  stepLibraryFrame(direction) {
+    if (!this.librarySelectedFrames.length) return;
+    const current = this.librarySelectedFrameIndex >= 0 ? this.librarySelectedFrameIndex : 0;
+    const next = Math.min(this.librarySelectedFrames.length - 1, Math.max(0, current + Number(direction || 0)));
+    this.library.selectedFrameName = this.librarySelectedFrames[next] || '';
   },
   applyRunsFilters() {
     let filtered = [...this.runsAll];
@@ -1705,9 +1921,17 @@ export default {
    }
    this.currentTab = id;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
+  if (id === 'LIBRARY') {
+    if (!this.runsAll.length && !this.runsLoading) {
+      void this.refreshRuns();
+    } else {
+      void this.ensureLibraryRunDetail();
+    }
+  }
  },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
+  if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
@@ -1803,6 +2027,11 @@ normalizeDefaultAnimationSettings(input = {}) {
 },
 onDefaultAnimationInput() {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
+  this.saveSessionState();
+},
+resetDefaultAnimationSettings() {
+  const preferDeforumVideo = !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo);
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({ preferDeforumVideo });
   this.saveSessionState();
 },
 setPreferDeforumVideo(prefer) {
@@ -2508,7 +2737,7 @@ toggleCollaboration() {
      liveCam: this.liveCam,
      audio: { bpm: this.audio.bpm, track: this.audio.track },
      cn: { slots: this.cn.slots, active: this.cn.active },
-     loras: { groupA: this.loras.groupA, groupB: this.loras.groupB },
+    loras: { common: this.loras.common, groupA: this.loras.groupA, groupB: this.loras.groupB },
      prompts: {
        pos: this.prompts.pos,
        neg: this.prompts.neg,
@@ -2554,6 +2783,7 @@ toggleCollaboration() {
      if (preset.macrosRack) this.macrosRack = preset.macrosRack;
      if (preset.prompts) Object.assign(this.prompts, preset.prompts);
      if (preset.loras) {
+      this.loras.common = preset.loras.common || [];
        this.loras.groupA = preset.loras.groupA || [];
        this.loras.groupB = preset.loras.groupB || [];
        await this.refreshLoras();
@@ -3861,6 +4091,7 @@ audioBandWindowStyle(mapping) {
        if (data.preset.lfos) this.lfos = data.preset.lfos;
        if (data.preset.macrosRack) this.macrosRack = data.preset.macrosRack;
        if (data.preset.loras) {
+        this.loras.common = data.preset.loras.common || [];
          this.loras.groupA = data.preset.loras.groupA || [];
          this.loras.groupB = data.preset.loras.groupB || [];
          // Sync selection state without fetching (data already restored)
@@ -3886,6 +4117,7 @@ audioBandWindowStyle(mapping) {
      audio: { bpm: this.audio.bpm, track: this.audio.track },
      cn: { slots: this.cn.slots, active: this.cn.active },
      loras: {
+      common: this.loras.common,
        groupA: this.loras.groupA,
        groupB: this.loras.groupB,
      },
@@ -5096,7 +5328,15 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
        this.loras.source = data.source || "unknown";
        // Restore selected loras from groups using Map for O(1) lookup
        const loraMap = new Map(this.loras.available.map(l => [l.id, l]));
-       this.loras.groupA.forEach((savedLora) => {
+      this.loras.common.forEach((savedLora) => {
+        const found = loraMap.get(savedLora.id);
+        if (found) {
+          found.selected = true;
+          found.group = "COMMON";
+          found.strength = savedLora.strength;
+        }
+      });
+      this.loras.groupA.forEach((savedLora) => {
          const found = loraMap.get(savedLora.id);
          if (found) {
            found.selected = true;
@@ -5124,14 +5364,15 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      this.removeLoraSelection(lora);
    } else {
      lora.selected = true;
-     lora.group = "A";
-     this.assignLoraToGroup(lora, "A");
+    lora.group = "COMMON";
+    this.assignLoraToGroup(lora, "COMMON");
    }
  },
  assignLoraToGroup(lora, group) {
-   if (group !== "A" && group !== "B") return;
+  if (group !== "A" && group !== "B" && group !== "COMMON") return;
    
-   // Remove from both groups first
+  // Keep each LoRA assigned to exactly one group.
+  this.loras.common = this.loras.common.filter((l) => l.id !== lora.id);
    this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
    this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
    
@@ -5146,7 +5387,9 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      thumbnail: lora.thumbnail,
    };
    
-   if (group === "A") {
+  if (group === "COMMON") {
+    this.loras.common.push(loraData);
+  } else if (group === "A") {
      this.loras.groupA.push(loraData);
    } else {
      this.loras.groupB.push(loraData);
@@ -5155,6 +5398,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  removeLoraSelection(lora) {
    lora.selected = false;
    lora.group = null;
+  this.loras.common = this.loras.common.filter((l) => l.id !== lora.id);
    this.loras.groupA = this.loras.groupA.filter((l) => l.id !== lora.id);
    this.loras.groupB = this.loras.groupB.filter((l) => l.id !== lora.id);
  },
@@ -5164,11 +5408,16 @@ unassignLora(lora) {
     available.selected = false;
     available.group = null;
   }
+  this.loras.common = this.loras.common.filter((entry) => entry.id !== lora.id);
   this.loras.groupA = this.loras.groupA.filter((entry) => entry.id !== lora.id);
   this.loras.groupB = this.loras.groupB.filter((entry) => entry.id !== lora.id);
 },
  updateLoraStrength(lora) {
    // Update strength in groups as well
+  const commonLora = this.loras.common.find((entry) => entry.id === lora.id);
+  if (commonLora) {
+    commonLora.strength = lora.strength;
+  }
    const groupALora = this.loras.groupA.find((l) => l.id === lora.id);
    if (groupALora) {
      groupALora.strength = lora.strength;
@@ -5181,7 +5430,11 @@ unassignLora(lora) {
 updateGroupedLoraStrength(group, lora, value) {
   const next = parseFloat(value);
   if (!Number.isFinite(next)) return;
-  const list = group === "B" ? this.loras.groupB : this.loras.groupA;
+  const list = group === "COMMON"
+    ? this.loras.common
+    : group === "B"
+      ? this.loras.groupB
+      : this.loras.groupA;
   const target = list.find((entry) => entry.id === lora.id);
   if (target) target.strength = next;
   const available = this.loras.available.find((entry) => entry.id === lora.id);
@@ -5195,6 +5448,10 @@ updateGroupedLoraStrength(group, lora, value) {
    // Send crossfader value and update LoRA strengths
    this.sendControl("crossfader", {
      value: this.prompts.crossfaderValue,
+    common: this.loras.common.map((l) => ({
+      ...l,
+      effectiveStrength: l.strength,
+    })),
      groupA: this.loras.groupA.map((l) => ({
        ...l,
        effectiveStrength: l.strength * (1 - this.prompts.crossfaderValue),
@@ -5207,6 +5464,11 @@ updateGroupedLoraStrength(group, lora, value) {
  },
  applyLoras() {
    const payload = {
+    common: this.loras.common.map((l) => ({
+      name: l.name,
+      path: l.path,
+      strength: l.strength,
+    })),
      groupA: this.loras.groupA.map((l) => ({
        name: l.name,
        path: l.path,
@@ -5227,9 +5489,10 @@ updateGroupedLoraStrength(group, lora, value) {
      lora.selected = false;
      lora.group = null;
    });
+  this.loras.common = [];
    this.loras.groupA = [];
    this.loras.groupB = [];
-   this.sendControl("loras", { groupA: [], groupB: [], crossfaderValue: this.prompts.crossfaderValue });
+  this.sendControl("loras", { common: [], groupA: [], groupB: [], crossfaderValue: this.prompts.crossfaderValue });
  },
 
  // ─── Story Generator ─────────────────────────────────────────────────
@@ -5466,7 +5729,13 @@ async generateStory() {
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
+    if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
+    if (s.deforumFieldEnabled && typeof s.deforumFieldEnabled === 'object') {
+      this.deforumFieldEnabled = createDeforumFieldEnabledMap(s.deforumFieldEnabled);
+    } else {
+      this.deforumFieldEnabled = createDeforumFieldEnabledMap();
+    }
     if (typeof s.collabEnabled === 'boolean') {
       this.collabEnabled = s.collabEnabled;
       this.wsStatus = s.collabEnabled ? this.wsStatus : 'offline';
@@ -5496,6 +5765,8 @@ async generateStory() {
        slots: this.performance.slots,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
+      deforumActiveTab: this.deforumActiveTab,
+      deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       collabEnabled: this.collabEnabled,
       defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
@@ -5933,8 +6204,13 @@ reapplyEngineModelDefaults() {
    this.prompts.pos = positive;
    this.sendControl('prompt', { positive, negative });
    if (Object.keys(live).length) this.sendControl('liveParam', live);
-   if (loraA.length || loraB.length) {
+  if (this.loras.common.length || loraA.length || loraB.length) {
      this.sendControl('loras', {
+      common: this.loras.common.map((lora) => ({
+        name: lora.name,
+        path: lora.path,
+        strength: lora.strength,
+      })),
        groupA: loraA,
        groupB: loraB,
        crossfaderValue: t,
@@ -5998,6 +6274,61 @@ flushQueuedPreview() {
  getDeforumField(keyPath) {
    return getNestedValue(this.deforumSettings, keyPath);
  },
+formatDeforumFieldValue(field, rawValue) {
+  if (!field) return String(rawValue ?? '');
+  const value = rawValue == null ? '' : rawValue;
+  if (field.type === 'slider' || field.type === 'number') {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '';
+    const stepText = String(field.step ?? '');
+    const decimals = stepText.includes('.') ? stepText.split('.')[1].length : 0;
+    return numeric.toFixed(decimals);
+  }
+  return String(value);
+},
+deforumFieldOptions(field) {
+  if (!field) return [];
+  if (field.key === 'sampler') return this.engineSamplerOptions;
+  if (field.key === 'scheduler') return this.engineSchedulerOptions;
+  return Array.isArray(field.options) ? field.options : [];
+},
+isDeforumDynamicSelect(field) {
+  return !!(field && (field.key === 'sampler' || field.key === 'scheduler'));
+},
+deforumToggleKeyForPath(keyPath) {
+  return DEFORUM_DERIVED_TOGGLE_KEYS[keyPath] || keyPath;
+},
+isDeforumFieldToggleable(keyPath) {
+  const toggleKey = this.deforumToggleKeyForPath(keyPath);
+  return DEFORUM_FIELD_KEYS.includes(toggleKey);
+},
+isDeforumFieldEnabled(keyPath) {
+  if (!this.isDeforumFieldToggleable(keyPath)) return true;
+  const toggleKey = this.deforumToggleKeyForPath(keyPath);
+  return this.deforumFieldEnabled[toggleKey] !== false;
+},
+setDeforumFieldEnabled(keyPath, enabled) {
+  const toggleKey = this.deforumToggleKeyForPath(keyPath);
+  if (!this.isDeforumFieldToggleable(toggleKey)) return;
+  this.deforumFieldEnabled = {
+    ...createDeforumFieldEnabledMap(this.deforumFieldEnabled),
+    [toggleKey]: enabled !== false,
+  };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+activeDeforumSettings() {
+  const settings = this.normalizedDeforumSettings();
+  DEFORUM_FIELD_KEYS.forEach((keyPath) => {
+    if (!this.isDeforumFieldEnabled(keyPath)) removeNestedValue(settings, keyPath);
+  });
+  Object.entries(DEFORUM_DERIVED_TOGGLE_KEYS).forEach(([keyPath, toggleKey]) => {
+    if (!this.isDeforumFieldEnabled(toggleKey)) removeNestedValue(settings, keyPath);
+  });
+  return settings;
+},
  onDeforumSectionToggle(groupId, evt) {
    this.deforumSectionOpen[groupId] = evt.target.open;
  },
@@ -6033,6 +6364,9 @@ flushQueuedPreview() {
   }
   if (keyPath === 'sampler') {
     this.forge.options.sampler_name = String(value || '');
+  }
+  if (keyPath === 'scheduler') {
+    this.forge.options.scheduler = String(value || '');
   }
   if (keyPath === 'W' && Number.isFinite(value)) {
     this.syncResolutionAcrossControls(value, this.deforumSettings && this.deforumSettings.H, { syncGpuModal: true });
@@ -6083,12 +6417,13 @@ onGpuForgeModalResolutionInput(axis, rawValue) {
   return next;
 },
  pushDeforumLivePatch(keyPath, value) {
+  if (!this.isDeforumFieldEnabled(keyPath)) return;
    const patch = patchFromKeyPath(keyPath, value);
    this.sendControl('liveParam', patch);
  },
  syncDeforumSettingsJson() {
    try {
-     this.deforumSettingsJson = JSON.stringify(this.deforumSettings, null, 2);
+    this.deforumSettingsJson = JSON.stringify(this.activeDeforumSettings(), null, 2);
      this.deforumSettingsJsonError = '';
    } catch (e) {
      this.deforumSettingsJsonError = String(e.message || e);
@@ -6098,7 +6433,7 @@ onGpuForgeModalResolutionInput(axis, rawValue) {
    try {
      const parsed = JSON.parse(this.deforumSettingsJson);
      if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
-    this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, parsed);
+    this.deforumSettings = mergeDeforumSettings(this.normalizedDeforumSettings(), parsed);
      this.deforumSettingsJsonError = '';
     const desiredModel = this.syncSelectedModelFromDeforumSettings();
     if (desiredModel) {
@@ -6139,11 +6474,11 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
  async saveDeforumSettings() {
   this.deforumSettingsSaving = true;
    try {
-    this.deforumSettings = this.normalizedDeforumSettings();
+    const settings = this.activeDeforumSettings();
      const res = await fetch('/api/deforum/settings', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ settings: this.deforumSettings }),
+       body: JSON.stringify({ settings }),
      });
      const data = await res.json();
      if (!res.ok || data.error) {
@@ -6172,11 +6507,11 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    this.performance.status = 'Rendering Deforum frame…';
    this.deforumSettingsStatus = 'Rendering…';
    try {
-    this.deforumSettings = this.normalizedDeforumSettings();
+    const settings = this.activeDeforumSettings();
      const res = await fetch('/api/deforum/preview', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ settings: this.deforumSettings }),
+       body: JSON.stringify({ settings }),
      });
      const data = await res.json();
      if (!res.ok || data.error) {
