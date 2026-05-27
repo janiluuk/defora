@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.20] - 2026-05-27
+
+## What's Changed
+
+- feat(web): service health + restore-gated session resume (#61) (aeb6540)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.19...v0.6.20
+
+
 ## [0.6.19] - 2026-05-27
 
 ## What's Changed
