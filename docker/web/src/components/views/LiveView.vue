@@ -162,10 +162,6 @@
             <label>Cloud elevation</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudElevation" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
-            <label>Speed</label>
-            <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
-          </div>
           <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Speed</label>
             <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
