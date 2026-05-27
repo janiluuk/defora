@@ -100,21 +100,28 @@ try {
   if (!thumbRes.ok()) throw new Error(`Expected thumb 200, got ${thumbRes.status()}`);
 
   await clickTab(page, "LIBRARY");
-  await page.waitForTimeout(400);
-  const table = page.locator(".runs-browser__table");
-  if ((await table.count()) === 0) throw new Error("Runs table not found");
+  await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
 
-  const row = page.locator("tr").filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) }).first();
-  if ((await row.count()) === 0) {
-    // Try refresh if the first load races the initial /api/runs fetch.
+  const runRow = page
+    .locator(".runs-browser__table tbody tr")
+    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
+    .first();
+
+  const deadline = Date.now() + 30000;
+  while ((await runRow.count()) === 0 && Date.now() < deadline) {
+    const apiRuns = await page.request.get(`${base}/api/runs`);
+    if (!apiRuns.ok()) throw new Error(`Expected /api/runs 200, got ${apiRuns.status()}`);
+    const body = await apiRuns.json();
+    const found = (body.runs || []).some((r) => r.run_id === runId);
+    if (!found) {
+      throw new Error(`Run "${runId}" missing from /api/runs (${(body.runs || []).length} runs)`);
+    }
     await page.locator("button.framesync-button").filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
     await page.waitForTimeout(500);
   }
+  await runRow.waitFor({ state: "visible", timeout: 10000 });
 
-  const row2 = page.locator("tr").filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) }).first();
-  if ((await row2.count()) === 0) throw new Error(`Run row "${runId}" not found`);
-
-  await row2.locator("button").filter({ hasText: /^Details$/ }).first().click();
+  await runRow.locator("button").filter({ hasText: /^Details$/ }).first().click();
   const details = page.locator(".runs-detail-card");
   await details.waitFor({ state: "visible", timeout: 10000 });
 

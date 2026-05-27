@@ -2597,6 +2597,7 @@ module.exports = {
       if (!res.ok) return;
       const data = await res.json();
       this.runsAll = data.runs || [];
+      this.applyRunsFilters();
       void this.refreshGpuPool(true);
       // Best-effort: fetch Deforum batch queue from all Forge GPUs and merge into runs list.
       try {
