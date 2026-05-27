@@ -1141,6 +1141,11 @@ export default {
       liveBottomDrawerTab: 'MODULATION',
       restoreSessionPromptOpen: false,
       pendingSessionStateRaw: '',
+      promptHistoryOpen: false,
+      promptHistory: [],
+      speechPromptSupported: false,
+      speechPromptListening: false,
+      speechPromptError: '',
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -2418,6 +2423,7 @@ export default {
       this.refreshSequencerList();
       setTimeout(() => this.drawTimeline(), 200);
     });
+    this.initPromptHistory();
   },
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
@@ -8100,8 +8106,147 @@ reapplyEngineModelDefaults() {
  onPerformanceInput() {
    this.applyCrossfadeMorph();
    this.saveSessionState();
+  this.queuePromptHistorySave(this.performance.genericPrompt);
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
+promptHistoryKey() {
+  return `defora_prompt_history_${this.session || 'default'}`;
+},
+initPromptHistory() {
+  try {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    this.speechPromptSupported = !!SpeechRecognition;
+  } catch (_e) {
+    this.speechPromptSupported = false;
+  }
+  try {
+    const raw = window.localStorage && window.localStorage.getItem(this.promptHistoryKey());
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (Array.isArray(data)) {
+      this.promptHistory = data.filter((x) => typeof x === 'string' && x.trim()).slice(0, 50);
+    }
+  } catch (_e) { /* ignore */ }
+},
+savePromptHistory() {
+  try {
+    if (!window.localStorage) return;
+    window.localStorage.setItem(this.promptHistoryKey(), JSON.stringify(this.promptHistory.slice(0, 50)));
+  } catch (_e) { /* ignore */ }
+},
+queuePromptHistorySave(rawPrompt) {
+  const s = String(rawPrompt || '').trim();
+  if (!s) return;
+  clearTimeout(this.promptHistoryDebounceTimer);
+  this.promptHistoryDebounceTimer = setTimeout(() => {
+    this.addPromptToHistory(s);
+  }, 650);
+},
+addPromptToHistory(prompt) {
+  const s = String(prompt || '').trim();
+  if (!s) return;
+  const next = [s, ...this.promptHistory.filter((p) => p !== s)];
+  this.promptHistory = next.slice(0, 50);
+  this.savePromptHistory();
+},
+togglePromptHistory(force) {
+  const next = typeof force === 'boolean' ? force : !this.promptHistoryOpen;
+  this.promptHistoryOpen = next;
+  if (next) {
+    // refresh from storage in case multiple tabs
+    this.initPromptHistory();
+  }
+},
+restorePromptFromHistory(prompt) {
+  const s = String(prompt || '').trim();
+  if (!s) return;
+  this.performance.genericPrompt = s;
+  this.onPerformanceInput();
+  this.promptHistoryOpen = false;
+},
+clearGenericPrompt() {
+  this.performance.genericPrompt = '';
+  this.speechPromptError = '';
+  this.onPerformanceInput();
+},
+toggleSpeechPrompt() {
+  if (this.speechPromptListening) {
+    this.stopSpeechPrompt();
+  } else {
+    this.startSpeechPrompt();
+  }
+},
+startSpeechPrompt() {
+  this.speechPromptError = '';
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    this.speechPromptSupported = false;
+    this.speechPromptError = 'Microphone input not supported in this browser.';
+    return;
+  }
+  try {
+    if (this._speechPromptRecognizer) {
+      try { this._speechPromptRecognizer.abort(); } catch (_e) {}
+    }
+    const r = new SpeechRecognition();
+    this._speechPromptRecognizer = r;
+    r.lang = (navigator && navigator.language) ? navigator.language : 'en-US';
+    r.interimResults = true;
+    r.continuous = false;
+    let finalText = '';
+    r.onstart = () => {
+      this.speechPromptListening = true;
+    };
+    r.onerror = (evt) => {
+      const code = evt && evt.error ? String(evt.error) : 'error';
+      this.speechPromptError = code === 'not-allowed'
+        ? 'Microphone permission denied.'
+        : `Speech error: ${code}`;
+      this.speechPromptListening = false;
+    };
+    r.onend = () => {
+      this.speechPromptListening = false;
+      if (finalText.trim()) {
+        const base = String(this.performance.genericPrompt || '').trim();
+        const merged = base ? `${base}, ${finalText.trim()}` : finalText.trim();
+        this.performance.genericPrompt = merged;
+        this.onPerformanceInput();
+        this.addPromptToHistory(merged);
+      }
+    };
+    r.onresult = (evt) => {
+      try {
+        const res = evt && evt.results ? evt.results : [];
+        let acc = '';
+        for (let i = evt.resultIndex || 0; i < res.length; i++) {
+          const item = res[i];
+          const alt = item && item[0] ? item[0] : null;
+          if (!alt) continue;
+          acc += String(alt.transcript || '');
+          if (item.isFinal) finalText += String(alt.transcript || '');
+        }
+        // Show interim in the input (without committing to history yet)
+        const base = String(this.performance.genericPrompt || '').trim();
+        const interim = acc.trim();
+        if (interim) {
+          this.performance.genericPrompt = base ? `${base}, ${interim}` : interim;
+        }
+      } catch (_e) {}
+    };
+    r.start();
+  } catch (e) {
+    this.speechPromptError = String(e.message || e);
+    this.speechPromptListening = false;
+  }
+},
+stopSpeechPrompt() {
+  try {
+    if (this._speechPromptRecognizer) {
+      try { this._speechPromptRecognizer.stop(); } catch (_e) {}
+    }
+  } catch (_e) {}
+  this.speechPromptListening = false;
+},
 queuePreviewRequest(kind, delay) {
   if (this.deforumPlaying) return;
   const nextKind = kind === 'deforum' ? 'deforum' : 'auto';

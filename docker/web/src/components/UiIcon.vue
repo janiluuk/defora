@@ -131,6 +131,17 @@
       <path d="M9.8 9.3C10 8.2 10.9 7.4 12.1 7.4C13.5 7.4 14.5 8.3 14.5 9.5C14.5 10.5 13.9 11.1 13.1 11.7C12.3 12.3 11.8 12.8 11.8 13.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <circle cx="12" cy="16.8" r="1" fill="currentColor" />
     </template>
+    <template v-else-if="name === 'mic'">
+      <rect x="9" y="3.8" width="6" height="10" rx="3" stroke="currentColor" stroke-width="1.8" />
+      <path d="M6.8 11.5C6.8 14.2 9 16.4 11.8 16.4H12.2C15 16.4 17.2 14.2 17.2 11.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M12 16.4V20.2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M9 20.2H15" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </template>
+    <template v-else-if="name === 'history'">
+      <path d="M12 4.2A8 8 0 1 1 4.5 9.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M4.2 4.8V9.4H8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M12 8V12.2L14.8 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
   </svg>
 </template>
 

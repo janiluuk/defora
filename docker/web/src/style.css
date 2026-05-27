@@ -2037,6 +2037,76 @@
       gap: 8px;
       align-items: center;
     }
+
+    .prompt-input-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: start;
+    }
+    .prompt-input-row__input {
+      min-height: 46px;
+      resize: vertical;
+    }
+    .prompt-input-row__actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      padding-top: 2px;
+    }
+    .prompt-input-row__actions .framesync-button {
+      width: 32px;
+      height: 28px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0;
+    }
+
+    .prompt-history-panel {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      background: var(--bg-1);
+      border-radius: 10px;
+      padding: 10px;
+    }
+    .prompt-history-panel__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 8px;
+    }
+    .prompt-history-panel__empty {
+      font-size: 11px;
+      color: var(--text-dim);
+      padding: 6px 0;
+      text-align: center;
+    }
+    .prompt-history-panel__list {
+      display: grid;
+      gap: 6px;
+      max-height: 220px;
+      overflow: auto;
+    }
+    .prompt-history-panel__item {
+      text-align: left;
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--bg-0);
+      color: var(--text-primary);
+      border-radius: 8px;
+      padding: 8px;
+      font-size: 11px;
+      line-height: 1.25;
+      cursor: pointer;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .prompt-history-panel__item:hover {
+      border-color: rgba(255,255,255,0.18);
+    }
     .lora-crossfader-shell { margin-top: 12px; }
     .lora-crossfader-inline {
       display: grid;

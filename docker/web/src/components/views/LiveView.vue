@@ -397,7 +397,67 @@
 
         <div class="framesync-stack" style="margin-top:10px;">
           <div class="framesync-subtitle">Generic prompt</div>
-          <textarea class="framesync-input" v-model="performance.genericPrompt" rows="2" placeholder="Base prompt for this session…" @input="onPerformanceInput"></textarea>
+          <div class="prompt-input-row">
+            <textarea
+              class="framesync-input prompt-input-row__input"
+              v-model="performance.genericPrompt"
+              rows="2"
+              placeholder="Base prompt for this session…"
+              @input="onPerformanceInput"
+            ></textarea>
+            <div class="prompt-input-row__actions">
+              <button
+                type="button"
+                class="framesync-button framesync-button--compact"
+                :class="{ 'framesync-button--live': speechPromptListening }"
+                :title="speechPromptListening ? 'Stop microphone' : (speechPromptSupported ? 'Speak prompt' : 'Microphone not supported')"
+                :disabled="!speechPromptSupported"
+                @click="toggleSpeechPrompt"
+              >
+                <UiIcon name="mic" />
+              </button>
+              <button
+                type="button"
+                class="framesync-button framesync-button--compact"
+                title="Clear prompt"
+                :disabled="!(performance.genericPrompt || '').trim()"
+                @click="clearGenericPrompt"
+              >
+                <UiIcon name="close" />
+              </button>
+              <button
+                type="button"
+                class="framesync-button framesync-button--compact"
+                :class="{ active: promptHistoryOpen }"
+                :title="promptHistoryOpen ? 'Close prompt history' : 'Open prompt history'"
+                @click="togglePromptHistory"
+              >
+                <UiIcon name="history" />
+              </button>
+            </div>
+          </div>
+          <div v-if="speechPromptError" class="framesync-subtitle" style="margin-top:6px;color:var(--warn);">
+            {{ speechPromptError }}
+          </div>
+          <div v-if="promptHistoryOpen" class="prompt-history-panel">
+            <div class="prompt-history-panel__header">
+              <div class="framesync-subtitle" style="margin:0;">History</div>
+              <button type="button" class="framesync-button framesync-button--compact" @click="togglePromptHistory(false)">Close</button>
+            </div>
+            <div v-if="!promptHistory.length" class="prompt-history-panel__empty">No prompts yet.</div>
+            <div v-else class="prompt-history-panel__list">
+              <button
+                v-for="(p, idx) in promptHistory"
+                :key="'prompt-hist-' + idx"
+                type="button"
+                class="prompt-history-panel__item"
+                @click="restorePromptFromHistory(p)"
+                :title="p"
+              >
+                {{ p }}
+              </button>
+            </div>
+          </div>
         </div>
 
         <div class="crossfade-deck" style="margin-top:14px;">
