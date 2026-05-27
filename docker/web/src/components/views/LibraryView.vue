@@ -1,10 +1,20 @@
 <template>
-  <div class="library-shell">
+  <div class="library-shell" :class="{ 'library-shell--fullscreen': libraryFullscreen }">
     <div class="library-browser">
       <div class="framesync-panel library-browser__folders">
         <div class="framesync-header">
           <div class="framesync-title">Library <span class="framesync-accent">Prefixes</span></div>
-          <button class="framesync-button" @click="refreshRuns">Refresh</button>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button class="framesync-button framesync-button--compact" @click="refreshRuns">Refresh</button>
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              :class="{ active: libraryFullscreen }"
+              @click="libraryFullscreen = !libraryFullscreen; saveSessionState()"
+            >
+              {{ libraryFullscreen ? 'Exit full' : 'Expand' }}
+            </button>
+          </div>
         </div>
         <div class="framesync-subtitle" style="margin-top:10px;">
           Prefix folders are grouped from Deforum batch names so related runs stay together.
@@ -149,6 +159,7 @@
         </div>
       </template>
     </div>
+
   </div>
 </template>
 
@@ -170,6 +181,18 @@ export default {
 .library-shell {
   display: grid;
   gap: 12px;
+}
+.library-shell--fullscreen {
+  position: fixed;
+  inset: 8px;
+  z-index: 999;
+  padding: 12px;
+  background: rgba(8, 9, 13, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  overflow: auto;
 }
 
 .library-browser {

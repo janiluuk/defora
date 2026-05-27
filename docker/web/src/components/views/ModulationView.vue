@@ -78,7 +78,7 @@
               <div class="framesync-subtitle">Targets</div>
               <div class="modulation-target-board__hint" v-if="selectedModulationLfo">
                 Armed: LFO {{ selectedModulationLfo.id }}. Click a target to toggle its route.
-                Standby / Three.js targets drive the default animation (not Deforum).
+                Standby / Three.js targets drive the WebGL animation engine (not Deforum).
               </div>
             </div>
           </div>

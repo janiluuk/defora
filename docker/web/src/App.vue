@@ -44,29 +44,148 @@
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview">
-        <div class="video-wrap" :class="{ 'video-wrap--preview-loading': previewGenerating }">
-          <ThreeBackground
-            class="video-wrap__default-animation"
-            :lfos="lfos"
-            :audio-metrics="backgroundAudioMetrics"
-            :active-tab="currentTab"
-            :morph="performance.crossfader"
-            :settings="defaultAnimation"
-          />
-          <img
-            v-if="showPreviewStill"
-            :src="activePreviewStillPath"
-            alt="Generated preview"
-            class="video-still-preview"
-          />
-          <video
-            :class="['video-feed', { 'video-feed--visible': showDeforumVideo }]"
-            id="player"
-            ref="videoEl"
-            autoplay
-            muted
-            playsinline
-          ></video>
+        <div
+          class="video-wrap"
+          :class="{
+            'video-wrap--live': currentTab === 'LIVE',
+            'video-wrap--preview-loading': previewGenerating,
+          }"
+        >
+          <div v-if="currentTab === 'LIVE'" class="video-layer-tabs" data-testid="video-layer-tabs">
+            <div class="video-layer-tabs__transport" data-testid="live-transport-top">
+              <button class="control-btn control-btn--top" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
+                <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
+                <span>{{ deforumPlaying ? 'Pause' : 'Play' }}</span>
+              </button>
+              <button
+                class="control-btn control-btn--top control-btn--frame"
+                :class="{ 'control-btn--loading': previewGenerating }"
+                @click="generatePreviewFrame"
+                :disabled="previewGenerating || deforumPlaying"
+                data-testid="preview-frame"
+              >
+                <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
+                  <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                  <span>Frame</span>
+                  <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                </span>
+                <template v-else>
+                  <UiIcon class="control-btn__icon" name="image" />
+                  <span>Frame</span>
+                </template>
+              </button>
+              <button class="control-btn control-btn--top control-btn--record" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
+                <UiIcon class="control-btn__icon" :name="isRecording ? 'stop' : 'record'" />
+                <span>{{ isRecording ? 'Stop Rec' : 'Record' }}</span>
+              </button>
+              <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
+                {{ deforumPlaying ? 'Animating' : 'Preview' }}
+              </span>
+            </div>
+            <div
+              v-for="layer in videoLayers"
+              :key="'video-layer-' + layer.id"
+              role="button"
+              tabindex="0"
+              class="video-layer-tab"
+              :class="{
+                active: activeVideoLayerId === layer.id,
+                'video-layer-tab--builtin': layer.builtin,
+              }"
+              @click="selectVideoLayer(layer.id)"
+              @keyup.enter="selectVideoLayer(layer.id)"
+            >
+              <span
+                class="video-layer-tab__dot"
+                :class="[
+                  'video-layer-tab__dot--' + layerStatus(layer),
+                  { active: activeVideoLayerId === layer.id },
+                ]"
+                aria-hidden="true"
+              ></span>
+              <span class="video-layer-tab__label">{{ layer.label }}</span>
+              <button
+                v-if="!layer.builtin"
+                type="button"
+                class="video-layer-tab__close"
+                title="Remove layer"
+                @click.stop="closeVideoLayer(layer.id)"
+              >
+                ×
+              </button>
+            </div>
+            <button
+              type="button"
+              class="video-layer-tab video-layer-tab--add"
+              :class="{ active: videoLayerAddOpen }"
+              data-testid="video-layer-add-toggle"
+              @click="toggleVideoLayerAdd"
+            >
+              + Add source
+            </button>
+            <button
+              type="button"
+              class="video-layer-tab video-layer-tab--size"
+              :title="videoStageSize === 'normal' ? 'Normal size' : videoStageSize === 'preview' ? 'Preview size' : 'Fullscreen'"
+              @click="toggleVideoStageSize()"
+            >
+              {{ videoStageSize === 'normal' ? 'Normal' : videoStageSize === 'preview' ? 'Preview' : 'Fullscreen' }}
+            </button>
+          </div>
+
+          <div
+            class="video-wrap__stage"
+            :class="{
+              'video-wrap__stage--preview': videoStageSize === 'preview',
+              'video-wrap__stage--fullscreen': videoStageSize === 'fullscreen',
+            }"
+          >
+            <ThreeBackground
+              :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': isWebglLayerActive || (isDeforumLayerActive && !videoReady) }]"
+              :lfos="lfos"
+              :audio-metrics="backgroundAudioMetrics"
+              :active-tab="currentTab"
+              :morph="performance.crossfader"
+              :settings="defaultAnimation"
+            />
+            <img
+              v-if="showPreviewStill"
+              :src="activePreviewStillPath"
+              alt="Generated preview"
+              class="video-still-preview"
+            />
+            <video
+              :class="['video-feed', { 'video-feed--visible': showDeforumVideo }]"
+              id="player"
+              ref="videoEl"
+              autoplay
+              muted
+              playsinline
+            ></video>
+            <video
+              ref="inputVideoEl"
+              :class="['video-feed', 'video-layer-input-video', { 'video-feed--visible': showLayerInputVideo }]"
+              muted
+              playsinline
+              controls
+            ></video>
+            <div
+              v-if="isInputLayerActive && !activeLayerPlaybackUrl"
+              class="video-layer-empty"
+              data-testid="video-layer-input-empty"
+            >
+              <span class="video-layer-empty__title">Input layer</span>
+              <span class="framesync-subtitle">Pick a video from the library or link a cloud source.</span>
+              <button type="button" class="framesync-button" @click="toggleVideoLayerAdd(true)">+ Add source</button>
+            </div>
+            <div
+              v-if="activeVideoLayer && activeVideoLayer.kind === 'cloud'"
+              class="video-layer-empty video-layer-empty--cloud"
+            >
+              <span class="video-layer-empty__title">{{ activeVideoLayer.label }}</span>
+              <span class="framesync-subtitle">Cloud links open externally until direct streaming is wired in.</span>
+              <button type="button" class="framesync-button" @click="openCloudLayer(activeVideoLayer)">Open link</button>
+            </div>
           <div
             v-if="previewGenerating"
             class="preview-loading-overlay"
@@ -86,13 +205,16 @@
             <div>
               <div class="timecode">{{ timecode }}</div>
               <div style="font-size:11px; color:var(--text-secondary);">Seed {{ hud.seed }}</div>
+              <div style="font-size:11px; color:var(--text-secondary);">
+                {{ currentProjectLabel }} · {{ currentBatchLabel }}
+              </div>
             </div>
             <div style="display:flex; align-items:flex-start; gap:8px; text-align:right;">
               <div>
                 <div>{{ stats.fps }} fps</div>
                 <div style="font-size:11px; color:var(--text-secondary);">lat {{ stats.lat }}ms</div>
-                <div class="video-feed-status" :class="{ 'video-feed-status--ready': videoReady, 'video-feed-status--selected': defaultAnimation.preferDeforumVideo }">
-                  {{ deforumFeedStatusLabel }}
+                <div class="video-feed-status" :class="{ 'video-feed-status--ready': videoReady && isDeforumLayerActive, 'video-feed-status--selected': isDeforumLayerActive }">
+                  {{ videoLayerStatusLabel }}
                 </div>
               </div>
             </div>
@@ -112,6 +234,72 @@
                 :modulated="!!paramSources[p.key] && paramSources[p.key] !== 'Manual'"
               />
             </GlassPanel>
+          </div>
+          </div>
+
+          <div
+            v-if="currentTab === 'LIVE' && videoLayerAddOpen"
+            class="video-layer-add framesync-panel"
+            data-testid="video-layer-add"
+          >
+            <div class="framesync-header">
+              <div class="framesync-title">
+                <UiIcon class="framesync-title-icon" name="plus" />
+                <span class="framesync-accent">Add source</span>
+              </div>
+              <button type="button" class="framesync-button framesync-button--compact" @click="toggleVideoLayerAdd(false)">Close</button>
+            </div>
+            <p class="framesync-subtitle video-layer-add__hint">
+              New sources open as preview tabs. Built-in layers: WebGL, Deforum, and Input.
+            </p>
+            <div class="chips video-layer-add__mode">
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: liveSourcePanel === 'library' }"
+                @click="liveSourcePanel = 'library'; saveSessionState()"
+              >
+                Library (video-swarm)
+              </button>
+              <button
+                type="button"
+                class="chip"
+                :class="{ active: liveSourcePanel === 'cloud' }"
+                @click="liveSourcePanel = 'cloud'; saveSessionState()"
+              >
+                Link cloud drive
+              </button>
+            </div>
+            <div v-if="liveSourceStatus" class="framesync-subtitle video-layer-add__status">{{ liveSourceStatus }}</div>
+            <div v-if="liveSourcePanel === 'library'" class="video-layer-add__library">
+              <div class="video-layer-add__actions">
+                <button type="button" class="framesync-button" @click="addLiveSourcesFromSelection">Open as new layer</button>
+                <button type="button" class="framesync-button" @click="assignInputFromSelection">Assign to Input layer</button>
+              </div>
+              <VideoSwarmBrowser :app="appView" />
+            </div>
+            <div v-else class="video-layer-add__cloud framesync-stack">
+              <label class="framesync-stack">
+                <span class="framesync-subtitle">Provider</span>
+                <select class="framesync-select" v-model="cloudDriveDraft.provider">
+                  <option value="google_drive">Google Drive</option>
+                  <option value="dropbox">Dropbox</option>
+                  <option value="onedrive">OneDrive</option>
+                  <option value="other">Other</option>
+                </select>
+              </label>
+              <label class="framesync-stack">
+                <span class="framesync-subtitle">Share link</span>
+                <input
+                  type="url"
+                  class="framesync-input"
+                  v-model.trim="cloudDriveDraft.url"
+                  placeholder="https://drive.google.com/…"
+                  @keyup.enter="linkCloudDriveSource"
+                >
+              </label>
+              <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
+            </div>
           </div>
         </div>
 
@@ -333,6 +521,7 @@
                 <button type="button" class="framesync-button" @click="previewSequencerFrame">Preview frame</button>
                 <button type="button" class="framesync-button" @click="saveSequencerTimeline">Save</button>
                 <button type="button" class="framesync-button" @click="exportSequencerDownload">Export JSON</button>
+                <button type="button" class="framesync-button framesync-button--accent" @click="applySequencerToDeforumSettings" title="Convert timeline keyframes to Deforum schedule strings and save to settings">Apply to Deforum</button>
                 <select class="framesync-input" v-model="sequencerLoadPick" @change="loadSequencerTimeline">
                   <option value="">Load saved…</option>
                   <option v-for="n in sequencerList" :key="'seq-'+n" :value="n">{{ n }}</option>
@@ -590,38 +779,7 @@
           </template>
         </div>
 
-        <div v-if="currentTab !== 'LIBRARY'" class="video-controls-panel">
-          <div class="video-controls">
-            <button class="control-btn" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
-              <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
-              <span>{{ deforumPlaying ? 'Pause' : 'Play' }}</span>
-            </button>
-            <button
-              class="control-btn"
-              :class="{ 'control-btn--loading': previewGenerating }"
-              @click="generatePreviewFrame"
-              :disabled="previewGenerating || deforumPlaying"
-              data-testid="preview-frame"
-            >
-              <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
-                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-                <span>Frame</span>
-                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-              </span>
-              <template v-else>
-                <UiIcon class="control-btn__icon" name="image" />
-                <span>Frame</span>
-              </template>
-            </button>
-            <button class="control-btn" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
-              <UiIcon class="control-btn__icon" :name="isRecording ? 'stop' : 'record'" />
-              <span>{{ isRecording ? 'Stop Rec' : 'Record' }}</span>
-            </button>
-            <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
-              {{ deforumPlaying ? 'Animating' : 'Preview' }}
-            </span>
-          </div>
-        </div>
+        <!-- transport moved to top bar in LIVE -->
 
         <div v-if="currentTab === 'LIVE'" class="recent-runs-rail">
           <div class="recent-runs-rail__header">
@@ -670,10 +828,6 @@
           <span class="live-overlay-btn__arrow-wrap">
             <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
           </span>
-          <span class="live-overlay-btn__copy">
-            <span class="live-overlay-btn__label">Controls</span>
-            <span class="live-overlay-btn__hint">{{ showRightPanel ? 'Collapse' : 'Expand' }}</span>
-          </span>
         </button>
         <div class="live-right-column">
           <LiveView :app="appViewModel" />
@@ -687,6 +841,7 @@
           'studio-right-column': currentTab === 'MODULATION'
         }">
           <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
+          <ToolsView v-else-if="currentTab==='TOOLS'" :app="appViewModel" />
           <StreamView v-else-if="currentTab==='STREAM'" :app="appViewModel" />
           <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
@@ -720,6 +875,8 @@ import {
 } from './deforum-settings-schema.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
 
+const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
+
 const TIMELINE_TRACK_COLORS = [
   'rgb(45, 226, 255)',
   'rgb(255, 83, 217)',
@@ -744,8 +901,10 @@ import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
 import Timeline from './components/generate/Timeline.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
+import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LibraryView from './components/views/LibraryView.vue'
+import ToolsView from './components/views/ToolsView.vue'
 import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
@@ -756,7 +915,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, VideoSwarmBrowser, LiveView, LibraryView, ToolsView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
        showFrames: false,
@@ -777,11 +936,14 @@ export default {
       lorasLoading: false,
       deforumSettingsLoading: false,
       deforumSettingsSaving: false,
-       paramPanelOpen: false,
-       deforumPanelOpen: false,
-       liveDrawerOpen: false,
+      paramPanelOpen: false,
+      deforumPanelOpen: false,
+      liveDrawerOpen: true,
+      videoStageSize: 'normal', // normal | preview | fullscreen
+      liveAnimationBoxOpen: false,
+      libraryFullscreen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
-       deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+      deforumFieldGroups: DEFORUM_FIELD_GROUPS.filter((g) => !CONTROLNET_GROUP_IDS.has(g.id)),
       deforumFieldEnabled: createDeforumFieldEnabledMap(),
        deforumActiveTab: 'canvas',
        deforumSectionOpen: {},
@@ -914,6 +1076,7 @@ export default {
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
+        { id: "TOOLS", label: "TOOLS", hint: "Sources", icon: "wrench" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -925,6 +1088,16 @@ export default {
       liveSourcePanel: 'library',
       liveSources: [],
       liveSourceStatus: '',
+      videoLayers: [
+        { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
+        { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
+        { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
+      ],
+      activeVideoLayerId: 'webgl',
+      videoLayerAddOpen: false,
+      inputLayerPlaybackUrl: null,
+      inputLayerLabel: 'Input',
+      inputVideoReady: false,
       cloudDriveDraft: { url: '', provider: 'google_drive' },
       systemFiles: {
         roots: [],
@@ -1015,11 +1188,38 @@ export default {
         },
       },
       motionPresets: {
-        Static: { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
-        Orbit: { translation_z: 2, rotation_y: 15, translation_x: 0, translation_y: 0, rotation_z: 0 },
-        Tunnel: { translation_z: 5, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
-        Handheld: { translation_z: 0.5, translation_x: 0.2, translation_y: 0.1, rotation_z: 2, rotation_y: 0 },
-        Chaos: { translation_z: 1.5, translation_x: 0.5, translation_y: 0.3, rotation_z: 5, rotation_y: 10 }
+        Static:      { translation_z: 0,   translation_x: 0,    translation_y: 0,   rotation_z: 0,  rotation_y: 0 },
+        Orbit:       { translation_z: 2,   rotation_y: 15,      translation_x: 0,   translation_y: 0, rotation_z: 0 },
+        Tunnel:      { translation_z: 5,   translation_x: 0,    translation_y: 0,   rotation_z: 0,  rotation_y: 0 },
+        Handheld:    { translation_z: 0.5, translation_x: 0.2,  translation_y: 0.1, rotation_z: 2,  rotation_y: 0 },
+        Chaos:       { translation_z: 1.5, translation_x: 0.5,  translation_y: 0.3, rotation_z: 5,  rotation_y: 10 },
+        // rotation_3d_z gallery presets (wiki examples: ±1, ±2, ±4, ±8)
+        'Spin +1':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 1,  rotation_y: 0 },
+        'Spin +2':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 2,  rotation_y: 0 },
+        'Spin +4':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 4,  rotation_y: 0 },
+        'Spin +8':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 8,  rotation_y: 0 },
+        'Spin -1':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: -1, rotation_y: 0 },
+        'Spin -2':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: -2, rotation_y: 0 },
+        'Spin -4':   { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: -4, rotation_y: 0 },
+        // rotation_3d_y gallery presets (±0.5, ±1, ±2, ±3)
+        'Yaw +0.5':  { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0.5 },
+        'Yaw +1':    { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 1 },
+        'Yaw +2':    { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 2 },
+        'Yaw +3':    { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 3 },
+        'Yaw -1':    { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: -1 },
+        'Yaw -2':    { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: -2 },
+        // rotation_3d_x gallery presets (±0.5, ±1, ±2)
+        'Pitch +0.5':{ translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0, rotation_x: 0.5 },
+        'Pitch +1':  { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0, rotation_x: 1 },
+        'Pitch +2':  { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0, rotation_x: 2 },
+        'Pitch -1':  { translation_z: 0, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0, rotation_x: -1 },
+        // 2D translation gallery presets
+        'Pan R':     { translation_z: 0, translation_x: 5,  translation_y: 0,  rotation_z: 0, rotation_y: 0 },
+        'Pan L':     { translation_z: 0, translation_x: -5, translation_y: 0,  rotation_z: 0, rotation_y: 0 },
+        'Pan Up':    { translation_z: 0, translation_x: 0,  translation_y: -5, rotation_z: 0, rotation_y: 0 },
+        'Pan Down':  { translation_z: 0, translation_x: 0,  translation_y: 5,  rotation_z: 0, rotation_y: 0 },
+        // 2D zoom gallery presets
+        'Zoom Out':  { translation_z: -2, translation_x: 0, translation_y: 0, rotation_z: 0, rotation_y: 0 },
       },
       motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
       motionStylesSaved: {},
@@ -1063,6 +1263,14 @@ export default {
         { key: "rotation_y", label: "Rotate Y", min: -180, max: 180, default: 0, group: "Camera" },
         { key: "rotation_z", label: "Tilt", min: -180, max: 180, default: 0, group: "Camera" },
         { key: "fov", label: "FOV", min: 1, max: 180, default: 70, group: "Camera" },
+        // Deforum-native 3D schedule params (maps to rotation_3d_* in Deforum settings)
+        { key: "rotation_3d_x", label: "Rotate X (3D)", min: -180, max: 180, default: 0, group: "Camera 3D", deforumKey: "rotation_3d_x" },
+        { key: "rotation_3d_y", label: "Rotate Y (3D)", min: -180, max: 180, default: 0, group: "Camera 3D", deforumKey: "rotation_3d_y" },
+        { key: "rotation_3d_z", label: "Rotate Z (3D)", min: -180, max: 180, default: 0, group: "Camera 3D", deforumKey: "rotation_3d_z" },
+        { key: "zoom_2d", label: "Zoom (2D)", min: 0.5, max: 2.0, default: 1.0, group: "Camera 2D", deforumKey: "zoom" },
+        { key: "angle_2d", label: "Angle (2D)", min: -90, max: 90, default: 0, group: "Camera 2D", deforumKey: "angle" },
+        { key: "near_clip", label: "Near Clip", min: 1, max: 1000, default: 200, group: "Camera 3D", deforumKey: "near_schedule" },
+        { key: "far_clip", label: "Far Clip", min: 100, max: 100000, default: 10000, group: "Camera 3D", deforumKey: "far_schedule" },
         { key: "cn_CN1_weight", label: "CN1 Weight", min: 0, max: 2, default: 0.4, group: "ControlNet" },
         { key: "cn_CN2_weight", label: "CN2 Weight", min: 0, max: 2, default: 0.4, group: "ControlNet" },
         { key: "cn_CN3_weight", label: "CN3 Weight", min: 0, max: 2, default: 0.4, group: "ControlNet" },
@@ -1350,6 +1558,13 @@ export default {
     selectedFrameLabel() {
       return this.selectedFrameThumb ? `Frame ${this.frameLabel(this.selectedFrameThumb)}` : 'No frames';
     },
+    currentProjectLabel() {
+      const group = this.libraryPrefixGroups.find((entry) => entry.key === this.librarySelectedPrefixKey);
+      return (group && group.label) || this.session || 'Project';
+    },
+    currentBatchLabel() {
+      return String((this.deforumSettings && this.deforumSettings.batch_name) || '').trim() || '—';
+    },
     activePreviewStillPath() {
       if (!this.deforumPlaying && this.currentTab === 'LIBRARY') {
         return this.librarySelectedFrameSrc || '';
@@ -1380,19 +1595,57 @@ export default {
       return this.showRightPanel ? 'Hide controls menu' : 'Show controls menu';
     },
     showDeforumVideo() {
-      return !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo && this.videoReady);
+      return !!(this.isDeforumLayerActive && this.videoReady);
+    },
+    activeVideoLayer() {
+      const layers = Array.isArray(this.videoLayers) ? this.videoLayers : [];
+      return layers.find((layer) => layer.id === this.activeVideoLayerId) || layers[0] || null;
+    },
+    isWebglLayerActive() {
+      return this.activeVideoLayer?.kind === 'webgl';
+    },
+    isDeforumLayerActive() {
+      return this.activeVideoLayer?.kind === 'deforum';
+    },
+    isInputLayerActive() {
+      return this.activeVideoLayer?.kind === 'input';
+    },
+    activeLayerPlaybackUrl() {
+      const layer = this.activeVideoLayer;
+      if (!layer) return '';
+      if (layer.kind === 'input') return this.inputLayerPlaybackUrl || layer.playbackUrl || '';
+      if (layer.kind === 'library') return layer.playbackUrl || '';
+      return '';
+    },
+    showLayerInputVideo() {
+      const layer = this.activeVideoLayer;
+      if (!layer || !this.activeLayerPlaybackUrl) return false;
+      return layer.kind === 'input' || layer.kind === 'library';
+    },
+    appView() {
+      return this;
+    },
+    videoLayerStatusLabel() {
+      const layer = this.activeVideoLayer;
+      if (!layer) return '—';
+      if (layer.kind === 'webgl') return 'WebGL engine';
+      if (layer.kind === 'deforum') {
+        if (this.showDeforumVideo) return 'Deforum live';
+        if (this.videoReady) return 'Deforum ready';
+        if (this.deforumPlaying) return 'Deforum warming up';
+        return 'Waiting for Deforum';
+      }
+      if (layer.kind === 'input') {
+        return this.activeLayerPlaybackUrl ? `Input · ${this.inputLayerLabel || 'Video'}` : 'Input · no source';
+      }
+      if (layer.kind === 'library') return `Layer · ${layer.label || 'Video'}`;
+      if (layer.kind === 'cloud') return `Cloud · ${layer.label || 'Link'}`;
+      return layer.label || 'Layer';
     },
     showPreviewStill() {
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
-        || !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo);
+        || this.isDeforumLayerActive;
       return !!(!this.showDeforumVideo && !this.deforumPlaying && this.activePreviewStillPath && shouldSurfaceStill);
-    },
-    deforumFeedStatusLabel() {
-      if (this.showDeforumVideo) return 'Deforum feed live';
-      if (this.videoReady) return 'Deforum feed ready';
-      if (this.deforumPlaying) return 'Deforum feed warming up';
-      if (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo) return 'Waiting for Deforum feed';
-      return 'Default animation';
     },
     backgroundAudioMetrics() {
       const levels = Array.isArray(this.audioMappingLevels) ? this.audioMappingLevels.map((value) => Math.max(0, Math.min(1, Number(value) || 0))) : [];
@@ -1972,6 +2225,7 @@ export default {
   },
   mounted() {
     this.loadSessionState();
+    this.initVideoLayers();
     this.syncMotionPadFromPayload(this.motionPresets[this.motionSelectedPreset] || { translation_x: 0, translation_y: 0 });
     this.applyCrossfadeMorph();
     this.loadMotionStyles();
@@ -1989,6 +2243,7 @@ export default {
     });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
       this.restoreLastModel();
+      this.runStartupWarmup();
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -2400,7 +2655,8 @@ export default {
    return allowed.includes(sub) ? sub : 'LFO';
  },
  normalizeLiveSubTab(sub) {
-   const allowed = ['MONITOR', 'DEFORUM_JOB', 'ADD_SOURCE'];
+   const allowed = ['MONITOR', 'DEFORUM_JOB'];
+   if (sub === 'ADD_SOURCE') return 'MONITOR';
    return allowed.includes(sub) ? sub : 'MONITOR';
  },
  switchSubTab(tab, sub) {
@@ -2420,7 +2676,11 @@ export default {
   if (tab === 'PROMPTS' && (sub === 'LORA' || sub === 'CROSSFADER') && !this.lorasLoading && !this.loras.available.length) {
     this.refreshLoras();
   }
-  if (tab === 'LIVE' && sub === 'ADD_SOURCE' && !this.systemFiles.roots.length) {
+  if (tab === 'LIVE' && sub === 'ADD_SOURCE') {
+    sub = 'MONITOR';
+    this.toggleVideoLayerAdd(true);
+  }
+  if (tab === 'LIVE' && this.videoLayerAddOpen && !this.systemFiles.roots.length) {
     void this.initSystemFilesBrowser();
   }
  },
@@ -2469,6 +2729,23 @@ export default {
      video.currentTime = 0;
    }
   this.syncFrameSelectionFromPlayback(0);
+ },
+ async runStartupWarmup() {
+   if (this.deforumPlaying || typeof fetch !== "function") return;
+   if (!this.apiStatus?.sdForge?.available) return;
+   try {
+     const res = await fetch('/api/deforum/warmup', {
+       method: 'POST',
+       headers: { 'Content-Type': 'application/json' },
+       body: JSON.stringify({ maxFrames: 48, fps: 12 }),
+     });
+     if (!res.ok) return;
+     const data = await res.json();
+     if (data.ok && data.status !== 'already_running') {
+       this.selectVideoLayer('deforum');
+       this.performance.status = 'Startup clip generating…';
+     }
+   } catch (_e) {}
  },
  async toggleStreamRecord() {
    if (this.isRecording) {
@@ -2700,9 +2977,172 @@ setPreferDeforumVideo(prefer) {
     preferDeforumVideo: prefer,
   });
   if (prefer) {
+    this.activeVideoLayerId = 'deforum';
     this.videoReady = false;
     this.attachPlayer();
+  } else if (this.activeVideoLayerId === 'deforum') {
+    this.activeVideoLayerId = 'webgl';
   }
+  this.saveSessionState();
+},
+rebuildVideoLayers() {
+  const custom = (this.liveSources || []).map((source) => ({
+    id: source.id,
+    kind: source.type === 'cloud' ? 'cloud' : 'library',
+    label: source.label || 'Source',
+    playbackUrl: source.playbackUrl || null,
+    url: source.url || null,
+    builtin: false,
+  }));
+  this.videoLayers = [
+    { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
+    { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
+    {
+      id: 'input',
+      kind: 'input',
+      label: this.inputLayerLabel || 'Input',
+      playbackUrl: this.inputLayerPlaybackUrl || null,
+      builtin: true,
+    },
+    ...custom,
+  ];
+},
+initVideoLayers() {
+  this.rebuildVideoLayers();
+  const allowed = new Set(this.videoLayers.map((layer) => layer.id));
+  if (!allowed.has(this.activeVideoLayerId)) {
+    this.activeVideoLayerId = this.defaultAnimation?.preferDeforumVideo ? 'deforum' : 'webgl';
+  }
+  this.$nextTick(() => {
+    if (this.showLayerInputVideo) this.attachInputVideo(this.activeLayerPlaybackUrl);
+  });
+},
+selectVideoLayer(id) {
+  if (!this.videoLayers.find((layer) => layer.id === id)) return;
+  this.activeVideoLayerId = id;
+  const layer = this.activeVideoLayer;
+  if (layer?.kind === 'webgl') {
+    this.setPreferDeforumVideo(false);
+    return;
+  }
+  if (layer?.kind === 'deforum') {
+    this.setPreferDeforumVideo(true);
+    return;
+  }
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+    ...this.defaultAnimation,
+    preferDeforumVideo: false,
+  });
+  if (layer?.playbackUrl || (layer?.kind === 'input' && this.inputLayerPlaybackUrl)) {
+    this.$nextTick(() => this.attachInputVideo(this.activeLayerPlaybackUrl));
+  }
+  this.saveSessionState();
+},
+toggleVideoLayerAdd(open) {
+  const next = typeof open === 'boolean' ? open : !this.videoLayerAddOpen;
+  this.videoLayerAddOpen = next;
+  if (next && !this.systemFiles.roots.length) {
+    void this.initSystemFilesBrowser();
+  }
+  this.saveSessionState();
+},
+closeVideoLayer(id) {
+  if (id === 'webgl' || id === 'deforum' || id === 'input') return;
+  this.removeLiveSource(id);
+  if (this.activeVideoLayerId === id) {
+    this.selectVideoLayer('input');
+  }
+},
+attachInputVideo(src) {
+  const video = this.$refs.inputVideoEl;
+  if (!video || !src) return;
+  this.inputVideoReady = false;
+  if (!this._inputVideoReadyHandler) {
+    this._inputVideoReadyHandler = () => {
+      try {
+        this.inputVideoReady = video.readyState >= 2;
+      } catch (_e) {
+        this.inputVideoReady = true;
+      }
+    };
+  }
+  video.removeEventListener?.("loadeddata", this._inputVideoReadyHandler);
+  video.removeEventListener?.("canplay", this._inputVideoReadyHandler);
+  video.addEventListener?.("loadeddata", this._inputVideoReadyHandler);
+  video.addEventListener?.("canplay", this._inputVideoReadyHandler);
+  if (video.src !== src) {
+    video.src = src;
+    video.load();
+  }
+  try {
+    const p = video.play?.();
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch (_e) {}
+},
+openCloudLayer(layer) {
+  if (!layer?.url) return;
+  window.open(layer.url, '_blank', 'noopener');
+},
+toggleVideoStageSize(next) {
+  const allowed = ['normal', 'preview', 'fullscreen'];
+  const target = allowed.includes(String(next)) ? String(next) : null;
+  const order = ['normal', 'preview', 'fullscreen'];
+  const current = allowed.includes(this.videoStageSize) ? this.videoStageSize : 'normal';
+  const desired = target || order[(order.indexOf(current) + 1) % order.length];
+  this.videoStageSize = desired;
+  if (desired === 'fullscreen') {
+    try {
+      const el = this.$el && this.$el.querySelector ? this.$el.querySelector('.video-wrap__stage') : null;
+      const req = el && (el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen);
+      if (req) req.call(el);
+    } catch (_e) {}
+  } else {
+    try {
+      const doc = typeof document !== 'undefined' ? document : null;
+      if (doc && (doc.fullscreenElement || doc.webkitFullscreenElement)) {
+        const exit = doc.exitFullscreen || doc.webkitExitFullscreen || doc.mozCancelFullScreen || doc.msExitFullscreen;
+        if (exit) exit.call(doc);
+      }
+    } catch (_e) {}
+  }
+  this.saveSessionState();
+},
+layerStatus(layer) {
+  if (!layer) return 'red';
+  if (layer.kind === 'webgl') return 'green';
+  if (layer.kind === 'deforum') {
+    if (this.videoReady) return 'green';
+    if (this.deforumPlaying || (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo)) return 'yellow';
+    return 'red';
+  }
+  if (layer.kind === 'input') {
+    if (!this.inputLayerPlaybackUrl) return 'red';
+    return this.inputVideoReady ? 'green' : 'yellow';
+  }
+  if (layer.kind === 'library') {
+    if (!layer.playbackUrl) return 'red';
+    return this.inputVideoReady ? 'green' : 'yellow';
+  }
+  if (layer.kind === 'cloud') {
+    return layer.url ? 'yellow' : 'red';
+  }
+  return 'red';
+},
+assignInputFromSelection() {
+  const selected = (this.systemFiles.selectedPaths || [])
+    .map((path) => (this.systemFiles.videos || []).find((video) => video.path === path))
+    .filter(Boolean);
+  const video = selected[0];
+  if (!video) {
+    this.liveSourceStatus = 'Select a video in the library grid first';
+    return;
+  }
+  this.inputLayerPlaybackUrl = this.systemFilePlaybackUrl(video);
+  this.inputLayerLabel = video.name || 'Input';
+  this.rebuildVideoLayers();
+  this.selectVideoLayer('input');
+  this.liveSourceStatus = `Assigned to Input layer: ${this.inputLayerLabel}`;
+  this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
 async initSystemFilesBrowser() {
@@ -2803,7 +3243,10 @@ addLiveSourceFromVideo(video) {
     playbackUrl: this.systemFilePlaybackUrl(video),
   };
   this.liveSources = [...(this.liveSources || []), entry];
-  this.liveSourceStatus = `Added library source: ${entry.label}`;
+  this.rebuildVideoLayers();
+  this.selectVideoLayer(entry.id);
+  this.liveSourceStatus = `Opened layer: ${entry.label}`;
+  this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
 addLiveSourcesFromSelection() {
@@ -2842,26 +3285,21 @@ linkCloudDriveSource() {
     playbackUrl: parsed.href,
   };
   this.liveSources = [...(this.liveSources || []), entry];
+  this.rebuildVideoLayers();
+  this.selectVideoLayer(entry.id);
   this.cloudDriveDraft.url = '';
-  this.liveSourceStatus = `Linked cloud source: ${entry.label}`;
+  this.liveSourceStatus = `Opened cloud layer: ${entry.label}`;
+  this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
 removeLiveSource(sourceId) {
   this.liveSources = (this.liveSources || []).filter((s) => s.id !== sourceId);
+  this.rebuildVideoLayers();
   this.saveSessionState();
 },
 applyLiveSourceAsFeed(source) {
   if (!source) return;
-  if (source.type === 'library' && source.playbackUrl) {
-    this.streamSrc = source.playbackUrl;
-    this.attachPlayer();
-    this.liveSourceStatus = `Previewing ${source.label}`;
-    return;
-  }
-  if (source.type === 'cloud' && source.url) {
-    window.open(source.url, '_blank', 'noopener');
-    this.liveSourceStatus = `Opened ${source.label} in a new tab`;
-  }
+  this.selectVideoLayer(source.id);
 },
 markVideoReady(ready) {
   this.videoReady = !!ready;
@@ -2900,7 +3338,7 @@ detachPlayerListeners(video = this.playerEl) {
      this.autoplayVideo(video);
    } else if (typeof Hls !== "undefined" && Hls.isSupported && Hls.isSupported()) {
      const hlsEvents = (Hls && Hls.Events) || { MANIFEST_PARSED: "manifest_parsed", ERROR: "error" };
-     this.hls = new Hls({ liveSyncDurationCount: 3 });
+     this.hls = new Hls({ liveSyncDurationCount: 1, liveMaxLatencyDurationCount: 3, maxBufferLength: 6, maxMaxBufferLength: 12 });
      this.hls.loadSource(hlsSource);
      this.hls.attachMedia(video);
      if (this.hls.on) {
@@ -2985,7 +3423,14 @@ detachPlayerListeners(video = this.playerEl) {
  autoplayVideo(video) {
    const el = video || this.playerEl;
    if (!el || typeof el.play !== "function") return;
-   const p = el.play();
+  let p = null;
+  try {
+    p = el.play();
+  } catch (_e) {
+    this.isPlaying = false;
+    this.markVideoReady(false);
+    return;
+  }
    if (p && typeof p.catch === "function") {
     p.then(() => {
       this.isPlaying = true;
@@ -3439,6 +3884,15 @@ toggleCollaboration() {
     if (msg.item) this.mergeFrameThumb(msg.item);
     this.scheduleFrameRefresh(msg.item ? 80 : 0);
    }
+  if (msg.type === "warmup_started") {
+    this.selectVideoLayer('deforum');
+    this.performance.status = 'Startup clip generating…';
+  }
+  if (msg.type === "warmup_done") {
+    if (this.performance.status === 'Startup clip generating…') {
+      this.performance.status = 'Startup clip ready';
+    }
+  }
   if (msg.type === "deforum_settings") {
     this.loadDeforumSettings({ syncServerModel: false });
   }
@@ -5919,6 +6373,42 @@ onAudioUpload(evt) {
    a.click();
    URL.revokeObjectURL(a.href);
  },
+async applySequencerToDeforumSettings() {
+  const fps = Math.max(1, Number(this.sequencer.fps) || 24);
+  const durationSec = Math.max(0.1, Number(this.sequencer.durationSec) || 1);
+  const totalFrames = Math.ceil(durationSec * fps);
+  const scheduleUpdates = {};
+  for (const tr of this.sequencer.tracks) {
+    const meta = this.modulationTargets.find((m) => m.key === tr.param);
+    const deforumKey = meta?.deforumKey || tr.param;
+    if (!tr.keyframes.length) continue;
+    const sorted = [...tr.keyframes].sort((a, b) => a.t - b.t);
+    const parts = sorted.map((kf) => {
+      const frame = Math.round(Math.min(totalFrames, Math.max(0, kf.t * fps)));
+      const val = Number.isFinite(kf.v) ? kf.v : 0;
+      return `${frame}:(${val.toFixed(4)})`;
+    });
+    scheduleUpdates[deforumKey] = parts.join(', ');
+  }
+  if (!Object.keys(scheduleUpdates).length) {
+    this.sequencerStatus = 'No tracks with keyframes to export';
+    return;
+  }
+  try {
+    const currentSettings = this.deforumSettings || {};
+    const merged = { ...currentSettings, ...scheduleUpdates };
+    const res = await fetch('/api/deforum/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: merged }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    this.sequencerStatus = `Applied ${Object.keys(scheduleUpdates).length} schedule(s) to Deforum settings`;
+    this.loadDeforumSettings({ syncServerModel: false });
+  } catch (err) {
+    this.sequencerStatus = 'Apply failed: ' + err.message;
+  }
+},
 selectSequencerTrack(trackId) {
   this.sequencerSelectedTrackId = trackId;
 },
@@ -6587,6 +7077,14 @@ async generateStory() {
     }
     if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
     if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
+    if (typeof s.activeVideoLayerId === 'string') this.activeVideoLayerId = s.activeVideoLayerId;
+    if (typeof s.videoLayerAddOpen === 'boolean') this.videoLayerAddOpen = s.videoLayerAddOpen;
+    if (typeof s.inputLayerPlaybackUrl === 'string') this.inputLayerPlaybackUrl = s.inputLayerPlaybackUrl;
+    if (typeof s.inputLayerLabel === 'string') this.inputLayerLabel = s.inputLayerLabel;
+    if (s.videoStageSize === 'normal' || s.videoStageSize === 'preview' || s.videoStageSize === 'fullscreen') {
+      this.videoStageSize = s.videoStageSize;
+    }
+    if (typeof s.liveAnimationBoxOpen === 'boolean') this.liveAnimationBoxOpen = s.liveAnimationBoxOpen;
     if (s.cloudDriveDraft && typeof s.cloudDriveDraft === 'object') {
       this.cloudDriveDraft = {
         url: String(s.cloudDriveDraft.url || ''),
@@ -6603,6 +7101,7 @@ async generateStory() {
         fullscreenIndex: -1,
       };
     }
+    if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
@@ -6666,6 +7165,12 @@ async generateStory() {
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
       liveSourcePanel: this.liveSourcePanel,
+      activeVideoLayerId: this.activeVideoLayerId,
+      videoLayerAddOpen: this.videoLayerAddOpen,
+      inputLayerPlaybackUrl: this.inputLayerPlaybackUrl,
+      inputLayerLabel: this.inputLayerLabel,
+      videoStageSize: this.videoStageSize,
+      liveAnimationBoxOpen: this.liveAnimationBoxOpen,
       cloudDriveDraft: { ...this.cloudDriveDraft },
       systemFiles: {
         rootId: this.systemFiles.rootId,
@@ -6674,6 +7179,7 @@ async generateStory() {
         sortKey: this.systemFiles.sortKey,
         zoomLevel: this.systemFiles.zoomLevel,
       },
+      libraryFullscreen: this.libraryFullscreen,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
@@ -7286,11 +7792,13 @@ isDeforumFieldToggleable(keyPath) {
   return DEFORUM_FIELD_KEYS.includes(toggleKey);
 },
 isDeforumFieldEnabled(keyPath) {
+  if (String(keyPath || '').startsWith('cn_')) return false;
   if (!this.isDeforumFieldToggleable(keyPath)) return true;
   const toggleKey = this.deforumToggleKeyForPath(keyPath);
   return this.deforumFieldEnabled[toggleKey] !== false;
 },
 setDeforumFieldEnabled(keyPath, enabled) {
+  if (String(keyPath || '').startsWith('cn_')) return;
   const toggleKey = this.deforumToggleKeyForPath(keyPath);
   if (!this.isDeforumFieldToggleable(toggleKey)) return;
   this.deforumFieldEnabled = {
@@ -7316,6 +7824,7 @@ activeDeforumSettings() {
    this.deforumSectionOpen[groupId] = evt.target.open;
  },
  onDeforumFieldInput(keyPath, raw, kind) {
+  if (String(keyPath || '').startsWith('cn_')) return;
    let value = raw;
    if (kind === 'number') {
      const n = parseFloat(raw);

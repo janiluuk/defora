@@ -84,7 +84,7 @@
                   <div class="runs-browser__actions">
                     <button class="framesync-button runs-browser__action" @click.stop="showRunDetails(run)" title="Details">Details</button>
                     <button class="framesync-button runs-browser__action" @click.stop="rerunRun(run)" title="Rerun">Rerun</button>
-                    <button class="framesync-button runs-browser__action runs-browser__action--danger" @click.stop="deleteRun(run)" title="Delete">Delete</button>
+                    <button class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click.stop="deleteRun(run)" title="Delete">Delete</button>
                   </div>
                 </td>
               </tr>
