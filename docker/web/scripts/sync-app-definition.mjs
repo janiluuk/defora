@@ -72,6 +72,51 @@ for (const mod of UTIL_MODULES) {
 }
 if (inlinedUtils) inlinedUtils += '\n';
 
+function normalizeRelPath(baseRelPath, importPath) {
+  const baseDir = dirname(join(root, 'src', baseRelPath.replace(/^\.\//, '')));
+  const resolved = join(baseDir, importPath).replace(/\\/g, '/');
+  const srcRoot = join(root, 'src').replace(/\\/g, '/');
+  return `./${resolved.slice(srcRoot.length + 1)}`;
+}
+
+const emittedComponentStubs = new Set();
+
+function ensureComponentStub(name, relPath, lines, seen = new Set()) {
+  const relKey = relPath.replace(/^\.\//, '');
+  if (seen.has(relKey)) return;
+  seen.add(relKey);
+
+  const componentPath = join(root, 'src', relKey);
+  const componentSrc = readFileSync(componentPath, 'utf8');
+  const componentTemplate = extractVueTemplate(componentSrc, relPath);
+  const scriptMatch = componentSrc.match(/<script>([\s\S]*?)<\/script>/);
+
+  const childComponents = [];
+  if (scriptMatch) {
+    const importRe = /import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\.?\/[^'"]+\.vue)['"]/g;
+    let m;
+    while ((m = importRe.exec(scriptMatch[1])) !== null) {
+      const [, importName, importRel] = m;
+      const nestedRel = normalizeRelPath(relPath, importRel);
+      if (nestedRel.includes('/views/')) {
+        ensureComponentStub(importName, nestedRel, lines, seen);
+      } else if (!emittedComponentStubs.has(importName)) {
+        lines.push(`const ${importName} = { template: '<div></div>' };`);
+        emittedComponentStubs.add(importName);
+      }
+      childComponents.push(`${importName}: ${importName}`);
+    }
+  }
+
+  const componentsClause = childComponents.length
+    ? `, components: { ${childComponents.join(', ')} }`
+    : '';
+  lines.push(
+    `const ${name} = { props: ['app'], setup(props) { return __proxyAppView(props); }${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
+  );
+  emittedComponentStubs.add(name);
+}
+
 const componentStubs = [];
 let needsAppViewProxyStub = false;
 script = script.replace(
@@ -79,15 +124,13 @@ script = script.replace(
   (_, name, relPath) => {
     if (relPath.includes('/views/')) {
       needsAppViewProxyStub = true;
-      const componentPath = join(root, 'src', relPath.replace(/^\.\//, ''));
-      const componentSrc = readFileSync(componentPath, 'utf8');
-      const componentTemplate = extractVueTemplate(componentSrc, relPath);
-      componentStubs.push(
-        `const ${name} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: ${JSON.stringify(componentTemplate)} };`
-      );
+      ensureComponentStub(name, relPath, componentStubs);
       return '';
     }
-    componentStubs.push(`const ${name} = { template: '<div></div>' };`);
+    if (!emittedComponentStubs.has(name)) {
+      componentStubs.push(`const ${name} = { template: '<div></div>' };`);
+      emittedComponentStubs.add(name);
+    }
     return '';
   }
 );

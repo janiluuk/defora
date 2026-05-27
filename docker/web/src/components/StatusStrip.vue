@@ -93,7 +93,7 @@
           <div class="ss-help-section">
             <div class="ss-help-section__title">Navigation</div>
             <div class="ss-help-section__items">
-              <div><kbd>1</kbd>–<kbd>6</kbd> Switch tabs (LIVE→GENERATE)</div>
+              <div><kbd>1</kbd>–<kbd>5</kbd> Switch tabs (LIVE→SETTINGS)</div>
             </div>
           </div>
           <div class="ss-help-section">

@@ -5,7 +5,7 @@
 import { chromium } from 'playwright';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS', 'GENERATE'];
+const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
 
 function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

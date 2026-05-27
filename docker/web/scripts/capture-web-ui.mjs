@@ -28,10 +28,10 @@ const shots = [
   { file: 'prompts-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'PROMPTS' } },
   { file: 'lora-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'LORA' } },
   { file: 'cn-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'CONTROLNET' } },
-  { file: 'motion-tab.png', tab: 'MOTION' },
+  { file: 'motion-tab.png', tab: 'MOTION', subTab: { group: 'MOTION', id: 'Performance' } },
+  { file: 'motion-sequencer-tab.png', tab: 'MOTION', subTab: { group: 'MOTION', id: 'Sequencer' } },
   { file: 'modulation-tab.png', tab: 'MODULATION' },
   { file: 'settings-tab.png', tab: 'SETTINGS' },
-  { file: 'generate-tab.png', tab: 'GENERATE' },
   { file: 'main.png', tab: 'LIVE' },
 ];
 

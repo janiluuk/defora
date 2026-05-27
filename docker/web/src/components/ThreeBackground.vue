@@ -222,13 +222,50 @@ export default {
     }
   },
   mounted() {
-    if (typeof window === 'undefined' || !this.$refs.host) return
-    this.initScene()
+    if (typeof window === 'undefined') return
+    this.scheduleStartup()
+    if (typeof document !== 'undefined') {
+      this._visibilityHandler = () => {
+        if (document.visibilityState === 'visible') this.ensureRunning()
+      }
+      document.addEventListener('visibilitychange', this._visibilityHandler)
+    }
   },
   beforeUnmount() {
+    if (typeof document !== 'undefined' && this._visibilityHandler) {
+      document.removeEventListener('visibilitychange', this._visibilityHandler)
+    }
     this.teardownScene()
   },
   methods: {
+    scheduleStartup() {
+      this.$nextTick(() => {
+        requestAnimationFrame(() => this.startWhenReady())
+      })
+    },
+    startWhenReady(attempts = 0) {
+      const host = this.$refs.host
+      if (!host) {
+        if (attempts < 90) requestAnimationFrame(() => this.startWhenReady(attempts + 1))
+        return
+      }
+      const width = host.clientWidth || 0
+      const height = host.clientHeight || 0
+      if ((width < 2 || height < 2) && attempts < 90) {
+        requestAnimationFrame(() => this.startWhenReady(attempts + 1))
+        return
+      }
+      if (!this.renderer) this.initScene()
+      else this.ensureRunning()
+    },
+    ensureRunning() {
+      if (!this.renderer || !this.scene || !this.camera || !this.clock) {
+        this.scheduleStartup()
+        return
+      }
+      this.handleResize()
+      if (this.rafId == null) this.animate()
+    },
     initScene() {
       const host = this.$refs.host
       if (!host) return
@@ -745,8 +782,8 @@ export default {
     },
     handleResize() {
       if (!this.renderer || !this.camera || !this.$refs.host) return
-      const width = this.$refs.host.clientWidth || 1
-      const height = this.$refs.host.clientHeight || 1
+      const width = Math.max(1, this.$refs.host.clientWidth || 0)
+      const height = Math.max(1, this.$refs.host.clientHeight || 0)
       this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(width, height, false)
@@ -1067,8 +1104,20 @@ export default {
         }
         this.updateCamera(elapsed, config)
 
+        if (this.$refs.host) {
+          const width = this.$refs.host.clientWidth || 0
+          const height = this.$refs.host.clientHeight || 0
+          const canvas = this.renderer.domElement
+          if (width >= 2 && height >= 2 && canvas && (canvas.width < 2 || canvas.height < 2)) {
+            this.handleResize()
+          }
+        }
+
         this.renderer.render(this.scene, this.camera)
         this.rafId = requestAnimationFrame(tick)
+      }
+      if (this.rafId != null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(this.rafId)
       }
       this.rafId = requestAnimationFrame(tick)
     },

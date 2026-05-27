@@ -149,7 +149,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
+    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' };
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
@@ -168,11 +168,11 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    expect(tabs.join(" ")).to.include("GENERATE");
+    expect(tabs.join(" ")).to.not.include("GENERATE");
     expect(tabs.join(" ")).to.not.include("AUDIO");
     expect(tabs.join(" ")).to.not.include("RUNS");
-    expect(tabs.length).to.equal(8);
-    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(8);
+    expect(tabs.length).to.equal(7);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(7);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -210,6 +210,19 @@ describe("Deforumation Web UI", () => {
     appVm.selectVideoLayer("deforum");
     expect(appVm.showPreviewStill).to.equal(true);
   });
+
+  it("defaults to the WebGL layer for standby animation on cold start", () => {
+    appVm.activeVideoLayerId = "deforum";
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    appVm.deforumPlaying = false;
+    appVm.videoReady = false;
+
+    appVm.ensureStandbyAnimationAtStartup();
+
+    expect(appVm.activeVideoLayerId).to.equal("webgl");
+    expect(appVm.showDefaultAnimation).to.equal(true);
+  });
+
   it("scopes standby controls to the WebGL animation engine and resets them", async () => {
     appVm.switchSubTab("LIVE", "MONITOR");
     appVm.selectVideoLayer("webgl");
@@ -411,8 +424,9 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".gpu-forge-modal")).to.exist;
   });
 
-  it("shows preview-ready and story generation text in the animation sequencer tab", async () => {
-    appVm.switchTab("GENERATE");
+  it("shows preview-ready and story generation text in the motion sequencer sub-tab", async () => {
+    appVm.switchTab("MOTION");
+    appVm.switchSubTab("MOTION", "SEQUENCER");
     appVm.performance.status = "Preview frame ready";
     appVm.generator.status = "Story ready";
     appVm.generator.result = {
@@ -1324,6 +1338,36 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.isDeforumFieldEnabled("seed")).to.equal(true);
   });
 
+
+  it("does not re-prompt session restore after the user declines", () => {
+    const instance = instantiate(appDef);
+    const touchedKey = instance.sessionStorageTouchedKey();
+    const declinedKey = instance.sessionRestoreDeclinedKey();
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      crossfader: 0.25,
+      genericPrompt: "saved prompt",
+    });
+    testStorage[touchedKey] = String(Date.now());
+    instance.pendingSessionStateRaw = testStorage[instance.sessionStorageKey()];
+
+    expect(instance.checkAndPromptSessionRestore()).to.equal(true);
+    expect(instance.restoreSessionPromptOpen).to.equal(true);
+
+    instance.dismissSessionRestore(false);
+
+    expect(instance.restoreSessionPromptOpen).to.equal(false);
+    expect(testStorage[declinedKey]).to.be.a("string");
+
+    instance.restoreSessionPromptOpen = false;
+    instance.pendingSessionStateRaw = "";
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      crossfader: 0.25,
+      genericPrompt: "saved prompt",
+    });
+
+    expect(instance.checkAndPromptSessionRestore()).to.equal(false);
+    expect(instance.restoreSessionPromptOpen).to.equal(false);
+  });
 
   it("loadDeforumSettings preserves session-restored settings on startup", async () => {
     const instance = instantiate(appDef);

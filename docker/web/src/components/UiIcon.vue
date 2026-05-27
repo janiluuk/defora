@@ -142,6 +142,16 @@
       <path d="M4.2 4.8V9.4H8.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M12 8V12.2L14.8 14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </template>
+    <template v-else-if="name === 'save'">
+      <path d="M6 4.5H15L18.5 8V19.5A1.5 1.5 0 0 1 17 21H7A1.5 1.5 0 0 1 5.5 19.5V6A1.5 1.5 0 0 1 6 4.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M8 4.5V9H14V4.5" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <rect x="8" y="13" width="8" height="5" rx="1" stroke="currentColor" stroke-width="1.8" />
+    </template>
+    <template v-else-if="name === 'load'">
+      <path d="M12 4.5V13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M8.5 10L12 13.5L15.5 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M5.5 16.5V18A1.5 1.5 0 0 0 7 19.5H17A1.5 1.5 0 0 0 18.5 18V16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
   </svg>
 </template>
 

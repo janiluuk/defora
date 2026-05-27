@@ -9,7 +9,7 @@
       </div>
 
       <p class="generate-sequencer__live-hint">
-        Edit the timeline on the <button type="button" class="generate-sequencer__live-link" @click="switchTab('LIVE')">LIVE</button> view — the sequencer sits on the video with controls sized for touch and keyboard.
+        Edit the timeline on the video stage below — open <button type="button" class="generate-sequencer__live-link" @click="switchTab('LIVE')">LIVE</button> for full-screen monitoring with touch and keyboard controls.
       </p>
 
       <div class="generate-sequencer__hero-grid">
