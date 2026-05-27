@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.22] - 2026-05-27
+
+## What's Changed
+
+- feat(web): motion sequencer tab, performance controls, and WebGL startup (#64) (573fea7)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.21...v0.6.22
+
+
 ## [0.6.21] - 2026-05-27
 
 ## What's Changed
