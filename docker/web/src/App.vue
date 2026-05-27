@@ -97,36 +97,8 @@
               </div>
             </div>
           </div>
-          <!-- LIVE HUD panels float at bottom of video — modulating left, morph right -->
-          <div v-if="currentTab === 'LIVE'" class="live-hud-strip">
-            <GlassPanel size="sm" class="live-hud-modulating">
-              <template #header>Modulating now</template>
-              <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
-              <LiveParamRow
-                v-for="p in liveModulating"
-                :key="p.key"
-                :label="p.label"
-                :param-key="p.key"
-                :value="p.val"
-                :min="p.min"
-                :max="p.max"
-                :source="p.source"
-                :modulated="true"
-              />
-            </GlassPanel>
-            <GlassPanel size="sm" class="live-hud-morph">
-              <template #header>Morph</template>
-              <div class="live-hud-morph__slots">
-                <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
-                <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
-              </div>
-              <Crossfader
-                :model-value="performance.crossfader"
-                @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
-                testid="performance-crossfader"
-              />
-            </GlassPanel>
-            <GlassPanel v-if="pinnedParamItems.length" size="sm" class="live-hud-pinned">
+          <div v-if="currentTab === 'LIVE' && pinnedParamItems.length" class="live-hud-strip live-hud-strip--pinned">
+            <GlassPanel size="sm" class="live-hud-pinned">
               <template #header>Pinned</template>
               <LiveParamRow
                 v-for="p in pinnedParamItems.slice(0, 4)"
@@ -145,6 +117,125 @@
 
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
+
+        <div v-if="currentTab === 'LIVE'" class="live-main-dock">
+          <div class="live-main-dock__toggles">
+            <button
+              type="button"
+              class="live-main-dock__toggle"
+              :class="{ active: liveMainModsOpen }"
+              :aria-expanded="liveMainModsOpen ? 'true' : 'false'"
+              @click="liveMainModsOpen = !liveMainModsOpen; saveSessionState()"
+            >
+              <span>ACTIVE MODS</span>
+              <UiIcon class="live-main-dock__toggle-icon" :name="liveMainModsOpen ? 'chevron-up' : 'chevron-down'" />
+            </button>
+            <button
+              type="button"
+              class="live-main-dock__toggle"
+              :class="{ active: liveMainCrossfaderOpen }"
+              :aria-expanded="liveMainCrossfaderOpen ? 'true' : 'false'"
+              @click="liveMainCrossfaderOpen = !liveMainCrossfaderOpen; saveSessionState()"
+            >
+              <span>CROSSFADER</span>
+              <UiIcon class="live-main-dock__toggle-icon" :name="liveMainCrossfaderOpen ? 'chevron-up' : 'chevron-down'" />
+            </button>
+          </div>
+
+          <GlassPanel v-if="liveMainModsOpen" size="sm" class="live-main-dock__panel">
+            <template #header>Active Mods</template>
+            <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
+            <LiveParamRow
+              v-for="p in liveModulating"
+              :key="'live-mod-' + p.key"
+              :label="p.label"
+              :param-key="p.key"
+              :value="p.val"
+              :min="p.min"
+              :max="p.max"
+              :source="p.source"
+              :modulated="true"
+            />
+          </GlassPanel>
+
+          <GlassPanel v-if="liveMainCrossfaderOpen" size="sm" class="live-main-dock__panel live-main-dock__panel--crossfader">
+            <template #header>CROSSFADER</template>
+            <div class="live-main-crossfader__summary">
+              <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
+              <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
+            </div>
+            <Crossfader
+              :model-value="performance.crossfader"
+              @update:model-value="val => { performance.crossfader = val; onCrossfaderInput(); }"
+              testid="performance-crossfader"
+            />
+            <div class="crossfade-deck-head live-main-crossfader__builder">
+              <span class="framesync-subtitle" style="margin:0;">Add to groups</span>
+              <select class="framesync-select" style="max-width:160px;" v-model="performance.newSlotType">
+                <option v-for="st in crossfadeSlotTypes" :key="'live-main-slot-' + st.id" :value="st.id">{{ st.label }}</option>
+              </select>
+              <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add item</button>
+            </div>
+            <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
+            <div v-for="slot in performance.slots" :key="'live-main-crossfade-' + slot.id" class="crossfade-slot-row">
+              <div class="crossfade-side crossfade-side-a">
+                <span class="crossfade-side-label">A</span>
+                <template v-if="slot.type === 'prompt'">
+                  <input class="framesync-input" v-model="slot.valueA" placeholder="Prompt A (optional)" @input="onPerformanceInput">
+                </template>
+                <template v-else-if="slot.type === 'param'">
+                  <select class="framesync-select" v-model="slot.paramKey" @change="onPerformanceInput">
+                    <option v-for="t in lfoTargets" :key="'live-main-a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
+                  </select>
+                  <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
+                </template>
+                <template v-else-if="slot.type === 'lora'">
+                  <select class="framesync-select" v-model="slot.valueA" @change="onPerformanceInput">
+                    <option :value="null">— none —</option>
+                    <option v-for="l in loras.available" :key="'live-main-la-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
+                  </select>
+                  <input type="number" class="framesync-input" v-model.number="slot.loraStrengthA" min="0" max="2" step="0.01" placeholder="Str A" @input="onPerformanceInput">
+                </template>
+                <template v-else-if="slot.type === 'controlnet'">
+                  <select class="framesync-select" v-model="slot.cnSlotId" @change="onPerformanceInput">
+                    <option v-for="s in cn.slots" :key="'live-main-cna-'+slot.id+s.id" :value="s.id">{{ s.label }}</option>
+                  </select>
+                  <input type="number" class="framesync-input" v-model.number="slot.valueA" min="0" max="2" step="0.01" placeholder="Weight A" @input="onPerformanceInput">
+                </template>
+              </div>
+
+              <div class="crossfade-slot-meta">
+                <span class="crossfade-type-pill">{{ slotTypeLabel(slot.type) }}</span>
+                <button type="button" class="framesync-button" style="padding:2px 6px;" @click="removeCrossfadeSlot(slot.id)">✕</button>
+              </div>
+
+              <div class="crossfade-side crossfade-side-b">
+                <span class="crossfade-side-label">B</span>
+                <template v-if="slot.type === 'prompt'">
+                  <input class="framesync-input" v-model="slot.valueB" placeholder="Prompt B (optional)" @input="onPerformanceInput">
+                </template>
+                <template v-else-if="slot.type === 'param'">
+                  <input type="number" class="framesync-input" v-model.number="slot.valueB" step="any" placeholder="Value B" @input="onPerformanceInput">
+                </template>
+                <template v-else-if="slot.type === 'lora'">
+                  <select class="framesync-select" v-model="slot.valueB" @change="onPerformanceInput">
+                    <option :value="null">— none —</option>
+                    <option v-for="l in loras.available" :key="'live-main-lb-'+slot.id+l.id" :value="l.name">{{ l.name }}</option>
+                  </select>
+                  <input type="number" class="framesync-input" v-model.number="slot.loraStrengthB" min="0" max="2" step="0.01" placeholder="Str B" @input="onPerformanceInput">
+                </template>
+                <template v-else-if="slot.type === 'controlnet'">
+                  <input type="number" class="framesync-input" v-model.number="slot.valueB" min="0" max="2" step="0.01" placeholder="Weight B" @input="onPerformanceInput">
+                </template>
+              </div>
+
+              <div class="crossfade-morphed" v-if="slotMorphedPreview(slot) !== null">
+                <span class="framesync-subtitle" style="margin:0;font-size:9px;">→</span>
+                <code class="crossfade-morphed-val">{{ formatMorphedPreview(slot) }}</code>
+              </div>
+            </div>
+          </GlassPanel>
+        </div>
 
         <div v-if="currentTab==='GENERATE'" class="generate-dock-shell">
           <GlassPanel size="lg" class="generate-dock">
@@ -314,7 +405,7 @@
           </GlassPanel>
         </div>
         <template v-else>
-          <div class="frame-rail" style="margin-top: 4px;">
+          <div class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
             <div class="frame-rail__header">
               <div class="frame-rail__title-wrap">
                 <span class="frame-rail__title">Frames</span>
@@ -323,25 +414,36 @@
                 </span>
                 <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
               </div>
-              <div class="frame-rail__controls" v-if="frameStripThumbs.length">
-                <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
-                <input
-                  class="frame-rail__scrubber"
-                  type="range"
-                  min="0"
-                  :max="Math.max(0, frameStripThumbs.length - 1)"
-                  :value="Math.max(0, selectedFrameIndex)"
-                  @input="selectFrame(Number($event.target.value))"
-                >
+              <div class="frame-rail__actions">
                 <button
                   type="button"
-                  class="frame-rail__step"
-                  @click="stepFrameSelection(1)"
-                  :disabled="selectedFrameIndex >= frameStripThumbs.length - 1"
-                >Next</button>
+                  class="frame-rail__toggle"
+                  :aria-expanded="showFrames ? 'true' : 'false'"
+                  :title="showFrames ? 'Collapse frames' : 'Expand frames'"
+                  @click="showFrames = !showFrames; saveSessionState()"
+                >
+                  <UiIcon class="frame-rail__toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
+                </button>
+                <div class="frame-rail__controls" v-if="showFrames && frameStripThumbs.length">
+                  <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
+                  <input
+                    class="frame-rail__scrubber"
+                    type="range"
+                    min="0"
+                    :max="Math.max(0, frameStripThumbs.length - 1)"
+                    :value="Math.max(0, selectedFrameIndex)"
+                    @input="selectFrame(Number($event.target.value))"
+                  >
+                  <button
+                    type="button"
+                    class="frame-rail__step"
+                    @click="stepFrameSelection(1)"
+                    :disabled="selectedFrameIndex >= frameStripThumbs.length - 1"
+                  >Next</button>
+                </div>
               </div>
             </div>
-            <div v-if="frameStripThumbs.length" ref="frameRail" class="frame-rail__list">
+            <div v-if="showFrames && frameStripThumbs.length" ref="frameRail" class="frame-rail__list">
               <button
                 v-for="(f, idx) in frameStripThumbs"
                 :key="'frame-rail-' + (f.name || idx)"
@@ -355,7 +457,7 @@
                 <span class="frame-rail__label">{{ frameLabel(f) }}</span>
               </button>
             </div>
-            <div v-else class="frame-rail__empty">
+            <div v-else-if="showFrames" class="frame-rail__empty">
               Rendered frames will appear here in a single scrub row once the preview or animation produces them.
             </div>
           </div>
@@ -394,17 +496,6 @@
             <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
               {{ deforumPlaying ? 'Animating' : 'Preview' }}
             </span>
-          </div>
-          <div class="stream-link">
-            <a href="/hls/live/deforum.m3u8" target="_blank">
-              <UiIcon class="stream-link-icon" name="broadcast" />
-              <span>HLS Stream</span>
-            </a>
-            <span style="color:var(--text-dim);">|</span>
-            <a :href="rtmpStreamHref" target="_blank">
-              <UiIcon class="stream-link-icon" name="broadcast" />
-              <span>RTMP</span>
-            </a>
           </div>
         </div>
 
@@ -472,6 +563,7 @@
           'studio-right-column': currentTab === 'MODULATION'
         }">
           <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
+          <StreamView v-else-if="currentTab==='STREAM'" :app="appViewModel" />
           <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
           <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
@@ -531,6 +623,7 @@ import Timeline from './components/generate/Timeline.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
 import LiveView from './components/views/LiveView.vue'
 import LibraryView from './components/views/LibraryView.vue'
+import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
 import ModulationView from './components/views/ModulationView.vue'
@@ -539,10 +632,12 @@ import GenerateView from './components/views/GenerateView.vue'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, Crossfader, LiveParamRow, UiIcon, Timeline, ThreeBackground, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
   data() {
     return {
-       showFrames: true,
+       showFrames: false,
+      liveMainModsOpen: true,
+      liveMainCrossfaderOpen: true,
        isPlaying: false,
        isRecording: false,
        deforumPlaying: false,
@@ -602,6 +697,23 @@ export default {
          options: {},
        },
        streamUrl: "",
+      streaming: {
+        status: '',
+        activeStatus: 'unknown',
+        activeDestinationId: null,
+        destinations: [
+          {
+            id: 'stream_dest_default',
+            name: 'Custom RTMP',
+            protocol: 'rtmp',
+            target: '',
+            fps: 24,
+            resolution: '1024x576',
+            overlay: '',
+            transition: '',
+          },
+        ],
+      },
        lfoOn: true,
       beatMacroOn: true,
       apiHealth: { sdForge: null },
@@ -672,6 +784,7 @@ export default {
       session: "clown_set_01",
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
@@ -916,6 +1029,7 @@ export default {
       streamSrc: "/hls/live/deforum.m3u8",
       defaultAnimation: {
         preferDeforumVideo: false,
+        mode: 'volume',
         beamCount: 7,
         speed: 0.75,
         spread: 0.68,
@@ -923,6 +1037,16 @@ export default {
         hue: 0.6,
         pulse: 0.36,
         drift: 0.44,
+        mist: 0.58,
+        orbit: 0.52,
+        lineType: 'segments',
+        lineWidth: 2.4,
+        lineThreshold: 0.8,
+        lineTranslation: 0,
+        lineWorldUnits: true,
+        lineVisualizeThreshold: false,
+        lineAlphaToCoverage: true,
+        lineAnimate: true,
       },
       thumbs: [],
       framesTimer: null,
@@ -1019,6 +1143,9 @@ export default {
         ? window.location.hostname
         : '192.168.2.100';
       return `rtmp://${host}:1935/live/deforum`;
+    },
+    hlsStreamHref() {
+      return '/hls/live/deforum.m3u8';
     },
     frameStripThumbs() {
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
@@ -1211,17 +1338,13 @@ export default {
       );
     },
     engineCurrentSteps() {
-      const direct = Number(this.deforumSettings && this.deforumSettings.steps);
-      if (Number.isFinite(direct) && direct > 0) return direct;
-      return Math.max(1, Math.round(this.readFirstNumericValue(
-        (this.deforumSettings && this.deforumSettings.steps_schedule) || '',
-        Number(this.forge.options && this.forge.options.steps) || 6
-      )));
+      return this.currentStepsValue();
     },
     engineSamplerOptions() {
       return [...new Set([
         this.deforumSettings && this.deforumSettings.sampler,
         this.forge.options && this.forge.options.sampler_name,
+        this.gpuPool && this.gpuPool.forgeModal && this.gpuPool.forgeModal.options && this.gpuPool.forgeModal.options.sampler_name,
         ...(this.forge.samplers || []),
       ].map((value) => String(value || '').trim()).filter(Boolean))];
     },
@@ -1229,6 +1352,7 @@ export default {
       return [...new Set([
         this.deforumSettings && this.deforumSettings.scheduler,
         this.forge.options && this.forge.options.scheduler,
+        this.gpuPool && this.gpuPool.forgeModal && this.gpuPool.forgeModal.options && this.gpuPool.forgeModal.options.scheduler,
         ...(this.forge.schedulers || []),
       ].map((value) => String(value || '').trim()).filter(Boolean))];
     },
@@ -1385,6 +1509,59 @@ export default {
     },
     activeSlot() {
       return this.cn.slots.find((s) => s.id === this.cn.active) || this.cn.slots[0];
+    },
+    currentControlNetModelFamily() {
+      return this.engineCurrentModelFamily || this.currentLoraModelFamily || '';
+    },
+    currentControlNetModelFamilyLabel() {
+      const labels = { sd15: 'SD1.5', sdxl: 'SDXL', flux: 'FLUX', svd: 'SVD' };
+      return labels[this.currentControlNetModelFamily] || 'Generic';
+    },
+    controlNetCompatibleModels() {
+      const activeFamily = this.currentControlNetModelFamily;
+      return (this.cn.availableModels || []).filter((model) => {
+        const family = this.detectModelFamilyFromValue(null, `${model && model.name ? model.name : ''} ${model && model.id ? model.id : ''}`);
+        return !activeFamily || !family || family === activeFamily;
+      });
+    },
+    activeControlNetModelIsCompatible() {
+      const selected = String(this.activeSlot && this.activeSlot.model || '').trim();
+      if (!selected) return true;
+      const selectedFamily = this.detectModelFamilyFromValue(null, selected);
+      if (!this.currentControlNetModelFamily || !selectedFamily) return true;
+      return selectedFamily === this.currentControlNetModelFamily;
+    },
+    activeControlNetModelChoices() {
+      const selected = String(this.activeSlot && this.activeSlot.model || '').trim();
+      const hasSelectedOption = this.controlNetCompatibleModels.some((model) => model && model.name === selected);
+      if (!selected || hasSelectedOption) return this.controlNetCompatibleModels;
+      const matched = (this.cn.availableModels || []).find((model) => model && model.name === selected);
+      return [
+        {
+          ...(matched || { id: `current-${selected.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name: selected, category: 'current' }),
+          current: true,
+          incompatible: !this.activeControlNetModelIsCompatible,
+        },
+        ...this.controlNetCompatibleModels,
+      ];
+    },
+    controlNetModelSummary() {
+      const count = this.controlNetCompatibleModels.length;
+      if (this.currentControlNetModelFamily) {
+        return `Showing ${count} ${this.currentControlNetModelFamilyLabel}-compatible models.`;
+      }
+      return `Showing ${count} available models.`;
+    },
+    controlNetWeightPercent() {
+      return Math.max(0, Math.min(100, ((Number(this.activeSlot && this.activeSlot.weight) || 0) / 2) * 100));
+    },
+    controlNetWeightLabel() {
+      const weight = Number(this.activeSlot && this.activeSlot.weight) || 0;
+      if (weight < 0.35) return 'Very subtle';
+      if (weight < 0.75) return 'Subtle';
+      if (weight < 1.1) return 'Balanced';
+      if (weight < 1.5) return 'Strong';
+      return 'Very strong';
     },
     lfoTargetGroups() {
       const groups = {};
@@ -1928,6 +2105,9 @@ export default {
       void this.ensureLibraryRunDetail();
     }
   }
+  if (id === 'STREAM') {
+    void this.refreshStreamStatus();
+  }
  },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
@@ -2012,21 +2192,137 @@ export default {
  async toggleRecord() {
    return this.toggleStreamRecord();
  },
+newStreamDestination(protocol = 'rtmp') {
+  const normalizedProtocol = ['rtmp', 'srt', 'whip'].includes(protocol) ? protocol : 'rtmp';
+  const defaults = {
+    rtmp: 'Custom RTMP',
+    srt: 'Custom SRT',
+    whip: 'Custom WHIP',
+  };
+  const { width, height } = this.currentResolution();
+  return {
+    id: `stream_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    name: defaults[normalizedProtocol] || 'Custom Stream',
+    protocol: normalizedProtocol,
+    target: '',
+    fps: Number(this.generator && this.generator.fps) || 24,
+    resolution: `${width}x${height}`,
+    overlay: '',
+    transition: '',
+  };
+},
+addStreamDestination(protocol = 'rtmp') {
+  this.streaming.destinations.push(this.newStreamDestination(protocol));
+  this.saveSessionState();
+},
+removeStreamDestination(id) {
+  this.streaming.destinations = this.streaming.destinations.filter((dest) => dest.id !== id);
+  if (this.streaming.activeDestinationId === id) {
+    this.streaming.activeDestinationId = null;
+  }
+  this.saveSessionState();
+},
+async refreshStreamStatus() {
+  try {
+    const res = await fetch('/api/stream/status', { cache: 'no-store' });
+    const data = await res.json();
+    this.streaming.activeStatus = data.status || 'unknown';
+    this.streaming.status = (data.output || '').trim() || (this.streaming.activeStatus === 'running'
+      ? 'Outbound stream is running.'
+      : 'No outbound stream running.');
+    if (this.streaming.activeStatus !== 'running') {
+      this.streaming.activeDestinationId = null;
+    }
+  } catch (err) {
+    this.streaming.activeStatus = 'error';
+    this.streaming.status = err.message || 'Failed to read stream status';
+  }
+},
+async startStreamDestination(id) {
+  const destination = this.streaming.destinations.find((dest) => dest.id === id);
+  if (!destination) return;
+  const target = String(destination.target || '').trim();
+  if (!target) {
+    this.streaming.status = 'Destination URL is required.';
+    return;
+  }
+  try {
+    const res = await fetch('/api/stream/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target,
+        fps: Number(destination.fps) || 24,
+        resolution: destination.resolution || undefined,
+        protocol: destination.protocol || undefined,
+        overlay: destination.overlay ? String(destination.overlay).trim() : undefined,
+        transition: destination.transition ? String(destination.transition).trim() : undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'Could not start outbound stream');
+    }
+    this.streaming.activeDestinationId = id;
+    this.streaming.activeStatus = 'running';
+    this.streaming.status = (data.message || '').trim() || `Streaming to ${destination.name}`;
+    this.streamUrl = target;
+    this.saveSessionState();
+  } catch (err) {
+    this.streaming.activeStatus = 'error';
+    this.streaming.status = err.message || 'Could not start outbound stream';
+  }
+},
+async stopOutboundStream() {
+  try {
+    const res = await fetch('/api/stream/stop', { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok || !data.success) {
+      throw new Error(data.error || data.message || 'Could not stop outbound stream');
+    }
+    this.streaming.activeDestinationId = null;
+    this.streaming.activeStatus = 'stopped';
+    this.streaming.status = (data.message || '').trim() || 'Outbound stream stopped.';
+    this.saveSessionState();
+  } catch (err) {
+    this.streaming.activeStatus = 'error';
+    this.streaming.status = err.message || 'Could not stop outbound stream';
+  }
+},
 normalizeDefaultAnimationSettings(input = {}) {
   const next = input && typeof input === 'object' ? input : {};
+  const mode = ['volume', 'orbital', 'nebula', 'raycast'].includes(next.mode) ? next.mode : 'volume';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
+    mode,
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
     speed: Math.max(0.1, Math.min(2.5, Number(next.speed) || 0.75)),
     spread: Math.max(0.2, Math.min(1.4, Number(next.spread) || 0.68)),
     glow: Math.max(0.1, Math.min(1.4, Number(next.glow) || 0.78)),
-    hue: Math.max(0, Math.min(1, Number(next.hue) || 0.6)),
-    pulse: Math.max(0, Math.min(1, Number(next.pulse) || 0.36)),
-    drift: Math.max(0, Math.min(1, Number(next.drift) || 0.44)),
+    hue: Math.max(0, Math.min(1, Number.isFinite(Number(next.hue)) ? Number(next.hue) : 0.6)),
+    pulse: Math.max(0, Math.min(1, Number.isFinite(Number(next.pulse)) ? Number(next.pulse) : 0.36)),
+    drift: Math.max(0, Math.min(1, Number.isFinite(Number(next.drift)) ? Number(next.drift) : 0.44)),
+    mist: Math.max(0, Math.min(1, Number.isFinite(Number(next.mist)) ? Number(next.mist) : 0.58)),
+    orbit: Math.max(0, Math.min(1, Number.isFinite(Number(next.orbit)) ? Number(next.orbit) : 0.52)),
+    lineType: next.lineType === 'line' ? 'line' : 'segments',
+    lineWidth: Math.max(1, Math.min(10, Number(next.lineWidth) || 2.4)),
+    lineThreshold: Math.max(0, Math.min(10, Number.isFinite(Number(next.lineThreshold)) ? Number(next.lineThreshold) : 0.8)),
+    lineTranslation: Math.max(0, Math.min(10, Number.isFinite(Number(next.lineTranslation)) ? Number(next.lineTranslation) : 0)),
+    lineWorldUnits: next.lineWorldUnits !== false,
+    lineVisualizeThreshold: !!next.lineVisualizeThreshold,
+    lineAlphaToCoverage: next.lineAlphaToCoverage !== false,
+    lineAnimate: next.lineAnimate !== false,
   };
 },
 onDefaultAnimationInput() {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
+  this.saveSessionState();
+},
+setDefaultAnimationMode(mode) {
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+    ...this.defaultAnimation,
+    mode,
+  });
   this.saveSessionState();
 },
 resetDefaultAnimationSettings() {
@@ -5727,6 +6023,9 @@ async generateStory() {
      if (typeof s.crossfader === 'number') this.performance.crossfader = s.crossfader;
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
+     if (typeof s.showFrames === 'boolean') this.showFrames = s.showFrames;
+     if (typeof s.liveMainModsOpen === 'boolean') this.liveMainModsOpen = s.liveMainModsOpen;
+     if (typeof s.liveMainCrossfaderOpen === 'boolean') this.liveMainCrossfaderOpen = s.liveMainCrossfaderOpen;
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
@@ -5746,12 +6045,33 @@ async generateStory() {
      if (s.deforumSettings && typeof s.deforumSettings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, s.deforumSettings);
        this.syncResolutionAcrossControls(this.deforumSettings.W, this.deforumSettings.H, { syncGpuModal: false });
+       this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
        this.syncDeforumSettingsJson();
       this.sessionDeforumSettingsLoaded = true;
      }
      if (s.lastModel) {
        this.forge.lastModel = s.lastModel;
        this.forge.selectedModel = s.lastModel;
+     }
+     if (s.streaming && typeof s.streaming === 'object') {
+       if (Array.isArray(s.streaming.destinations) && s.streaming.destinations.length) {
+         this.streaming.destinations = s.streaming.destinations.map((dest, index) => ({
+           id: dest && dest.id ? dest.id : `stream_saved_${index}`,
+           name: String((dest && dest.name) || 'Custom Stream'),
+           protocol: ['rtmp', 'srt', 'whip'].includes(dest && dest.protocol) ? dest.protocol : 'rtmp',
+           target: String((dest && dest.target) || ''),
+           fps: Number(dest && dest.fps) || 24,
+           resolution: String((dest && dest.resolution) || '1024x576'),
+           overlay: String((dest && dest.overlay) || ''),
+           transition: String((dest && dest.transition) || ''),
+         }));
+       }
+       if (typeof s.streaming.activeDestinationId === 'string' || s.streaming.activeDestinationId === null) {
+         this.streaming.activeDestinationId = s.streaming.activeDestinationId;
+       }
+       if (typeof s.streaming.status === 'string') {
+         this.streaming.status = s.streaming.status;
+       }
      }
      if (s.prompts) Object.assign(this.prompts, s.prompts);
    } catch (_e) { /* ignore */ }
@@ -5763,12 +6083,20 @@ async generateStory() {
        crossfader: this.performance.crossfader,
        genericPrompt: this.performance.genericPrompt,
        slots: this.performance.slots,
+      showFrames: this.showFrames,
+      liveMainModsOpen: this.liveMainModsOpen,
+      liveMainCrossfaderOpen: this.liveMainCrossfaderOpen,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       collabEnabled: this.collabEnabled,
+      streaming: {
+        destinations: this.streaming.destinations,
+        activeDestinationId: this.streaming.activeDestinationId,
+        status: this.streaming.status,
+      },
       defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
       deforumSettings: this.normalizedDeforumSettings(),
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
@@ -5825,6 +6153,39 @@ syncResolutionAcrossControls(rawWidth, rawHeight, {
   }
   return { width, height };
 },
+currentStepsValue(fallbackSteps = 6) {
+  const direct = Number(this.deforumSettings && this.deforumSettings.steps);
+  if (Number.isFinite(direct) && direct > 0) return Math.max(1, Math.round(direct));
+  const scheduled = Math.round(this.readFirstNumericValue(
+    (this.deforumSettings && this.deforumSettings.steps_schedule) || '',
+    Number(this.forge && this.forge.options && this.forge.options.steps)
+      || Number(this.gpuPool && this.gpuPool.forgeModal && this.gpuPool.forgeModal.options && this.gpuPool.forgeModal.options.steps)
+      || fallbackSteps
+  ));
+  return Math.max(1, scheduled || fallbackSteps);
+},
+syncStepsAcrossControls(rawSteps, {
+  syncDeforum = true,
+  syncForge = true,
+  syncGpuModal = true,
+  syncSchedule = true,
+} = {}) {
+  const next = Math.max(1, Math.round(Number(rawSteps) || this.currentStepsValue()));
+  if (syncDeforum) {
+    this.deforumSettings = this.normalizedDeforumSettings();
+    this.deforumSettings.steps = next;
+    if (syncSchedule) {
+      this.deforumSettings.steps_schedule = `0: (${next})`;
+    }
+  }
+  if (syncForge) {
+    this.forge.options.steps = next;
+  }
+  if (syncGpuModal && this.gpuPool && this.gpuPool.forgeModal && this.gpuPool.forgeModal.options) {
+    this.gpuPool.forgeModal.options.steps = next;
+  }
+  return next;
+},
 normalizeModelName(name) {
   const normalized = typeof name === 'string' ? name.trim() : '';
   if (!normalized || normalized.toLowerCase() === 'unknown') return '';
@@ -5834,9 +6195,9 @@ detectModelFamilyFromText(rawValue) {
   const value = String(rawValue || '').toLowerCase();
   if (!value) return '';
   if (/\bflux\b|flux\.1/.test(value)) return 'flux';
-  if (/\bsvd\b|stable video diffusion|\bvideo\b/.test(value)) return 'svd';
-  if (/\bsdxl\b|stable diffusion xl|\bpony\b|illustrious|\bxl\b/.test(value)) return 'sdxl';
-  if (/\bsd(?:\s|[-_.])?1(?:\s|[-_.])?5\b|\bsd15\b|stable diffusion 1\.5|\bv1[-_. ]?5\b|\b1\.5\b/.test(value)) return 'sd15';
+  if (/(?:^|[^a-z0-9])svd(?:[^a-z0-9]|$)|stable video diffusion|\bvideo\b/.test(value)) return 'svd';
+  if (/(?:^|[^a-z0-9])sdxl(?:[^a-z0-9]|$)|stable diffusion xl|\bpony\b|illustrious|\bxl\b/.test(value)) return 'sdxl';
+  if (/\bsd(?:\s|[-_.])?1(?:\s|[-_.])?5\b|(?:^|[^a-z0-9])sd15(?:[^a-z0-9]|$)|stable diffusion 1\.5|\bv1[-_. ]?5\b|\b1\.5\b/.test(value)) return 'sd15';
   return '';
 },
 detectModelFamilyFromValue(metadata, fallbackText = '') {
@@ -5959,20 +6320,18 @@ applyModelOptimizedDefaults(modelLike) {
   this.deforumSettings = this.normalizedDeforumSettings();
   this.deforumSettings.W = defaults.width;
   this.deforumSettings.H = defaults.height;
-  this.deforumSettings.steps = defaults.steps;
   this.deforumSettings.sampler = defaults.sampler;
   this.deforumSettings.scheduler = defaults.scheduler;
   this.deforumSettings.cfg_scale_schedule = `0:(${defaults.cfgScale})`;
   this.deforumSettings.distilled_cfg_scale_schedule = `0: (${defaults.cfgScale})`;
-  this.deforumSettings.steps_schedule = `0: (${defaults.steps})`;
   this.deforumSettings.strength_schedule = `0: (${defaults.strength})`;
   this.deforumSettings.keyframe_strength_schedule = `0: (${defaults.strength})`;
   this.forge.options.width = defaults.width;
   this.forge.options.height = defaults.height;
-  this.forge.options.steps = defaults.steps;
   this.forge.options.sampler_name = defaults.sampler;
   this.forge.options.scheduler = defaults.scheduler;
   this.forge.options.cfg_scale = defaults.cfgScale;
+  this.syncStepsAcrossControls(defaults.steps, { syncGpuModal: true });
   const cfgParam = this.liveVibe.find((param) => param.key === 'cfgscale') || this.liveVibe.find((param) => param.key === 'cfg');
   if (cfgParam) cfgParam.val = defaults.cfgScale;
   const strengthParam = this.liveVibe.find((param) => param.key === 'strength');
@@ -6049,13 +6408,20 @@ onEngineSamplerChange(rawValue) {
   this.queueDeforumSettingsSave();
   if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
-onEngineStepsChange(rawValue) {
-  const next = Math.max(1, Math.round(Number(rawValue) || 0));
-  if (!Number.isFinite(next) || next <= 0) return;
+onEngineSchedulerChange(rawValue) {
+  const next = String(rawValue || '').trim();
+  if (!next) return;
   this.deforumSettings = this.normalizedDeforumSettings();
-  this.deforumSettings.steps = next;
-  this.deforumSettings.steps_schedule = `0: (${next})`;
-  this.forge.options.steps = next;
+  this.deforumSettings.scheduler = next;
+  this.forge.options.scheduler = next;
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.pushDeforumLivePatch('scheduler', next);
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+onEngineStepsChange(rawValue) {
+  const next = this.syncStepsAcrossControls(rawValue, { syncGpuModal: true });
   this.syncDeforumSettingsJson();
   this.saveSessionState();
   this.pushDeforumLivePatch('steps', next);
@@ -6360,7 +6726,18 @@ activeDeforumSettings() {
      this.hud.seed = value;
    }
   if (keyPath === 'steps' && Number.isFinite(value)) {
-    this.forge.options.steps = value;
+    this.syncStepsAcrossControls(value, { syncGpuModal: true });
+  }
+  if (keyPath === 'steps_schedule') {
+    const scheduleValue = String(value || '');
+    const scheduleScalar = (scheduleValue.match(/\(([^()]+)\)/) || [])[1] || scheduleValue;
+    const parsedSteps = Math.max(1, Math.round(this.readFirstNumericValue(
+      scheduleScalar,
+      Number(this.forge.options && this.forge.options.steps)
+        || Number(this.gpuPool && this.gpuPool.forgeModal && this.gpuPool.forgeModal.options && this.gpuPool.forgeModal.options.steps)
+        || 6
+    )));
+    this.syncStepsAcrossControls(parsedSteps, { syncGpuModal: true, syncSchedule: false });
   }
   if (keyPath === 'sampler') {
     this.forge.options.sampler_name = String(value || '');
@@ -6380,6 +6757,12 @@ activeDeforumSettings() {
    this.syncDeforumSettingsJson();
   this.saveSessionState();
    this.pushDeforumLivePatch(keyPath, value);
+  if (keyPath === 'steps') {
+    this.pushDeforumLivePatch('steps_schedule', this.deforumSettings.steps_schedule);
+  }
+  if (keyPath === 'steps_schedule') {
+    this.pushDeforumLivePatch('steps', this.deforumSettings.steps);
+  }
    this.queueDeforumSettingsSave();
    if (!this.deforumPlaying) this.scheduleDeforumPreview();
  },
@@ -6434,6 +6817,7 @@ onGpuForgeModalResolutionInput(axis, rawValue) {
      const parsed = JSON.parse(this.deforumSettingsJson);
      if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
     this.deforumSettings = mergeDeforumSettings(this.normalizedDeforumSettings(), parsed);
+    this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
      this.deforumSettingsJsonError = '';
     const desiredModel = this.syncSelectedModelFromDeforumSettings();
     if (desiredModel) {
@@ -6454,6 +6838,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
     if (!this.sessionDeforumSettingsLoaded && data.settings && typeof data.settings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
      }
+    this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
     this.syncSelectedModelFromDeforumSettings();
      this.syncDeforumSettingsJson();
     this.deforumSettingsStatus = this.sessionDeforumSettingsLoaded ? 'Loaded local session' : 'Loaded';

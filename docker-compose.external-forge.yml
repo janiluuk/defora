@@ -3,42 +3,16 @@ services:
     image: jrottenberg/ffmpeg:4.4-alpine
     entrypoint:
       - sh
-      - -c
-    command:
-      - >-
-          QUALITY_PRESET="$${ENCODER_QUALITY:-medium}";
-          case "$$QUALITY_PRESET" in
-            low) BITRATE=500k; MAXRATE=750k; BUFSIZE=1M; PRESET=veryfast; CRF=28 ;;
-            medium) BITRATE=1500k; MAXRATE=2250k; BUFSIZE=3M; PRESET=veryfast; CRF=23 ;;
-            high) BITRATE=3500k; MAXRATE=5000k; BUFSIZE=7M; PRESET=fast; CRF=20 ;;
-            ultra) BITRATE=6000k; MAXRATE=9000k; BUFSIZE=12M; PRESET=medium; CRF=18 ;;
-            *) BITRATE=1500k; MAXRATE=2250k; BUFSIZE=3M; PRESET=veryfast; CRF=23 ;;
-          esac;
-          echo "Encoder starting with quality preset: $$QUALITY_PRESET";
-          echo "  Bitrate: $$BITRATE | Max: $$MAXRATE | Buffer: $$BUFSIZE";
-          echo "  Preset: $$PRESET | CRF: $$CRF";
-          while true; do
-            until ls /data/frames/frame_00001.png >/dev/null 2>&1; do echo 'Waiting for frames in /data/frames ...'; sleep 2; done;
-            COUNT=$(ls -1 /data/frames/frame_*.png 2>/dev/null | wc -l);
-            if [ "$$COUNT" -eq 1 ]; then CUR_FPS=1; else CUR_FPS="$${FPS:-24}"; fi;
-            echo "Streaming $$COUNT frame(s) at $$CUR_FPS fps...";
-            ffmpeg -re -framerate "$$CUR_FPS" -pattern_type glob -loop 1 -i '/data/frames/frame_*.png' -vf "scale=$${RESOLUTION:-960:540}" -c:v libx264 -preset "$$PRESET" -tune zerolatency -b:v "$$BITRATE" -maxrate "$$MAXRATE" -bufsize "$$BUFSIZE" -crf "$$CRF" -g "$(( CUR_FPS * 2 ))" -f flv rtmp://web:1935/live/deforum &
-            PID=$$!;
-            PREV_COUNT=$$COUNT;
-            while sleep 3; do
-              NEW_COUNT=$(ls -1 /data/frames/frame_*.png 2>/dev/null | wc -l);
-              if [ "$$NEW_COUNT" -ne "$$PREV_COUNT" ]; then echo "Frame count changed ($$PREV_COUNT -> $$NEW_COUNT), restarting..."; break; fi;
-              if ! kill -0 "$$PID" 2>/dev/null; then echo 'ffmpeg died, restarting...'; break; fi;
-            done;
-            kill "$$PID" 2>/dev/null; wait "$$PID" 2>/dev/null;
-            sleep 1;
-          done
+      - /usr/local/bin/ffmpeg-frame-worker.sh
     volumes:
       - frames:/data/frames
+      - ./scripts/ffmpeg-frame-worker.sh:/usr/local/bin/ffmpeg-frame-worker.sh:ro
     environment:
       - ENCODER_QUALITY=${ENCODER_QUALITY:-medium}
       - FPS=${FPS:-24}
       - RESOLUTION=${RESOLUTION:-960:540}
+      - FRAMES_DIR=/data/frames
+      - RTMP_TARGET=rtmp://web:1935/live/deforum
     depends_on:
       - web
 
