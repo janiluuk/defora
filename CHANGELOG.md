@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.19] - 2026-05-27
+
+## What's Changed
+
+- fix(nginx): align hls_path so /hls/live/deforum.m3u8 resolves correctly (a9e4343)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.18...v0.6.19
+
+
 ## [0.6.18] - 2026-05-27
 
 ## What's Changed
