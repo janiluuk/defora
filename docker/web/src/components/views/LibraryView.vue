@@ -179,7 +179,7 @@
       </template>
     </div>
 
-    <div v-else class="framesync-panel">
+    <div v-if="librarySubTab === 'BROWSER'" class="framesync-panel">
       <div class="framesync-header">
         <div class="framesync-title">Storage <span class="framesync-accent">Browser</span></div>
         <span class="framesync-subtitle" style="margin:0;">Projects, runs, and mounted videos</span>
