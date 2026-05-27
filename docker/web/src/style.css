@@ -317,6 +317,36 @@
       font-size: 10px;
       color: var(--text-dim);
     }
+    .frame-rail__actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: min(440px, 100%);
+      flex: 1;
+      justify-content: flex-end;
+    }
+    .frame-rail__toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-2);
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: color 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+      flex-shrink: 0;
+    }
+    .frame-rail__toggle:hover {
+      color: var(--text-primary);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+    }
+    .frame-rail__toggle-icon {
+      font-size: 16px;
+    }
     .frame-rail__controls {
       display: flex;
       align-items: center;
@@ -324,6 +354,9 @@
       min-width: min(440px, 100%);
       flex: 1;
       justify-content: flex-end;
+    }
+    .frame-rail--collapsed {
+      gap: 0;
     }
     .frame-rail__step {
       border: 1px solid var(--border);
@@ -446,6 +479,64 @@
     .preview-frame-thumb { width: 100%; max-height: 160px; object-fit: contain; border-radius: 8px; border: 1px solid var(--border); }
     .live-hud-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px; margin-top: 8px; }
     .live-hud-empty { font-size: 10px; color: var(--text-dim); padding: 4px 0; }
+    .live-main-dock {
+      display: grid;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .live-main-dock__toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .live-main-dock__toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-width: 168px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01)), var(--bg-2);
+      color: var(--text-secondary);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      cursor: pointer;
+      transition: transform 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease;
+    }
+    .live-main-dock__toggle:hover {
+      transform: translateY(-1px);
+      color: var(--text-primary);
+      border-color: color-mix(in srgb, var(--accent) 55%, var(--border));
+    }
+    .live-main-dock__toggle.active {
+      color: var(--text-primary);
+      border-color: color-mix(in srgb, var(--accent) 70%, white 10%);
+      box-shadow: 0 10px 24px rgba(0,0,0,0.24);
+    }
+    .live-main-dock__toggle-icon {
+      font-size: 15px;
+      color: var(--text-dim);
+    }
+    .live-main-dock__toggle.active .live-main-dock__toggle-icon {
+      color: var(--accent-text);
+    }
+    .live-main-dock__panel {
+      min-width: 0;
+    }
+    .live-main-dock__panel--crossfader {
+      display: grid;
+      gap: 10px;
+    }
+    .live-main-crossfader__summary {
+      display: grid;
+      gap: 6px;
+    }
+    .live-main-crossfader__builder {
+      margin-top: 2px;
+    }
     .live-hud-pinned {
       min-width: 0;
     }
@@ -1690,6 +1781,109 @@
       padding: 8px;
       text-align: center;
     }
+    .controlnet-model-summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .controlnet-model-warning {
+      margin-top: 8px;
+      font-size: 11px;
+      color: var(--warn);
+    }
+    .controlnet-weight-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid rgba(127, 119, 221, 0.35);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(127, 119, 221, 0.12), rgba(127, 119, 221, 0.04)),
+        var(--bg-1);
+      box-shadow: inset 0 0 0 1px rgba(127, 119, 221, 0.08);
+    }
+    .controlnet-weight-card__hero {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+    }
+    .controlnet-weight-card__value {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      line-height: 1;
+    }
+    .controlnet-weight-card__label {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent-text);
+    }
+    .controlnet-weight-card__bar {
+      position: relative;
+      height: 12px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .controlnet-weight-card__fill {
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #58d1ff 0%, #7f77dd 52%, #ff9a4d 100%);
+      box-shadow: 0 0 18px rgba(127, 119, 221, 0.28);
+    }
+    .controlnet-weight-card__ticks {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .controlnet-weight-card__slider {
+      margin-top: 8px;
+    }
+    .controlnet-slot-strip {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 8px;
+    }
+    .controlnet-slot-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .controlnet-slot-row__select {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .controlnet-slot-row__state {
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+    .controlnet-slot-row__state--live {
+      color: var(--live-text);
+    }
+    .controlnet-slot-row__toggle {
+      min-width: 54px;
+      white-space: nowrap;
+    }
 
     .audio-reactive-panel__status {
       margin-top: 10px;
@@ -2308,6 +2502,9 @@
       right: 8px;
       z-index: 5;
       margin-top: 0;
+    }
+    .video-wrap > .live-hud-strip--pinned {
+      grid-template-columns: minmax(0, 320px);
     }
     /* Right drawer stays attached to a compact side tab in LIVE mode */
     .live-drawer-shell {

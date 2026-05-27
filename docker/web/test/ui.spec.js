@@ -159,6 +159,7 @@ describe("Deforumation Web UI", () => {
   it("renders tabs for all sections", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
+    expect(tabs.join(" ")).to.include("STREAM");
     expect(tabs.join(" ")).to.include("LIBRARY");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
@@ -167,8 +168,8 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("GENERATE");
     expect(tabs.join(" ")).to.not.include("AUDIO");
     expect(tabs.join(" ")).to.not.include("RUNS");
-    expect(tabs.length).to.equal(7);
-    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(7);
+    expect(tabs.length).to.equal(8);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(8);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -210,12 +211,22 @@ describe("Deforumation Web UI", () => {
 
     appVm.defaultAnimation.beamCount = 11;
     appVm.defaultAnimation.speed = 1.9;
+    appVm.setDefaultAnimationMode("orbital");
+    await nextTick();
+    expect(document.body.textContent).to.include("Orbit size");
+    expect(document.body.textContent).to.not.include("Beam count");
+
+    appVm.setDefaultAnimationMode("nebula");
+    await nextTick();
+    expect(document.body.textContent).to.include("Mist");
+
     appVm.defaultAnimation.preferDeforumVideo = true;
     await nextTick();
 
-    expect(document.body.textContent).to.not.include("Beam count");
+    expect(document.body.textContent).to.not.include("Mist");
 
     appVm.resetDefaultAnimationSettings();
+    expect(appVm.defaultAnimation.mode).to.equal("volume");
     expect(appVm.defaultAnimation.beamCount).to.equal(7);
     expect(appVm.defaultAnimation.speed).to.equal(0.75);
     expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
@@ -223,6 +234,9 @@ describe("Deforumation Web UI", () => {
     appVm.defaultAnimation.preferDeforumVideo = false;
     await nextTick();
     expect(document.body.textContent).to.include("Beam count");
+
+    appVm.setDefaultAnimationMode("invalid-mode");
+    expect(appVm.defaultAnimation.mode).to.equal("volume");
   });
 
   it("includes video, sliders, and presets", async () => {
@@ -283,8 +297,6 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
-    const engineRanges = [...document.querySelectorAll(".engine-main-slider[type='range']")];
-    expect(engineRanges.length).to.equal(2);
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.not.include("FORGE");
     expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
@@ -406,6 +418,56 @@ describe("Deforumation Web UI", () => {
     ]);
     expect(calls[0].payload.groupA[0].strength).to.equal(0.75);
     expect(calls[0].payload.groupB[0].strength).to.equal(0.2);
+  });
+
+  it("filters ControlNet models to the active checkpoint family and visualizes weight", async () => {
+    appVm.forge.currentModel = "juggernautXL";
+    appVm.forge.modelInfo = { architecture: "sdxl" };
+    appVm.cn.availableModels = [
+      { id: "cn-xl", name: "controlnet-sdxl-canny", category: "edge" },
+      { id: "cn-sd15", name: "control_v11p_sd15_canny", category: "edge" },
+      { id: "cn-generic", name: "OpenPose", category: "pose" },
+    ];
+    appVm.cn.active = "CN1";
+    appVm.cn.slots[0].model = "control_v11p_sd15_canny";
+    appVm.cn.slots[0].weight = 1.23;
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "CONTROLNET");
+    await nextTick();
+    await nextTick();
+
+    expect(appVm.currentControlNetModelFamily).to.equal("sdxl");
+    expect(appVm.controlNetCompatibleModels.map((model) => model.name)).to.deep.equal([
+      "controlnet-sdxl-canny",
+      "OpenPose",
+    ]);
+
+    const modelOptions = [...document.querySelector(".framesync-select").querySelectorAll("option")].map((el) => el.textContent.trim());
+    expect(modelOptions.join(" ")).to.include("controlnet-sdxl-canny");
+    expect(modelOptions.join(" ")).to.include("OpenPose");
+    expect(modelOptions.join(" ")).to.include("control_v11p_sd15_canny (current, incompatible)");
+    expect(document.querySelector(".controlnet-weight-card")).to.exist;
+    expect(document.body.textContent).to.include("Showing 2 SDXL-compatible models.");
+    expect(document.body.textContent).to.include("Strong");
+  });
+
+  it("shows a per-slot toggle button in the ControlNet slot strip", async () => {
+    appVm.cn.slots.forEach((slot, index) => {
+      slot.enabled = index === 1;
+    });
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "CONTROLNET");
+    await nextTick();
+    await nextTick();
+
+    const toggleButtons = [...document.querySelectorAll(".controlnet-slot-row__toggle")];
+    expect(toggleButtons.length).to.equal(appVm.cn.slots.length);
+    expect(toggleButtons[0].textContent.trim()).to.equal("Off");
+    expect(toggleButtons[1].textContent.trim()).to.equal("On");
+
+    toggleButtons[0].click();
+    await nextTick();
+    expect(appVm.cn.slots[0].enabled).to.equal(true);
   });
 
   it("shows a dedicated collapsed LoRA crossfader tab", async () => {
@@ -572,6 +634,73 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
   });
 
+  it("reports GPU status counts from the pool state", () => {
+    const instance = instantiate(appDef);
+    instance.gpuPool.healthyNodes = 2;
+    instance.gpuPool.nodes = [{ id: "gpu-1" }, { id: "gpu-2" }, { id: "gpu-3" }];
+
+    expect(instance.gpuActiveCount).to.equal(2);
+    expect(instance.gpuTotalCount).to.equal(3);
+  });
+
+  it("shares sampler and scheduler option lists across engine and forge modal controls", () => {
+    const instance = instantiate(appDef);
+    instance.forge.samplers = ["Euler a", "DPM++ 2M"];
+    instance.forge.schedulers = ["Normal", "Karras"];
+    instance.deforumSettings.sampler = "Heun";
+    instance.deforumSettings.scheduler = "Exponential";
+    instance.gpuPool.forgeModal.options = {
+      sampler_name: "Restart",
+      scheduler: "SGM Uniform",
+    };
+
+    expect(instance.engineSamplerOptions).to.deep.equal(["Heun", "Restart", "Euler a", "DPM++ 2M"]);
+    expect(instance.engineSchedulerOptions).to.deep.equal(["Exponential", "SGM Uniform", "Normal", "Karras"]);
+  });
+
+  it("startEditGpuNode opens the forge modal for disabled sd-forge nodes", async () => {
+    const instance = instantiate(appDef);
+    let openedNode = null;
+    instance.openGpuForgeModal = async (node) => { openedNode = node; };
+
+    await instance.startEditGpuNode({
+      id: "forge-1",
+      name: "Forge Alpha",
+      url: "http://127.0.0.1:7860",
+      backend: "sd-forge",
+      enabled: false,
+    });
+
+    expect(openedNode).to.exist;
+    expect(openedNode.id).to.equal("forge-1");
+    expect(instance.gpuPool.editId).to.equal(null);
+  });
+
+  it("defaults prompts to the image subtab", () => {
+    const instance = instantiate(appDef);
+    expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
+    expect(instance.img2img.show).to.equal(true);
+  });
+
+  it("openGpuSettings jumps to settings GPUS", () => {
+    const instance = instantiate(appDef);
+
+    instance.openGpuSettings();
+
+    expect(instance.currentTab).to.equal("SETTINGS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("GPUS");
+  });
+
+  it("redirects legacy settings subtabs for bindings and presets into MIDI", () => {
+    const instance = instantiate(appDef);
+
+    instance.switchSubTab("SETTINGS", "BINDINGS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
+
+    instance.switchSubTab("SETTINGS", "PRESETS");
+    expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
+  });
+
 
   it("reports GPU status counts from the pool state", () => {
     const instance = instantiate(appDef);
@@ -611,6 +740,71 @@ describe("Deforumation Web UI behavior", () => {
     const last = instance.ws.sent.at(-1);
     expect(last.controlType).to.equal("paramSource");
     expect(last.payload).to.deep.equal({ key: "cfg", source: "Beat" });
+  });
+
+  it("onEngineSchedulerChange keeps deforum and forge scheduler in sync", () => {
+    const instance = instantiate(appDef);
+    const pushed = [];
+    let queued = 0;
+    let previewed = 0;
+
+    instance.pushDeforumLivePatch = (key, value) => pushed.push([key, value]);
+    instance.queueDeforumSettingsSave = () => { queued += 1; };
+    instance.scheduleDeforumPreview = () => { previewed += 1; };
+
+    instance.onEngineSchedulerChange("Karras");
+
+    expect(instance.deforumSettings.scheduler).to.equal("Karras");
+    expect(instance.forge.options.scheduler).to.equal("Karras");
+    expect(pushed).to.deep.equal([["scheduler", "Karras"]]);
+    expect(queued).to.equal(1);
+    expect(previewed).to.equal(1);
+  });
+
+  it("syncs steps across deforum, forge, and forge modal controls", () => {
+    const instance = instantiate(appDef);
+    const pushed = [];
+    let queued = 0;
+    let previewed = 0;
+
+    instance.gpuPool.forgeModal.options = { steps: 9 };
+    instance.pushDeforumLivePatch = (key, value) => pushed.push([key, value]);
+    instance.queueDeforumSettingsSave = () => { queued += 1; };
+    instance.scheduleDeforumPreview = () => { previewed += 1; };
+
+    instance.onEngineStepsChange("28");
+
+    expect(instance.deforumSettings.steps).to.equal(28);
+    expect(instance.deforumSettings.steps_schedule).to.equal("0: (28)");
+    expect(instance.forge.options.steps).to.equal(28);
+    expect(instance.gpuPool.forgeModal.options.steps).to.equal(28);
+    expect(pushed).to.deep.equal([
+      ["steps", 28],
+      ["steps_schedule", "0: (28)"],
+    ]);
+    expect(queued).to.equal(1);
+    expect(previewed).to.equal(1);
+  });
+
+  it("restores synced step values from steps_schedule edits", () => {
+    const instance = instantiate(appDef);
+    const pushed = [];
+
+    instance.gpuPool.forgeModal.options = { steps: 9 };
+    instance.pushDeforumLivePatch = (key, value) => pushed.push([key, value]);
+    instance.queueDeforumSettingsSave = () => {};
+    instance.scheduleDeforumPreview = () => {};
+
+    instance.onDeforumFieldInput("steps_schedule", "0: (42)", "text");
+
+    expect(instance.deforumSettings.steps).to.equal(42);
+    expect(instance.deforumSettings.steps_schedule).to.equal("0: (42)");
+    expect(instance.forge.options.steps).to.equal(42);
+    expect(instance.gpuPool.forgeModal.options.steps).to.equal(42);
+    expect(pushed).to.deep.equal([
+      ["steps_schedule", "0: (42)"],
+      ["steps", 42],
+    ]);
   });
 
   it("updateParam writes the slider value and emits liveParam", () => {
@@ -994,6 +1188,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(saved.deforumSettings.steps).to.equal(14);
   });
 
+
   it("saveDeforumSettings omits disabled deforum fields from the outgoing payload", async () => {
     const instance = instantiate(appDef);
     let posted = null;
@@ -1037,6 +1232,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.isDeforumFieldEnabled("cfg_scale_schedule")).to.equal(false);
     expect(instance.isDeforumFieldEnabled("seed")).to.equal(true);
   });
+
 
   it("loadDeforumSettings preserves session-restored settings on startup", async () => {
     const instance = instantiate(appDef);

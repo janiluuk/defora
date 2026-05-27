@@ -217,7 +217,7 @@
               <div class="engine-main-card__value engine-main-card__value--small">{{ deforumSettings.sampler || '—' }}</div>
             </div>
           </div>
-          <div class="framesync-row engine-main-grid" style="grid-template-columns: 1.6fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
+          <div class="framesync-row engine-main-grid" style="grid-template-columns: 1.6fr 1fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack engine-main-grid__model">
               <div class="framesync-subtitle">Checkpoint</div>
               <select
@@ -247,34 +247,18 @@
               </select>
             </div>
             <div class="framesync-stack">
-              <div class="engine-main-slider__header">
-                <div class="framesync-subtitle">Steps</div>
-                <span class="engine-main-slider__value">{{ engineCurrentSteps }}</span>
-              </div>
-              <input
-                type="range"
-                class="framesync-input engine-main-slider"
-                :value="engineCurrentSteps"
-                min="1"
-                max="150"
-                step="1"
-                @input="onEngineStepsChange($event.target.value)"
-              >
+              <div class="framesync-subtitle">Scheduler</div>
+              <select class="framesync-select" :value="deforumSettings.scheduler" @change="onEngineSchedulerChange($event.target.value)">
+                <option v-for="scheduler in engineSchedulerOptions" :key="'engine-scheduler-' + scheduler" :value="scheduler">{{ scheduler }}</option>
+              </select>
             </div>
             <div class="framesync-stack">
-              <div class="engine-main-slider__header">
-                <div class="framesync-subtitle">CFG</div>
-                <span class="engine-main-slider__value">{{ engineCurrentCfgScale.toFixed(1) }}</span>
-              </div>
-              <input
-                type="range"
-                class="framesync-input engine-main-slider"
-                :value="engineCurrentCfgScale"
-                min="0"
-                max="30"
-                step="0.1"
-                @input="onEngineCfgScaleChange($event.target.value)"
-              >
+              <div class="framesync-subtitle">Steps</div>
+              <input type="number" class="framesync-input" :value="engineCurrentSteps" min="1" max="150" step="1" @input="onEngineStepsChange($event.target.value)">
+            </div>
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">CFG</div>
+              <input type="number" class="framesync-input" :value="engineCurrentCfgScale" min="0" max="30" step="0.1" @input="onEngineCfgScaleChange($event.target.value)">
             </div>
           </div>
           <div class="framesync-row" style="grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px;">
@@ -626,12 +610,21 @@
 
           <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
+              <div class="framesync-subtitle">Sampler</div>
+              <select class="framesync-select" v-model="gpuPool.forgeModal.options.sampler_name">
+                <option value="">Auto</option>
+                <option v-for="sampler in engineSamplerOptions" :key="'gpu-forge-sampler-'+sampler" :value="sampler">{{ sampler }}</option>
+              </select>
+            </div>
+            <div class="framesync-stack">
               <div class="framesync-subtitle">Scheduler</div>
               <select class="framesync-select" v-model="gpuPool.forgeModal.options.scheduler">
                 <option value="">Auto</option>
-                <option v-for="scheduler in gpuPool.forgeModal.schedulers" :key="'gpu-forge-sch-'+scheduler" :value="scheduler">{{ scheduler }}</option>
+                <option v-for="scheduler in engineSchedulerOptions" :key="'gpu-forge-sch-'+scheduler" :value="scheduler">{{ scheduler }}</option>
               </select>
             </div>
+          </div>
+          <div class="framesync-row" style="grid-template-columns: 1fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">VAE</div>
               <select class="framesync-select" v-model="gpuPool.forgeModal.options.sd_vae">
