@@ -672,60 +672,93 @@
             </button>
           </div>
 
-          <div v-if="deforumActiveGroup" class="deforum-settings-grid" style="margin-top:10px;">
-            <template v-for="field in deforumActiveGroup.fields" :key="field.key">
-              <label
-                v-if="field.key !== 'sd_model_name'"
-                class="deforum-field"
-                :class="[
-                  'deforum-field-' + (field.type || 'text'),
-                  { 'deforum-field--disabled': !isDeforumFieldEnabled(field.key) }
-                ]"
-              >
-                <span class="deforum-field-head">
-                  <span class="deforum-field-label">{{ field.label }}</span>
-                  <span class="deforum-field-toggle" v-if="!String(field.key || '').startsWith('cn_')">
-                    <input
-                      type="checkbox"
-                      :checked="isDeforumFieldEnabled(field.key)"
-                      @change="setDeforumFieldEnabled(field.key, $event.target.checked)"
-                    >
-                    <span>{{ isDeforumFieldEnabled(field.key) ? 'On' : 'Off' }}</span>
+          <div v-if="activeDeforumFieldGroup" class="framesync-panel deforum-settings-panel">
+            <div class="deforum-settings-grid">
+              <template v-for="field in activeDeforumFieldGroup.fields" :key="field.key">
+                <label
+                  v-if="field.key !== 'sd_model_name'"
+                  class="deforum-field"
+                  :class="[
+                    'deforum-field-' + (field.type || 'text'),
+                    { 'deforum-field--disabled': !isDeforumFieldEnabled(field.key) }
+                  ]"
+                >
+                  <span class="deforum-field-head">
+                    <span class="deforum-field-label">{{ field.label }}</span>
+                    <span v-if="isDeforumFieldToggleable(field.key)" class="deforum-field-toggle">
+                      <button
+                        type="button"
+                        class="chip chip--compact"
+                        :class="{ active: isDeforumFieldEnabled(field.key) }"
+                        @click.prevent="setDeforumFieldEnabled(field.key, !isDeforumFieldEnabled(field.key))"
+                      >
+                        {{ isDeforumFieldEnabled(field.key) ? 'On' : 'Off' }}
+                      </button>
+                    </span>
                   </span>
-                </span>
-                <input
-                  v-if="field.type === 'number'"
-                  type="number"
-                  class="framesync-input"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step || 1"
-                  :value="getDeforumField(field.key)"
-                  :disabled="!isDeforumFieldEnabled(field.key)"
-                  @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
-                />
-                <div v-else-if="field.type === 'bool'" class="chips" style="margin-top:4px;">
-                  <button type="button" class="chip" :class="{ active: !!getDeforumField(field.key) }" :disabled="!isDeforumFieldEnabled(field.key)" @click="onDeforumFieldInput(field.key, true, 'bool')">On</button>
-                  <button type="button" class="chip" :class="{ active: !getDeforumField(field.key) }" :disabled="!isDeforumFieldEnabled(field.key)" @click="onDeforumFieldInput(field.key, false, 'bool')">Off</button>
-                </div>
-                <textarea
-                  v-else-if="field.type === 'textarea'"
-                  class="framesync-input"
-                  :rows="field.rows || 3"
-                  :value="getDeforumField(field.key) ?? ''"
-                  :disabled="!isDeforumFieldEnabled(field.key)"
-                  @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
-                />
-                <input
-                  v-else
-                  type="text"
-                  class="framesync-input"
-                  :value="getDeforumField(field.key) ?? ''"
-                  :disabled="!isDeforumFieldEnabled(field.key)"
-                  @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
-                />
-              </label>
-            </template>
+                  <div v-if="field.type === 'slider'" class="deforum-field-slider">
+                    <input
+                      type="range"
+                      class="framesync-input"
+                      :min="field.min"
+                      :max="field.max"
+                      :step="field.step || 1"
+                      :value="getDeforumField(field.key)"
+                      :disabled="!isDeforumFieldEnabled(field.key)"
+                      @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
+                    />
+                    <span class="deforum-field-slider__value">{{ formatDeforumFieldValue(field, getDeforumField(field.key)) }}</span>
+                  </div>
+                  <select
+                    v-else-if="field.type === 'select'"
+                    class="framesync-select"
+                    :value="getDeforumField(field.key) ?? ''"
+                    :disabled="!isDeforumFieldEnabled(field.key)"
+                    @change="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                  >
+                    <option v-if="isDeforumDynamicSelect(field) && !deforumFieldOptions(field).length" value="">—</option>
+                    <option
+                      v-for="opt in deforumFieldOptions(field)"
+                      :key="field.key + '-opt-' + opt"
+                      :value="opt"
+                    >
+                      {{ opt }}
+                    </option>
+                  </select>
+                  <input
+                    v-else-if="field.type === 'number'"
+                    type="number"
+                    class="framesync-input"
+                    :min="field.min"
+                    :max="field.max"
+                    :step="field.step || 1"
+                    :value="getDeforumField(field.key)"
+                    :disabled="!isDeforumFieldEnabled(field.key)"
+                    @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
+                  />
+                  <div v-else-if="field.type === 'bool'" class="chips deforum-field-bool">
+                    <button type="button" class="chip" :class="{ active: !!getDeforumField(field.key) }" :disabled="!isDeforumFieldEnabled(field.key)" @click="onDeforumFieldInput(field.key, true, 'bool')">On</button>
+                    <button type="button" class="chip" :class="{ active: !getDeforumField(field.key) }" :disabled="!isDeforumFieldEnabled(field.key)" @click="onDeforumFieldInput(field.key, false, 'bool')">Off</button>
+                  </div>
+                  <textarea
+                    v-else-if="field.type === 'textarea'"
+                    class="framesync-input"
+                    :rows="field.rows || 3"
+                    :value="getDeforumField(field.key) ?? ''"
+                    :disabled="!isDeforumFieldEnabled(field.key)"
+                    @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                  />
+                  <input
+                    v-else
+                    type="text"
+                    class="framesync-input"
+                    :value="getDeforumField(field.key) ?? ''"
+                    :disabled="!isDeforumFieldEnabled(field.key)"
+                    @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                  />
+                </label>
+              </template>
+            </div>
           </div>
         </div>
       </div>
