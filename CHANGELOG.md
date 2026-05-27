@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.12] - 2026-05-27
+
+## What's Changed
+
+- feat(web): split modulation audio into tabs and refresh prompts/engine UI (#52) (d5ccea5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.11...v0.6.12
+
+
 ## [0.6.11] - 2026-05-27
 
 ## What's Changed
