@@ -74,16 +74,33 @@ function ensureGlobalAnimationFrame(win) {
 
 ensureGlobalAnimationFrame(typeof window !== "undefined" ? window : null);
 
+function installFileReaderMock({ failRead = false } = {}) {
+  const MockFileReader = class {
+    readAsDataURL() {
+      if (failRead) {
+        setImmediate(() => {
+          if (typeof this.onerror === "function") {
+            this.onerror(new Error("Read failed"));
+          }
+        });
+        return;
+      }
+      this.result = "data:audio/wav;base64,ZmFrZQ==";
+      setImmediate(() => {
+        if (typeof this.onload === "function") this.onload();
+      });
+    }
+  };
+  global.FileReader = MockFileReader;
+  if (global.window && typeof global.window === "object") {
+    global.window.FileReader = MockFileReader;
+  }
+  return MockFileReader;
+}
+
 function loadAppDefinition() {
   if (typeof global.FileReader !== "function") {
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => {
-          if (typeof this.onload === "function") this.onload();
-        });
-      }
-    };
+    installFileReaderMock();
   }
   // Load from the extracted app-definition.js instead of parsing index.html
   const appDefPath = path.join(__dirname, "..", "src", "app-definition.js");
@@ -1452,15 +1469,10 @@ describe("Deforumation Web UI behavior", () => {
       calls.push(JSON.parse(opts.body));
       return { ok: true, json: async () => ({ ok: true, path: "/tmp/uploaded.wav" }) };
     };
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
-    appDef = loadAppDefinition();
-    const instance = instantiate(appDef);
-    await instance.handleAudioUpload({ target: { files: [{ name: "track.wav" }] } });
+    installFileReaderMock();
+    const instance = instantiate(loadAppDefinition());
+    const wav = new File([Buffer.alloc(32)], "track.wav", { type: "audio/wav" });
+    await instance.handleAudioUpload({ target: { files: [wav] } });
 
     expect(calls[0].name).to.equal("track.wav");
     expect(instance.audio.track).to.equal("/tmp/uploaded.wav");
@@ -1470,15 +1482,11 @@ describe("Deforumation Web UI behavior", () => {
   });
 
   it("handleAudioUpload handles FileReader errors gracefully", async () => {
-    global.FileReader = class {
-      readAsDataURL() {
-        setImmediate(() => this.onerror(new Error("Read failed")));
-      }
-    };
-    appDef = loadAppDefinition();
-    const instance = instantiate(appDef);
+    installFileReaderMock({ failRead: true });
+    const instance = instantiate(loadAppDefinition());
+    const wav = new File([Buffer.alloc(16)], "broken.wav", { type: "audio/wav" });
 
-    await instance.handleAudioUpload({ target: { files: [{ name: "broken.wav" }] } });
+    await instance.handleAudioUpload({ target: { files: [wav] } });
 
     // The error should be caught and stored in audioStatus
     expect(instance.audioStatus).to.include("Failed to read audio file");
@@ -1691,12 +1699,7 @@ describe("Reference A/V sync", () => {
 
   it("handleAudioUpload assigns objectUrl for real File/Blob uploads", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/srv/out.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.from("RIFFxxxxWAVEfmt ")], "clip.wav", { type: "audio/wav" });
     const instance = inst();
     await instance.handleAudioUpload({ target: { files: [wav] } });
@@ -1711,12 +1714,7 @@ describe("Reference A/V sync", () => {
 
   it("handleAudioUpload revokes objectUrl when upload fails after blob creation", async () => {
     global.fetch = async () => ({ ok: false, json: async () => ({ error: "disk full" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(64)], "bad.wav", { type: "audio/wav" });
     const instance = inst();
     await instance.handleAudioUpload({ target: { files: [wav] } });
@@ -1728,12 +1726,7 @@ describe("Reference A/V sync", () => {
 
   it("clearAudioFile revokes objectUrl and disables av sync", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/tmp/a.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(32)], "z.wav", { type: "audio/wav" });
     const instance = inst({
       avSyncEnabled: true,
@@ -1822,12 +1815,7 @@ describe("Reference A/V sync mounted e2e", () => {
 
   it("upload binds blob URL to the sync audio element src", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/uploaded.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(128)], "live.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
@@ -1839,12 +1827,7 @@ describe("Reference A/V sync mounted e2e", () => {
 
   it("enabling sync after upload leaves checkbox enabled once objectUrl exists", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/u.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(64)], "e.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
@@ -1861,12 +1844,7 @@ describe("Reference A/V sync mounted e2e", () => {
 
   it("mounted: syncReferenceAudioToVideo uses real DOM audio ref after upload", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/sync.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(72)], "sync.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
