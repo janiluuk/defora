@@ -653,7 +653,7 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
   });
 
-  it("groups library runs by prefix and inspects frames one by one", async () => {
+  it("lists library runs and inspects frames one by one", async () => {
     appVm.runsAll = [
       { run_id: "run-a-002", batch_name: "session_a", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a" },
       { run_id: "run-a-001", batch_name: "session_a", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a" },
@@ -673,43 +673,36 @@ describe("Deforumation Web UI", () => {
 
     appVm.showFrames = true;
     appVm.switchTab("LIBRARY");
+    appVm.librarySubTab = "RUNS";
     await nextTick();
     await nextTick();
     await Promise.resolve();
     await nextTick();
 
-    expect(document.querySelectorAll(".library-folder-item").length).to.equal(2);
-    expect(document.querySelector("[data-testid='library-frame-rail']")).to.exist;
-    expect(document.querySelectorAll("[data-testid='library-project-list'] .library-frame-rail__project").length).to.equal(2);
-    expect(document.body.textContent).to.include("session_a");
-    expect(document.body.textContent).to.include("session_b");
-    expect(appVm.library.selectedRunId).to.equal("run-a-002");
+    const runCards = [...document.querySelectorAll(".library-run-card")];
+    expect(runCards.length).to.equal(3);
+
+    runCards[0].click();
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+
+    expect(appVm.library.selectedRunId).to.match(/^run-(a|b)-/);
     expect(document.body.textContent).to.include("Frame Inspector");
-    expect(appVm.librarySelectedFrameSrc).to.include("/api/runs/run-a-002/frames/frame_0001.png");
+    expect(appVm.librarySelectedFrameSrc).to.include(`/api/runs/${appVm.library.selectedRunId}/frames/frame_0001.png`);
 
     appVm.stepLibraryFrame(1);
     await nextTick();
     expect(appVm.library.selectedFrameName).to.equal("frame_0002.png");
 
-    const projectButtons = [...document.querySelectorAll("[data-testid='library-project-list'] .library-frame-rail__project")];
-    const sessionB = projectButtons.find((btn) => btn.textContent.includes("session_b"));
-    expect(sessionB).to.exist;
-    sessionB.click();
+    const runB = runCards.find((el) => el.textContent.includes("run-b-001"));
+    expect(runB).to.exist;
+    runB.click();
     await nextTick();
     await Promise.resolve();
     await nextTick();
-    expect(appVm.librarySelectedPrefixKey).to.match(/session_b/);
     expect(appVm.library.selectedRunId).to.equal("run-b-001");
     expect(document.querySelectorAll("[data-testid='library-frame-thumbs'] .frame-rail__item").length).to.equal(1);
-
-    const sessionA = projectButtons.find((btn) => btn.textContent.includes("session_a"));
-    sessionA.click();
-    await nextTick();
-    await Promise.resolve();
-    await nextTick();
-    expect(appVm.librarySelectedPrefixKey).to.match(/session_a/);
-    expect(appVm.library.selectedRunId).to.equal("run-a-002");
-    expect(document.querySelectorAll("[data-testid='library-frame-thumbs'] .frame-rail__item").length).to.equal(2);
 
     delete global.fetch;
   });

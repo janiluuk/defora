@@ -1143,7 +1143,7 @@ export default {
         selectedPaths: [],
         fullscreenIndex: -1,
       },
-      librarySubTab: 'RUNS',
+      librarySubTab: 'BROWSER',
       liveBottomDrawerOpen: false,
       liveBottomDrawerTab: 'MODULATION',
       restoreSessionPromptOpen: false,

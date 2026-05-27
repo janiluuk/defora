@@ -19,11 +19,12 @@
       </button>
     </div>
 
-    <div v-if="librarySubTab === 'RUNS'" class="library-browser">
-      <div class="framesync-panel library-browser__folders">
+    <div v-if="librarySubTab === 'RUNS'" class="library-browser library-browser--flat">
+      <div class="framesync-panel library-browser__runs">
         <div class="framesync-header">
-          <div class="framesync-title">Library <span class="framesync-accent">Prefixes</span></div>
+          <div class="framesync-title">Runs <span class="framesync-accent">Library</span></div>
           <div style="display:flex; gap:8px; align-items:center;">
+            <span class="framesync-subtitle" style="margin:0;">{{ (runsAll || []).length }} runs</span>
             <button class="framesync-button framesync-button--compact" @click="refreshRuns">Refresh</button>
             <button
               type="button"
@@ -35,37 +36,11 @@
             </button>
           </div>
         </div>
-        <div class="framesync-subtitle" style="margin-top:10px;">
-          Prefix folders are grouped from Deforum batch names so related runs stay together.
-        </div>
         <div v-if="runsLoading" class="library-browser__empty">Loading library…</div>
-        <div v-else-if="!libraryPrefixGroups.length" class="library-browser__empty">No runs found yet.</div>
-        <div v-else class="library-folder-list">
-          <button
-            v-for="group in libraryPrefixGroups"
-            :key="group.key"
-            type="button"
-            class="library-folder-item"
-            :class="{ 'library-folder-item--active': librarySelectedPrefixKey === group.key }"
-            @click="openLibraryPrefix(group.key)"
-          >
-            <span class="library-folder-item__name">{{ group.label }}</span>
-            <span class="library-folder-item__count">{{ group.runs.length }} runs</span>
-          </button>
-        </div>
-      </div>
-
-      <div class="framesync-panel library-browser__runs">
-        <div class="framesync-header">
-          <div class="framesync-title">Runs <span class="framesync-accent">{{ librarySelectedPrefixKey || '—' }}</span></div>
-          <span class="framesync-subtitle" style="margin:0;">{{ libraryRunsForSelectedPrefix.length }} runs</span>
-        </div>
-        <div v-if="!libraryRunsForSelectedPrefix.length" class="library-browser__empty">
-          Select a project below the preview to browse its runs.
-        </div>
+        <div v-else-if="!(runsAll || []).length" class="library-browser__empty">No runs found yet.</div>
         <div v-else class="library-run-grid">
           <button
-            v-for="run in libraryRunsForSelectedPrefix"
+            v-for="run in (runsAll || [])"
             :key="run.run_id"
             type="button"
             class="library-run-card"
@@ -227,6 +202,9 @@ export default {
   display: grid;
   grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
   gap: 12px;
+}
+.library-browser--flat {
+  grid-template-columns: 1fr;
 }
 
 .library-browser__folders,

@@ -32,6 +32,8 @@ services:
       - RABBIT_URL=amqp://mq
       - FRAMES_DIR=/data/frames
       - RUNS_DIR=/data/runs
+      # Persist generated previews/uploads inside the shared runs volume.
+      - UPLOADS_DIR=/data/runs/uploads
       - HLS_STREAM=/hls/live/deforum.m3u8
       - HLS_DIR=/var/www/hls
       # VideoSwarm lives alongside runs/projects so storage is shared.
