@@ -937,7 +937,9 @@ async function start(opts = {}) {
     if (!root) return null;
     const raw = String(inputPath || "").trim();
     if (!raw) return path.resolve(root.path);
-    const resolved = path.resolve(root.path, raw.replace(/^\/+/, ""));
+    // IMPORTANT: the browser sends back absolute paths that we previously returned.
+    // Preserve absolute paths; only join relative paths against the chosen root.
+    const resolved = path.resolve(path.isAbsolute(raw) ? raw : path.join(root.path, raw));
     const allowed = roots.some((r) => {
       const rootResolved = path.resolve(r.path);
       return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
