@@ -228,10 +228,27 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.not.include("Beam count");
     expect(document.body.textContent).to.not.include("Mist");
 
+    appVm.setDefaultAnimationMode("marching");
+    await nextTick();
+    expect(document.body.textContent).to.include("Blob count");
+    expect(document.body.textContent).to.include("Resolution");
+    expect(document.body.textContent).to.include("Isolation");
+    expect(document.body.textContent).to.include("Floor");
+    expect(document.body.textContent).to.not.include("Visualize threshold");
+
+    appVm.setDefaultAnimationMode("ocean");
+    await nextTick();
+    expect(document.body.textContent).to.include("Sun elevation");
+    expect(document.body.textContent).to.include("Distortion scale");
+    expect(document.body.textContent).to.include("Cloud coverage");
+    expect(document.body.textContent).to.not.include("Blob count");
+    expect(document.body.textContent).to.not.include("Visualize threshold");
+
     appVm.defaultAnimation.preferDeforumVideo = true;
     await nextTick();
 
     expect(document.body.textContent).to.not.include("Visualize threshold");
+    expect(document.body.textContent).to.not.include("Blob count");
 
     appVm.resetDefaultAnimationSettings();
     expect(appVm.defaultAnimation.mode).to.equal("volume");

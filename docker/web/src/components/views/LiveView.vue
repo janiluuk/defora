@@ -43,6 +43,8 @@
               <option value="orbital">Orbital pulse</option>
               <option value="nebula">Nebula drift</option>
               <option value="raycast">Fat lines raycast</option>
+              <option value="marching">Marching cubes</option>
+              <option value="ocean">Shader ocean</option>
             </select>
           </div>
           <div v-if="defaultAnimation.mode === 'volume'" class="slider-row">
@@ -91,27 +93,100 @@
               <button type="button" class="chip" :class="{ active: defaultAnimation.lineAnimate }" @click="defaultAnimation.lineAnimate = !defaultAnimation.lineAnimate; onDefaultAnimationInput()">Animate</button>
             </div>
           </div>
-          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
+          <div v-if="defaultAnimation.mode === 'marching'" class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Material</div>
+            <select class="framesync-select" v-model="defaultAnimation.mcMaterial" @change="onDefaultAnimationInput">
+              <option value="shiny">Shiny</option>
+              <option value="chrome">Chrome</option>
+              <option value="liquid">Liquid</option>
+              <option value="matte">Matte</option>
+              <option value="flat">Flat</option>
+              <option value="plastic">Plastic</option>
+              <option value="colors">Colors</option>
+              <option value="multiColors">Multi colors</option>
+            </select>
+          </div>
+          <div v-if="defaultAnimation.mode === 'marching'" class="slider-row">
+            <label>Speed</label>
+            <input type="range" min="0.1" max="8" step="0.05" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'marching'" class="slider-row">
+            <label>Blob count</label>
+            <input type="range" min="1" max="50" step="1" v-model.number="defaultAnimation.mcNumBlobs" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'marching'" class="slider-row">
+            <label>Resolution</label>
+            <input type="range" min="14" max="100" step="1" v-model.number="defaultAnimation.mcResolution" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'marching'" class="slider-row">
+            <label>Isolation</label>
+            <input type="range" min="10" max="300" step="1" v-model.number="defaultAnimation.mcIsolation" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'marching'" class="framesync-stack" style="margin-top:10px;">
+            <div class="framesync-subtitle">Field helpers</div>
+            <div class="chips">
+              <button type="button" class="chip" :class="{ active: defaultAnimation.mcFloor }" @click="defaultAnimation.mcFloor = !defaultAnimation.mcFloor; onDefaultAnimationInput()">Floor</button>
+              <button type="button" class="chip" :class="{ active: defaultAnimation.mcWallX }" @click="defaultAnimation.mcWallX = !defaultAnimation.mcWallX; onDefaultAnimationInput()">Wall X</button>
+              <button type="button" class="chip" :class="{ active: defaultAnimation.mcWallZ }" @click="defaultAnimation.mcWallZ = !defaultAnimation.mcWallZ; onDefaultAnimationInput()">Wall Z</button>
+            </div>
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Sun elevation</label>
+            <input type="range" min="0" max="90" step="0.1" v-model.number="defaultAnimation.ocElevation" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Sun azimuth</label>
+            <input type="range" min="-180" max="180" step="0.1" v-model.number="defaultAnimation.ocAzimuth" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Exposure</label>
+            <input type="range" min="0" max="1" step="0.0001" v-model.number="defaultAnimation.ocExposure" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Distortion scale</label>
+            <input type="range" min="0" max="8" step="0.1" v-model.number="defaultAnimation.ocDistortion" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Wave size</label>
+            <input type="range" min="0.1" max="10" step="0.1" v-model.number="defaultAnimation.ocSize" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Cloud coverage</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudCoverage" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Cloud density</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudDensity" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
+            <label>Cloud elevation</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudElevation" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'ocean'" class="slider-row">
             <label>Speed</label>
             <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
+            <label>Speed</label>
+            <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Spread</label>
             <input type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Glow</label>
             <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Hue</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Pulse</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.pulse" @input="onDefaultAnimationInput">
           </div>
-          <div v-if="defaultAnimation.mode !== 'raycast'" class="slider-row">
+          <div v-if="!['raycast', 'marching', 'ocean'].includes(defaultAnimation.mode)" class="slider-row">
             <label>Drift</label>
             <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
           </div>
@@ -221,32 +296,9 @@
           <UiIcon class="param-drawer-label-icon" name="sliders" />
           <span>Parameters</span>
         </span>
-        <span class="model-status-pill" :class="'model-' + modelStatusKind" :title="modelStatusLabel">
-          <span class="model-status-dot"></span>
-          {{ modelStatusLabel }}
-        </span>
         <UiIcon class="param-drawer-chevron" :name="paramPanelOpen ? 'chevron-up' : 'chevron-down'" />
       </button>
       <div v-show="paramPanelOpen" class="param-drawer-body">
-        <div class="model-bar">
-          <label class="framesync-subtitle">Checkpoint</label>
-          <select class="framesync-select" v-model="forge.selectedModel" :disabled="forge.switching || modelStatusKind === 'offline'" @change="onModelSelectChange">
-            <option value="">— select model —</option>
-            <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
-          </select>
-          <span v-if="forge.modelsSource" class="model-source-pill" :class="'src-' + forge.modelsSource" :title="'Model list from ' + forge.modelsSource">
-            ● {{ modelSourceLabel(forge.modelsSource) }}
-          </span>
-          <span v-if="forge.switching || forge.loading" class="model-loading">
-            <span class="lazy-loading-indicator lazy-loading-indicator--subtle">
-              <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-              <span>{{ forge.switching ? 'Loading model' : 'Loading Forge data' }}</span>
-              <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-            </span>
-          </span>
-          <span v-else-if="forge.lastModel" class="model-last">Last: {{ forge.lastModel }}</span>
-        </div>
-
         <div v-if="pinnedParamItems.length" class="param-group param-group--pinned">
           <div class="framesync-subtitle">📌 Pinned</div>
           <div class="param-group-grid">
@@ -346,9 +398,9 @@
           >
             <summary class="deforum-settings-group-title">{{ group.label }}</summary>
             <div class="deforum-settings-grid">
+              <template v-for="field in group.fields" :key="field.key">
               <label
-                v-for="field in group.fields"
-                :key="field.key"
+                v-if="field.key !== 'sd_model_name'"
                 class="deforum-field"
                 :class="[
                   'deforum-field-' + (field.type || 'text'),
@@ -377,13 +429,10 @@
                   :disabled="!isDeforumFieldEnabled(field.key)"
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
                 />
-                <input
-                  v-else-if="field.type === 'bool'"
-                  type="checkbox"
-                  :checked="!!getDeforumField(field.key)"
-                  :disabled="!isDeforumFieldEnabled(field.key)"
-                  @change="onDeforumFieldInput(field.key, $event.target.checked, 'bool')"
-                />
+                <div v-else-if="field.type === 'bool'" class="chips" style="margin-top:4px;">
+                  <button type="button" class="chip" :class="{ active: !!getDeforumField(field.key) }" :disabled="!isDeforumFieldEnabled(field.key)" @click="onDeforumFieldInput(field.key, true, 'bool')">On</button>
+                  <button type="button" class="chip" :class="{ active: !getDeforumField(field.key) }" :disabled="!isDeforumFieldEnabled(field.key)" @click="onDeforumFieldInput(field.key, false, 'bool')">Off</button>
+                </div>
                 <textarea
                   v-else-if="field.type === 'textarea'"
                   class="framesync-input"
@@ -391,31 +440,6 @@
                   :value="getDeforumField(field.key) ?? ''"
                   :disabled="!isDeforumFieldEnabled(field.key)"
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
-                />
-                <select
-                  v-else-if="field.key === 'sd_model_name' && forge.models.length"
-                  class="framesync-select"
-                  :value="getDeforumField(field.key) ?? ''"
-                  :disabled="!isDeforumFieldEnabled(field.key) || forge.switching || modelStatusKind === 'offline'"
-                  @change="onDeforumModelCommit($event.target.value)"
-                >
-                  <option value="">— select model —</option>
-                  <option
-                    v-for="m in forge.models"
-                    :key="m.model_name || m.title"
-                    :value="m.model_name || m.title"
-                  >
-                    {{ m.title || m.model_name }}
-                  </option>
-                </select>
-                <input
-                  v-else-if="field.key === 'sd_model_name'"
-                  type="text"
-                  class="framesync-input"
-                  :value="getDeforumField(field.key) ?? ''"
-                  :disabled="!isDeforumFieldEnabled(field.key)"
-                  @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
-                  @blur="onDeforumModelCommit($event.target.value)"
                 />
                 <input
                   v-else
@@ -426,6 +450,7 @@
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
                 />
               </label>
+              </template>
             </div>
           </details>
         </div>

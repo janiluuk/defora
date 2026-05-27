@@ -4,6 +4,14 @@
 
 <script>
 import * as THREE from 'three'
+import { Line2 } from 'three/addons/lines/Line2.js'
+import { LineGeometry } from 'three/addons/lines/LineGeometry.js'
+import { LineMaterial } from 'three/addons/lines/LineMaterial.js'
+import { LineSegments2 } from 'three/addons/lines/LineSegments2.js'
+import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js'
+import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js'
+import { Water } from 'three/addons/objects/Water.js'
+import { Sky } from 'three/addons/objects/Sky.js'
 
 function clamp01(value) {
   const n = Number(value)
@@ -23,6 +31,7 @@ function lfoColors() {
 
 function defaultSettings() {
   return {
+    mode: 'volume',
     beamCount: 7,
     speed: 0.75,
     spread: 0.68,
@@ -30,7 +39,44 @@ function defaultSettings() {
     hue: 0.6,
     pulse: 0.36,
     drift: 0.44,
+    mist: 0.58,
+    orbit: 0.52,
+    lineType: 'segments',
+    lineWidth: 2.4,
+    lineThreshold: 0.8,
+    lineTranslation: 0,
+    lineWorldUnits: true,
+    lineVisualizeThreshold: false,
+    lineAlphaToCoverage: true,
+    lineAnimate: true,
+    mcMaterial: 'shiny',
+    mcNumBlobs: 10,
+    mcResolution: 28,
+    mcIsolation: 80,
+    mcFloor: true,
+    mcWallX: false,
+    mcWallZ: false,
+    ocElevation: 2,
+    ocAzimuth: 180,
+    ocExposure: 0.1,
+    ocDistortion: 3.7,
+    ocSize: 1,
+    ocCloudCoverage: 0.4,
+    ocCloudDensity: 0.5,
+    ocCloudElevation: 0.5,
   }
+}
+
+function marchingColors() {
+  return [
+    new THREE.Color(0xff5f6d),
+    new THREE.Color(0xffc371),
+    new THREE.Color(0xe8ff7a),
+    new THREE.Color(0x50fa7b),
+    new THREE.Color(0x5cc8ff),
+    new THREE.Color(0x7f77dd),
+    new THREE.Color(0xff78d7),
+  ]
 }
 
 function radialTexture(innerAlpha, outerAlpha) {
@@ -108,6 +154,27 @@ export default {
       beamMap: null,
       mistMap: null,
       lfoGroups: [],
+      fatLineRoot: null,
+      fatLine: null,
+      fatThresholdLine: null,
+      fatSegments: null,
+      fatThresholdSegments: null,
+      marchingRoot: null,
+      marchingEffect: null,
+      marchingMaterials: null,
+      marchingResolution: 28,
+      marchingMaterialKey: 'shiny',
+      oceanRoot: null,
+      oceanSky: null,
+      oceanWater: null,
+      oceanMesh: null,
+      oceanSun: null,
+      oceanPmrem: null,
+      oceanPmremTarget: null,
+      oceanNormalsTexture: null,
+      oceanSettingsKey: '',
+      baseRendererToneMapping: null,
+      baseRendererExposure: 1,
     }
   },
   mounted() {
@@ -136,6 +203,8 @@ export default {
       this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5))
       this.renderer.setClearColor(0x000000, 0)
       this.renderer.outputColorSpace = THREE.SRGBColorSpace
+      this.baseRendererToneMapping = this.renderer.toneMapping
+      this.baseRendererExposure = this.renderer.toneMappingExposure
       host.appendChild(this.renderer.domElement)
 
       this.scene.add(new THREE.AmbientLight(0xffffff, 0.28))
@@ -156,6 +225,9 @@ export default {
       this.createHalo()
       this.createVolumeBeams()
       this.createFogSprites()
+      this.createFatLines()
+      this.createMarchingField()
+      this.createOceanScene()
       this.createLfoGroups()
       this.handleResize()
 
@@ -243,6 +315,223 @@ export default {
         return sprite
       })
     },
+    createFatLines() {
+      const points = []
+      const positions = []
+      const colors = []
+
+      for (let i = -32; i < 32; i += 1) {
+        const t = i / 2.8
+        points.push(
+          new THREE.Vector3(
+            t * Math.sin(1.8 * t) * 0.72,
+            t * 0.56,
+            t * Math.cos(1.8 * t) * 0.72
+          )
+        )
+      }
+
+      const spline = new THREE.CatmullRomCurve3(points)
+      const divisions = Math.max(96, Math.round(points.length * 3.5))
+      const point = new THREE.Vector3()
+      const color = new THREE.Color()
+
+      for (let i = 0; i < divisions; i += 1) {
+        const t = i / Math.max(1, divisions - 1)
+        spline.getPoint(t, point)
+        positions.push(point.x, point.y, point.z)
+        color.setHSL((t * 0.92 + 0.06) % 1, 0.9, 0.6)
+        colors.push(color.r, color.g, color.b)
+      }
+
+      const lineGeometry = new LineGeometry()
+      lineGeometry.setPositions(positions)
+      lineGeometry.setColors(colors)
+
+      const segmentsGeometry = new LineSegmentsGeometry()
+      segmentsGeometry.setPositions(positions)
+      segmentsGeometry.setColors(colors)
+
+      const createMaterial = ({ threshold = false } = {}) => new LineMaterial({
+        color: 0xffffff,
+        linewidth: threshold ? 3 : 2.4,
+        worldUnits: true,
+        vertexColors: !threshold,
+        transparent: threshold,
+        opacity: threshold ? 0.18 : 0.94,
+        depthTest: !threshold,
+        alphaToCoverage: true,
+      })
+
+      this.fatLineRoot = new THREE.Group()
+      this.fatLineRoot.visible = false
+      this.scene.add(this.fatLineRoot)
+
+      this.fatLine = new Line2(lineGeometry, createMaterial())
+      this.fatLine.computeLineDistances()
+      this.fatLineRoot.add(this.fatLine)
+
+      this.fatThresholdLine = new Line2(lineGeometry, createMaterial({ threshold: true }))
+      this.fatThresholdLine.computeLineDistances()
+      this.fatThresholdLine.visible = false
+      this.fatLineRoot.add(this.fatThresholdLine)
+
+      this.fatSegments = new LineSegments2(segmentsGeometry, createMaterial())
+      this.fatSegments.computeLineDistances()
+      this.fatSegments.visible = false
+      this.fatLineRoot.add(this.fatSegments)
+
+      this.fatThresholdSegments = new LineSegments2(segmentsGeometry, createMaterial({ threshold: true }))
+      this.fatThresholdSegments.computeLineDistances()
+      this.fatThresholdSegments.visible = false
+      this.fatLineRoot.add(this.fatThresholdSegments)
+    },
+    createMarchingMaterials() {
+      return {
+        shiny: new THREE.MeshStandardMaterial({ color: 0xa3112a, roughness: 0.12, metalness: 0.85, emissive: 0x260510 }),
+        chrome: new THREE.MeshStandardMaterial({ color: 0xe7ecff, roughness: 0.06, metalness: 1 }),
+        liquid: new THREE.MeshPhysicalMaterial({ color: 0x7ad7ff, roughness: 0.04, transmission: 0.15, thickness: 0.8, metalness: 0.05 }),
+        matte: new THREE.MeshPhongMaterial({ color: 0xc7b9ff, specular: 0x2a214b, shininess: 12 }),
+        flat: new THREE.MeshLambertMaterial({ color: 0x9ae3ff, flatShading: true }),
+        plastic: new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0xc1c1c1, shininess: 220 }),
+        colors: new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0xffffff, shininess: 32, vertexColors: true }),
+        multiColors: new THREE.MeshPhongMaterial({ color: 0xffffff, specular: 0xffffff, shininess: 64, vertexColors: true }),
+      }
+    },
+    createMarchingField() {
+      this.marchingMaterials = this.createMarchingMaterials()
+      this.marchingRoot = new THREE.Group()
+      this.marchingRoot.visible = false
+      this.scene.add(this.marchingRoot)
+
+      this.marchingEffect = new MarchingCubes(28, this.marchingMaterials.shiny, false, false, 20000)
+      this.marchingEffect.position.set(0, 0, 0)
+      this.marchingEffect.scale.set(8.2, 8.2, 8.2)
+      this.marchingEffect.isolation = 80
+      this.marchingRoot.add(this.marchingEffect)
+      this.marchingResolution = 28
+      this.marchingMaterialKey = 'shiny'
+    },
+    createOceanScene() {
+      this.oceanRoot = new THREE.Group()
+      this.oceanRoot.visible = false
+      this.scene.add(this.oceanRoot)
+      this.oceanSun = new THREE.Vector3()
+
+      const sky = new Sky()
+      sky.scale.setScalar(10000)
+      this.oceanSky = sky
+      const skyUniforms = sky.material.uniforms
+      skyUniforms.turbidity.value = 10
+      skyUniforms.rayleigh.value = 2
+      skyUniforms.mieCoefficient.value = 0.005
+      skyUniforms.mieDirectionalG.value = 0.8
+      this.oceanRoot.add(sky)
+
+      const mesh = new THREE.Mesh(
+        new THREE.BoxGeometry(8, 8, 8),
+        new THREE.MeshStandardMaterial({ color: 0xe7ecff, roughness: 0, metalness: 0.15 })
+      )
+      mesh.position.set(0, 5, 0)
+      this.oceanMesh = mesh
+      this.oceanRoot.add(mesh)
+
+      this.oceanPmrem = new THREE.PMREMGenerator(this.renderer)
+
+      const loader = new THREE.TextureLoader()
+      loader.load('/textures/waternormals.jpg', (texture) => {
+        if (!this.oceanRoot) {
+          texture.dispose()
+          return
+        }
+        texture.wrapS = THREE.RepeatWrapping
+        texture.wrapT = THREE.RepeatWrapping
+        this.oceanNormalsTexture = texture
+
+        const waterGeometry = new THREE.PlaneGeometry(500, 500, 1, 1)
+        this.oceanWater = new Water(waterGeometry, {
+          textureWidth: 512,
+          textureHeight: 512,
+          waterNormals: texture,
+          sunDirection: new THREE.Vector3(),
+          sunColor: 0xffffff,
+          waterColor: 0x001e0f,
+          distortionScale: 3.7,
+          fog: false,
+        })
+        this.oceanWater.rotation.x = -Math.PI / 2
+        this.oceanRoot.add(this.oceanWater)
+        this.syncOceanSettings(this.resolvedSettings())
+      })
+    },
+    oceanSettingsSignature(config) {
+      return [
+        config.ocElevation,
+        config.ocAzimuth,
+        config.ocExposure,
+        config.ocDistortion,
+        config.ocSize,
+        config.ocCloudCoverage,
+        config.ocCloudDensity,
+        config.ocCloudElevation,
+      ].join('|')
+    },
+    syncOceanSettings(config) {
+      if (!this.oceanSky || !this.oceanWater) return
+      const signature = this.oceanSettingsSignature(config)
+      if (this.oceanSettingsKey === signature) return
+      this.oceanSettingsKey = signature
+
+      const phi = THREE.MathUtils.degToRad(90 - config.ocElevation)
+      const theta = THREE.MathUtils.degToRad(config.ocAzimuth)
+      this.oceanSun.setFromSphericalCoords(1, phi, theta)
+
+      const skyUniforms = this.oceanSky.material.uniforms
+      skyUniforms.sunPosition.value.copy(this.oceanSun)
+      skyUniforms.cloudCoverage.value = config.ocCloudCoverage
+      skyUniforms.cloudDensity.value = config.ocCloudDensity
+      skyUniforms.cloudElevation.value = config.ocCloudElevation
+
+      const waterUniforms = this.oceanWater.material.uniforms
+      waterUniforms.sunDirection.value.copy(this.oceanSun).normalize()
+      waterUniforms.distortionScale.value = config.ocDistortion
+      waterUniforms.size.value = config.ocSize
+
+      if (this.oceanPmremTarget) {
+        this.oceanPmremTarget.dispose()
+        this.oceanPmremTarget = null
+      }
+      const sceneEnv = new THREE.Scene()
+      sceneEnv.add(this.oceanSky)
+      this.oceanPmremTarget = this.oceanPmrem.fromScene(sceneEnv)
+      this.oceanRoot.add(this.oceanSky)
+      this.scene.environment = this.oceanPmremTarget.texture
+    },
+    updateOceanScene(elapsed, config, delta) {
+      if (!this.oceanRoot || !this.oceanWater || !this.oceanSky || !this.oceanMesh) return
+
+      this.oceanRoot.visible = true
+      this.syncOceanSettings(config)
+
+      const waveRate = Math.max(0.1, Number(config.speed) || 0.75)
+      const time = performance.now() * 0.001
+      this.oceanWater.material.uniforms.time.value += delta * waveRate
+      this.oceanSky.material.uniforms.time.value = time
+
+      this.oceanMesh.position.y = Math.sin(time * waveRate) * 4 + 5
+      this.oceanMesh.rotation.x = time * 0.5 * waveRate
+      this.oceanMesh.rotation.z = time * 0.51 * waveRate
+
+      if (this.renderer) {
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping
+        this.renderer.toneMappingExposure = config.ocExposure
+      }
+    },
+    restoreRendererToneMapping() {
+      if (!this.renderer) return
+      this.renderer.toneMapping = this.baseRendererToneMapping ?? THREE.NoToneMapping
+      this.renderer.toneMappingExposure = this.baseRendererExposure ?? 1
+    },
     createLfoGroups() {
       this.lfoGroups = Array.from({ length: 6 }).map((_, index) => {
         const colors = lfoColors()
@@ -289,13 +578,39 @@ export default {
     resolvedSettings() {
       const merged = { ...defaultSettings(), ...(this.settings || {}) }
       return {
+        mode: ['volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(merged.mode) ? merged.mode : 'volume',
         beamCount: clamp(Math.round(Number(merged.beamCount) || 7), 3, 12),
         speed: clamp(Number(merged.speed) || 0.75, 0.1, 2.5),
         spread: clamp(Number(merged.spread) || 0.68, 0.2, 1.4),
         glow: clamp(Number(merged.glow) || 0.78, 0.1, 1.4),
-        hue: clamp01(merged.hue == null ? 0.6 : merged.hue),
-        pulse: clamp01(merged.pulse == null ? 0.36 : merged.pulse),
-        drift: clamp01(merged.drift == null ? 0.44 : merged.drift),
+        hue: clamp01(merged.hue == null ? 0.6 : Number(merged.hue)),
+        pulse: clamp01(merged.pulse == null ? 0.36 : Number(merged.pulse)),
+        drift: clamp01(merged.drift == null ? 0.44 : Number(merged.drift)),
+        mist: clamp01(merged.mist == null ? 0.58 : Number(merged.mist)),
+        orbit: clamp01(merged.orbit == null ? 0.52 : Number(merged.orbit)),
+        lineType: merged.lineType === 'line' ? 'line' : 'segments',
+        lineWidth: clamp(Number(merged.lineWidth) || 2.4, 1, 10),
+        lineThreshold: clamp(merged.lineThreshold == null ? 0.8 : Number(merged.lineThreshold), 0, 10),
+        lineTranslation: clamp(merged.lineTranslation == null ? 0 : Number(merged.lineTranslation), 0, 10),
+        lineWorldUnits: merged.lineWorldUnits !== false,
+        lineVisualizeThreshold: !!merged.lineVisualizeThreshold,
+        lineAlphaToCoverage: merged.lineAlphaToCoverage !== false,
+        lineAnimate: merged.lineAnimate !== false,
+        mcMaterial: ['shiny', 'chrome', 'liquid', 'matte', 'flat', 'plastic', 'colors', 'multiColors'].includes(merged.mcMaterial) ? merged.mcMaterial : 'shiny',
+        mcNumBlobs: clamp(Math.round(Number(merged.mcNumBlobs) || 10), 1, 50),
+        mcResolution: clamp(Math.round(Number(merged.mcResolution) || 28), 14, 100),
+        mcIsolation: clamp(Math.round(Number(merged.mcIsolation) || 80), 10, 300),
+        mcFloor: merged.mcFloor !== false,
+        mcWallX: !!merged.mcWallX,
+        mcWallZ: !!merged.mcWallZ,
+        ocElevation: clamp(Number(merged.ocElevation) || 2, 0, 90),
+        ocAzimuth: clamp(Number(merged.ocAzimuth) || 180, -180, 180),
+        ocExposure: clamp(Number(merged.ocExposure) || 0.1, 0, 1),
+        ocDistortion: clamp(Number(merged.ocDistortion) || 3.7, 0, 8),
+        ocSize: clamp(Number(merged.ocSize) || 1, 0.1, 10),
+        ocCloudCoverage: clamp01(merged.ocCloudCoverage == null ? 0.4 : Number(merged.ocCloudCoverage)),
+        ocCloudDensity: clamp01(merged.ocCloudDensity == null ? 0.5 : Number(merged.ocCloudDensity)),
+        ocCloudElevation: clamp01(merged.ocCloudElevation == null ? 0.5 : Number(merged.ocCloudElevation)),
       }
     },
     handleResize() {
@@ -371,6 +686,7 @@ export default {
     },
     updateFogSprites(elapsed, audioLevel, pulse, config) {
       this.fogSprites.forEach((sprite, index) => {
+        sprite.visible = true
         const orbit = elapsed * (0.08 + config.speed * 0.08) + index * 1.3
         const radius = 1.4 + config.spread * 2.2 + index * 0.35
         const depth = -4 + index * 1.35
@@ -385,6 +701,102 @@ export default {
         sprite.material.color.setHSL(hue, 0.78, 0.64)
         sprite.material.opacity = 0.06 + config.glow * 0.08 + audioLevel * 0.08
       })
+    },
+    updateRaycastLines(elapsed, audioLevel, bass, config) {
+      if (!this.fatLineRoot || !this.fatLine || !this.fatSegments || !this.fatThresholdLine || !this.fatThresholdSegments) return
+
+      const lineVisible = config.lineType === 'line'
+      const thresholdWidth = config.lineWidth + config.lineThreshold
+      const xOffset = config.lineTranslation - 5
+
+      this.fatLineRoot.visible = true
+      this.fatLineRoot.position.set(xOffset, 0, 0)
+      this.fatLineRoot.rotation.y = config.lineAnimate ? elapsed * 0.18 : 0.65
+      this.fatLineRoot.rotation.x = config.lineAnimate ? Math.sin(elapsed * 0.17) * 0.14 : -0.16
+      this.fatLineRoot.rotation.z = config.lineAnimate ? Math.cos(elapsed * 0.11) * 0.06 : 0
+
+      this.fatLine.visible = lineVisible
+      this.fatSegments.visible = !lineVisible
+      this.fatThresholdLine.visible = config.lineVisualizeThreshold && lineVisible
+      this.fatThresholdSegments.visible = config.lineVisualizeThreshold && !lineVisible
+
+      ;[
+        this.fatLine.material,
+        this.fatSegments.material,
+      ].forEach((material) => {
+        material.worldUnits = config.lineWorldUnits
+        material.linewidth = config.lineWidth
+        material.alphaToCoverage = config.lineAlphaToCoverage
+        material.opacity = 0.88 + audioLevel * 0.08 + bass * 0.04
+        material.needsUpdate = true
+      })
+
+      ;[
+        this.fatThresholdLine.material,
+        this.fatThresholdSegments.material,
+      ].forEach((material) => {
+        material.worldUnits = config.lineWorldUnits
+        material.linewidth = thresholdWidth
+        material.alphaToCoverage = config.lineAlphaToCoverage
+        material.opacity = 0.12 + audioLevel * 0.06
+        material.visible = config.lineVisualizeThreshold
+        material.needsUpdate = true
+      })
+    },
+    updateMarchingField(elapsed, config) {
+      if (!this.marchingRoot || !this.marchingEffect || !this.marchingMaterials) return
+
+      const material = this.marchingMaterials[config.mcMaterial] || this.marchingMaterials.shiny
+      if (this.marchingMaterialKey !== config.mcMaterial || this.marchingEffect.material !== material) {
+        this.marchingEffect.material = material
+        this.marchingMaterialKey = config.mcMaterial
+      }
+
+      if (this.marchingEffect.enableColors !== ['colors', 'multiColors'].includes(config.mcMaterial)) {
+        this.marchingEffect.enableColors = ['colors', 'multiColors'].includes(config.mcMaterial)
+      }
+
+      if (this.marchingEffect.enableUvs) {
+        this.marchingEffect.enableUvs = false
+      }
+
+      if (this.marchingResolution !== config.mcResolution) {
+        this.marchingEffect.init(Math.floor(config.mcResolution))
+        this.marchingResolution = config.mcResolution
+      }
+
+      if (this.marchingEffect.isolation !== config.mcIsolation) {
+        this.marchingEffect.isolation = config.mcIsolation
+      }
+
+      this.marchingRoot.visible = true
+      this.marchingRoot.rotation.y = elapsed * 0.18
+      this.marchingRoot.rotation.x = Math.sin(elapsed * 0.11) * 0.08
+
+      this.marchingEffect.reset()
+
+      const rainbow = marchingColors()
+      const strength = 1.2 / (((Math.sqrt(config.mcNumBlobs) - 1) / 4) + 1)
+      const subtract = 12
+      const time = elapsed * config.speed * 0.5
+
+      for (let i = 0; i < config.mcNumBlobs; i += 1) {
+        const ballx = Math.sin(i + 1.26 * time * (1.03 + 0.5 * Math.cos(0.21 * i))) * 0.27 + 0.5
+        const bally = Math.abs(Math.cos(i + 1.12 * time * Math.cos(1.22 + 0.1424 * i))) * 0.77
+        const ballz = Math.cos(i + 1.32 * time * 0.1 * Math.sin(0.92 + 0.53 * i)) * 0.27 + 0.5
+
+        if (config.mcMaterial === 'multiColors') {
+          this.marchingEffect.addBall(ballx, bally, ballz, strength, subtract, rainbow[i % rainbow.length])
+        } else {
+          this.marchingEffect.addBall(ballx, bally, ballz, strength, subtract)
+        }
+      }
+
+      if (config.mcFloor) this.marchingEffect.addPlaneY(2, 12)
+      if (config.mcWallZ) this.marchingEffect.addPlaneZ(2, 12)
+      if (config.mcWallX) this.marchingEffect.addPlaneX(2, 12)
+
+      this.marchingEffect.update()
     },
     updateLfoGroups(elapsed, audioLevel, bass, mid, treble) {
       const lfos = Array.isArray(this.lfos) ? this.lfos : []
@@ -425,6 +837,21 @@ export default {
         ring.material.emissive.copy(color).multiplyScalar(0.4 + audioLevel * 0.8)
       })
     },
+    updateCamera(elapsed, config) {
+      if (!this.camera) return
+      if (config.mode === 'raycast') {
+        this.camera.position.set(-18 + Math.sin(elapsed * 0.12) * 2.5, 0, 30)
+      } else if (config.mode === 'marching') {
+        this.camera.position.set(-14, 12, 26)
+      } else if (config.mode === 'ocean') {
+        this.camera.position.set(24 + Math.sin(elapsed * 0.08) * 2, 16 + Math.cos(elapsed * 0.06) * 1.5, 38)
+        this.camera.lookAt(0, 6, 0)
+        return
+      } else {
+        this.camera.position.set(0, 0, 18 - config.orbit * 2)
+      }
+      this.camera.lookAt(0, 0, 0)
+    },
     animate() {
       if (!this.renderer || !this.scene || !this.camera || !this.clock) return
       const tick = () => {
@@ -438,12 +865,48 @@ export default {
         const morph = clamp01(this.morph)
         const config = this.resolvedSettings()
         const tabBoost = this.activeTab === 'LIVE' ? 1 : 0.65
+        const raycastMode = config.mode === 'raycast'
+        const marchingMode = config.mode === 'marching'
+        const oceanMode = config.mode === 'ocean'
+        const presetMode = raycastMode || marchingMode || oceanMode
+        const delta = this.clock.getDelta()
 
-        this.updateParticles(elapsed, audioLevel * tabBoost, pulse)
-        this.updateHalo(elapsed, audioLevel * tabBoost, bass, morph, config)
-        this.updateVolumeBeams(elapsed, audioLevel * tabBoost, bass, treble, config)
-        this.updateFogSprites(elapsed, audioLevel * tabBoost, pulse, config)
-        this.updateLfoGroups(elapsed, audioLevel * tabBoost, bass, mid, treble)
+        if (this.particleSystem) this.particleSystem.visible = !presetMode
+        if (this.haloMesh) this.haloMesh.visible = !presetMode
+        this.beamMeshes.forEach((beam) => { beam.visible = !presetMode && beam.visible })
+        this.fogSprites.forEach((sprite) => { sprite.visible = !presetMode })
+        if (raycastMode) {
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateRaycastLines(elapsed, audioLevel * tabBoost, bass, config)
+        } else if (marchingMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateMarchingField(elapsed, config)
+        } else if (oceanMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateOceanScene(elapsed, config, delta)
+        } else {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.updateParticles(elapsed, audioLevel * tabBoost, pulse)
+          this.updateHalo(elapsed, audioLevel * tabBoost, bass, morph, config)
+          this.updateVolumeBeams(elapsed, audioLevel * tabBoost, bass, treble, config)
+          this.updateFogSprites(elapsed, audioLevel * tabBoost, pulse, config)
+          this.updateLfoGroups(elapsed, audioLevel * tabBoost, bass, mid, treble)
+        }
+        this.updateCamera(elapsed, config)
 
         this.renderer.render(this.scene, this.camera)
         this.rafId = requestAnimationFrame(tick)
@@ -482,6 +945,23 @@ export default {
       }
       if (this.beamMap) this.beamMap.dispose()
       if (this.mistMap) this.mistMap.dispose()
+      if (this.marchingMaterials) {
+        Object.values(this.marchingMaterials).forEach((material) => {
+          if (material && typeof material.dispose === 'function') material.dispose()
+        })
+      }
+      if (this.oceanPmremTarget) this.oceanPmremTarget.dispose()
+      if (this.oceanPmrem) this.oceanPmrem.dispose()
+      if (this.oceanNormalsTexture) this.oceanNormalsTexture.dispose()
+      if (this.oceanWater) {
+        if (this.oceanWater.geometry) this.oceanWater.geometry.dispose()
+        if (this.oceanWater.material) this.oceanWater.material.dispose()
+      }
+      if (this.oceanSky && this.oceanSky.material) this.oceanSky.material.dispose()
+      if (this.oceanMesh) {
+        if (this.oceanMesh.geometry) this.oceanMesh.geometry.dispose()
+        if (this.oceanMesh.material) this.oceanMesh.material.dispose()
+      }
 
       this.renderer = null
       this.scene = null
@@ -495,6 +975,25 @@ export default {
       this.beamMap = null
       this.mistMap = null
       this.lfoGroups = []
+      this.fatLineRoot = null
+      this.fatLine = null
+      this.fatThresholdLine = null
+      this.fatSegments = null
+      this.fatThresholdSegments = null
+      this.marchingRoot = null
+      this.marchingEffect = null
+      this.marchingMaterials = null
+      this.marchingResolution = 28
+      this.marchingMaterialKey = 'shiny'
+      this.oceanRoot = null
+      this.oceanSky = null
+      this.oceanWater = null
+      this.oceanMesh = null
+      this.oceanSun = null
+      this.oceanPmrem = null
+      this.oceanPmremTarget = null
+      this.oceanNormalsTexture = null
+      this.oceanSettingsKey = ''
     },
   },
 }

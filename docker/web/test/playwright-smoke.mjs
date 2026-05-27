@@ -5,15 +5,22 @@
 import { chromium } from 'playwright';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS', 'GENERATE'];
+const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS', 'GENERATE'];
 
 function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+async function getTabLabels(page) {
+  const labels = await page.locator('header .tab .tab__label').allTextContents();
+  return labels.map((label) => label.trim()).filter(Boolean);
+}
+
 async function clickTab(page, label) {
   const tab = page.locator('header .tab').filter({
-    hasText: new RegExp(`^${escapeRegex(label)}`),
+    has: page.locator('.tab__label').filter({
+      hasText: new RegExp(`^${escapeRegex(label)}$`),
+    }),
   }).first();
   if ((await tab.count()) === 0) {
     throw new Error(`Tab button "${label}" not found`);
@@ -27,10 +34,9 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 try {
   await page.goto(base, { waitUntil: 'networkidle', timeout: 60000 });
   await page.waitForSelector('header .tab', { timeout: 30000 });
-  const tabs = await page.locator('header .tab').allTextContents();
-  const trimmed = tabs.map((t) => t.trim()).filter(Boolean);
+  const trimmed = await getTabLabels(page);
   for (const name of expected) {
-    if (!trimmed.some((tab) => tab.startsWith(name))) {
+    if (!trimmed.includes(name)) {
       throw new Error(`Missing tab "${name}" — got: ${trimmed.join(', ')}`);
     }
   }
@@ -38,17 +44,19 @@ try {
     throw new Error(`Expected at least ${expected.length} tabs, got ${trimmed.length}`);
   }
   await clickTab(page, 'PROMPTS');
-  await page.waitForTimeout(400);
+  await page.waitForSelector('.sub-pill', { timeout: 30000 });
   await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
-  await page.waitForTimeout(300);
-  const morphPanel = page.locator('.framesync-panel').filter({ hasText: /Prompt Morphing/ }).first();
+  const morphPanel = page.locator('.framesync-panel').filter({
+    has: page.locator('.framesync-title').filter({ hasText: /Prompt\s+Morphing/ }),
+  }).first();
+  await morphPanel.waitFor({ state: 'visible', timeout: 30000 });
   const expandMorph = morphPanel.locator('button.framesync-button').filter({ hasText: /^(Expand|Show)$/ });
   if ((await expandMorph.count()) > 0) {
     await expandMorph.first().click();
-    await page.waitForTimeout(300);
   }
   const morphBlend = morphPanel.locator('[data-testid="prompt-morph-blend"]');
-  if ((await morphBlend.count()) === 0) {
+  await morphBlend.waitFor({ state: 'visible', timeout: 30000 }).catch(() => null);
+  if ((await morphBlend.count()) === 0 || !(await morphBlend.isVisible())) {
     throw new Error('Prompt morph blend slider not found on PROMPTS tab');
   }
   await clickTab(page, 'MODULATION');

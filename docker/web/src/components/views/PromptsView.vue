@@ -34,7 +34,7 @@
                 :style="{ '--morph-flow-progress': `${(morphBlendInSlotRange(slot) * 100).toFixed(1)}%` }"
               >
                 <div class="morph-slot-head">
-                  <label class="morph-slot-weight-name">
+                  <label class="framesync-checkbox morph-slot-weight-name">
                     <input type="checkbox" v-model="slot.on" @change="applyPromptMorphing" />
                     {{ slot.name }}
                   </label>
