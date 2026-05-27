@@ -13,5 +13,8 @@ WORKDIR /stable-diffusion-webui
 RUN git clone --depth=1 https://github.com/lllyasviel/stable-diffusion-webui-forge.git . && \
     git clone --depth=1 https://github.com/Tok/sd-forge-deforum.git extensions/sd-forge-deforum
 
+# Apply Deforumation patches: mediator protocol + animation/render hooks.
+COPY docker/sd-forge/deforumation-patches/ extensions/sd-forge-deforum/scripts/deforum_helpers/
+
 RUN set -eux; \
     echo "${DEFORUM_MEDIATOR_URL}" > extensions/sd-forge-deforum/scripts/deforum_helpers/deforum_mediator.cfg
