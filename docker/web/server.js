@@ -1710,41 +1710,194 @@ async function start(opts = {}) {
     res.json({ running: warmupRunning, batchId: warmupBatchId });
   });
 
-  // List active Deforum batches from SD-Forge (best-effort).
-  // Used by RUNS browser so you can track queued/running/completed batches.
-  app.get("/api/deforum/batches", async (req, res) => {
-    const target = forgeTarget(req, { allowDirectPreferred: true });
+  function publicForgeNode(node) {
+    if (!node) return null;
+    return { id: node.id, name: node.name, url: node.url };
+  }
+
+  async function fetchDeforumBatchesFromTarget(target, timeoutMs = 5000) {
+    if (typeof fetch === "undefined") {
+      throw new Error("fetch not available");
+    }
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
     try {
-      if (typeof fetch === "undefined") {
-        return res.status(500).json({ error: "fetch not available" });
+      const response = await fetch(`${target.url}/deforum_api/batches`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        return {
+          ok: false,
+          node: publicForgeNode(target.node),
+          url: target.url,
+          error: `Forge batches unavailable (${response.status})`,
+          detail: text.slice(0, 200),
+          batches: [],
+        };
       }
+      const data = await response.json();
+      const raw = Array.isArray(data?.batches) ? data.batches : (Array.isArray(data) ? data : []);
+      const nodeInfo = publicForgeNode(target.node);
+      const batches = raw.map((batch) => ({
+        ...batch,
+        _node: nodeInfo || { url: target.url },
+      }));
+      return { ok: true, node: nodeInfo, url: target.url, batches, error: null };
+    } catch (err) {
+      return {
+        ok: false,
+        node: publicForgeNode(target.node),
+        url: target.url,
+        error: err.message,
+        batches: [],
+      };
+    } finally {
+      clearTimeout(t);
+    }
+  }
+
+  async function fetchAllDeforumBatches(preferredNodeId) {
+    let targets = writableForgeTargets();
+    if (preferredNodeId) {
+      const match = targets.filter((target) => target.node && target.node.id === preferredNodeId);
+      if (match.length) targets = match;
+    }
+    const results = await Promise.all(targets.map((target) => fetchDeforumBatchesFromTarget(target)));
+    const batches = [];
+    const nodes = [];
+    const errors = [];
+    for (const result of results) {
+      if (result.node) nodes.push(result.node);
+      else if (result.url) nodes.push({ url: result.url });
+      if (result.ok) batches.push(...result.batches);
+      else errors.push({ node: result.node, url: result.url, error: result.error, detail: result.detail || null });
+    }
+    return { batches, nodes, errors, allOk: errors.length === 0 };
+  }
+
+  async function cancelDeforumBatchOnTarget(target, batchId) {
+    const attempts = [
+      { method: "DELETE", url: `${target.url}/deforum_api/batches/${encodeURIComponent(batchId)}` },
+      {
+        method: "POST",
+        url: `${target.url}/deforum_api/batches/${encodeURIComponent(batchId)}/cancel`,
+        body: "{}",
+      },
+    ];
+    const errors = [];
+    for (const attempt of attempts) {
       const ctrl = new AbortController();
-      const t = setTimeout(() => ctrl.abort(), 5000);
-      let response;
+      const t = setTimeout(() => ctrl.abort(), 8000);
       try {
-        response = await fetch(`${target.url}/deforum_api/batches`, {
-          method: "GET",
-          headers: { Accept: "application/json" },
+        const response = await fetch(attempt.url, {
+          method: attempt.method,
+          headers: { Accept: "application/json", "Content-Type": "application/json" },
+          body: attempt.body,
           signal: ctrl.signal,
         });
+        if (response.ok || response.status === 202 || response.status === 204) {
+          let data = null;
+          try {
+            data = await response.json();
+          } catch (_e) {
+            data = null;
+          }
+          return {
+            ok: true,
+            method: attempt.method,
+            status: response.status,
+            data,
+            node: publicForgeNode(target.node),
+            url: target.url,
+          };
+        }
+        const text = await response.text();
+        errors.push(`${attempt.method} ${response.status}: ${text.slice(0, 160)}`);
+      } catch (err) {
+        errors.push(`${attempt.method}: ${err.message}`);
       } finally {
         clearTimeout(t);
       }
-      if (!response.ok) {
-        const text = await response.text();
-        return res.status(502).json({ error: `Forge batches unavailable (${response.status})`, detail: text.slice(0, 200) });
+    }
+    return {
+      ok: false,
+      node: publicForgeNode(target.node),
+      url: target.url,
+      error: errors.join("; ") || "cancel failed",
+    };
+  }
+
+  // List active Deforum batches from all SD-Forge GPUs (best-effort).
+  // Used by RUNS browser so you can track queued/running/completed batches.
+  app.get("/api/deforum/batches", async (req, res) => {
+    try {
+      const preferredNodeId = String(req.query?.nodeId || req.query?.preferredNode || "").trim();
+      const allNodes = req.query?.all !== "0";
+      if (!allNodes && preferredNodeId) {
+        const target = forgeTarget(
+          { ...req, query: { ...(req.query || {}), preferredNode: preferredNodeId } },
+          { allowDirectPreferred: true }
+        );
+        try {
+          const result = await fetchDeforumBatchesFromTarget(target);
+          if (!result.ok) {
+            return res.status(502).json({ error: result.error, detail: result.detail || null, node: result.node });
+          }
+          return res.json({ ok: true, node: result.node, nodes: result.node ? [result.node] : [], batches: result.batches, errors: [] });
+        } finally {
+          target.release();
+        }
       }
-      const data = await response.json();
-      const batches = Array.isArray(data?.batches) ? data.batches : (Array.isArray(data) ? data : []);
+      const { batches, nodes, errors, allOk } = await fetchAllDeforumBatches(preferredNodeId || null);
       res.json({
-        ok: true,
-        node: target.node ? { id: target.node.id, name: target.node.name, url: target.node.url } : null,
+        ok: allOk || batches.length > 0,
+        nodes,
         batches,
+        errors,
       });
     } catch (err) {
       res.status(502).json({ error: err.message });
-    } finally {
-      target.release();
+    }
+  });
+
+  // Cancel a queued Deforum batch on a specific GPU node (best-effort).
+  app.post("/api/deforum/batches/:batchId/cancel", async (req, res) => {
+    const batchId = String(req.params.batchId || "").trim();
+    if (!batchId) return res.status(400).json({ error: "batchId required" });
+    const nodeId = String(req.query?.nodeId || req.body?.nodeId || "").trim();
+    try {
+      let targets = writableForgeTargets();
+      if (nodeId) {
+        targets = targets.filter((target) => target.node && target.node.id === nodeId);
+        if (!targets.length) {
+          return res.status(404).json({ error: `GPU node not found: ${nodeId}` });
+        }
+      } else {
+        const listed = await fetchAllDeforumBatches();
+        const match = listed.batches.find((batch) => {
+          const id = batch.batch_id || batch.id || batch.batchId || "";
+          return String(id) === batchId;
+        });
+        if (match && match._node?.id) {
+          targets = targets.filter((target) => target.node && target.node.id === match._node.id);
+        }
+      }
+      const results = await Promise.all(targets.map((target) => cancelDeforumBatchOnTarget(target, batchId)));
+      const success = results.find((result) => result.ok);
+      if (success) {
+        return res.json({ ok: true, batchId, ...success });
+      }
+      return res.status(502).json({
+        ok: false,
+        batchId,
+        error: results.map((result) => result.error).filter(Boolean).join("; ") || "cancel failed",
+        attempts: results,
+      });
+    } catch (err) {
+      res.status(502).json({ error: err.message });
     }
   });
 

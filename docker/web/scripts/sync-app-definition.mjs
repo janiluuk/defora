@@ -94,6 +94,10 @@ function extractComponentDefinition(scriptBody) {
   return { propsClause, setupClause, usesProxy };
 }
 
+function motionPathPreviewStub(name) {
+  return `const ${name} = { props: ['deforumSettings', 'motionValues', 'preferLiveValues', 'playing'], template: '<div class="motion-path-preview" data-testid="motion-path-preview"><div class="motion-path-preview__header"><div class="framesync-subtitle motion-path-preview__title">3D motion preview</div></div><div class="motion-path-preview__stage"></div></div>' };`;
+}
+
 function ensureComponentStub(name, relPath, lines, seen = new Set()) {
   const relKey = relPath.replace(/^\.\//, '');
   if (seen.has(relKey) || emittedComponentPaths.has(relKey)) return;
@@ -123,6 +127,11 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
           lines.push(`const ${importName} = { props: ['duration', 'playhead', 'markers', 'clips', 'selectedClipId', 'tracks', 'selectedTrackId', 'paramMeta', 'frames', 'fps', 'jobFrameNumber', 'jobTotalFrames', 'jobFrameLive', 'compact', 'expandable'], template: '<div class="timeline-stub"></div>' };`);
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('MotionPathPreview.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(motionPathPreviewStub(importName));
           emittedComponentStubs.add(importName);
         }
       } else if (!emittedComponentStubs.has(importName)) {

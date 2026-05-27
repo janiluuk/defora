@@ -392,7 +392,6 @@
             <UiIcon class="framesync-title-icon" name="sliders" />
             <span class="framesync-accent">Crossfader</span>
           </div>
-          <span class="framesync-subtitle" style="margin:0;">A/B mix: build slots for prompts, params, LoRAs, and ControlNet.</span>
         </div>
 
         <div class="framesync-stack" style="margin-top:10px;">
@@ -673,6 +672,12 @@
           </div>
 
           <div v-if="activeDeforumFieldGroup" class="framesync-panel deforum-settings-panel">
+            <MotionPathPreview
+              v-if="deforumActiveTab === 'motion' || deforumActiveTab === 'motion3d'"
+              :deforum-settings="deforumSettings"
+              :motion-values="{}"
+              :prefer-live-values="false"
+            />
             <div class="deforum-settings-grid">
               <template v-for="field in activeDeforumFieldGroup.fields" :key="field.key">
                 <label
@@ -769,11 +774,12 @@
 
 <script>
 import UiIcon from '../UiIcon.vue'
+import MotionPathPreview from '../MotionPathPreview.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'LiveView',
-  components: { UiIcon },
+  components: { UiIcon, MotionPathPreview },
   props: {
     app: { type: Object, required: true },
   },

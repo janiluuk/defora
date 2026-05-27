@@ -608,3 +608,109 @@ describe("ollama story generator", () => {
     expect(JSON.parse(generateCall.body).model).to.equal("llama3.1:8b");
   });
 });
+
+describe("deforum batches across GPU pool", () => {
+  let svc;
+  let tmp;
+  let uploads;
+  let sequencers;
+  let gpuPoolPath;
+  let request;
+  let fetchCalls;
+  let originalFetch;
+
+  beforeEach(async () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "frames-"));
+    uploads = fs.mkdtempSync(path.join(os.tmpdir(), "uploads-"));
+    sequencers = fs.mkdtempSync(path.join(os.tmpdir(), "seq-"));
+    gpuPoolPath = path.join(os.tmpdir(), `gpu-pool-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+    fs.writeFileSync(
+      gpuPoolPath,
+      JSON.stringify(
+        {
+          enabled: true,
+          strategy: "round_robin",
+          nodes: [
+            { id: "node-a", url: "http://node-a:7860", name: "GPU A", backend: "sd-forge", enabled: true, priority: 1 },
+            { id: "node-b", url: "http://node-b:7860", name: "GPU B", backend: "sd-forge", enabled: true, priority: 2 },
+          ],
+        },
+        null,
+        2
+      )
+    );
+    fetchCalls = [];
+    originalFetch = global.fetch;
+    global.fetch = async (url, opts = {}) => {
+      fetchCalls.push({ url: String(url), method: opts.method || "GET", body: opts.body || null });
+      if (String(url).endsWith("/docs")) {
+        return { ok: true, status: 200, text: async () => "<html>ok</html>" };
+      }
+      if (String(url).includes("node-a:7860/deforum_api/batches/batch-q1/cancel")) {
+        return { ok: true, status: 200, json: async () => ({ status: "cancelled" }) };
+      }
+      if (String(url).includes("node-a:7860/deforum_api/batches/batch-q1") && (opts.method || "GET") === "DELETE") {
+        return { ok: false, status: 404, text: async () => "not found" };
+      }
+      if (String(url).includes("node-a:7860/deforum_api/batches")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            batches: [{ batch_id: "batch-q1", status: "queued", max_frames: 24, model: "xl-a" }],
+          }),
+        };
+      }
+      if (String(url).includes("node-b:7860/deforum_api/batches")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            batches: [{ batch_id: "batch-r1", status: "running", max_frames: 12, model: "xl-b" }],
+          }),
+        };
+      }
+      throw new Error(`Unexpected fetch: ${url} ${opts.method || "GET"}`);
+    };
+    svc = await start({
+      port: 0,
+      framesDir: tmp,
+      uploadsDir: uploads,
+      sequencersDir: sequencers,
+      gpuPoolPath,
+      enableMq: false,
+    });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+  });
+
+  afterEach(async () => {
+    global.fetch = originalFetch;
+    if (svc && svc.close) await svc.close();
+    [tmp, uploads, sequencers].forEach((dir) => {
+      if (dir && fs.existsSync(dir)) fs.rmSync(dir, { recursive: true, force: true });
+    });
+    if (gpuPoolPath && fs.existsSync(gpuPoolPath)) fs.unlinkSync(gpuPoolPath);
+  });
+
+  it("aggregates deforum batches from all sd-forge nodes", async () => {
+    const res = await request.get("/api/deforum/batches?all=1");
+    expect(res.status).to.equal(200);
+    expect(res.body.batches).to.be.an("array").with.lengthOf(2);
+    expect(res.body.nodes).to.be.an("array").with.lengthOf(2);
+    const ids = res.body.batches.map((batch) => batch.batch_id).sort();
+    expect(ids).to.deep.equal(["batch-q1", "batch-r1"]);
+    expect(res.body.batches.every((batch) => batch._node && batch._node.name)).to.equal(true);
+  });
+
+  it("cancels a queued batch on the target GPU node", async () => {
+    const res = await request
+      .post("/api/deforum/batches/batch-q1/cancel")
+      .query({ nodeId: "node-a" })
+      .send({});
+    expect(res.status).to.equal(200);
+    expect(res.body.ok).to.equal(true);
+    expect(res.body.batchId).to.equal("batch-q1");
+    const cancelCalls = fetchCalls.filter((call) => call.url.includes("/cancel"));
+    expect(cancelCalls.length).to.be.at.least(1);
+  });
+});

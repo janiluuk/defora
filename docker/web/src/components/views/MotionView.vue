@@ -67,6 +67,12 @@
           </button>
         </div>
 
+        <MotionPathPreview
+          :deforum-settings="deforumSettings"
+          :motion-values="motionPathLiveValues"
+          :prefer-live-values="true"
+        />
+
         <div class="motion-controls-row">
           <div
             class="motion-pad-hero"
@@ -127,16 +133,26 @@
 <script>
 import UiIcon from '../UiIcon.vue'
 import GenerateView from './GenerateView.vue'
+import MotionPathPreview from '../MotionPathPreview.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, GenerateView },
+  components: { UiIcon, GenerateView, MotionPathPreview },
   props: {
     app: { type: Object, required: true },
   },
   setup(props) {
     return proxyAppView(props)
+  },
+  computed: {
+    motionPathLiveValues() {
+      return {
+        translation_x: Number(this.motionPadValues?.translation_x) || 0,
+        translation_y: Number(this.motionPadValues?.translation_y) || 0,
+        translation_z: Number(this.motionPadValues?.translation_z) || 0,
+      };
+    },
   },
 }
 </script>

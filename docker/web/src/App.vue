@@ -1306,6 +1306,7 @@ export default {
        runsSort: { field: "started_at", order: "desc" },
        deforumBatches: [],
        deforumBatchesStatus: "",
+       deforumBatchNodes: [],
        runsSelected: [],
        runsCompareFields: [
          'status', 'model', 'frame_count', 'seed', 'steps', 'strength', 'cfg', 'tag',
@@ -1342,6 +1343,66 @@ export default {
     },
     gpuTotalCount() {
       return Array.isArray(this.gpuPool && this.gpuPool.nodes) ? this.gpuPool.nodes.length : 0;
+    },
+    runsActiveGpuJobs() {
+      const batches = Array.isArray(this.deforumBatches) ? this.deforumBatches : [];
+      return batches
+        .map((batch) => {
+          const batchId = batch.batch_id || batch.id || batch.batchId || "";
+          const rawStatus = String(batch.status || batch.state || "queued").toLowerCase();
+          let status = rawStatus;
+          if (rawStatus.includes("run") || rawStatus.includes("progress") || rawStatus.includes("generat")) status = "running";
+          else if (rawStatus.includes("queue") || rawStatus.includes("pending") || rawStatus.includes("wait")) status = "queued";
+          else if (rawStatus.includes("cancel")) status = "cancelled";
+          else if (rawStatus.includes("fail") || rawStatus.includes("error")) status = "failed";
+          else if (rawStatus.includes("complete") || rawStatus.includes("done") || rawStatus.includes("success")) status = "completed";
+          return {
+            batchId,
+            runId: batchId ? `batch:${batchId}` : "",
+            status,
+            model: batch.model || batch.sd_model_name || batch.sd_model_checkpoint || "",
+            frames: batch.frame_count ?? batch.frames ?? batch.max_frames ?? null,
+            progress: batch.progress ?? batch.phase_progress ?? null,
+            node: batch._node || null,
+            nodeName: (batch._node && batch._node.name) || (batch._node && batch._node.url) || "forge",
+            startedAt: batch.started_at || batch.created_at || batch.createdAt || null,
+            _batch: batch,
+          };
+        })
+        .filter((job) => job.batchId && (job.status === "queued" || job.status === "running"));
+    },
+    runsGpuNodeSummaries() {
+      const forgeNodes = (this.gpuPool.nodes || []).filter((node) => node && node.enabled && node.backend === "sd-forge");
+      const activeByNode = {};
+      this.runsActiveGpuJobs.forEach((job) => {
+        const key = (job.node && job.node.id) || job.nodeName || "unknown";
+        if (!activeByNode[key]) activeByNode[key] = [];
+        activeByNode[key].push(job);
+      });
+      if (forgeNodes.length) {
+        return forgeNodes.map((node) => ({
+          id: node.id,
+          name: node.name || node.url,
+          url: node.url,
+          status: node.status,
+          activeJobs: node.activeJobs,
+          queueRunning: node.queueRunning,
+          queuePending: node.queuePending,
+          progress: node.progress,
+          jobs: activeByNode[node.id] || [],
+        }));
+      }
+      return (this.deforumBatchNodes || []).map((node) => ({
+        id: node.id || node.url,
+        name: node.name || node.url,
+        url: node.url,
+        status: null,
+        activeJobs: (activeByNode[node.id || node.url] || []).length,
+        queueRunning: null,
+        queuePending: null,
+        progress: null,
+        jobs: activeByNode[node.id || node.url] || activeByNode[node.name || node.url] || [],
+      }));
     },
     rtmpStreamHref() {
       const host = typeof window !== 'undefined' && window.location && window.location.hostname
@@ -2445,20 +2506,27 @@ export default {
       if (!res.ok) return;
       const data = await res.json();
       this.runsAll = data.runs || [];
-      // Best-effort: fetch Deforum batch queue from Forge and merge into runs list.
+      void this.refreshGpuPool(true);
+      // Best-effort: fetch Deforum batch queue from all Forge GPUs and merge into runs list.
       try {
-        const bres = await fetch("/api/deforum/batches", { cache: "no-store" });
+        const bres = await fetch("/api/deforum/batches?all=1", { cache: "no-store" });
         if (bres.ok) {
           const bj = await bres.json();
           const batches = Array.isArray(bj.batches) ? bj.batches : [];
           this.deforumBatches = batches;
-          this.deforumBatchesStatus = "";
+          this.deforumBatchNodes = Array.isArray(bj.nodes) ? bj.nodes : [];
+          const errors = Array.isArray(bj.errors) ? bj.errors : [];
+          this.deforumBatchesStatus = errors.length
+            ? `Some GPUs unavailable (${errors.length})`
+            : "";
         } else {
           this.deforumBatches = [];
+          this.deforumBatchNodes = [];
           this.deforumBatchesStatus = "Deforum batches unavailable";
         }
       } catch (_e) {
         this.deforumBatches = [];
+        this.deforumBatchNodes = [];
         this.deforumBatchesStatus = "Deforum batches unavailable";
       }
       if (this.deforumBatches.length) {
@@ -2467,15 +2535,18 @@ export default {
           const status = String(b.status || b.state || "queued").toLowerCase();
           const started = b.started_at || b.created_at || b.createdAt || null;
           const model = b.model || b.sd_model_name || b.sd_model_checkpoint || "";
+          const node = b._node || null;
           return {
             run_id: id ? `batch:${id}` : `batch:unknown:${Math.random().toString(36).slice(2, 8)}`,
-            status: status.includes("run") ? "running" : status.includes("queue") ? "queued" : status,
+            status: status.includes("run") || status.includes("progress") ? "running" : status.includes("queue") || status.includes("pending") ? "queued" : status.includes("cancel") ? "cancelled" : status,
             model,
             tag: "deforum-batch",
             started_at: started,
             frame_count: b.frame_count ?? b.frames ?? b.max_frames ?? null,
             _isBatch: true,
             _batch: b,
+            _batchNode: node,
+            _gpu: (node && node.name) || (node && node.url) || "",
           };
         });
         const existing = this.runsAll.filter((r) => !String(r.run_id || "").startsWith("batch:"));
@@ -2571,6 +2642,11 @@ export default {
     else this.runsSelected.push(runId);
   },
   async showRunDetails(run) {
+    if (!run) return;
+    if (run._isBatch) {
+      this.runsDetailView = { ...run };
+      return;
+    }
     if (typeof fetch !== "function") return;
     try {
       const res = await fetch(`/api/runs/${run.run_id}`);
@@ -2578,6 +2654,34 @@ export default {
       this.runsDetailView = await res.json();
     } catch (_e) {
       this.runsStatus = "Failed to load run details";
+    }
+  },
+  canKillQueuedRun(run) {
+    return !!(run && run._isBatch && run.status === "queued");
+  },
+  async killQueuedRun(run) {
+    if (typeof fetch !== "function") return;
+    if (!this.canKillQueuedRun(run)) return;
+    const batchId = String(run.run_id || "").replace(/^batch:/, "");
+    const nodeId = (run._batchNode && run._batchNode.id) || "";
+    if (!batchId) return;
+    if (!confirm(`Cancel queued batch ${batchId}?`)) return;
+    try {
+      const qs = nodeId ? `?nodeId=${encodeURIComponent(nodeId)}` : "";
+      const res = await fetch(`/api/deforum/batches/${encodeURIComponent(batchId)}/cancel${qs}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nodeId ? { nodeId } : {}),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.ok !== false) {
+        this.runsStatus = `Cancelled batch ${batchId}`;
+        await this.refreshRuns();
+      } else {
+        this.runsStatus = data.error || `Failed to cancel batch ${batchId}`;
+      }
+    } catch (_e) {
+      this.runsStatus = "Failed to cancel batch";
     }
   },
   async rerunRun(run) {

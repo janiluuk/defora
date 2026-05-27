@@ -441,6 +441,19 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".gpu-forge-modal")).to.exist;
   });
 
+  it("shows a 3D motion path preview above performance axis controls", async () => {
+    appVm.switchTab("MOTION");
+    appVm.switchSubTab("MOTION", "PERFORMANCE");
+    appVm.motionPadValues.translation_x = 3;
+    appVm.motionPadValues.translation_z = 1.5;
+    await nextTick();
+    await nextTick();
+
+    expect(document.querySelector("[data-testid='motion-path-preview']")).to.exist;
+    expect(document.body.textContent).to.include("3D motion preview");
+    expect(document.querySelector(".motion-pad-hero")).to.exist;
+  });
+
   it("shows preview-ready and story generation text in the motion sequencer sub-tab", async () => {
     appVm.switchTab("MOTION");
     appVm.switchSubTab("MOTION", "SEQUENCER");
@@ -741,6 +754,64 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.include("Run Details");
 
     delete global.fetch;
+  });
+
+  it("shows active GPU jobs and kill button for queued batches", async () => {
+    appVm.gpuPool.nodes = [
+      { id: "gpu-a", name: "GPU A", url: "http://gpu-a:7860", enabled: true, backend: "sd-forge", status: "healthy", activeJobs: 1, queueRunning: 1, queuePending: 0 },
+      { id: "gpu-b", name: "GPU B", url: "http://gpu-b:7860", enabled: true, backend: "sd-forge", status: "healthy", activeJobs: 0, queueRunning: 0, queuePending: 1 },
+    ];
+    appVm.deforumBatches = [
+      { batch_id: "batch-q1", status: "queued", max_frames: 24, model: "xl-a", _node: { id: "gpu-b", name: "GPU B" } },
+      { batch_id: "batch-r1", status: "running", max_frames: 12, model: "xl-b", _node: { id: "gpu-a", name: "GPU A" } },
+    ];
+    appVm.deforumBatchNodes = [
+      { id: "gpu-a", name: "GPU A" },
+      { id: "gpu-b", name: "GPU B" },
+    ];
+    appVm.runsAll = [
+      { run_id: "batch:batch-q1", status: "queued", _isBatch: true, _batchNode: { id: "gpu-b", name: "GPU B" }, _gpu: "GPU B", tag: "deforum-batch", frame_count: 24, model: "xl-a" },
+      { run_id: "batch:batch-r1", status: "running", _isBatch: true, _batchNode: { id: "gpu-a", name: "GPU A" }, _gpu: "GPU A", tag: "deforum-batch", frame_count: 12, model: "xl-b" },
+    ];
+    appVm.applyRunsFilters();
+
+    appVm.switchTab("LIBRARY");
+    await nextTick();
+
+    expect(document.querySelector(".runs-active-jobs")).to.exist;
+    expect(document.body.textContent).to.include("Active GPU Jobs");
+    expect(document.body.textContent).to.include("batch-q1");
+    expect(document.body.textContent).to.include("batch-r1");
+
+    const killBtn = [...document.querySelectorAll(".runs-browser__action--danger")].find((btn) => btn.textContent.includes("Kill"));
+    expect(killBtn).to.exist;
+
+    global.fetch = async (url, opts = {}) => {
+      if (String(url).includes("/api/deforum/batches/batch-q1/cancel")) {
+        expect(opts.method).to.equal("POST");
+        return { ok: true, json: async () => ({ ok: true }) };
+      }
+      if (String(url).includes("/api/runs")) {
+        return { ok: true, json: async () => ({ runs: appVm.runsAll.filter((run) => !String(run.run_id).startsWith("batch:")) }) };
+      }
+      if (String(url).includes("/api/deforum/batches")) {
+        return { ok: true, json: async () => ({ batches: [], nodes: [], errors: [] }) };
+      }
+      if (String(url).includes("/api/gpu-pool")) {
+        return { ok: true, json: async () => ({ enabled: true, nodes: appVm.gpuPool.nodes, healthyNodes: 2 }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    global.confirm = () => true;
+
+    killBtn.click();
+    await nextTick();
+    await Promise.resolve();
+    await nextTick();
+
+    expect(appVm.runsStatus).to.include("Cancelled batch batch-q1");
+    delete global.fetch;
+    delete global.confirm;
   });
 
   it("openRunsSettings navigates to Library runs browser", () => {
