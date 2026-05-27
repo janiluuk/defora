@@ -76,6 +76,7 @@
             }"
           >
             <ThreeBackground
+              ref="threeBackgroundRef"
               :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]"
               :lfos="lfos"
               :audio-metrics="backgroundAudioMetrics"
@@ -441,7 +442,7 @@
           </div>
         </div>
 
-        <div v-if="currentTab==='GENERATE'" class="generate-dock-shell">
+        <div v-if="showMotionSequencerDock" class="generate-dock-shell">
           <GlassPanel size="lg" class="generate-dock">
             <template #header>
               <div class="generate-dock__header">
@@ -867,7 +868,6 @@
           <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
           <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
           <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
-          <GenerateView v-else-if="currentTab==='GENERATE'" :app="appViewModel" />
         </div>
       </transition>
     </div>
@@ -930,12 +930,11 @@ import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
 import ModulationView from './components/views/ModulationView.vue'
 import SettingsView from './components/views/SettingsView.vue'
-import GenerateView from './components/views/GenerateView.vue'
 import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, Crossfader, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, GenerateView },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, Timeline, ThreeBackground, Crossfader, VideoSwarmBrowser, LiveView, LibraryView, StreamView, PromptsView, MotionView, ModulationView, SettingsView },
   data() {
     return {
        showFrames: false,
@@ -1109,10 +1108,9 @@ export default {
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
-        { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
-      currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
+      currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
       liveSourcePanel: 'library',
       liveSources: [],
       liveSourceStatus: '',
@@ -1262,7 +1260,7 @@ export default {
       motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
       motionStylesSaved: {},
       motionSelectedPreset: "Static",
-      motionPadValues: { translation_x: 0, translation_y: 0 },
+      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1 },
       xyPad: { dragging: false, padSize: 420 },
       audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
       audioSpectrogramDataUrl: null,
@@ -1646,7 +1644,7 @@ export default {
           || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
           || '';
       }
-      if (!this.deforumPlaying && this.currentTab !== 'GENERATE' && this.selectedFrameThumb) {
+      if (!this.deforumPlaying && !this.showMotionSequencerDock && this.selectedFrameThumb) {
         return this.selectedFrameThumb.src
           || this.selectedFrameThumb.url
           || this.selectedFrameThumb.path
@@ -1655,6 +1653,9 @@ export default {
           || '';
       }
       return this.performance.lastPreviewPath || this.generator.lastPath || '';
+    },
+    showMotionSequencerDock() {
+      return this.currentTab === 'MOTION' && this.currentSubTab.MOTION === 'SEQUENCER';
     },
     showRightPanel() {
       return this.currentTab !== 'LIVE' || this.liveDrawerOpen;
@@ -2303,7 +2304,12 @@ export default {
       return {
         x: Number(this.motionPadValues.translation_x || 0),
         y: Number(this.motionPadValues.translation_y || 0),
+        z: Number(this.motionPadValues.translation_z || 0),
+        zoom: Number(this.motionPadValues.zoom ?? 1),
       };
+    },
+    savedMotionPresetNames() {
+      return Object.keys(this.motionStylesSaved || {}).sort((a, b) => a.localeCompare(b));
     },
     morphHudSummary() {
       const slots = Array.isArray(this.performance.slots) ? this.performance.slots : [];
@@ -2377,6 +2383,9 @@ export default {
     session() {
       this.saveSessionState();
     },
+    showDefaultAnimation(visible) {
+      if (visible) this.$nextTick(() => this.kickstandbyAnimation());
+    },
   },
   mounted() {
     // Restore prompt: if we have saved UI state and current state differs, ask before applying.
@@ -2384,6 +2393,7 @@ export default {
       this.loadSessionState();
     }
     this.initVideoLayers();
+    this.ensureStandbyAnimationAtStartup();
     this.syncMotionPadFromPayload(this.motionPresets[this.motionSelectedPreset] || { translation_x: 0, translation_y: 0 });
     this.applyCrossfadeMorph();
     this.loadMotionStyles();
@@ -2429,6 +2439,7 @@ export default {
     this.$nextTick(() => {
       this.refreshSequencerList();
       setTimeout(() => this.drawTimeline(), 200);
+      this.kickstandbyAnimation();
     });
     this.initPromptHistory();
     this.refreshServiceHealth();
@@ -2892,6 +2903,9 @@ export default {
      } catch (_e) {}
      return;
    }
+  if (id === 'MOTION') {
+    this.currentSubTab.MOTION = this.normalizeMotionSubTab(this.currentSubTab.MOTION);
+  }
    this.currentTab = id;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
   if (id === 'LIBRARY') {
@@ -2916,12 +2930,17 @@ export default {
    if (sub === 'ADD_SOURCE') return 'MONITOR';
    return allowed.includes(sub) ? sub : 'MONITOR';
  },
+ normalizeMotionSubTab(sub) {
+   const allowed = ['PERFORMANCE', 'SEQUENCER'];
+   return allowed.includes(sub) ? sub : 'PERFORMANCE';
+ },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
   if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
+  if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
   if (tab === 'PROMPTS' && sub !== 'LORA') {
@@ -3267,12 +3286,35 @@ rebuildVideoLayers() {
 initVideoLayers() {
   this.rebuildVideoLayers();
   const allowed = new Set(this.videoLayers.map((layer) => layer.id));
-  if (!allowed.has(this.activeVideoLayerId)) {
-    this.activeVideoLayerId = this.defaultAnimation?.preferDeforumVideo ? 'deforum' : 'webgl';
+  const preferDeforum = !!this.defaultAnimation?.preferDeforumVideo;
+  if (preferDeforum && allowed.has('deforum')) {
+    this.activeVideoLayerId = 'deforum';
+  } else if (!allowed.has(this.activeVideoLayerId)) {
+    this.activeVideoLayerId = 'webgl';
   }
   this.$nextTick(() => {
     if (this.showLayerInputVideo) this.attachInputVideo(this.activeLayerPlaybackUrl);
   });
+},
+ensureStandbyAnimationAtStartup() {
+  const preferDeforum = !!this.defaultAnimation?.preferDeforumVideo;
+  const deforumLive = this.deforumPlaying && this.videoReady;
+  if (!preferDeforum && !deforumLive && this.activeVideoLayerId !== 'webgl') {
+    this.activeVideoLayerId = 'webgl';
+  }
+  if (!this.defaultAnimation?.mode) {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
+  }
+},
+kickstandbyAnimation(attempts = 0) {
+  const bg = this.$refs.threeBackgroundRef;
+  if (bg && typeof bg.ensureRunning === 'function') {
+    bg.ensureRunning();
+    return;
+  }
+  if (attempts < 30 && typeof requestAnimationFrame === 'function') {
+    requestAnimationFrame(() => this.kickstandbyAnimation(attempts + 1));
+  }
 },
 selectVideoLayer(id) {
   if (!this.videoLayers.find((layer) => layer.id === id)) return;
@@ -4786,11 +4828,19 @@ syncMotionPadFromPayload(payload) {
   if (!payload || typeof payload !== "object") return;
   const x = payload.translation_x ?? payload.panx;
   const y = payload.translation_y ?? payload.pany;
+  const z = payload.translation_z;
+  const zoom = payload.zoom_2d ?? payload.zoom;
   if (x != null && Number.isFinite(Number(x))) {
     this.motionPadValues.translation_x = Number(x);
   }
   if (y != null && Number.isFinite(Number(y))) {
     this.motionPadValues.translation_y = Number(y);
+  }
+  if (z != null && Number.isFinite(Number(z))) {
+    this.motionPadValues.translation_z = Number(z);
+  }
+  if (zoom != null && Number.isFinite(Number(zoom))) {
+    this.motionPadValues.zoom = Number(zoom);
   }
 },
  updateParam(p, evt) {
@@ -4868,6 +4918,47 @@ applyMotionPresetAndSelect(name) {
   this.motionSelectedPreset = name;
   this.applyMotionPreset(name);
 },
+loadSelectedMotionPreset() {
+  const name = this.motionSelectedPreset;
+  if (!name) return;
+  if (this.motionPresets[name]) {
+    this.applyMotionPreset(name);
+    return;
+  }
+  if (this.motionStylesSaved[name]) {
+    this.applySavedMotionStyle(name);
+  }
+},
+setMotionAxis(axis, value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return;
+  if (axis === 'translation_x') this.motionPadValues.translation_x = num;
+  else if (axis === 'translation_y') this.motionPadValues.translation_y = num;
+  else if (axis === 'translation_z') this.motionPadValues.translation_z = num;
+  else if (axis === 'zoom') this.motionPadValues.zoom = num;
+  const paramKey = axis === 'zoom' ? 'zoom_2d' : axis;
+  this.emitMotionLiveParam(paramKey, num);
+  if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
+emitMotionLiveParam(key, val) {
+  const num = Number(val);
+  if (!Number.isFinite(num)) return;
+  const now = this.getNow();
+  const last = this.lastParamSent[key] || 0;
+  this.liveParamPending[key] = num;
+  if (now - last > this.controlDelayMs) {
+    this.lastParamSent[key] = now;
+    this.sendControl("liveParam", { [key]: num });
+    return;
+  }
+  clearTimeout(this.liveParamTimers[key]);
+  this.liveParamTimers[key] = setTimeout(() => {
+    const v = this.liveParamPending[key];
+    delete this.liveParamPending[key];
+    this.lastParamSent[key] = this.getNow();
+    this.sendControl("liveParam", { [key]: v });
+  }, this.controlDelayMs);
+},
  sendPreset(name) {
    const preset = this.motionPresets[name];
    if (!preset) return;
@@ -4930,7 +5021,7 @@ applyMotionPresetAndSelect(name) {
       }
       switch(e.key) {
         case "1": case "2": case "3": case "4": case "5": case "6":
-          const tabs = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "SETTINGS", "GENERATE"];
+          const tabs = ["LIVE", "PROMPTS", "MOTION", "MODULATION", "SETTINGS"];
           self.switchTab(tabs[parseInt(e.key) - 1]);
           e.preventDefault();
           break;
@@ -4938,7 +5029,7 @@ applyMotionPresetAndSelect(name) {
           if (self.currentTab === "LIVE") {
             self.generatePreviewFrame();
             e.preventDefault();
-          } else if (self.currentTab === "GENERATE") {
+          } else if (self.showMotionSequencerDock) {
             self.generatePreviewFrame();
             e.preventDefault();
           }
@@ -5324,13 +5415,16 @@ toggleLfoTarget(lfo, targetKey) {
    const name = prompt("Enter style name:");
    if (!name || !name.trim()) return;
    const style = {
-     translation_z: 0.8,
+     translation_x: Number(this.motionPadValues.translation_x || 0),
+     translation_y: Number(this.motionPadValues.translation_y || 0),
+     translation_z: Number(this.motionPadValues.translation_z || 0),
+     zoom_2d: Number(this.motionPadValues.zoom ?? 1),
      rotation_z: 0,
      rotation_y: 0,
-     translation_x: 0,
-     translation_y: 0,
    };
-   this.motionStylesSaved[name.trim()] = style;
+   const trimmed = name.trim();
+   this.motionStylesSaved[trimmed] = style;
+   this.motionSelectedPreset = trimmed;
    try {
      if (typeof window !== 'undefined' && window.localStorage) {
        window.localStorage.setItem('defora_motion_styles', JSON.stringify(this.motionStylesSaved));
@@ -5362,7 +5456,9 @@ toggleLfoTarget(lfo, targetKey) {
  applySavedMotionStyle(name) {
    const style = this.motionStylesSaved[name];
    if (!style) return;
+   this.motionSelectedPreset = name;
    this.sendControl("liveParam", style);
+   this.syncMotionPadFromPayload(style);
  },
  applyMotionPreset(name) {
    const preset = this.motionPresets[name];
@@ -7016,8 +7112,8 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    const translation_y = normY * TRANSLATION_RANGE;
   this.motionPadValues.translation_x = translation_x;
   this.motionPadValues.translation_y = translation_y;
-   this.queueLiveParam("translation_x", translation_x);
-   this.queueLiveParam("translation_y", translation_y);
+   this.emitMotionLiveParam("translation_x", translation_x);
+   this.emitMotionLiveParam("translation_y", translation_y);
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
@@ -7433,6 +7529,35 @@ async generateStory() {
 sessionStorageTouchedKey() {
   return `${this.sessionStorageKey()}__touchedAt`;
 },
+sessionRestoreDeclinedKey() {
+  return `${this.sessionStorageKey()}__restoreDeclinedAt`;
+},
+hasSessionRestoreDeclined({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 } = {}) {
+  try {
+    if (typeof window === 'undefined') return false;
+    const storage = window.localStorage;
+    if (!storage) return false;
+    const raw = storage.getItem(this.sessionRestoreDeclinedKey());
+    const declinedAt = raw != null ? Number(raw) : NaN;
+    return Number.isFinite(declinedAt) && declinedAt > 0 && (now - declinedAt) <= maxAgeMs;
+  } catch (_e) {
+    return false;
+  }
+},
+markSessionRestoreDeclined() {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(this.sessionRestoreDeclinedKey(), String(Date.now()));
+    }
+  } catch (_e) {}
+},
+clearSessionRestoreDeclined() {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.removeItem(this.sessionRestoreDeclinedKey());
+    }
+  } catch (_e) {}
+},
 hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 } = {}) {
   try {
     if (typeof window === 'undefined') return false;
@@ -7473,6 +7598,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER') this.liveBottomDrawerTab = s.liveBottomDrawerTab;
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
+    }
+    if (s.currentSubTab && s.currentSubTab.MOTION) {
+      this.currentSubTab.MOTION = this.normalizeMotionSubTab(s.currentSubTab.MOTION);
     }
     if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
     if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
@@ -7668,8 +7796,13 @@ checkAndPromptSessionRestore() {
       try {
         storage.removeItem(this.sessionStorageKey());
         storage.removeItem(this.sessionStorageTouchedKey());
+        storage.removeItem(this.sessionRestoreDeclinedKey());
       } catch (_e) {}
       return true;
+    }
+
+    if (this.hasSessionRestoreDeclined()) {
+      return false;
     }
 
     const currentRaw = this.getCurrentSessionSnapshotRaw();
@@ -7689,9 +7822,12 @@ dismissSessionRestore(shouldRestore) {
   try {
     this.restoreSessionPromptOpen = false;
     if (shouldRestore) {
+      this.clearSessionRestoreDeclined();
       // Apply saved state
       this.loadSessionState();
     } else {
+      // Remember decline so we don't prompt again for this session window.
+      this.markSessionRestoreDeclined();
       // Overwrite saved state with current, so we won't prompt again.
       this.saveSessionState();
     }
