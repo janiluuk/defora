@@ -89,6 +89,10 @@
       <path d="M8.5 7.5L13.5 12L8.5 16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M13 12H5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
     </template>
+    <template v-else-if="name === 'rotate-ccw'">
+      <path d="M8 7H4V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M4.5 7.5C6.1 5.1 8.8 3.5 12 3.5C17 3.5 21 7.5 21 12.5C21 17.5 17 21.5 12 21.5C7.8 21.5 4.3 18.6 3.3 14.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
   </svg>
 </template>
 

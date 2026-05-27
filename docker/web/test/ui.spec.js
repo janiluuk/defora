@@ -178,6 +178,26 @@ describe("Deforumation Web UI", () => {
     expect(appVm.deforumFeedStatusLabel).to.match(/live|ready/i);
   });
 
+  it("scopes standby controls to the default animation surface and resets them", async () => {
+    expect(document.body.textContent).to.include("Beam count");
+
+    appVm.defaultAnimation.beamCount = 11;
+    appVm.defaultAnimation.speed = 1.9;
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    await nextTick();
+
+    expect(document.body.textContent).to.not.include("Beam count");
+
+    appVm.resetDefaultAnimationSettings();
+    expect(appVm.defaultAnimation.beamCount).to.equal(7);
+    expect(appVm.defaultAnimation.speed).to.equal(0.75);
+    expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
+
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    await nextTick();
+    expect(document.body.textContent).to.include("Beam count");
+  });
+
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
