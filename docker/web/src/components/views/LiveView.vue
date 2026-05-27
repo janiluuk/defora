@@ -277,7 +277,7 @@
               </template>
               <template v-else-if="slot.type === 'param'">
                 <select class="framesync-select" v-model="slot.paramKey" @change="onPerformanceInput">
-                  <option v-for="t in lfoTargets" :key="'a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
+                  <option v-for="t in modulationTargets" :key="'a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
                 </select>
                 <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
               </template>
