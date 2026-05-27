@@ -793,7 +793,7 @@ export default {
         { id: "GENERATE", label: "GENERATE", hint: "Render", icon: "film" },
       ],
       currentTab: "LIVE",
-      currentSubTab: { PROMPTS: 'IMAGE', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
+      currentSubTab: { PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' },
       stats: { fps: 27, lat: 120 },
       hud: { seed: 42490527 },
       timecode: "00:00.00",
@@ -1047,6 +1047,21 @@ export default {
         lineVisualizeThreshold: false,
         lineAlphaToCoverage: true,
         lineAnimate: true,
+        mcMaterial: 'shiny',
+        mcNumBlobs: 10,
+        mcResolution: 28,
+        mcIsolation: 80,
+        mcFloor: true,
+        mcWallX: false,
+        mcWallZ: false,
+        ocElevation: 2,
+        ocAzimuth: 180,
+        ocExposure: 0.1,
+        ocDistortion: 3.7,
+        ocSize: 1,
+        ocCloudCoverage: 0.4,
+        ocCloudDensity: 0.5,
+        ocCloudElevation: 0.5,
       },
       thumbs: [],
       framesTimer: null,
@@ -1091,7 +1106,8 @@ export default {
       avSyncCollapsed: true,
       morphCollapsed: true,
       loraPickerOpen: false,
-      loraCrossfaderCollapsed: true,
+      loraCrossfaderPickerGroup: null,
+      loraCrossfaderCollapsed: false,
       forgeAdvancedCollapsed: true,
       storyResultCollapsed: false,
        lfoCanvasRefs: {},
@@ -2118,10 +2134,20 @@ export default {
   if (tab === 'PROMPTS' && sub !== 'LORA') {
     this.loraPickerOpen = false;
   }
-   if (tab === 'PROMPTS' && sub === 'LORA' && !this.lorasLoading && !this.loras.available.length) {
-     this.refreshLoras();
-   }
+  if (tab === 'PROMPTS' && sub !== 'CROSSFADER') {
+    this.loraCrossfaderPickerGroup = null;
+  }
+  if (tab === 'PROMPTS' && (sub === 'LORA' || sub === 'CROSSFADER') && !this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
  },
+toggleLoraCrossfaderPicker(group) {
+  if (group !== 'A' && group !== 'B') return;
+  this.loraCrossfaderPickerGroup = this.loraCrossfaderPickerGroup === group ? null : group;
+  if (this.loraCrossfaderPickerGroup && !this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
+},
  togglePlayPause() {
    this.toggleDeforumPlay();
  },
@@ -2291,7 +2317,7 @@ async stopOutboundStream() {
 },
 normalizeDefaultAnimationSettings(input = {}) {
   const next = input && typeof input === 'object' ? input : {};
-  const mode = ['volume', 'orbital', 'nebula', 'raycast'].includes(next.mode) ? next.mode : 'volume';
+  const mode = ['volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'volume';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
     mode,
@@ -2312,6 +2338,23 @@ normalizeDefaultAnimationSettings(input = {}) {
     lineVisualizeThreshold: !!next.lineVisualizeThreshold,
     lineAlphaToCoverage: next.lineAlphaToCoverage !== false,
     lineAnimate: next.lineAnimate !== false,
+    mcMaterial: ['shiny', 'chrome', 'liquid', 'matte', 'flat', 'plastic', 'colors', 'multiColors'].includes(next.mcMaterial)
+      ? next.mcMaterial
+      : 'shiny',
+    mcNumBlobs: Math.max(1, Math.min(50, Math.round(Number(next.mcNumBlobs) || 10))),
+    mcResolution: Math.max(14, Math.min(100, Math.round(Number(next.mcResolution) || 28))),
+    mcIsolation: Math.max(10, Math.min(300, Math.round(Number(next.mcIsolation) || 80))),
+    mcFloor: next.mcFloor !== false,
+    mcWallX: !!next.mcWallX,
+    mcWallZ: !!next.mcWallZ,
+    ocElevation: Math.max(0, Math.min(90, Number(next.ocElevation) || 2)),
+    ocAzimuth: Math.max(-180, Math.min(180, Number.isFinite(Number(next.ocAzimuth)) ? Number(next.ocAzimuth) : 180)),
+    ocExposure: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocExposure)) ? Number(next.ocExposure) : 0.1)),
+    ocDistortion: Math.max(0, Math.min(8, Number.isFinite(Number(next.ocDistortion)) ? Number(next.ocDistortion) : 3.7)),
+    ocSize: Math.max(0.1, Math.min(10, Number.isFinite(Number(next.ocSize)) ? Number(next.ocSize) : 1)),
+    ocCloudCoverage: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudCoverage)) ? Number(next.ocCloudCoverage) : 0.4)),
+    ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
+    ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
   };
 },
 onDefaultAnimationInput() {

@@ -228,10 +228,26 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.not.include("Beam count");
     expect(document.body.textContent).to.not.include("Mist");
 
+    appVm.setDefaultAnimationMode("marching");
+    await nextTick();
+    expect(document.body.textContent).to.include("Blob count");
+    expect(document.body.textContent).to.include("Resolution");
+    expect(document.body.textContent).to.include("Isolation");
+    expect(document.body.textContent).to.include("Floor");
+    expect(document.body.textContent).to.not.include("Visualize threshold");
+
+    appVm.setDefaultAnimationMode("ocean");
+    await nextTick();
+    expect(document.body.textContent).to.include("Sun elevation");
+    expect(document.body.textContent).to.include("Distortion scale");
+    expect(document.body.textContent).to.include("Cloud coverage");
+    expect(document.body.textContent).to.not.include("Blob count");
+    expect(document.body.textContent).to.not.include("Visualize threshold");
+
     appVm.defaultAnimation.preferDeforumVideo = true;
     await nextTick();
 
-    expect(document.body.textContent).to.not.include("Visualize threshold");
+    expect(document.body.textContent).to.not.include("Blob count");
 
     appVm.resetDefaultAnimationSettings();
     expect(appVm.defaultAnimation.mode).to.equal("volume");
@@ -478,19 +494,27 @@ describe("Deforumation Web UI", () => {
     expect(appVm.cn.slots[0].enabled).to.equal(true);
   });
 
-  it("shows a dedicated collapsed LoRA crossfader tab", async () => {
+  it("shows the LoRA crossfader tab expanded by default with group pickers", async () => {
     appVm.switchTab("PROMPTS");
-    appVm.switchSubTab("PROMPTS", "CROSSFADER");
     await nextTick();
     await nextTick();
 
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.include("CROSSFADER");
-    expect(appVm.loraCrossfaderCollapsed).to.equal(true);
+    expect(appVm.currentSubTab.PROMPTS).to.equal("CROSSFADER");
+    expect(appVm.loraCrossfaderCollapsed).to.equal(false);
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
     expect(titles.join(" ")).to.include("LoRA Crossfader");
-    expect(document.querySelector(".prompt-ab-summary")).to.not.exist;
+    expect(document.querySelector(".prompt-ab-summary")).to.exist;
+
+    const groupPickers = [...document.querySelectorAll(".prompt-ab-column .lora-picker-trigger")];
+    expect(groupPickers.length).to.equal(2);
+
+    groupPickers[0].click();
+    await nextTick();
+    expect(appVm.loraCrossfaderPickerGroup).to.equal("A");
+    expect(document.querySelector(".prompt-ab-column--a .lora-picker-panel")).to.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {
@@ -617,9 +641,10 @@ describe("Deforumation Web UI behavior", () => {
     global.localStorage = localStorageMock;
   });
 
-  it("defaults prompts to the image subtab", () => {
+  it("defaults prompts to the LoRA crossfader subtab", () => {
     const instance = instantiate(appDef);
-    expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
+    expect(instance.currentSubTab.PROMPTS).to.equal("CROSSFADER");
+    expect(instance.loraCrossfaderCollapsed).to.equal(false);
     expect(instance.img2img.show).to.equal(true);
   });
 
@@ -684,9 +709,10 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.gpuPool.editId).to.equal(null);
   });
 
-  it("defaults prompts to the image subtab", () => {
+  it("defaults prompts to the LoRA crossfader subtab", () => {
     const instance = instantiate(appDef);
-    expect(instance.currentSubTab.PROMPTS).to.equal("IMAGE");
+    expect(instance.currentSubTab.PROMPTS).to.equal("CROSSFADER");
+    expect(instance.loraCrossfaderCollapsed).to.equal(false);
     expect(instance.img2img.show).to.equal(true);
   });
 

@@ -44,11 +44,11 @@
         </label>
         <label class="generate-sequencer__toggle">
           <span class="framesync-subtitle">Loop</span>
-          <span><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</span>
+          <label class="framesync-checkbox"><input type="checkbox" v-model="sequencer.loop"> Repeat timeline</label>
         </label>
         <label class="generate-sequencer__toggle">
           <span class="framesync-subtitle">BPM Sync</span>
-          <span><input type="checkbox" v-model="sequencer.bpmSync"> Sync to audio BPM</span>
+          <label class="framesync-checkbox"><input type="checkbox" v-model="sequencer.bpmSync"> Sync to audio BPM</label>
         </label>
       </div>
 

@@ -444,7 +444,7 @@
         <div class="framesync-panel" data-testid="gpu-pool-panel">
           <div class="framesync-header">
             <div class="framesync-title">GPU <span class="framesync-accent">Pool</span></div>
-            <label class="gpu-pool-enable">
+            <label class="framesync-checkbox gpu-pool-enable">
               <input type="checkbox" v-model="gpuPool.enabled" @change="saveGpuPoolSettings">
               Load balancing
             </label>
