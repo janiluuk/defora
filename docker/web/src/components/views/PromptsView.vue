@@ -554,8 +554,11 @@
               <button class="framesync-button" @click="loadControlNetModels">Refresh</button>
             </div>
           </div>
-          <div class="framesync-footer" style="margin-top:12px;">
-            <button class="framesync-button" v-for="slot in cn.slots" :key="slot.id" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</button>
+          <div class="controlnet-slot-strip" style="margin-top:12px; display:flex; flex-direction:column; gap:6px;">
+            <div v-for="slot in cn.slots" :key="slot.id" class="controlnet-slot-row" style="display:flex; gap:6px; align-items:center;">
+              <button class="framesync-button" style="flex:1;" :class="{active: cn.active===slot.id}" @click="cn.active=slot.id">{{ slot.label }}</button>
+              <button class="framesync-button controlnet-slot-row__toggle" :class="{active: slot.enabled}" @click="slot.enabled=!slot.enabled; updateControlNet(slot)">{{ slot.enabled ? 'On' : 'Off' }}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -567,8 +570,9 @@
           <div class="framesync-stack" style="margin-top:12px;">
             <div class="framesync-subtitle">Model</div>
             <select class="framesync-select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
-              <option v-for="m in cn.availableModels" :key="m.id" :value="m.name">{{ m.name }}</option>
+              <option v-for="m in activeControlNetModelChoices" :key="m.id" :value="m.name">{{ m.name }}{{ m.current && m.incompatible ? ' (current, incompatible)' : m.current ? ' (current)' : '' }}</option>
             </select>
+            <div class="framesync-subtitle" style="margin-top:4px;">{{ controlNetModelSummary }}</div>
           </div>
           <div class="framesync-stack" style="margin-top:12px;">
             <div class="framesync-subtitle">Image source</div>
@@ -607,6 +611,7 @@
               <span style="color:var(--text-primary); font-size:12px;">{{ activeSlot.weight.toFixed(2) }}</span>
             </div>
             <input type="range" min="0" max="2" step="0.01" v-model.number="activeSlot.weight" @input="updateControlNet(activeSlot)" class="framesync-input">
+            <div class="controlnet-weight-card" style="margin-top:4px; font-size:11px; color:var(--text-secondary);">{{ controlNetWeightLabel }}</div>
           </div>
           <div class="framesync-stack" style="margin-top:12px;">
             <div style="display:flex; justify-content:space-between; align-items:center;">
