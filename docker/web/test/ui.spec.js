@@ -74,16 +74,33 @@ function ensureGlobalAnimationFrame(win) {
 
 ensureGlobalAnimationFrame(typeof window !== "undefined" ? window : null);
 
+function installFileReaderMock({ failRead = false } = {}) {
+  const MockFileReader = class {
+    readAsDataURL() {
+      if (failRead) {
+        setImmediate(() => {
+          if (typeof this.onerror === "function") {
+            this.onerror(new Error("Read failed"));
+          }
+        });
+        return;
+      }
+      this.result = "data:audio/wav;base64,ZmFrZQ==";
+      setImmediate(() => {
+        if (typeof this.onload === "function") this.onload();
+      });
+    }
+  };
+  global.FileReader = MockFileReader;
+  if (global.window && typeof global.window === "object") {
+    global.window.FileReader = MockFileReader;
+  }
+  return MockFileReader;
+}
+
 function loadAppDefinition() {
   if (typeof global.FileReader !== "function") {
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => {
-          if (typeof this.onload === "function") this.onload();
-        });
-      }
-    };
+    installFileReaderMock();
   }
   // Load from the extracted app-definition.js instead of parsing index.html
   const appDefPath = path.join(__dirname, "..", "src", "app-definition.js");
@@ -149,7 +166,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' };
+    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' };
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
@@ -443,6 +460,22 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Story generation text");
     expect(pageText).to.include("Theme: Neon city");
     expect(pageText).to.include("LIVE");
+    expect(document.querySelector(".sequencer-controls-panel .modulation-lfo-grid")).to.exist;
+  });
+
+  it("shows the modern story generator under the story subtab", async () => {
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "STORY");
+    await nextTick();
+    await nextTick();
+
+    const pageText = document.body.textContent;
+    expect(pageText).to.include("Story Generator");
+    expect(pageText).to.include("Theme / story concept");
+    expect(pageText).to.include("Style preset");
+    expect(pageText).to.include("Scene count");
+    expect(document.querySelector(".generate-sequencer__hero-grid")).to.exist;
+    expect(document.querySelector(".generate-story__theme-input")).to.exist;
   });
 
   it("shows img2img under the image subtab", async () => {
@@ -501,6 +534,7 @@ describe("Deforumation Web UI", () => {
       calls.push({ type, payload });
     };
     instance.prompts.crossfaderValue = 0.25;
+    instance.prompts.loraCrossfaderOn = true;
     instance.loras.common = [{ id: "c-1", name: "utility", path: "/loras/utility.safetensors", strength: 0.6 }];
     instance.loras.groupA = [{ id: "a-1", name: "style-a", path: "/loras/style-a.safetensors", strength: 1.0 }];
     instance.loras.groupB = [{ id: "b-1", name: "style-b", path: "/loras/style-b.safetensors", strength: 0.8 }];
@@ -566,27 +600,27 @@ describe("Deforumation Web UI", () => {
     expect(appVm.cn.slots[0].enabled).to.equal(true);
   });
 
-  it("shows the LoRA crossfader tab expanded by default with group pickers", async () => {
-    appVm.switchTab("PROMPTS");
+  it("shows the LoRA crossfader in the bottom drawer with group pickers", async () => {
+    appVm.liveBottomDrawerOpen = true;
+    appVm.liveBottomDrawerTab = "CROSSFADER";
     await nextTick();
     await nextTick();
 
-    const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
-    expect(subTabs.join(" ")).to.include("CROSSFADER");
-    expect(appVm.currentSubTab.PROMPTS).to.equal("CROSSFADER");
-    expect(appVm.loraCrossfaderCollapsed).to.equal(false);
+    const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
+    expect(drawerTabs.join(" ")).to.include("CROSSFADER");
+    expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
     expect(titles.join(" ")).to.include("LoRA Crossfader");
-    expect(document.querySelector(".prompt-ab-summary")).to.exist;
+    expect(document.querySelector(".lora-crossfader-panel__deck")).to.exist;
 
-    const groupPickers = [...document.querySelectorAll(".prompt-ab-column .lora-picker-trigger")];
+    const groupPickers = [...document.querySelectorAll(".lora-crossfader-panel .lora-picker-trigger")];
     expect(groupPickers.length).to.equal(2);
 
     groupPickers[0].click();
     await nextTick();
     expect(appVm.loraCrossfaderPickerGroup).to.equal("A");
-    expect(document.querySelector(".prompt-ab-column--a .lora-picker-panel")).to.exist;
+    expect(document.querySelector(".lora-crossfader-panel__side--a .lora-picker-panel")).to.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {
@@ -667,58 +701,52 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
   });
 
-  it("lists library runs and inspects frames one by one", async () => {
+  it("shows the runs browser under Library with table and details", async () => {
     appVm.runsAll = [
-      { run_id: "run-a-002", batch_name: "session_a", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a" },
-      { run_id: "run-a-001", batch_name: "session_a", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a" },
-      { run_id: "run-b-001", batch_name: "session_b", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false, frame_count: 1, model: "xl-b" },
+      { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a", tag: "defora" },
+      { run_id: "run-a-001", status: "completed", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a", tag: "defora" },
+      { run_id: "run-b-001", status: "queued", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false, frame_count: 1, model: "xl-b", tag: "preview" },
     ];
     appVm.applyRunsFilters();
     global.fetch = async (url) => {
       const path = String(url);
-      if (path.includes("run-a-002")) {
-        return { ok: true, json: async () => ({ run_id: "run-a-002", frames: ["frame_0001.png", "frame_0002.png"] }) };
-      }
       if (path.includes("run-b-001")) {
-        return { ok: true, json: async () => ({ run_id: "run-b-001", frames: ["frame_0001.png"] }) };
+        return { ok: true, json: async () => ({ run_id: "run-b-001", status: "queued", frames: ["frame_0001.png"], model: "xl-b" }) };
       }
-      return { ok: true, json: async () => ({ run_id: "run-a-001", frames: ["frame_0001.png", "frame_0002.png", "frame_0003.png"] }) };
+      return { ok: true, json: async () => ({ run_id: "run-a-002", status: "completed", frames: ["frame_0001.png", "frame_0002.png"], model: "xl-a" }) };
     };
 
-    appVm.showFrames = true;
     appVm.switchTab("LIBRARY");
-    appVm.librarySubTab = "RUNS";
     await nextTick();
+    await nextTick();
+
+    const runsBrowser = document.querySelector(".runs-browser");
+    expect(runsBrowser).to.exist;
+    expect(document.body.textContent).to.include("Runs Browser");
+    expect(document.body.textContent).to.include("Storage Browser");
+
+    const rows = [...document.querySelectorAll(".runs-browser__table tbody tr")].filter(
+      (row) => !row.querySelector(".runs-browser__empty")
+    );
+    expect(rows.length).to.equal(3);
+
+    const detailsBtn = rows[0].querySelector(".runs-browser__action");
+    detailsBtn.click();
     await nextTick();
     await Promise.resolve();
     await nextTick();
 
-    const runCards = [...document.querySelectorAll(".library-run-card")];
-    expect(runCards.length).to.equal(3);
-
-    runCards[0].click();
-    await nextTick();
-    await Promise.resolve();
-    await nextTick();
-
-    expect(appVm.library.selectedRunId).to.match(/^run-(a|b)-/);
-    expect(document.body.textContent).to.include("Frame Inspector");
-    expect(appVm.librarySelectedFrameSrc).to.include(`/api/runs/${appVm.library.selectedRunId}/frames/frame_0001.png`);
-
-    appVm.stepLibraryFrame(1);
-    await nextTick();
-    expect(appVm.library.selectedFrameName).to.equal("frame_0002.png");
-
-    const runB = runCards.find((el) => el.textContent.includes("run-b-001"));
-    expect(runB).to.exist;
-    runB.click();
-    await nextTick();
-    await Promise.resolve();
-    await nextTick();
-    expect(appVm.library.selectedRunId).to.equal("run-b-001");
-    expect(document.querySelectorAll("[data-testid='library-frame-thumbs'] .frame-rail__item").length).to.equal(1);
+    expect(appVm.runsDetailView).to.exist;
+    expect(appVm.runsDetailView.run_id).to.equal("run-a-002");
+    expect(document.body.textContent).to.include("Run Details");
 
     delete global.fetch;
+  });
+
+  it("openRunsSettings navigates to Library runs browser", () => {
+    appVm.openRunsSettings();
+    expect(appVm.currentTab).to.equal("LIBRARY");
+    expect(document.querySelector(".runs-browser")).to.exist;
   });
 });
 
@@ -747,10 +775,9 @@ describe("Deforumation Web UI behavior", () => {
     global.localStorage = localStorageMock;
   });
 
-  it("defaults prompts to the LoRA crossfader subtab", () => {
+  it("defaults prompts to the main prompts subtab", () => {
     const instance = instantiate(appDef);
-    expect(instance.currentSubTab.PROMPTS).to.equal("CROSSFADER");
-    expect(instance.loraCrossfaderCollapsed).to.equal(false);
+    expect(instance.currentSubTab.PROMPTS).to.equal("PROMPTS");
     expect(instance.img2img.show).to.equal(true);
   });
 
@@ -1442,15 +1469,10 @@ describe("Deforumation Web UI behavior", () => {
       calls.push(JSON.parse(opts.body));
       return { ok: true, json: async () => ({ ok: true, path: "/tmp/uploaded.wav" }) };
     };
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
-    appDef = loadAppDefinition();
-    const instance = instantiate(appDef);
-    await instance.handleAudioUpload({ target: { files: [{ name: "track.wav" }] } });
+    installFileReaderMock();
+    const instance = instantiate(loadAppDefinition());
+    const wav = new File([Buffer.alloc(32)], "track.wav", { type: "audio/wav" });
+    await instance.handleAudioUpload({ target: { files: [wav] } });
 
     expect(calls[0].name).to.equal("track.wav");
     expect(instance.audio.track).to.equal("/tmp/uploaded.wav");
@@ -1460,15 +1482,11 @@ describe("Deforumation Web UI behavior", () => {
   });
 
   it("handleAudioUpload handles FileReader errors gracefully", async () => {
-    global.FileReader = class {
-      readAsDataURL() {
-        setImmediate(() => this.onerror(new Error("Read failed")));
-      }
-    };
-    appDef = loadAppDefinition();
-    const instance = instantiate(appDef);
+    installFileReaderMock({ failRead: true });
+    const instance = instantiate(loadAppDefinition());
+    const wav = new File([Buffer.alloc(16)], "broken.wav", { type: "audio/wav" });
 
-    await instance.handleAudioUpload({ target: { files: [{ name: "broken.wav" }] } });
+    await instance.handleAudioUpload({ target: { files: [wav] } });
 
     // The error should be caught and stored in audioStatus
     expect(instance.audioStatus).to.include("Failed to read audio file");
@@ -1681,12 +1699,7 @@ describe("Reference A/V sync", () => {
 
   it("handleAudioUpload assigns objectUrl for real File/Blob uploads", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/srv/out.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.from("RIFFxxxxWAVEfmt ")], "clip.wav", { type: "audio/wav" });
     const instance = inst();
     await instance.handleAudioUpload({ target: { files: [wav] } });
@@ -1701,12 +1714,7 @@ describe("Reference A/V sync", () => {
 
   it("handleAudioUpload revokes objectUrl when upload fails after blob creation", async () => {
     global.fetch = async () => ({ ok: false, json: async () => ({ error: "disk full" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(64)], "bad.wav", { type: "audio/wav" });
     const instance = inst();
     await instance.handleAudioUpload({ target: { files: [wav] } });
@@ -1718,12 +1726,7 @@ describe("Reference A/V sync", () => {
 
   it("clearAudioFile revokes objectUrl and disables av sync", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/tmp/a.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(32)], "z.wav", { type: "audio/wav" });
     const instance = inst({
       avSyncEnabled: true,
@@ -1812,12 +1815,7 @@ describe("Reference A/V sync mounted e2e", () => {
 
   it("upload binds blob URL to the sync audio element src", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/uploaded.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(128)], "live.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
@@ -1829,12 +1827,7 @@ describe("Reference A/V sync mounted e2e", () => {
 
   it("enabling sync after upload leaves checkbox enabled once objectUrl exists", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/u.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(64)], "e.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
@@ -1851,12 +1844,7 @@ describe("Reference A/V sync mounted e2e", () => {
 
   it("mounted: syncReferenceAudioToVideo uses real DOM audio ref after upload", async () => {
     global.fetch = async () => ({ ok: true, json: async () => ({ ok: true, path: "/data/sync.wav" }) });
-    global.FileReader = class {
-      readAsDataURL() {
-        this.result = "data:audio/wav;base64,ZmFrZQ==";
-        setImmediate(() => this.onload());
-      }
-    };
+    installFileReaderMock();
     const wav = new File([Buffer.alloc(72)], "sync.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();

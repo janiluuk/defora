@@ -1,165 +1,191 @@
 <template>
   <div class="library-shell" :class="{ 'library-shell--fullscreen': libraryFullscreen }">
-    <div class="sub-pills" style="margin-bottom:10px;">
-      <button
-        type="button"
-        class="sub-pill"
-        :class="{ active: librarySubTab === 'RUNS' }"
-        @click="librarySubTab = 'RUNS'; saveSessionState()"
-      >
-        RUNS
-      </button>
-      <button
-        type="button"
-        class="sub-pill"
-        :class="{ active: librarySubTab === 'BROWSER' }"
-        @click="librarySubTab = 'BROWSER'; saveSessionState()"
-      >
-        BROWSER
-      </button>
-    </div>
-
-    <div v-if="librarySubTab === 'RUNS'" class="library-browser library-browser--flat">
-      <div class="framesync-panel library-browser__runs">
+    <div class="rack runs-browser">
+      <div class="framesync-panel runs-browser__panel">
         <div class="framesync-header">
-          <div class="framesync-title">Runs <span class="framesync-accent">Library</span></div>
-          <div style="display:flex; gap:8px; align-items:center;">
-            <span class="framesync-subtitle" style="margin:0;">{{ (runsAll || []).length }} runs</span>
-            <button class="framesync-button framesync-button--compact" @click="refreshRuns">Refresh</button>
-            <button
-              type="button"
-              class="framesync-button framesync-button--compact"
-              :class="{ active: libraryFullscreen }"
-              @click="libraryFullscreen = !libraryFullscreen; saveSessionState()"
-            >
-              {{ libraryFullscreen ? 'Exit full' : 'Expand' }}
-            </button>
+          <div class="framesync-title">Runs <span class="framesync-accent">Browser</span></div>
+          <div class="runs-browser__meta">
+            <span class="runs-browser__count">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
+            <button class="framesync-button" @click="refreshRuns">Refresh</button>
           </div>
         </div>
-        <div v-if="runsLoading" class="library-browser__empty">Loading library…</div>
-        <div v-else-if="!(runsAll || []).length" class="library-browser__empty">No runs found yet.</div>
-        <div v-else class="library-run-grid">
-          <button
-            v-for="run in (runsAll || [])"
-            :key="run.run_id"
-            type="button"
-            class="library-run-card"
-            :class="{ 'library-run-card--active': librarySelectedRunSummary && librarySelectedRunSummary.run_id === run.run_id }"
-            @click="openLibraryRun(run)"
-          >
-            <img
-              v-if="run.has_thumbnail"
-              class="library-run-card__thumb"
-              :src="`/api/runs/${run.run_id}/thumb`"
-              :alt="run.run_id"
-            />
-            <div v-else class="library-run-card__thumb library-run-card__thumb--empty">No img</div>
-            <div class="library-run-card__meta">
-              <span class="library-run-card__id">{{ run.run_id }}</span>
-              <span class="library-run-card__date">{{ formatDate(run.started_at) }}</span>
-              <span class="library-run-card__details">
-                {{ run.model || 'Unknown model' }} · {{ run.frame_count || run.length_frames || 0 }} frames
-              </span>
-            </div>
+
+        <div class="runs-browser__filters">
+          <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
+          <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
+            <option value="">All Status</option>
+            <option value="completed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="running">Running</option>
+            <option value="queued">Queued</option>
+          </select>
+          <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
+          <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
+        </div>
+
+        <div class="runs-browser__sortbar">
+          <span class="runs-browser__sort-label">Sort:</span>
+          <select class="framesync-select runs-browser__sort-select" v-model="runsSort.field" @change="applyRunsFilters">
+            <option value="started_at">Date</option>
+            <option value="run_id">Run ID</option>
+            <option value="model">Model</option>
+            <option value="frame_count">Frames</option>
+            <option value="status">Status</option>
+            <option value="tag">Tag</option>
+          </select>
+          <button class="framesync-button runs-browser__sort-order" @click="runsSort.order = runsSort.order === 'desc' ? 'asc' : 'desc'; applyRunsFilters();">
+            {{ runsSort.order === 'desc' ? 'Desc' : 'Asc' }}
           </button>
+          <div class="runs-browser__spacer"></div>
+          <button class="framesync-button runs-browser__export" @click="exportRuns('json')">JSON</button>
+          <button class="framesync-button runs-browser__export" @click="exportRuns('csv')">CSV</button>
+        </div>
+
+        <div class="runs-browser__table-wrap">
+          <table class="runs-browser__table">
+            <thead>
+              <tr>
+                <th>Thumb</th>
+                <th>Run ID</th>
+                <th>Status</th>
+                <th>Model</th>
+                <th>Frames</th>
+                <th>Seed</th>
+                <th>Tag</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="run in runsFiltered" :key="run.run_id" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
+                <td>
+                  <img v-if="run.has_thumbnail" :src="`/api/runs/${run.run_id}/thumb`" class="runs-browser__thumb" alt="">
+                  <div v-else class="runs-browser__thumb runs-browser__thumb--empty">No img</div>
+                </td>
+                <td class="runs-browser__run-id">{{ run.run_id }}</td>
+                <td>
+                  <span class="runs-status-pill" :class="'runs-status-pill--' + run.status">{{ run.status }}</span>
+                </td>
+                <td>{{ run.model || '-' }}</td>
+                <td>{{ run.frame_count || run.length_frames || '-' }}</td>
+                <td class="runs-browser__seed">{{ run.seed || '-' }}</td>
+                <td>{{ run.tag || '-' }}</td>
+                <td class="runs-browser__date">{{ formatDate(run.started_at) }}</td>
+                <td>
+                  <div class="runs-browser__actions">
+                    <button class="framesync-button runs-browser__action" @click.stop="showRunDetails(run)" title="Details">Details</button>
+                    <button class="framesync-button runs-browser__action" @click.stop="rerunRun(run)" title="Rerun">Rerun</button>
+                    <button class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click.stop="deleteRun(run)" title="Delete">Delete</button>
+                  </div>
+                </td>
+              </tr>
+              <tr v-if="runsFiltered.length === 0">
+                <td colspan="9" class="runs-browser__empty">
+                  No runs found. Adjust filters or refresh.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div v-if="runsDetailView" class="runs-detail-card">
+        <div class="runs-detail-card__header">
+          <div class="framesync-title">Run Details: <span class="runs-detail-card__id">{{ runsDetailView.run_id }}</span></div>
+          <button class="framesync-button" @click="runsDetailView = null">Close</button>
+        </div>
+        <div class="runs-detail-card__grid">
+          <div>
+            <div class="framesync-subtitle">Status</div>
+            <span class="runs-status-pill" :class="'runs-status-pill--' + runsDetailView.status">{{ runsDetailView.status }}</span>
+          </div>
+          <div>
+            <div class="framesync-subtitle">Model</div>
+            <div>{{ runsDetailView.model || '-' }}</div>
+          </div>
+          <div>
+            <div class="framesync-subtitle">Frames</div>
+            <div>{{ runsDetailView.frame_count || runsDetailView.length_frames || '-' }}</div>
+          </div>
+          <div>
+            <div class="framesync-subtitle">Seed</div>
+            <div class="runs-browser__seed">{{ runsDetailView.seed || '-' }}</div>
+          </div>
+          <div>
+            <div class="framesync-subtitle">Steps</div>
+            <div>{{ runsDetailView.steps || '-' }}</div>
+          </div>
+          <div>
+            <div class="framesync-subtitle">Strength</div>
+            <div>{{ runsDetailView.strength || '-' }}</div>
+          </div>
+          <div>
+            <div class="framesync-subtitle">CFG</div>
+            <div>{{ runsDetailView.cfg || '-' }}</div>
+          </div>
+          <div>
+            <div class="framesync-subtitle">Tag</div>
+            <div>{{ runsDetailView.tag || '-' }}</div>
+          </div>
+          <div class="runs-detail-card__full">
+            <div class="framesync-subtitle">Positive Prompt</div>
+            <div class="runs-detail-card__prompt">{{ runsDetailView.prompt_positive || '-' }}</div>
+          </div>
+          <div class="runs-detail-card__full">
+            <div class="framesync-subtitle">Negative Prompt</div>
+            <div class="runs-detail-card__prompt">{{ runsDetailView.prompt_negative || '-' }}</div>
+          </div>
+          <div class="runs-detail-card__full">
+            <div class="framesync-subtitle">Notes</div>
+            <textarea class="framesync-input runs-detail-card__notes" v-model="runsDetailView.notes" placeholder="Add notes..."></textarea>
+            <button class="framesync-button runs-detail-card__save" @click="saveRunNotes(runsDetailView)">Save notes</button>
+          </div>
+        </div>
+
+        <div v-if="runsDetailView.frames && runsDetailView.frames.length" class="runs-detail-card__frames">
+          <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
+          <div class="runs-detail-card__frames-list">
+            <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" class="runs-detail-card__frame" :alt="f">
+          </div>
+        </div>
+      </div>
+
+      <div v-if="runsSelected.length >= 2" class="runs-compare-card">
+        <div class="runs-compare-card__header">
+          <div class="framesync-title">Compare Runs ({{ runsSelected.length }})</div>
+          <div class="runs-compare-card__actions">
+            <button class="framesync-button runs-browser__export" @click="exportRunComparison('json')">JSON</button>
+            <button class="framesync-button runs-browser__export" @click="exportRunComparison('csv')">CSV</button>
+            <button class="framesync-button" @click="runsSelected = []">Clear</button>
+          </div>
+        </div>
+        <div class="runs-compare-card__table-wrap">
+          <table class="runs-compare-card__table">
+            <thead>
+              <tr>
+                <th>Property</th>
+                <th v-for="runId in runsSelected" :key="runId" class="runs-browser__seed">{{ runId }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="prop in runsCompareFields" :key="prop">
+                <td>{{ prop }}</td>
+                <td v-for="runId in runsSelected" :key="runId" class="runs-browser__seed">
+                  {{ getRunProp(runId, prop) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
 
-    <div class="framesync-panel library-inspector">
-      <div class="framesync-header">
-        <div class="framesync-title">Frame <span class="framesync-accent">Inspector</span></div>
-        <span class="framesync-subtitle" style="margin:0;">
-          {{ librarySelectedRunSummary ? librarySelectedRunSummary.run_id : 'Choose a run' }}
-        </span>
-      </div>
-
-      <div v-if="library.status" class="library-inspector__status">{{ library.status }}</div>
-      <div v-else-if="library.loading" class="library-browser__empty">Loading frames…</div>
-      <div v-else-if="!librarySelectedRunSummary" class="library-browser__empty">
-        Pick a project and run below the preview to inspect frames one by one.
-      </div>
-      <template v-else>
-        <div class="library-inspector__summary">
-          <div class="library-inspector__metric">
-            <span class="framesync-subtitle">Run</span>
-            <strong>{{ librarySelectedRunSummary.run_id }}</strong>
-          </div>
-          <div class="library-inspector__metric">
-            <span class="framesync-subtitle">Frame</span>
-            <strong>{{ librarySelectedFrameLabel }}</strong>
-          </div>
-          <div class="library-inspector__metric">
-            <span class="framesync-subtitle">Position</span>
-            <strong>{{ librarySelectedFrameIndex + 1 }} / {{ librarySelectedFrames.length || 0 }}</strong>
-          </div>
-        </div>
-
-        <div class="library-inspector__preview">
-          <img
-            v-if="librarySelectedFrameSrc"
-            class="library-inspector__image"
-            :src="librarySelectedFrameSrc"
-            :alt="librarySelectedFrameResolved"
-          />
-          <div v-else class="library-browser__empty">This run does not have exported frames.</div>
-        </div>
-
-        <div v-if="librarySelectedFrames.length" class="library-inspector__controls">
-          <button
-            type="button"
-            class="framesync-button"
-            @click="stepLibraryFrame(-1)"
-            :disabled="librarySelectedFrameIndex <= 0"
-          >
-            Prev
-          </button>
-          <input
-            class="framesync-input library-inspector__scrubber"
-            type="range"
-            min="0"
-            :max="Math.max(0, librarySelectedFrames.length - 1)"
-            :value="Math.max(0, librarySelectedFrameIndex)"
-            @input="selectLibraryFrame(librarySelectedFrames[Number($event.target.value)] || '')"
-          >
-          <button
-            type="button"
-            class="framesync-button"
-            @click="stepLibraryFrame(1)"
-            :disabled="librarySelectedFrameIndex >= librarySelectedFrames.length - 1"
-          >
-            Next
-          </button>
-        </div>
-
-        <div v-if="libraryVisibleFrames.length" class="library-filmstrip">
-          <button
-            v-for="frameName in libraryVisibleFrames"
-            :key="frameName"
-            type="button"
-            class="library-filmstrip__item"
-            :class="{ 'library-filmstrip__item--active': frameName === librarySelectedFrameResolved }"
-            @click="selectLibraryFrame(frameName)"
-          >
-            <img
-              class="library-filmstrip__thumb"
-              :src="`/api/runs/${encodeURIComponent(librarySelectedRunSummary.run_id)}/frames/${encodeURIComponent(frameName)}`"
-              :alt="frameName"
-            />
-            <span class="library-filmstrip__label">
-              {{ Number.isFinite(parseFrameNumber(frameName)) && parseFrameNumber(frameName) >= 0 ? parseFrameNumber(frameName) : frameName }}
-            </span>
-          </button>
-        </div>
-      </template>
-    </div>
-
-    <div v-if="librarySubTab === 'BROWSER'" class="framesync-panel">
+    <div class="framesync-panel library-storage-browser">
       <div class="framesync-header">
         <div class="framesync-title">Storage <span class="framesync-accent">Browser</span></div>
         <span class="framesync-subtitle" style="margin:0;">Projects, runs, and mounted videos</span>
       </div>
-      <VideoSwarmBrowser :app="app" />
+      <VideoSwarmBrowser :app="$props.app" />
     </div>
   </div>
 </template>
@@ -198,231 +224,8 @@ export default {
   overflow: auto;
 }
 
-.library-browser {
-  display: grid;
-  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-  gap: 12px;
-}
-.library-browser--flat {
-  grid-template-columns: 1fr;
-}
-
-.library-browser__folders,
-.library-browser__runs,
-.library-inspector {
+.library-storage-browser {
   display: grid;
   gap: 12px;
-}
-
-.library-browser__empty {
-  font-size: 11px;
-  color: var(--text-dim);
-  padding: 10px 0;
-}
-
-.library-folder-list {
-  display: grid;
-  gap: 8px;
-  max-height: 420px;
-  overflow-y: auto;
-}
-
-.library-folder-item {
-  width: 100%;
-  display: grid;
-  gap: 4px;
-  text-align: left;
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  background: var(--bg-1);
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.library-folder-item--active {
-  border-color: rgba(127, 119, 221, 0.5);
-  box-shadow: inset 0 0 0 1px rgba(127, 119, 221, 0.14);
-}
-
-.library-folder-item__name {
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.library-folder-item__count {
-  font-size: 10px;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.library-run-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 10px;
-  max-height: 420px;
-  overflow-y: auto;
-}
-
-.library-run-card {
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg-1);
-  padding: 8px;
-  display: grid;
-  gap: 8px;
-  cursor: pointer;
-  text-align: left;
-  color: var(--text-primary);
-}
-
-.library-run-card--active {
-  border-color: rgba(83, 216, 255, 0.5);
-  box-shadow: inset 0 0 0 1px rgba(83, 216, 255, 0.14);
-}
-
-.library-run-card__thumb {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-0);
-}
-
-.library-run-card__thumb--empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  color: var(--text-dim);
-}
-
-.library-run-card__meta {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.library-run-card__id {
-  font-size: 11px;
-  font-weight: 700;
-  font-family: ui-monospace, "Cascadia Code", monospace;
-}
-
-.library-run-card__date,
-.library-run-card__details {
-  font-size: 10px;
-  color: var(--text-dim);
-}
-
-.library-inspector__status {
-  font-size: 11px;
-  color: var(--warn);
-}
-
-.library-inspector__summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.library-inspector__metric {
-  display: grid;
-  gap: 4px;
-  padding: 10px 12px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
-  background: var(--bg-1);
-}
-
-.library-inspector__metric strong {
-  font-size: 13px;
-  color: var(--text-primary);
-}
-
-.library-inspector__preview {
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  overflow: hidden;
-  background: var(--bg-1);
-  min-height: 280px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.library-inspector__image {
-  width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  display: block;
-  background: var(--bg-0);
-}
-
-.library-inspector__controls {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px;
-  align-items: center;
-}
-
-.library-inspector__scrubber {
-  width: 100%;
-}
-
-.library-filmstrip {
-  display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(100px, 120px);
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 4px;
-}
-
-.library-filmstrip__item {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--bg-1);
-  padding: 6px;
-  display: grid;
-  gap: 6px;
-  color: var(--text-primary);
-  cursor: pointer;
-}
-
-.library-filmstrip__item--active {
-  border-color: rgba(255, 123, 141, 0.55);
-  box-shadow: inset 0 0 0 1px rgba(255, 123, 141, 0.16);
-}
-
-.library-filmstrip__thumb {
-  width: 100%;
-  aspect-ratio: 1;
-  object-fit: cover;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-0);
-}
-
-.library-filmstrip__label {
-  font-size: 10px;
-  color: var(--text-secondary);
-  text-align: center;
-  font-family: ui-monospace, "Cascadia Code", monospace;
-}
-
-@media (max-width: 1100px) {
-  .library-browser {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 700px) {
-  .library-inspector__summary,
-  .library-inspector__controls {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

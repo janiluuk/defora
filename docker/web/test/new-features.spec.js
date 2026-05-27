@@ -107,6 +107,59 @@ describe("New Features Tests", () => {
     });
   });
 
+  describe("Sequencer content clips", () => {
+    it("adds prompt, lora, and controlnet clips at the playhead", () => {
+      appVm.prompts.pos = "neon alley";
+      appVm.prompts.neg = "low quality";
+      appVm.loras.common = [{ id: "c1", name: "utility", path: "/loras/u.safetensors", strength: 0.5 }];
+      appVm.cn.slots[0].enabled = true;
+      appVm.cn.slots[0].weight = 0.8;
+      appVm.sequencerPlayhead = 1.5;
+      appVm.sequencer.clips = [];
+
+      appVm.addSequencerClip("prompt");
+      appVm.addSequencerClip("lora");
+      appVm.addSequencerClip("controlnet");
+
+      expect(appVm.sequencer.clips).to.have.lengthOf(3);
+      expect(appVm.sequencer.clips.map((c) => c.type).sort().join(",")).to.equal("controlnet,lora,prompt");
+      expect(appVm.activeSequencerClipAt(1.5, "prompt").payload.pos).to.equal("neon alley");
+    });
+
+    it("applies the active prompt clip when previewing the sequencer", () => {
+      appVm.prompts.morphOn = false;
+      appVm.sequencer.clips = [{
+        id: "p1",
+        type: "prompt",
+        t: 0,
+        endT: 4,
+        label: "Prompt 1",
+        payload: { pos: "desert ruins", neg: "blur" },
+      }];
+      appVm.prompts.pos = "before";
+      const sent = [];
+      appVm.sendControl = (type, payload) => { sent.push({ type, payload }); };
+      appVm.applySequencerClipsAt(1);
+      expect(appVm.prompts.pos).to.equal("desert ruins");
+      expect(sent.some((x) => x.type === "prompt" && x.payload.positive === "desert ruins")).to.be.true;
+    });
+
+    it("updates the live job frame counter from playhead and max_frames", () => {
+      appVm.deforumSettings.max_frames = 240;
+      appVm.deforumSettings.fps = 24;
+      appVm.sequencer.fps = 24;
+      appVm.sequencer.durationSec = 10;
+      appVm.sequencerPlayhead = 2.5;
+      appVm.jobPlaybackTimeSec = 0;
+      expect(appVm.sequencerJobTotalFrames).to.equal(240);
+      expect(appVm.sequencerJobFrameNumber).to.equal(61);
+      expect(appVm.sequencerJobFrameLabel).to.equal("Frame 61 / 240");
+      appVm.seekSequencerToJobFrame(120);
+      expect(appVm.sequencerPlayhead).to.be.closeTo(4.958333, 0.001);
+      expect(appVm.sequencerJobFrameNumber).to.equal(120);
+    });
+  });
+
   describe("ControlNet Scheduling", () => {
     it("has ControlNet targets in lfoTargets", () => {
       const cnTargets = appVm.lfoTargets.filter(t => t.key.startsWith("cn_"));

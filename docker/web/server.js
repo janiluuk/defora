@@ -608,6 +608,72 @@ async function start(opts = {}) {
     };
   }
 
+  function extractRunMetaFromSnapshot(snapshot) {
+    const snap = snapshot && typeof snapshot === "object" ? snapshot : {};
+    const settings = snap.settings && typeof snap.settings === "object" ? snap.settings : {};
+    const kind = String(snap.kind || "deforum");
+    const tag = kind === "deforum_warmup" ? "warmup" : kind === "deforum_preview" ? "preview" : "defora";
+    const prompts = settings.prompts && typeof settings.prompts === "object" ? settings.prompts : {};
+    const firstPromptKey = Object.keys(prompts).sort((a, b) => Number(a) - Number(b))[0];
+    const promptPositive =
+      (firstPromptKey != null ? prompts[firstPromptKey] : null) ||
+      settings.animation_prompts_positive ||
+      settings.prompt ||
+      "";
+    const promptNegative =
+      settings.negative_prompts ||
+      settings.negative_prompt ||
+      settings.neg ||
+      "";
+    const maxFrames = settings.max_frames != null ? parseInt(settings.max_frames, 10) : null;
+    const steps = settings.steps != null ? parseInt(settings.steps, 10) : null;
+    const cfg = settings.cfg_scale != null ? parseFloat(settings.cfg_scale) : null;
+    const strength =
+      settings.strength != null
+        ? settings.strength
+        : settings.strength_schedule != null
+          ? settings.strength_schedule
+          : null;
+    return {
+      tag,
+      kind,
+      model: settings.sd_model_checkpoint || settings.sd_model_name || settings.model || "",
+      seed: settings.seed != null ? settings.seed : null,
+      steps: Number.isFinite(steps) ? steps : null,
+      cfg: Number.isFinite(cfg) ? cfg : null,
+      strength,
+      frame_count: Number.isFinite(maxFrames) ? maxFrames : snap.maxFrames || null,
+      length_frames: Number.isFinite(maxFrames) ? maxFrames : snap.maxFrames || null,
+      prompt_positive: String(promptPositive || ""),
+      prompt_negative: String(promptNegative || ""),
+      fps: snap.fps != null ? snap.fps : settings.fps != null ? settings.fps : null,
+    };
+  }
+
+  async function updateRunManifest(runId, patch = {}) {
+    if (!runId) return;
+    const safeId = String(runId).replace(/[^a-zA-Z0-9._:-]/g, "_");
+    const dir = path.join(runsDir, safeId);
+    const manifestPath = path.join(dir, "run.json");
+    try {
+      await fsp.mkdir(dir, { recursive: true });
+      let prev = {};
+      if (fs.existsSync(manifestPath)) {
+        try {
+          prev = JSON.parse(await fsp.readFile(manifestPath, "utf-8"));
+        } catch (_e) {
+          prev = {};
+        }
+      }
+      const next = { ...prev, run_id: safeId, ...patch };
+      if (!next.started_at) next.started_at = new Date().toISOString();
+      await fsp.writeFile(manifestPath, JSON.stringify(next, null, 2), "utf-8");
+      console.log(`[runs] updated manifest ${safeId} status=${next.status || "?"}`);
+    } catch (e) {
+      console.warn("[runs] update manifest failed", e.message);
+    }
+  }
+
   async function persistRunJobSnapshot(runId, snapshot) {
     if (!runId) return;
     try {
@@ -620,6 +686,7 @@ async function start(opts = {}) {
         snapshot,
       };
       await fsp.writeFile(path.join(dir, "defora-job.json"), JSON.stringify(out, null, 2), "utf-8");
+      const meta = extractRunMetaFromSnapshot(snapshot);
       const manifestPath = path.join(dir, "run.json");
       if (!fs.existsSync(manifestPath)) {
         await fsp.writeFile(
@@ -629,7 +696,7 @@ async function start(opts = {}) {
               run_id: safeId,
               status: "queued",
               started_at: new Date().toISOString(),
-              tag: "defora",
+              ...meta,
               job: out,
             },
             null,
@@ -637,10 +704,15 @@ async function start(opts = {}) {
           ),
           "utf-8"
         );
+        console.log(`[runs] logged run ${safeId} (${meta.kind || meta.tag})`);
       } else {
         try {
           const prev = JSON.parse(await fsp.readFile(manifestPath, "utf-8"));
-          await fsp.writeFile(manifestPath, JSON.stringify({ ...prev, job: out }, null, 2), "utf-8");
+          await fsp.writeFile(
+            manifestPath,
+            JSON.stringify({ ...prev, ...meta, job: out, updated_at: new Date().toISOString() }, null, 2),
+            "utf-8"
+          );
         } catch (_e) {
           /* ignore */
         }
@@ -648,6 +720,14 @@ async function start(opts = {}) {
     } catch (e) {
       console.warn("[runs] persist job snapshot failed", e.message);
     }
+  }
+
+  function normalizeForgeRunStatus(status) {
+    const s = String(status || "queued").toLowerCase();
+    if (s.includes("fail") || s.includes("cancel") || s.includes("error")) return "failed";
+    if (s.includes("complete") || s === "done" || s === "success") return "completed";
+    if (s.includes("run") || s === "processing" || s === "active") return "running";
+    return "queued";
   }
 
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
@@ -1128,6 +1208,24 @@ async function start(opts = {}) {
         if (!markerNameOk.test(nm)) return "invalid marker.name (1–48 chars: letters, digits, space, _ - .)";
       }
     }
+    if (body.clips != null) {
+      if (!Array.isArray(body.clips)) return "clips must be an array";
+      if (body.clips.length > 96) return "too many clips (max 96)";
+      const clipTypes = new Set(["prompt", "lora", "controlnet"]);
+      const clipNameOk = /^[a-zA-Z0-9_ \-.]{1,48}$/;
+      for (const cl of body.clips) {
+        if (!cl || typeof cl !== "object") return "invalid clip";
+        if (!clipTypes.has(cl.type)) return "invalid clip.type (prompt|lora|controlnet)";
+        if (typeof cl.t !== "number") return "clip requires numeric t";
+        if (cl.t < 0 || cl.t > body.durationSec) return "clip t outside 0..durationSec";
+        if (cl.endT != null && (typeof cl.endT !== "number" || cl.endT < cl.t || cl.endT > body.durationSec)) {
+          return "invalid clip.endT";
+        }
+        const label = String(cl.label || cl.type).trim();
+        if (!clipNameOk.test(label)) return "invalid clip.label (1–48 chars: letters, digits, space, _ - .)";
+        if (cl.payload != null && typeof cl.payload !== "object") return "invalid clip.payload";
+      }
+    }
     return null;
   }
 
@@ -1480,6 +1578,12 @@ async function start(opts = {}) {
           options_overrides: body.options_overrides || {},
           node: result.node || null,
         });
+        const previewStatus = normalizeForgeRunStatus(result.status || "completed");
+        await updateRunManifest(result.batchId, {
+          status: previewStatus,
+          completed_at: new Date().toISOString(),
+          preview_path: result.path || null,
+        });
       }
       res.json(result);
     } catch (err) {
@@ -1580,6 +1684,10 @@ async function start(opts = {}) {
               const st = String(pd.status || pd.state || "").toLowerCase();
               if (["completed", "failed", "cancelled", "canceled", "done"].includes(st)) {
                 warmupRunning = false;
+                await updateRunManifest(warmupBatchId, {
+                  status: normalizeForgeRunStatus(st),
+                  completed_at: new Date().toISOString(),
+                });
                 broadcast({ type: "warmup_done", batchId: warmupBatchId, status: st });
                 console.log(`[warmup] Batch ${warmupBatchId} ${st}`);
                 break;
@@ -1971,6 +2079,19 @@ async function start(opts = {}) {
       if (!fallbackSettings) return false;
       try {
         const result = await renderDeforumPreview(fallbackSettings, target, body.options_overrides || {});
+        if (result && result.batchId) {
+          persistRunJobSnapshot(result.batchId, {
+            kind: "txt2img_fallback",
+            settings: fallbackSettings,
+            options_overrides: body.options_overrides || {},
+            node: result.node || null,
+          });
+          await updateRunManifest(result.batchId, {
+            status: normalizeForgeRunStatus(result.status || "completed"),
+            completed_at: new Date().toISOString(),
+            preview_path: result.path || null,
+          });
+        }
         if (target.node) {
           gpuPool.logNodeRequest(target.node.id, {
             type: "generate",
@@ -3128,6 +3249,42 @@ async function start(opts = {}) {
     }
   }
 
+  async function manifestFromJobFile(runPath, name) {
+    const jobPath = path.join(runPath, "defora-job.json");
+    try {
+      const raw = await fsp.readFile(jobPath, "utf-8");
+      const job = JSON.parse(raw);
+      const snap = job.snapshot || {};
+      const meta = extractRunMetaFromSnapshot(snap);
+      return {
+        run_id: name,
+        status: "queued",
+        started_at: job.captured_at || new Date().toISOString(),
+        ...meta,
+        job,
+        manifest_path: path.join(runPath, "run.json"),
+        _fromJob: true,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async function enrichRunManifest(manifest, runPath) {
+    const thumbPath = path.join(runPath, "thumb.png");
+    try {
+      await fsp.access(thumbPath);
+      manifest.has_thumbnail = true;
+    } catch { /* no thumb */ }
+    if (manifest.last_frame) {
+      try {
+        await fsp.access(manifest.last_frame);
+        manifest.last_frame_exists = true;
+      } catch { /* missing */ }
+    }
+    return manifest;
+  }
+
   async function listRuns() {
     try {
       await fsp.access(runsDir);
@@ -3144,20 +3301,11 @@ async function start(opts = {}) {
           const raw = await fsp.readFile(manifestPath, "utf-8");
           const data = JSON.parse(raw);
           const manifest = { ...data, run_id: name, manifest_path: manifestPath };
-          const thumbPath = path.join(runPath, "thumb.png");
-          try {
-            await fsp.access(thumbPath);
-            manifest.has_thumbnail = true;
-          } catch { /* no thumb */ }
-          if (manifest.last_frame) {
-            try {
-              await fsp.access(manifest.last_frame);
-              manifest.last_frame_exists = true;
-            } catch { /* missing */ }
-          }
-          return manifest;
+          return enrichRunManifest(manifest, runPath);
         } catch {
-          return null;
+          const fromJob = await manifestFromJobFile(runPath, name);
+          if (!fromJob) return null;
+          return enrichRunManifest(fromJob, runPath);
         }
       })
     );

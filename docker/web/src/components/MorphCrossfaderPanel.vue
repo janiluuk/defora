@@ -1,14 +1,61 @@
 <template>
-  <div class="morph-crossfader-panel">
-    <div class="framesync-subtitle morph-crossfader-panel__summary">
-      <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
-      <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
+  <div
+    class="morph-crossfader-panel"
+    :style="crossfadeWeightStyle"
+  >
+    <div class="morph-crossfader-hero">
+      <div class="framesync-header morph-crossfader-hero__header">
+        <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
+        <code class="morph-crossfader-hero__readout">
+          A {{ crossfadeAPercent }}% · B {{ crossfadeBPercent }}%
+        </code>
+      </div>
+      <Crossfader
+        :model-value="performance.crossfader"
+        @update:model-value="onMorphCrossfaderInput"
+        testid="modulation-morph-crossfader"
+      />
+      <div class="lora-crossfader-links morph-crossfader-links">
+        <button
+          type="button"
+          class="framesync-button"
+          :class="{ active: !prompts.loraCrossfaderLfoLink }"
+          @click="setLoraCrossfaderLfoLink(null)"
+        >
+          Manual
+        </button>
+        <button
+          v-for="lfo in lfos.slice(0, 6)"
+          :key="'morph-crossfader-lfo-' + lfo.id"
+          type="button"
+          class="framesync-button"
+          :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }"
+          @click="setLoraCrossfaderLfoLink(lfo.id)"
+        >
+          LFO {{ lfo.id }}
+        </button>
+      </div>
+      <div class="lora-crossfader-status morph-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
+      <div class="framesync-subtitle morph-crossfader-panel__summary">
+        <span class="live-hud-morph__slot live-hud-morph__slot--a">{{ morphHudSummary.a }}</span>
+        <span class="live-hud-morph__slot live-hud-morph__slot--b">{{ morphHudSummary.b }}</span>
+      </div>
+      <div class="morph-crossfader-center__add">
+        <select class="framesync-select" v-model="performance.newSlotType">
+          <option v-for="st in crossfadeSlotTypes" :key="'morph-add-' + st.id" :value="st.id">{{ st.label }}</option>
+        </select>
+        <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add</button>
+      </div>
     </div>
 
-    <div class="prompt-ab-summary morph-crossfader-deck">
-      <div class="prompt-ab-column prompt-ab-column--a">
+    <div class="prompt-ab-summary morph-crossfader-deck morph-crossfader-deck--split">
+      <div
+        class="prompt-ab-column prompt-ab-column--a morph-crossfader-deck__side morph-crossfader-deck__side--a"
+        :class="{ 'morph-crossfader-deck__side--dominant': crossfadeAWeight >= crossfadeBWeight }"
+      >
         <div class="prompt-ab-column__head">
           <div class="prompt-ab-column__title">A Group</div>
+          <span class="morph-crossfader-deck__weight">{{ crossfadeAPercent }}%</span>
         </div>
         <template v-for="typeDef in crossfadeSlotTypes" :key="'morph-a-type-' + typeDef.id">
           <div v-if="slotsOfType(typeDef.id).length" class="morph-crossfader__section">
@@ -54,45 +101,13 @@
         <div v-if="!performance.slots.length" class="prompt-ab-column__empty">No A-side items yet</div>
       </div>
 
-      <div class="framesync-stack prompt-ab-center morph-crossfader-center">
-        <div class="framesync-subtitle">Crossfader</div>
-        <div class="lora-crossfader-links morph-crossfader-links">
-          <button
-            type="button"
-            class="framesync-button"
-            :class="{ active: !prompts.loraCrossfaderLfoLink }"
-            @click="setLoraCrossfaderLfoLink(null)"
-          >
-            Manual
-          </button>
-          <button
-            v-for="lfo in lfos.slice(0, 6)"
-            :key="'morph-crossfader-lfo-' + lfo.id"
-            type="button"
-            class="framesync-button"
-            :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }"
-            @click="setLoraCrossfaderLfoLink(lfo.id)"
-          >
-            LFO {{ lfo.id }}
-          </button>
-        </div>
-        <Crossfader
-          :model-value="performance.crossfader"
-          @update:model-value="onMorphCrossfaderInput"
-          testid="modulation-morph-crossfader"
-        />
-        <div class="lora-crossfader-status morph-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
-        <div class="morph-crossfader-center__add">
-          <select class="framesync-select" v-model="performance.newSlotType">
-            <option v-for="st in crossfadeSlotTypes" :key="'morph-add-' + st.id" :value="st.id">{{ st.label }}</option>
-          </select>
-          <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add</button>
-        </div>
-      </div>
-
-      <div class="prompt-ab-column prompt-ab-column--b">
+      <div
+        class="prompt-ab-column prompt-ab-column--b morph-crossfader-deck__side morph-crossfader-deck__side--b"
+        :class="{ 'morph-crossfader-deck__side--dominant': crossfadeBWeight > crossfadeAWeight }"
+      >
         <div class="prompt-ab-column__head">
           <div class="prompt-ab-column__title">B Group</div>
+          <span class="morph-crossfader-deck__weight">{{ crossfadeBPercent }}%</span>
         </div>
         <template v-for="typeDef in crossfadeSlotTypes" :key="'morph-b-type-' + typeDef.id">
           <div v-if="slotsOfType(typeDef.id).length" class="morph-crossfader__section">
@@ -150,6 +165,26 @@ export default {
   },
   setup(props) {
     return proxyAppView(props)
+  },
+  computed: {
+    crossfadeAWeight() {
+      return Math.min(1, Math.max(0, 1 - (Number(this.performance?.crossfader) || 0)));
+    },
+    crossfadeBWeight() {
+      return Math.min(1, Math.max(0, Number(this.performance?.crossfader) || 0));
+    },
+    crossfadeAPercent() {
+      return Math.round(this.crossfadeAWeight * 100);
+    },
+    crossfadeBPercent() {
+      return Math.round(this.crossfadeBWeight * 100);
+    },
+    crossfadeWeightStyle() {
+      return {
+        '--crossfade-a-weight': this.crossfadeAWeight,
+        '--crossfade-b-weight': this.crossfadeBWeight,
+      };
+    },
   },
   methods: {
     slotsOfType(typeId) {

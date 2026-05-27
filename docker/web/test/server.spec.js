@@ -133,6 +133,16 @@ describe("web server frames API", () => {
           ],
         },
       ],
+      clips: [
+        {
+          id: "clip-1",
+          type: "prompt",
+          t: 0,
+          endT: 2,
+          label: "Prompt 1",
+          payload: { pos: "sunset city", neg: "blur" },
+        },
+      ],
     };
     res = await request.post("/api/sequencer/test_clip").send(timeline);
     expect(res.status).to.equal(200);
@@ -146,6 +156,8 @@ describe("web server frames API", () => {
     expect(res.body.timeline.tracks[0].keyframes[0].easing).to.equal("easeIn");
     expect(res.body.timeline.markers).to.have.lengthOf(2);
     expect(res.body.timeline.markers[0].name).to.equal("Start");
+    expect(res.body.timeline.clips).to.have.lengthOf(1);
+    expect(res.body.timeline.clips[0].type).to.equal("prompt");
     res = await request.delete("/api/sequencer/test_clip");
     expect(res.status).to.equal(200);
     res = await request.get("/api/sequencer/test_clip");

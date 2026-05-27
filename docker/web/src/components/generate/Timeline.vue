@@ -4,9 +4,19 @@
       <div class="timeline-hero__title-block">
         <span class="timeline-hero__eyebrow">Timeline</span>
         <code class="timeline-hero__time">{{ formatTime(playhead) }} / {{ formatTime(duration) }}</code>
+        <code
+          class="timeline-hero__frame"
+          :class="{ 'timeline-hero__frame--live': jobFrameLive }"
+          data-testid="timeline-job-frame-counter"
+        >
+          Frame {{ jobFrameNumber }} / {{ jobTotalFrames }}
+        </code>
       </div>
       <div class="timeline-hero__header-actions">
-        <div class="timeline-hero__summary">{{ tracks.length }} tracks · {{ markers.length }} markers</div>
+        <div class="timeline-hero__summary">
+          {{ tracks.length }} tracks · {{ markers.length }} markers
+          <template v-if="clips.length"> · {{ clips.length }} clips</template>
+        </div>
         <button
           v-if="expandable"
           type="button"
@@ -46,6 +56,34 @@
         </button>
         <div v-if="!frameItems.length" class="timeline-hero__filmstrip-empty">
           Frame filmstrip appears here as previews arrive.
+        </div>
+      </div>
+
+      <div v-if="showContentLanes" class="timeline-hero__content-lanes">
+        <div
+          v-for="lane in clipLanes"
+          :key="'clip-lane-' + lane.type"
+          class="timeline-hero__content-lane"
+        >
+          <div class="timeline-hero__content-lane-label">{{ lane.label }}</div>
+          <div class="timeline-hero__content-lane-track">
+            <button
+              v-for="clip in lane.clips"
+              :key="clip.id"
+              type="button"
+              class="timeline-hero__clip"
+              :class="[
+                'timeline-hero__clip--' + clip.type,
+                { 'timeline-hero__clip--selected': clip.id === selectedClipId },
+              ]"
+              :style="clipStyle(clip)"
+              :title="clip.title"
+              @click.stop="$emit('jump-clip', clip)"
+            >
+              <span class="timeline-hero__clip-label">{{ clip.label }}</span>
+            </button>
+            <div v-if="!lane.clips.length" class="timeline-hero__content-lane-empty">Add clips from the sequencer panel</div>
+          </div>
         </div>
       </div>
 
@@ -98,16 +136,21 @@ import TrackLane from './TrackLane.vue'
 export default {
   name: 'Timeline',
   components: { TrackLane },
-  emits: ['jump-marker', 'seek', 'select-track', 'toggle-compact', 'update-keyframe'],
+  emits: ['jump-marker', 'jump-clip', 'seek', 'select-track', 'toggle-compact', 'update-keyframe'],
   props: {
     duration: { type: Number, default: 8 },
     playhead: { type: Number, default: 0 },
     markers: { type: Array, default: () => [] },
+    clips: { type: Array, default: () => [] },
+    selectedClipId: { type: String, default: '' },
     tracks: { type: Array, default: () => [] },
     selectedTrackId: { type: String, default: '' },
     paramMeta: { type: Object, default: () => ({}) },
     frames: { type: Array, default: () => [] },
     fps: { type: Number, default: 24 },
+    jobFrameNumber: { type: Number, default: 1 },
+    jobTotalFrames: { type: Number, default: 1 },
+    jobFrameLive: { type: Boolean, default: false },
     compact: { type: Boolean, default: false },
     expandable: { type: Boolean, default: false },
   },
@@ -118,6 +161,28 @@ export default {
     },
     sortedMarkers() {
       return [...this.markers].sort((a, b) => a.t - b.t)
+    },
+    clipLanes() {
+      const defs = [
+        { type: 'prompt', label: 'Prompts' },
+        { type: 'lora', label: 'LoRAs' },
+        { type: 'controlnet', label: 'ControlNet' },
+      ]
+      const duration = Math.max(0.01, Number(this.duration) || 0.01)
+      return defs.map((lane) => ({
+        ...lane,
+        clips: (this.clips || [])
+          .filter((clip) => clip && clip.type === lane.type)
+          .map((clip) => ({
+            ...clip,
+            title: `${clip.label || lane.label} @ ${this.formatTime(clip.t)}${clip.endT != null ? ` – ${this.formatTime(clip.endT)}` : ''}`,
+            left: `${(Math.max(0, Number(clip.t) || 0) / duration) * 100}%`,
+            width: this.clipWidthPct(clip, duration),
+          })),
+      }))
+    },
+    showContentLanes() {
+      return !this.compact
     },
     frameItems() {
       if (!Array.isArray(this.frames) || !this.frames.length) return []
@@ -156,6 +221,18 @@ export default {
     markerLeft(marker) {
       const duration = Math.max(0.01, Number(this.duration) || 0.01)
       return `${(Math.min(duration, Math.max(0, Number(marker.t) || 0)) / duration) * 100}%`
+    },
+    clipWidthPct(clip, duration) {
+      const start = Math.max(0, Number(clip.t) || 0)
+      const end = clip.endT != null ? Math.min(duration, Number(clip.endT)) : Math.min(duration, start + 0.35)
+      const span = Math.max(0.08, end - start)
+      return `${(span / duration) * 100}%`
+    },
+    clipStyle(clip) {
+      return {
+        left: clip.left,
+        width: clip.width,
+      }
     },
     metaFor(param) {
       return this.paramMeta[param] || { label: param, min: -1, max: 1 }
@@ -234,6 +311,16 @@ export default {
 .timeline-hero__time {
   font-size: 14px;
   color: var(--text-primary);
+}
+
+.timeline-hero__frame {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.timeline-hero__frame--live {
+  color: var(--live-text);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--live) 28%, transparent);
 }
 
 .timeline-hero__summary {
@@ -326,6 +413,87 @@ export default {
   font-size: 9px;
   color: var(--text-secondary);
   white-space: nowrap;
+}
+
+.timeline-hero__content-lanes {
+  display: grid;
+  gap: 6px;
+}
+
+.timeline-hero__content-lane {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 8px;
+  align-items: center;
+}
+
+.timeline-hero__content-lane-label {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.timeline-hero__content-lane-track {
+  position: relative;
+  min-height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-0);
+  overflow: hidden;
+}
+
+.timeline-hero__clip {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  min-width: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  padding: 0 6px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  overflow: hidden;
+  z-index: 2;
+}
+
+.timeline-hero__clip--prompt {
+  background: color-mix(in srgb, var(--accent) 22%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+}
+
+.timeline-hero__clip--lora {
+  background: color-mix(in srgb, var(--live) 18%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--live) 40%, var(--border));
+}
+
+.timeline-hero__clip--controlnet {
+  background: color-mix(in srgb, var(--warn) 18%, var(--bg-2));
+  border-color: color-mix(in srgb, var(--warn) 42%, var(--border));
+}
+
+.timeline-hero__clip--selected {
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.timeline-hero__clip-label {
+  font-size: 9px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.timeline-hero__content-lane-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--text-dim);
+  pointer-events: none;
 }
 
 .timeline-hero__ruler {
