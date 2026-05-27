@@ -149,7 +149,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
+    appVm.currentSubTab = { PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
@@ -247,6 +247,7 @@ describe("Deforumation Web UI", () => {
     appVm.defaultAnimation.preferDeforumVideo = true;
     await nextTick();
 
+    expect(document.body.textContent).to.not.include("Visualize threshold");
     expect(document.body.textContent).to.not.include("Blob count");
 
     appVm.resetDefaultAnimationSettings();
@@ -318,9 +319,21 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Current model");
     expect(pageText).to.include("Current CFG");
     expect(pageText).to.include("Current steps");
-    expect(pageText).to.include("Checkpoint");
+    expect(pageText).to.include("Click to browse checkpoints");
+    expect(pageText).to.not.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
+
+    const modelCard = document.querySelector(".engine-main-card--picker");
+    expect(modelCard).to.exist;
+    modelCard.click();
+    await nextTick();
+    await nextTick();
+    expect(appVm.engineModelPickerOpen).to.equal(true);
+    expect(document.body.textContent).to.include("Select Checkpoint");
+    expect(document.body.textContent).to.include("SD1.5");
+    expect(document.body.textContent).to.include("Z-Image");
+
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.not.include("FORGE");
     expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
@@ -528,13 +541,20 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos.length).to.equal(6);
     expect(appVm.macrosRack.length).to.be.greaterThan(0);
     
-    // Switch to MODULATION -> AUDIO
+    // Switch to MODULATION -> Reactive (legacy AUDIO tab alias)
     appVm.switchTab("AUDIO");
-    appVm.avSyncCollapsed = false;
     await nextTick();
     
     expect(appVm.currentTab).to.equal("MODULATION");
-    expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO");
+    expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO_REACTIVE");
+
+    appVm.switchSubTab("MODULATION", "AV_SYNC");
+    await nextTick();
+    expect(appVm.currentSubTab.MODULATION).to.equal("AV_SYNC");
+
+    appVm.switchSubTab("MODULATION", "BEAT_MACROS");
+    await nextTick();
+    expect(appVm.currentSubTab.MODULATION).to.equal("BEAT_MACROS");
     expect(appVm.audioMappings.length).to.be.greaterThan(0);
     
     appVm.audio.uploadedFile = "song.wav";
@@ -1704,9 +1724,9 @@ describe("Reference A/V sync mounted e2e", () => {
   it("renders hidden sync audio element and LIVE controls", async () => {
     // Check app state instead of DOM (JSDOM Vue mounting limitations)
     expect(appVm.$refs.avSyncAudio).to.exist;
-    appVm.avSyncCollapsed = false;
+    appVm.switchSubTab("MODULATION", "AV_SYNC");
     await nextTick();
-    expect(appVm.avSyncCollapsed).to.equal(false);
+    expect(appVm.currentSubTab.MODULATION).to.equal("AV_SYNC");
   });
 
   it("upload binds blob URL to the sync audio element src", async () => {
@@ -1737,7 +1757,7 @@ describe("Reference A/V sync mounted e2e", () => {
     const wav = new File([Buffer.alloc(64)], "e.wav", { type: "audio/wav" });
     await appVm.handleAudioUpload({ target: { files: [wav] } });
     await nextTick();
-    appVm.avSyncCollapsed = false;
+    appVm.switchSubTab("MODULATION", "AV_SYNC");
     await nextTick();
     // Check state instead of DOM
     expect(appVm.audio.objectUrl).to.be.a("string");

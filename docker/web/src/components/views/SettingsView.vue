@@ -199,11 +199,18 @@
             </span>
           </div>
           <div class="engine-main-summary">
-            <div class="engine-main-card engine-main-card--wide">
+            <button
+              type="button"
+              class="engine-main-card engine-main-card--wide engine-main-card--picker"
+              :disabled="forge.switching"
+              :title="engineCurrentModelName ? 'Change checkpoint' : 'Select checkpoint'"
+              @click="openEngineModelPicker()"
+            >
               <div class="framesync-subtitle">Current model</div>
-              <div class="engine-main-card__value engine-main-card__value--model">{{ engineCurrentModelName || '—' }}</div>
+              <div class="engine-main-card__value engine-main-card__value--model">{{ engineCurrentModelName || 'Select checkpoint' }}</div>
               <div class="engine-main-card__meta">{{ engineOptimizedProfileLabel }} · {{ engineCurrentModelFamilyLabel }}</div>
-            </div>
+              <div class="engine-main-card__hint">Click to browse checkpoints</div>
+            </button>
             <div class="engine-main-card">
               <div class="framesync-subtitle">Current CFG</div>
               <div class="engine-main-card__value">{{ engineCurrentCfgScale.toFixed(1) }}</div>
@@ -217,29 +224,7 @@
               <div class="engine-main-card__value engine-main-card__value--small">{{ deforumSettings.sampler || '—' }}</div>
             </div>
           </div>
-          <div class="framesync-row engine-main-grid" style="grid-template-columns: 1.6fr 1fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
-            <div class="framesync-stack engine-main-grid__model">
-              <div class="framesync-subtitle">Checkpoint</div>
-              <select
-                v-if="forge.models.length"
-                class="framesync-select"
-                :value="engineCurrentModelName"
-                :disabled="forge.switching || modelStatusKind === 'offline'"
-                @change="onDeforumModelCommit($event.target.value)"
-              >
-                <option value="">— select model —</option>
-                <option v-for="m in forge.models" :key="m.model_name || m.title" :value="m.model_name || m.title">{{ m.title || m.model_name }}</option>
-              </select>
-              <input
-                v-else
-                type="text"
-                class="framesync-input"
-                :value="engineCurrentModelName"
-                :disabled="forge.switching"
-                placeholder="Checkpoint name"
-                @change="onDeforumModelCommit($event.target.value)"
-              >
-            </div>
+          <div class="framesync-row engine-main-grid" style="grid-template-columns: 1fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Sampler</div>
               <select class="framesync-select" :value="deforumSettings.sampler" @change="onEngineSamplerChange($event.target.value)">
@@ -295,6 +280,57 @@
             <button class="framesync-button" @click="onDeforumFieldInput('seed', Math.floor(Math.random() * 2147483647), 'number')">Seed: {{ deforumSettings.seed }}</button>
             <span class="framesync-button" style="cursor:default;">{{ deforumSettings.W }}×{{ deforumSettings.H }} @ {{ deforumSettings.fps }} fps</span>
             <span class="framesync-button" style="cursor:default;">Profile: {{ engineOptimizedProfileLabel }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="engineModelPickerOpen" class="engine-model-picker" @click.self="closeEngineModelPicker()">
+        <div class="engine-model-picker__dialog" role="dialog" aria-modal="true" aria-label="Checkpoint selector">
+          <div class="engine-model-picker__header">
+            <div>
+              <div class="framesync-title">Select <span class="framesync-accent">Checkpoint</span></div>
+              <div class="framesync-subtitle engine-model-picker__subtitle">
+                {{ forge.modelsSource ? ('Source: ' + (forge.modelsSource || 'unknown')) : 'Loading checkpoints from Forge' }}
+              </div>
+            </div>
+            <div class="engine-model-picker__header-actions">
+              <button type="button" class="framesync-button" :disabled="forge.loading" @click="refreshForgeModels()">Refresh</button>
+              <button type="button" class="framesync-button" @click="closeEngineModelPicker()">Close</button>
+            </div>
+          </div>
+
+          <div class="sub-pills engine-model-picker__tabs">
+            <button
+              v-for="family in engineModelFamilyTabs"
+              :key="'engine-model-tab-' + family.key"
+              type="button"
+              class="sub-pill"
+              :class="{ active: engineModelPickerTab === family.key }"
+              @click="setEngineModelPickerTab(family.key)"
+            >
+              {{ family.label }}
+              <span class="engine-model-picker__tab-count">{{ (groupedEngineModels[family.key] || []).length }}</span>
+            </button>
+          </div>
+
+          <div v-if="forge.switching" class="framesync-subtitle engine-model-picker__status">Switching checkpoint…</div>
+          <div v-else-if="forge.loading && !forge.models.length" class="framesync-subtitle engine-model-picker__status">Loading checkpoints…</div>
+          <div v-else-if="!activeEngineModelList.length" class="engine-model-picker__empty">
+            No checkpoints in this family. Try another tab or refresh the model list.
+          </div>
+          <div v-else class="engine-model-picker__list">
+            <button
+              v-for="model in activeEngineModelList"
+              :key="model.model_name || model.title"
+              type="button"
+              class="engine-model-picker__item"
+              :class="{ active: normalizeModelName(model.model_name || model.title) === engineCurrentModelName }"
+              :disabled="forge.switching"
+              @click="selectEngineModel(model)"
+            >
+              <span class="engine-model-picker__item-title">{{ model.title || model.model_name }}</span>
+              <span class="engine-model-picker__item-meta">{{ model.model_name || model.title }}</span>
+            </button>
           </div>
         </div>
       </div>

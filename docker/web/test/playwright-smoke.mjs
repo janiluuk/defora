@@ -61,11 +61,11 @@ try {
   }
   await clickTab(page, 'MODULATION');
   await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^AUDIO$/ }).first().click();
+  await page.locator('.sub-pill').filter({ hasText: /^Reactive$/ }).first().click();
   await page.waitForTimeout(300);
   const audioReactivePanel = page.locator('.audio-reactive-panel');
   if ((await audioReactivePanel.count()) === 0) {
-    throw new Error('Audio reactive panel not found under MODULATION -> AUDIO');
+    throw new Error('Audio reactive panel not found under MODULATION -> Reactive');
   }
   await clickTab(page, 'SETTINGS');
   await page.waitForTimeout(300);

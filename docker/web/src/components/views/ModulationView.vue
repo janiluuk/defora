@@ -3,13 +3,13 @@
     <div class="framesync-panel modulation-panel">
       <div class="framesync-header">
         <div class="framesync-title">Modulation <span class="framesync-accent">Patch Bay</span></div>
-        <span class="modulation-summary">
-          {{ currentSubTab.MODULATION === 'LFO' ? (lfos.filter(l => l.on).length + '/' + lfos.length + ' active') : (audioReactiveActive ? 'Audio live' : 'Audio idle') }}
-        </span>
+        <span class="modulation-summary">{{ modulationSubtabSummary }}</span>
       </div>
       <div class="sub-pills modulation-subtabs">
         <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='LFO'}" @click="switchSubTab('MODULATION','LFO')">LFO</button>
-        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AUDIO'}" @click="switchSubTab('MODULATION','AUDIO')">AUDIO</button>
+        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AV_SYNC'}" @click="switchSubTab('MODULATION','AV_SYNC')">A/V sync</button>
+        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AUDIO_REACTIVE'}" @click="switchSubTab('MODULATION','AUDIO_REACTIVE')">Reactive</button>
+        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='BEAT_MACROS'}" @click="switchSubTab('MODULATION','BEAT_MACROS')">Beat</button>
       </div>
 
       <template v-if="currentSubTab.MODULATION==='LFO'">
@@ -93,122 +93,155 @@
         </div>
       </template>
 
-      <template v-else>
-        <div class="modulation-audio-stack">
-          <div class="framesync-panel modulation-audio-panel">
-            <div class="framesync-header">
-              <div class="framesync-title">Reference <span class="framesync-accent">A/V sync</span></div>
-              <button class="framesync-button" @click="avSyncCollapsed = !avSyncCollapsed">{{ avSyncCollapsed ? 'Show' : 'Hide' }}</button>
+      <template v-else-if="currentSubTab.MODULATION==='AV_SYNC'">
+        <div class="framesync-panel modulation-audio-panel">
+          <div class="framesync-header">
+            <div class="framesync-title">Reference <span class="framesync-accent">A/V sync</span></div>
+          </div>
+          <div class="framesync-subtitle" style="margin-top:8px;">
+            Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.
+          </div>
+          <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Upload track</div>
+              <input type="file" accept="audio/*" ref="audioFileInput" @change="onAudioUpload" class="framesync-input">
             </div>
-            <div v-if="!avSyncCollapsed">
-              <div class="framesync-subtitle" style="margin-top:8px;">
-                Play the same track you use for modulation, locked to the HLS clock. If the music feels <em>ahead</em> of the pictures (normal for live HLS + encoder delay), raise <strong>Video lead</strong> until it lines up.
+            <div class="framesync-stack">
+              <div class="framesync-subtitle">Video lead (sec)</div>
+              <label class="framesync-checkbox" style="margin-top:6px;">
+                <input type="checkbox" data-testid="av-sync-enable" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
+              </label>
+              <input type="number" data-testid="av-sync-lead" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
+              <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template v-else-if="currentSubTab.MODULATION==='AUDIO_REACTIVE'">
+        <div class="framesync-panel audio-reactive-panel">
+          <div class="framesync-header">
+            <div class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
+            <button class="framesync-button audio-start-button" :class="{ active: audioReactiveActive }" @click="startAudioStream">
+              {{ audioReactiveActive ? 'Running' : 'Start' }}
+            </button>
+          </div>
+          <div class="framesync-subtitle audio-reactive-panel__intro">
+            Map Low / Mid / High frequency bands to live parameters. Drag the bands on the spectrum while audio plays.
+          </div>
+
+          <AudioSpectrumEditor
+            class="audio-reactive-panel__spectrum"
+            :mappings="audioMappings"
+            :levels="audioMappingLevels"
+            :active-index="activeAudioMappingIndex"
+            :spectrum-bins="audioSpectrumBins"
+            :live="audioSpectrumPlaying"
+            :band-labels="audioSpectrumBandLabels"
+            :band-colors="audioSpectrumBandColors"
+            @select-band="onAudioSpectrumSelectBand"
+            @update-band="updateAudioMappingBand"
+          />
+
+          <div class="audio-band-tabs sub-pills">
+            <button
+              v-for="(tab, tabIndex) in audioBandTabDefs"
+              :key="'audio-band-tab-' + tab.key"
+              type="button"
+              class="sub-pill"
+              :class="{ active: audioActiveBandTab === tab.key }"
+              @click="setAudioActiveBandTab(tab.key)"
+            >
+              {{ tab.label }}
+              <span class="audio-band-tabs__level">{{ Math.round((audioMappingLevels[tabIndex] || 0) * 100) }}%</span>
+            </button>
+          </div>
+
+          <div
+            v-if="activeAudioMapping"
+            class="modulation-lfo-card modulation-audio-band-card"
+            :class="{ 'modulation-lfo-card--active': audioReactiveActive || audioSpectrumPlaying }"
+          >
+            <div class="modulation-lfo-card__header">
+              <div class="modulation-lfo-card__title">
+                <span class="modulation-lfo-card__dot"></span>
+                <span>{{ audioBandTabDefs.find(t => t.key === audioActiveBandTab)?.label || 'Band' }} band</span>
               </div>
-              <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Upload track</div>
-                  <input type="file" accept="audio/*" ref="audioFileInput" @change="onAudioUpload" class="framesync-input">
-                </div>
-                <div class="framesync-stack">
-                  <div class="framesync-subtitle">Video lead (sec)</div>
-                  <label class="framesync-checkbox" style="margin-top:6px;">
-                    <input type="checkbox" data-testid="av-sync-enable" v-model="avSyncEnabled" :disabled="!audio.objectUrl"> Enable sync (needs uploaded audio)
-                  </label>
-                  <input type="number" data-testid="av-sync-lead" class="framesync-input" v-model.number="avSyncLeadSec" min="0" max="120" step="0.25" style="max-width:120px;">
-                  <div class="framesync-subtitle" style="margin-top:4px; font-size:10px;">≈ encoder buffer + HLS fragments (often 2–10s).</div>
-                </div>
+              <code class="modulation-lfo-card__meta">
+                {{ activeAudioMapping.freq_min }}–{{ activeAudioMapping.freq_max }} Hz
+              </code>
+            </div>
+
+            <div class="modulation-audio-band-card__meter">
+              <div class="audio-map-card__freq-meter" :class="{ 'audio-map-card__freq-meter--active': audioSpectrumPlaying || audioReactiveActive }">
+                <div class="audio-map-card__freq-band" :style="audioBandWindowStyle(activeAudioMapping)"></div>
+                <div
+                  class="audio-map-card__freq-bar"
+                  :style="{ width: ((audioMappingLevels[activeAudioMappingIndex] || 0) * 100) + '%' }"
+                ></div>
               </div>
+              <div class="audio-map-card__meter-note">
+                {{ audioSpectrumPlaying ? 'Live level from this band' : (audioReactiveActive ? 'Reactive stream active' : 'Play uploaded audio to preview levels') }}
+              </div>
+            </div>
+
+            <div class="modulation-lfo-card__controls modulation-audio-band-card__controls">
+              <label class="modulation-lfo-card__control modulation-audio-band-card__control--wide">
+                <span class="framesync-subtitle">Target</span>
+                <select class="framesync-select" v-model="activeAudioMapping.param">
+                  <option value="">Select target…</option>
+                  <option v-for="target in lfoTargets" :key="'audio-target-' + activeAudioMappingIndex + '-' + target.key" :value="target.key">
+                    {{ target.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="modulation-lfo-card__control">
+                <span class="framesync-subtitle">Min Hz</span>
+                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.freq_min" min="20" max="20000" step="1">
+              </label>
+              <label class="modulation-lfo-card__control">
+                <span class="framesync-subtitle">Max Hz</span>
+                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.freq_max" min="20" max="20000" step="1">
+              </label>
+              <label class="modulation-lfo-card__control">
+                <span class="framesync-subtitle">Out min</span>
+                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.out_min" step="any">
+              </label>
+              <label class="modulation-lfo-card__control">
+                <span class="framesync-subtitle">Out max</span>
+                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.out_max" step="any">
+              </label>
             </div>
           </div>
 
-          <div class="framesync-panel audio-reactive-panel">
-            <div class="framesync-header">
-              <div class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
-              <button class="framesync-button audio-start-button" :class="{ active: audioReactiveActive }" @click="startAudioStream">
-                {{ audioReactiveActive ? 'Running' : 'Start' }}
-              </button>
-            </div>
-            <div class="framesync-subtitle" style="margin-top:8px;">
-              Map frequency bands to parameters. Live audio from mic/system → frequency analysis → parameter modulation.
-            </div>
-            <div class="audio-map-grid" style="margin-top:12px;">
-              <div class="audio-map-card" :class="{ 'audio-map-card--live': audioReactiveActive }" v-for="(m, idx) in audioMappings" :key="'amap-'+idx">
-                <div class="audio-map-card__header">
-                  <div class="audio-map-card__title-wrap">
-                    <span class="audio-map-card__target-name">{{ lfoTargets.find(t => t.key === m.param)?.label || m.param || 'No target' }}</span>
-                    <select class="framesync-select audio-map-card__target" v-model="m.param">
-                      <option value="">Select target…</option>
-                      <option v-for="target in lfoTargets" :key="'audio-target-' + idx + '-' + target.key" :value="target.key">
-                        {{ target.key }}
-                      </option>
-                    </select>
-                  </div>
-                  <button class="framesync-button audio-map-card__remove" @click="removeAudioMapping(idx)">✕</button>
-                </div>
-                <div class="audio-map-card__freq-meter" :class="{ 'audio-map-card__freq-meter--active': audioReactiveActive }">
-                  <div class="audio-map-card__freq-band" :style="audioBandWindowStyle(m)"></div>
-                  <div class="audio-map-card__freq-bar" :style="{ width: ((audioMappingLevels[idx] || 0) * 100) + '%' }"></div>
-                </div>
-                <div class="audio-map-card__meter-note">{{ audioReactiveActive ? 'Listening to the selected band' : 'Idle until Start is active' }}</div>
-                <div class="audio-map-card__fields">
-                  <div class="framesync-subtitle">Freq range</div>
-                  <div class="audio-map-card__pair">
-                    <input type="number" class="framesync-input audio-map-card__input" v-model.number="m.freq_min" min="20" max="20000" placeholder="Min Hz">
-                    <input type="number" class="framesync-input audio-map-card__input" v-model.number="m.freq_max" min="20" max="20000" placeholder="Max Hz">
-                  </div>
-                  <div class="framesync-subtitle">Output range</div>
-                  <div class="audio-map-card__pair">
-                    <input type="number" class="framesync-input audio-map-card__input" v-model.number="m.out_min" step="any" placeholder="Min out">
-                    <input type="number" class="framesync-input audio-map-card__input" v-model.number="m.out_max" step="any" placeholder="Max out">
-                  </div>
-                  <div class="audio-map-card__presets">
-                    <span class="audio-map-card__presets-label">Quick presets</span>
-                    <button
-                      class="framesync-button audio-band-pill"
-                      v-for="chip in audioBandChips"
-                      :key="'audio-chip-' + idx + '-' + chip.key"
-                      @click="applyAudioBandPreset(idx, chip.key)"
-                    >
-                      {{ chip.label }}
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <button class="framesync-button audio-add-mapping" @click="addAudioMapping">+ Add mapping</button>
-            </div>
-            <div class="audio-reactive-panel__status" v-if="audioStatus">{{ audioStatus }}</div>
-          </div>
+          <div class="audio-reactive-panel__status" v-if="audioStatus">{{ audioStatus }}</div>
+        </div>
+      </template>
 
-          <div class="framesync-panel modulation-macros modulation-macros--audio" :class="{ 'modulation-macros--disabled': !audio.objectUrl }">
-            <div class="framesync-header modulation-macros__header">
-              <div class="framesync-title">Beat <span class="framesync-accent">Macros</span></div>
-              <div class="modulation-panel__actions">
-                <button class="framesync-button" @click="audioBeatMacrosCollapsed = !audioBeatMacrosCollapsed" :disabled="!audio.objectUrl">
-                  {{ audioBeatMacrosCollapsed ? 'Show' : 'Hide' }}
-                </button>
-                <button class="framesync-button" :class="{active: beatMacroOn}" @click="beatMacroOn=!beatMacroOn" :disabled="!audio.objectUrl">{{ beatMacroOn ? 'On' : 'Off' }}</button>
-                <button class="framesync-button" @click="addMacro" v-if="macrosRack.length<6" :disabled="!audio.objectUrl">+ Add Macro</button>
-              </div>
+      <template v-else-if="currentSubTab.MODULATION==='BEAT_MACROS'">
+        <div class="framesync-panel modulation-macros modulation-macros--audio" :class="{ 'modulation-macros--disabled': !audio.objectUrl }">
+          <div class="framesync-header modulation-macros__header">
+            <div class="framesync-title">Beat <span class="framesync-accent">Macros</span></div>
+            <div class="modulation-panel__actions">
+              <button class="framesync-button" :class="{active: beatMacroOn}" @click="beatMacroOn=!beatMacroOn" :disabled="!audio.objectUrl">{{ beatMacroOn ? 'On' : 'Off' }}</button>
+              <button class="framesync-button" @click="addMacro" v-if="macrosRack.length<6" :disabled="!audio.objectUrl">+ Add Macro</button>
             </div>
-            <div v-if="!audio.objectUrl" class="framesync-subtitle modulation-macros__hint">
-              Upload an audio file to unlock beat macros for the audio-reactive workflow.
-            </div>
-            <div v-else-if="audioBeatMacrosCollapsed" class="framesync-subtitle modulation-macros__hint">
-              Beat macros are ready. Expand the panel to edit targets, shape, BPM, and depth.
-            </div>
-            <div v-else class="modulation-macro-strip">
-              <div v-for="(macro, idx) in macrosRack" :key="'macro-' + idx" class="modulation-macro-pill" :class="{ 'modulation-macro-pill--active': macro.on }" :style="macro.on ? { '--macro-beat-dur': ((60 / (macro.bpm || 120)).toFixed(3) + 's') } : {}">
-                <label class="switch modulation-macro-pill__switch"><input type="checkbox" v-model="macro.on"> Macro {{ idx + 1 }}</label>
-                <select class="framesync-select modulation-macro-pill__select" v-model="macro.target">
-                  <option value="">None</option>
-                  <option v-for="target in lfoTargets" :key="'macro-target-' + idx + '-' + target.key" :value="target.key">{{ target.label }}</option>
-                </select>
-                <select class="framesync-select modulation-macro-pill__select" v-model="macro.shape">
-                  <option v-for="shape in [...lfoShapes, 'Noise']" :key="'macro-shape-' + idx + '-' + shape" :value="shape">{{ shape }}</option>
-                </select>
-                <input type="number" class="framesync-input modulation-macro-pill__input" v-model.number="macro.bpm" min="20" max="300">
-                <input type="number" class="framesync-input modulation-macro-pill__input" v-model.number="macro.depth" min="0" max="1" step="0.01">
-              </div>
+          </div>
+          <div v-if="!audio.objectUrl" class="framesync-subtitle modulation-macros__hint">
+            Upload an audio file on the A/V sync tab to unlock beat macros.
+          </div>
+          <div v-else class="modulation-macro-strip">
+            <div v-for="(macro, idx) in macrosRack" :key="'macro-' + idx" class="modulation-macro-pill" :class="{ 'modulation-macro-pill--active': macro.on }" :style="macro.on ? { '--macro-beat-dur': ((60 / (macro.bpm || 120)).toFixed(3) + 's') } : {}">
+              <label class="switch modulation-macro-pill__switch"><input type="checkbox" v-model="macro.on"> Macro {{ idx + 1 }}</label>
+              <select class="framesync-select modulation-macro-pill__select" v-model="macro.target">
+                <option value="">None</option>
+                <option v-for="target in lfoTargets" :key="'macro-target-' + idx + '-' + target.key" :value="target.key">{{ target.label }}</option>
+              </select>
+              <select class="framesync-select modulation-macro-pill__select" v-model="macro.shape">
+                <option v-for="shape in [...lfoShapes, 'Noise']" :key="'macro-shape-' + idx + '-' + shape" :value="shape">{{ shape }}</option>
+              </select>
+              <input type="number" class="framesync-input modulation-macro-pill__input" v-model.number="macro.bpm" min="20" max="300">
+              <input type="number" class="framesync-input modulation-macro-pill__input" v-model.number="macro.depth" min="0" max="1" step="0.01">
             </div>
           </div>
         </div>
@@ -220,11 +253,12 @@
 <script>
 import Waveform from '../Waveform.vue'
 import TargetCell from '../TargetCell.vue'
+import AudioSpectrumEditor from '../AudioSpectrumEditor.vue'
 import { proxyAppView } from './app-view-proxy.js'
 
 export default {
   name: 'ModulationView',
-  components: { Waveform, TargetCell },
+  components: { Waveform, TargetCell, AudioSpectrumEditor },
   props: {
     app: { type: Object, required: true },
   },

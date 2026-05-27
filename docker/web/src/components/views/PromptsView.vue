@@ -340,9 +340,7 @@
                   </button>
                 </div>
                 <div v-if="loraCrossfaderPickerGroup === 'A'" class="lora-picker-panel lora-picker-panel--column">
-                  <div class="framesync-subtitle lora-browser-summary">
-                    Add LoRAs to the A group for crossfading.
-                  </div>
+                  <div class="framesync-subtitle lora-browser-summary">Add LoRAs to the A group for crossfading.</div>
                   <div class="lora-picker-families">
                     <section v-for="family in compatibleLoraFamilies" :key="'xfpick-a-' + family.key" class="lora-picker-family">
                       <div class="lora-picker-family__title">{{ family.label }}</div>
@@ -428,9 +426,7 @@
                   </button>
                 </div>
                 <div v-if="loraCrossfaderPickerGroup === 'B'" class="lora-picker-panel lora-picker-panel--column">
-                  <div class="framesync-subtitle lora-browser-summary">
-                    Add LoRAs to the B group for crossfading.
-                  </div>
+                  <div class="framesync-subtitle lora-browser-summary">Add LoRAs to the B group for crossfading.</div>
                   <div class="lora-picker-families">
                     <section v-for="family in compatibleLoraFamilies" :key="'xfpick-b-' + family.key" class="lora-picker-family">
                       <div class="lora-picker-family__title">{{ family.label }}</div>
