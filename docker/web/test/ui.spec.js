@@ -476,6 +476,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.currentSubTab.SETTINGS).to.equal("MIDI");
   });
 
+
   it("reports GPU status counts from the pool state", () => {
     const instance = instantiate(appDef);
     instance.gpuPool.healthyNodes = 2;
@@ -502,6 +503,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(openedNode.id).to.equal("forge-1");
     expect(instance.gpuPool.editId).to.equal(null);
   });
+
 
   it("setSource updates state and dispatches payload", () => {
     const instance = instantiate(appDef);

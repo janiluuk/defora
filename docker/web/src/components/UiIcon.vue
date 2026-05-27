@@ -46,6 +46,14 @@
       <path d="M5 8H19" stroke="currentColor" stroke-width="1.5" />
       <path d="M5 16H19" stroke="currentColor" stroke-width="1.5" />
     </template>
+    <template v-else-if="name === 'folder'">
+      <path d="M3.5 7.5A2.5 2.5 0 0 1 6 5h3.2l1.6 1.8H18A2.5 2.5 0 0 1 20.5 9.3v7.2A2.5 2.5 0 0 1 18 19H6a2.5 2.5 0 0 1-2.5-2.5v-9Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M3.8 9h16.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </template>
+    <template v-else-if="name === 'gear'">
+      <path d="M12 8.2A3.8 3.8 0 1 0 12 15.8A3.8 3.8 0 1 0 12 8.2Z" stroke="currentColor" stroke-width="1.8" />
+      <path d="M12 3.8V5.4M12 18.6V20.2M5.5 6.5L6.7 7.7M17.3 18.3L18.5 19.5M3.8 12H5.4M18.6 12H20.2M5.5 17.5L6.7 16.3M17.3 5.7L18.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </template>
     <template v-else-if="name === 'chevron-up'">
       <path d="M6 14L12 8L18 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
     </template>
