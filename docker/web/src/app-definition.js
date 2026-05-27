@@ -1899,6 +1899,11 @@ onDefaultAnimationInput() {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
   this.saveSessionState();
 },
+resetDefaultAnimationSettings() {
+  const preferDeforumVideo = !!(this.defaultAnimation && this.defaultAnimation.preferDeforumVideo);
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({ preferDeforumVideo });
+  this.saveSessionState();
+},
 setPreferDeforumVideo(prefer) {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
