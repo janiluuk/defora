@@ -644,11 +644,33 @@
       min-width: 0;
     }
     .deforum-field.deforum-field-textarea { grid-column: 1 / -1; }
+    .deforum-field-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
     .deforum-field-label {
       font-size: 10px;
       color: var(--text-secondary);
       text-transform: uppercase;
       letter-spacing: 0.04em;
+    }
+    .deforum-field-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .deforum-field-toggle input[type="checkbox"] {
+      align-self: auto;
+      margin: 0;
+    }
+    .deforum-field--disabled {
+      opacity: 0.72;
     }
     .deforum-field input[type="checkbox"] { align-self: flex-start; margin-top: 4px; }
     .morph-blend-bar { padding: 0 2px; }
@@ -3057,6 +3079,21 @@
     }
     .engine-main-grid__model {
       min-width: 0;
+    }
+    .engine-main-slider__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .engine-main-slider__value {
+      font-size: 12px;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+    }
+    .engine-main-slider {
+      width: 100%;
     }
     .forge-tab__metadata {
       margin-top: 14px;

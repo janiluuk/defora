@@ -105,6 +105,13 @@ function instantiate(appDef, overrides = {}) {
   return instance;
 }
 
+function mountQuietApp(appDef) {
+  const app = createApp(appDef);
+  // CI logs become unusable when Vue dumps the full proxied app object.
+  app.config.warnHandler = () => {};
+  return app.mount("#app");
+}
+
 class FakeSocket {
   constructor() {
     this.sent = [];
@@ -136,13 +143,16 @@ describe("Deforumation Web UI", () => {
 
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
-    appVm = createApp(appDef).mount("#app");
+    appVm = mountQuietApp(appDef);
     document = dom.window.document;
   });
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
     appVm.currentSubTab = { PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
+    appVm.videoReady = false;
+    appVm.defaultAnimation.preferDeforumVideo = false;
+    appVm.performance.lastPreviewPath = "";
     await nextTick();
   });
 
@@ -273,6 +283,8 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
+    const engineRanges = [...document.querySelectorAll(".engine-main-slider[type='range']")];
+    expect(engineRanges.length).to.equal(2);
     const subTabs = [...document.querySelectorAll(".sub-pill")].map((el) => el.textContent.trim());
     expect(subTabs.join(" ")).to.not.include("FORGE");
     expect(subTabs.join(" ")).to.include("CONTROLLERS / MIDI");
@@ -376,11 +388,10 @@ describe("Deforumation Web UI", () => {
   it("applies common LoRAs at full strength outside the A/B crossfade mix", () => {
     appDef = loadAppDefinition();
     const calls = [];
-    const instance = instantiate(appDef, {
-      sendControl(type, payload) {
-        calls.push({ type, payload });
-      },
-    });
+    const instance = instantiate(appDef);
+    instance.sendControl = (type, payload) => {
+      calls.push({ type, payload });
+    };
     instance.prompts.crossfaderValue = 0.25;
     instance.loras.common = [{ id: "c-1", name: "utility", path: "/loras/utility.safetensors", strength: 0.6 }];
     instance.loras.groupA = [{ id: "a-1", name: "style-a", path: "/loras/style-a.safetensors", strength: 1.0 }];
@@ -494,13 +505,15 @@ describe("Deforumation Web UI", () => {
     appVm.switchTab("LIBRARY");
     await nextTick();
     await nextTick();
+    await Promise.resolve();
+    await nextTick();
 
     expect(document.querySelectorAll(".library-folder-item").length).to.equal(2);
     expect(document.body.textContent).to.include("session_a");
     expect(document.body.textContent).to.include("session_b");
     expect(appVm.library.selectedRunId).to.equal("run-a-002");
     expect(document.body.textContent).to.include("Frame Inspector");
-    expect(document.querySelector(".library-inspector__image")).to.exist;
+    expect(appVm.librarySelectedFrameSrc).to.include("/api/runs/run-a-002/frames/frame_0001.png");
 
     appVm.stepLibraryFrame(1);
     await nextTick();
@@ -981,6 +994,50 @@ describe("Deforumation Web UI behavior", () => {
     expect(saved.deforumSettings.steps).to.equal(14);
   });
 
+  it("saveDeforumSettings omits disabled deforum fields from the outgoing payload", async () => {
+    const instance = instantiate(appDef);
+    let posted = null;
+    global.fetch = async (_url, opts) => {
+      posted = JSON.parse(opts.body);
+      return { ok: true, json: async () => ({ success: true }) };
+    };
+    instance.saveSessionState = () => {};
+    instance.queueDeforumSettingsSave = () => {};
+    instance.scheduleDeforumPreview = () => {};
+    instance.deforumSettings.steps = 14;
+    instance.deforumSettings.cfg_scale_schedule = "0:(7)";
+    instance.deforumSettings.distilled_cfg_scale_schedule = "0: (7)";
+
+    instance.setDeforumFieldEnabled("steps", false);
+    instance.setDeforumFieldEnabled("cfg_scale_schedule", false);
+    await instance.saveDeforumSettings();
+
+    expect(posted.settings).to.not.have.property("steps");
+    expect(posted.settings).to.not.have.property("cfg_scale_schedule");
+    expect(posted.settings).to.not.have.property("distilled_cfg_scale_schedule");
+    expect(instance.deforumSettings.steps).to.equal(14);
+    delete global.fetch;
+  });
+
+  it("loadSessionState restores deforum field toggles", () => {
+    const instance = instantiate(appDef);
+    testStorage[instance.sessionStorageKey()] = JSON.stringify({
+      deforumSettings: {
+        steps: 18,
+      },
+      deforumFieldEnabled: {
+        steps: false,
+        cfg_scale_schedule: false,
+      },
+    });
+
+    instance.loadSessionState();
+
+    expect(instance.isDeforumFieldEnabled("steps")).to.equal(false);
+    expect(instance.isDeforumFieldEnabled("cfg_scale_schedule")).to.equal(false);
+    expect(instance.isDeforumFieldEnabled("seed")).to.equal(true);
+  });
+
   it("loadDeforumSettings preserves session-restored settings on startup", async () => {
     const instance = instantiate(appDef);
     testStorage[instance.sessionStorageKey()] = JSON.stringify({
@@ -1381,7 +1438,7 @@ describe("Reference A/V sync mounted e2e", () => {
     ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
-    appVm = createApp(appDef).mount("#app");
+    appVm = mountQuietApp(appDef);
     document = dom.window.document;
     ensureVideoEventSurface();
   });

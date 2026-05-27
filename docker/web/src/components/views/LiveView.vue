@@ -35,34 +35,36 @@
           </div>
         </div>
 
-        <div class="slider-row">
-          <label>Beam count</label>
-          <input type="range" min="3" max="12" step="1" v-model.number="defaultAnimation.beamCount" @input="onDefaultAnimationInput">
-        </div>
-        <div class="slider-row">
-          <label>Speed</label>
-          <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
-        </div>
-        <div class="slider-row">
-          <label>Spread</label>
-          <input type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
-        </div>
-        <div class="slider-row">
-          <label>Glow</label>
-          <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
-        </div>
-        <div class="slider-row">
-          <label>Hue</label>
-          <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
-        </div>
-        <div class="slider-row">
-          <label>Pulse</label>
-          <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.pulse" @input="onDefaultAnimationInput">
-        </div>
-        <div class="slider-row">
-          <label>Drift</label>
-          <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
-        </div>
+        <template v-if="!defaultAnimation.preferDeforumVideo">
+          <div class="slider-row">
+            <label>Beam count</label>
+            <input type="range" min="3" max="12" step="1" v-model.number="defaultAnimation.beamCount" @input="onDefaultAnimationInput">
+          </div>
+          <div class="slider-row">
+            <label>Speed</label>
+            <input type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+          </div>
+          <div class="slider-row">
+            <label>Spread</label>
+            <input type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
+          </div>
+          <div class="slider-row">
+            <label>Glow</label>
+            <input type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput">
+          </div>
+          <div class="slider-row">
+            <label>Hue</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput">
+          </div>
+          <div class="slider-row">
+            <label>Pulse</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.pulse" @input="onDefaultAnimationInput">
+          </div>
+          <div class="slider-row">
+            <label>Drift</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.drift" @input="onDefaultAnimationInput">
+          </div>
+        </template>
       </div>
     </div>
 
@@ -297,9 +299,22 @@
                 v-for="field in group.fields"
                 :key="field.key"
                 class="deforum-field"
-                :class="'deforum-field-' + (field.type || 'text')"
+                :class="[
+                  'deforum-field-' + (field.type || 'text'),
+                  { 'deforum-field--disabled': !isDeforumFieldEnabled(field.key) }
+                ]"
               >
-                <span class="deforum-field-label">{{ field.label }}</span>
+                <span class="deforum-field-head">
+                  <span class="deforum-field-label">{{ field.label }}</span>
+                  <span class="deforum-field-toggle">
+                    <input
+                      type="checkbox"
+                      :checked="isDeforumFieldEnabled(field.key)"
+                      @change="setDeforumFieldEnabled(field.key, $event.target.checked)"
+                    >
+                    <span>{{ isDeforumFieldEnabled(field.key) ? 'On' : 'Off' }}</span>
+                  </span>
+                </span>
                 <input
                   v-if="field.type === 'number'"
                   type="number"
@@ -308,12 +323,14 @@
                   :max="field.max"
                   :step="field.step || 1"
                   :value="getDeforumField(field.key)"
+                  :disabled="!isDeforumFieldEnabled(field.key)"
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'number')"
                 />
                 <input
                   v-else-if="field.type === 'bool'"
                   type="checkbox"
                   :checked="!!getDeforumField(field.key)"
+                  :disabled="!isDeforumFieldEnabled(field.key)"
                   @change="onDeforumFieldInput(field.key, $event.target.checked, 'bool')"
                 />
                 <textarea
@@ -321,13 +338,14 @@
                   class="framesync-input"
                   :rows="field.rows || 3"
                   :value="getDeforumField(field.key) ?? ''"
+                  :disabled="!isDeforumFieldEnabled(field.key)"
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
                 />
                 <select
                   v-else-if="field.key === 'sd_model_name' && forge.models.length"
                   class="framesync-select"
                   :value="getDeforumField(field.key) ?? ''"
-                  :disabled="forge.switching || modelStatusKind === 'offline'"
+                  :disabled="!isDeforumFieldEnabled(field.key) || forge.switching || modelStatusKind === 'offline'"
                   @change="onDeforumModelCommit($event.target.value)"
                 >
                   <option value="">— select model —</option>
@@ -344,6 +362,7 @@
                   type="text"
                   class="framesync-input"
                   :value="getDeforumField(field.key) ?? ''"
+                  :disabled="!isDeforumFieldEnabled(field.key)"
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
                   @blur="onDeforumModelCommit($event.target.value)"
                 />
@@ -352,6 +371,7 @@
                   type="text"
                   class="framesync-input"
                   :value="getDeforumField(field.key) ?? ''"
+                  :disabled="!isDeforumFieldEnabled(field.key)"
                   @input="onDeforumFieldInput(field.key, $event.target.value, 'text')"
                 />
               </label>

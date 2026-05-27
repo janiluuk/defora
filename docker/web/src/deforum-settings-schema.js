@@ -231,6 +231,18 @@ export const DEFORUM_FIELD_GROUPS = [
   },
 ];
 
+export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
+  group.fields.map((field) => field.key)
+);
+
+export function createDeforumFieldEnabledMap(overrides = {}) {
+  const map = {};
+  DEFORUM_FIELD_KEYS.forEach((key) => {
+    map[key] = overrides[key] !== false;
+  });
+  return map;
+}
+
 export function getNestedValue(obj, keyPath) {
   if (!keyPath || !obj) return undefined;
   const parts = String(keyPath).split('.');
@@ -251,6 +263,28 @@ export function setNestedValue(obj, keyPath, value) {
     cur = cur[p];
   }
   cur[parts[parts.length - 1]] = value;
+}
+
+export function removeNestedValue(obj, keyPath) {
+  if (!keyPath || !obj) return;
+  const parts = String(keyPath).split('.');
+  const stack = [];
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const part = parts[i];
+    if (cur == null || typeof cur !== 'object' || !(part in cur)) return;
+    stack.push({ parent: cur, key: part });
+    cur = cur[part];
+  }
+  if (cur == null || typeof cur !== 'object') return;
+  delete cur[parts[parts.length - 1]];
+  for (let i = stack.length - 1; i >= 0; i -= 1) {
+    const { parent, key } = stack[i];
+    const value = parent[key];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) break;
+    if (Object.keys(value).length) break;
+    delete parent[key];
+  }
 }
 
 export function patchFromKeyPath(keyPath, value) {

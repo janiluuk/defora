@@ -494,8 +494,11 @@ import {
 import {
   DEFORUM_DEFAULT_SETTINGS,
   DEFORUM_FIELD_GROUPS,
+  DEFORUM_FIELD_KEYS,
+  createDeforumFieldEnabledMap,
   getNestedValue,
   setNestedValue,
+  removeNestedValue,
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
@@ -515,6 +518,9 @@ const TIMELINE_GRID_EMPTY = 'rgb(26, 58, 82)'
 const TIMELINE_GRID_LABEL = 'rgb(58, 90, 120)'
 const TIMELINE_GRID_BORDER = 'rgb(12, 48, 72)'
 const TIMELINE_GRID_TEXT = 'rgb(90, 143, 184)'
+const DEFORUM_DERIVED_TOGGLE_KEYS = {
+  distilled_cfg_scale_schedule: 'cfg_scale_schedule',
+}
 
 import StatusStrip from './components/StatusStrip.vue'
 import GlassPanel from './components/GlassPanel.vue'
@@ -559,6 +565,7 @@ export default {
        liveDrawerOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
        deforumFieldGroups: DEFORUM_FIELD_GROUPS,
+      deforumFieldEnabled: createDeforumFieldEnabledMap(),
        deforumActiveTab: 'canvas',
        deforumSectionOpen: {},
        deforumAdvancedOpen: false,
@@ -1036,7 +1043,12 @@ export default {
           || '';
       }
       if (!this.deforumPlaying && this.currentTab !== 'GENERATE' && this.selectedFrameThumb) {
-        return this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '';
+        return this.selectedFrameThumb.src
+          || this.selectedFrameThumb.url
+          || this.selectedFrameThumb.path
+          || this.performance.lastPreviewPath
+          || this.generator.lastPath
+          || '';
       }
       return this.performance.lastPreviewPath || this.generator.lastPath || '';
     },
@@ -1607,7 +1619,14 @@ export default {
     ).trim();
   },
   runPrefixKey(run) {
-    return this.sessionSlug(this.runPrefixSource(run));
+    const raw = this.runPrefixSource(run)
+      .normalize('NFKD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase();
+    const slug = raw
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return slug || 'ungrouped';
   },
   runPrefixLabel(run) {
     return this.runPrefixSource(run);
@@ -1912,6 +1931,7 @@ export default {
  },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
+  if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
@@ -5711,6 +5731,11 @@ async generateStory() {
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
+    if (s.deforumFieldEnabled && typeof s.deforumFieldEnabled === 'object') {
+      this.deforumFieldEnabled = createDeforumFieldEnabledMap(s.deforumFieldEnabled);
+    } else {
+      this.deforumFieldEnabled = createDeforumFieldEnabledMap();
+    }
     if (typeof s.collabEnabled === 'boolean') {
       this.collabEnabled = s.collabEnabled;
       this.wsStatus = s.collabEnabled ? this.wsStatus : 'offline';
@@ -5741,6 +5766,7 @@ async generateStory() {
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
+      deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       collabEnabled: this.collabEnabled,
       defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
@@ -6269,6 +6295,40 @@ deforumFieldOptions(field) {
 isDeforumDynamicSelect(field) {
   return !!(field && (field.key === 'sampler' || field.key === 'scheduler'));
 },
+deforumToggleKeyForPath(keyPath) {
+  return DEFORUM_DERIVED_TOGGLE_KEYS[keyPath] || keyPath;
+},
+isDeforumFieldToggleable(keyPath) {
+  const toggleKey = this.deforumToggleKeyForPath(keyPath);
+  return DEFORUM_FIELD_KEYS.includes(toggleKey);
+},
+isDeforumFieldEnabled(keyPath) {
+  if (!this.isDeforumFieldToggleable(keyPath)) return true;
+  const toggleKey = this.deforumToggleKeyForPath(keyPath);
+  return this.deforumFieldEnabled[toggleKey] !== false;
+},
+setDeforumFieldEnabled(keyPath, enabled) {
+  const toggleKey = this.deforumToggleKeyForPath(keyPath);
+  if (!this.isDeforumFieldToggleable(toggleKey)) return;
+  this.deforumFieldEnabled = {
+    ...createDeforumFieldEnabledMap(this.deforumFieldEnabled),
+    [toggleKey]: enabled !== false,
+  };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+activeDeforumSettings() {
+  const settings = this.normalizedDeforumSettings();
+  DEFORUM_FIELD_KEYS.forEach((keyPath) => {
+    if (!this.isDeforumFieldEnabled(keyPath)) removeNestedValue(settings, keyPath);
+  });
+  Object.entries(DEFORUM_DERIVED_TOGGLE_KEYS).forEach(([keyPath, toggleKey]) => {
+    if (!this.isDeforumFieldEnabled(toggleKey)) removeNestedValue(settings, keyPath);
+  });
+  return settings;
+},
  onDeforumSectionToggle(groupId, evt) {
    this.deforumSectionOpen[groupId] = evt.target.open;
  },
@@ -6357,12 +6417,13 @@ onGpuForgeModalResolutionInput(axis, rawValue) {
   return next;
 },
  pushDeforumLivePatch(keyPath, value) {
+  if (!this.isDeforumFieldEnabled(keyPath)) return;
    const patch = patchFromKeyPath(keyPath, value);
    this.sendControl('liveParam', patch);
  },
  syncDeforumSettingsJson() {
    try {
-     this.deforumSettingsJson = JSON.stringify(this.deforumSettings, null, 2);
+    this.deforumSettingsJson = JSON.stringify(this.activeDeforumSettings(), null, 2);
      this.deforumSettingsJsonError = '';
    } catch (e) {
      this.deforumSettingsJsonError = String(e.message || e);
@@ -6372,7 +6433,7 @@ onGpuForgeModalResolutionInput(axis, rawValue) {
    try {
      const parsed = JSON.parse(this.deforumSettingsJson);
      if (!parsed || typeof parsed !== 'object') throw new Error('JSON must be an object');
-    this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, parsed);
+    this.deforumSettings = mergeDeforumSettings(this.normalizedDeforumSettings(), parsed);
      this.deforumSettingsJsonError = '';
     const desiredModel = this.syncSelectedModelFromDeforumSettings();
     if (desiredModel) {
@@ -6413,11 +6474,11 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
  async saveDeforumSettings() {
   this.deforumSettingsSaving = true;
    try {
-    this.deforumSettings = this.normalizedDeforumSettings();
+    const settings = this.activeDeforumSettings();
      const res = await fetch('/api/deforum/settings', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ settings: this.deforumSettings }),
+       body: JSON.stringify({ settings }),
      });
      const data = await res.json();
      if (!res.ok || data.error) {
@@ -6446,11 +6507,11 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    this.performance.status = 'Rendering Deforum frame…';
    this.deforumSettingsStatus = 'Rendering…';
    try {
-    this.deforumSettings = this.normalizedDeforumSettings();
+    const settings = this.activeDeforumSettings();
      const res = await fetch('/api/deforum/preview', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ settings: this.deforumSettings }),
+       body: JSON.stringify({ settings }),
      });
      const data = await res.json();
      if (!res.ok || data.error) {

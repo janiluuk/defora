@@ -109,6 +109,11 @@
       <path d="M8 7H4V3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M4.5 7.5C6.1 5.1 8.8 3.5 12 3.5C17 3.5 21 7.5 21 12.5C21 17.5 17 21.5 12 21.5C7.8 21.5 4.3 18.6 3.3 14.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </template>
+    <template v-else-if="name === 'help'">
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.8" />
+      <path d="M9.8 9.3C10 8.2 10.9 7.4 12.1 7.4C13.5 7.4 14.5 8.3 14.5 9.5C14.5 10.5 13.9 11.1 13.1 11.7C12.3 12.3 11.8 12.8 11.8 13.9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="12" cy="16.8" r="1" fill="currentColor" />
+    </template>
   </svg>
 </template>
 
