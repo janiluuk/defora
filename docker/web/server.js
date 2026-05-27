@@ -2061,6 +2061,12 @@ async function start(opts = {}) {
       metadata.base_resolution = 1024;
       metadata.recommended_sampler = "Euler";
       metadata.recommended_cfg_scale = 1.0;
+    } else if (name.includes('z-image') || name.includes('zimage')) {
+      metadata.type = "Z-Image";
+      metadata.recommended_steps = 20;
+      metadata.base_resolution = 1024;
+      metadata.recommended_sampler = "Euler";
+      metadata.recommended_cfg_scale = 1.0;
     } else if (name.includes('1.5') || name.includes('v1-5')) {
       metadata.type = "SD 1.5";
       metadata.recommended_steps = 24;

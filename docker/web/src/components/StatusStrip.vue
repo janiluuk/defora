@@ -113,7 +113,7 @@
             <div class="ss-help-section__title">MODULATION Tab</div>
             <div class="ss-help-section__items">
               <div><kbd>L</kbd> Toggle LFO</div>
-              <div><kbd>B</kbd> Toggle Beat Macro (MODULATION → AUDIO)</div>
+              <div><kbd>B</kbd> Toggle Beat Macro (MODULATION → Beat)</div>
             </div>
           </div>
         </div>
