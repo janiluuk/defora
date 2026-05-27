@@ -360,7 +360,7 @@
             </div>
           </div>
         </template>
-        <div v-else-if="currentTab === 'LIBRARY'" class="frame-rail__empty" style="margin-top: 4px;">
+        <div v-if="currentTab === 'LIBRARY'" class="frame-rail__empty" style="margin-top: 4px;">
           Select a prefix folder and run to inspect frames one by one.
         </div>
 
