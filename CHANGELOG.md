@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.27] - 2026-05-27
+
+## What's Changed
+
+- chore(web): add UI tab screenshots and refresh built index entry (29e866b)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.26...v0.6.27
+
+
 ## [0.6.26] - 2026-05-27
 
 ## What's Changed
