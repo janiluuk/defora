@@ -185,7 +185,7 @@
                 </template>
                 <template v-else-if="slot.type === 'param'">
                   <select class="framesync-select" v-model="slot.paramKey" @change="onPerformanceInput">
-                    <option v-for="t in lfoTargets" :key="'live-main-a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
+                    <option v-for="t in modulationTargets" :key="'live-main-a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
                   </select>
                   <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
                 </template>
@@ -944,6 +944,27 @@ export default {
         { key: "cn_CN1_end", label: "CN1 End", min: 0, max: 1, default: 0.9, group: "ControlNet" },
         { key: "cn_CN2_end", label: "CN2 End", min: 0, max: 1, default: 0.9, group: "ControlNet" },
       ],
+      animationTargets: [
+        { key: "anim_instCount", field: "instCount", label: "Instance count", min: 1000, max: 50000, default: 12000, group: "Standby — Instancing" },
+        { key: "anim_spread", field: "spread", label: "Spread", min: 0.2, max: 2.5, default: 0.68, group: "Standby — Instancing" },
+        { key: "anim_speed", field: "speed", label: "Speed", min: 0.1, max: 2.5, default: 0.75, group: "Standby — Instancing" },
+        { key: "anim_hue", field: "hue", label: "Hue", min: 0, max: 1, default: 0.6, group: "Standby — Instancing" },
+        { key: "anim_glow", field: "glow", label: "Glow", min: 0.1, max: 1.4, default: 0.78, group: "Standby — Instancing" },
+        { key: "anim_orbit", field: "orbit", label: "Orbit", min: 0, max: 1, default: 0.52, group: "Standby — Instancing" },
+        { key: "anim_beamCount", field: "beamCount", label: "Beam count", min: 3, max: 12, default: 7, group: "Standby — Volume" },
+        { key: "anim_pulse", field: "pulse", label: "Pulse", min: 0, max: 1, default: 0.36, group: "Standby — Volume" },
+        { key: "anim_drift", field: "drift", label: "Drift", min: 0, max: 1, default: 0.44, group: "Standby — Volume" },
+        { key: "anim_mist", field: "mist", label: "Mist", min: 0, max: 1, default: 0.58, group: "Standby — Nebula" },
+        { key: "anim_lineWidth", field: "lineWidth", label: "Line width", min: 1, max: 10, default: 2.4, group: "Standby — Raycast" },
+        { key: "anim_lineThreshold", field: "lineThreshold", label: "Line threshold", min: 0, max: 10, default: 0.8, group: "Standby — Raycast" },
+        { key: "anim_lineTranslation", field: "lineTranslation", label: "Line translation", min: 0, max: 10, default: 0, group: "Standby — Raycast" },
+        { key: "anim_mcNumBlobs", field: "mcNumBlobs", label: "Blob count", min: 1, max: 50, default: 10, group: "Standby — Marching" },
+        { key: "anim_mcResolution", field: "mcResolution", label: "MC resolution", min: 14, max: 100, default: 28, group: "Standby — Marching" },
+        { key: "anim_mcIsolation", field: "mcIsolation", label: "MC isolation", min: 10, max: 300, default: 80, group: "Standby — Marching" },
+        { key: "anim_ocElevation", field: "ocElevation", label: "Sun elevation", min: 0, max: 90, default: 2, group: "Standby — Ocean" },
+        { key: "anim_ocDistortion", field: "ocDistortion", label: "Distortion", min: 0, max: 8, default: 3.7, group: "Standby — Ocean" },
+        { key: "anim_ocCloudCoverage", field: "ocCloudCoverage", label: "Cloud coverage", min: 0, max: 1, default: 0.4, group: "Standby — Ocean" },
+      ],
       lfoShapes: ["Sine", "Triangle", "Saw", "Square"],
       lfos: Array.from({ length: 6 }).map((_, idx) => ({
         id: idx + 1,
@@ -1480,8 +1501,20 @@ export default {
     liveModulating() {
       const paramMap = {};
       [...this.liveVibe, ...this.liveCam].forEach(p => { paramMap[p.key] = p; });
-      this.lfoTargets.forEach(t => {
-        if (!paramMap[t.key]) paramMap[t.key] = { key: t.key, label: t.label, val: t.default || 0, min: t.min || 0, max: t.max || 1 };
+      this.modulationTargets.forEach(t => {
+        if (!paramMap[t.key]) {
+          const animField = t.field;
+          const val = animField && this.defaultAnimation
+            ? Number(this.defaultAnimation[animField])
+            : (t.default || 0);
+          paramMap[t.key] = {
+            key: t.key,
+            label: t.label,
+            val: Number.isFinite(val) ? val : (t.default || 0),
+            min: t.min || 0,
+            max: t.max || 1,
+          };
+        }
       });
       const modulated = {};
       this.lfos.filter(l => l.on && l.targets.length).forEach(l => {
@@ -1660,9 +1693,12 @@ export default {
       if (weight < 1.5) return 'Strong';
       return 'Very strong';
     },
+    modulationTargets() {
+      return [...this.lfoTargets, ...this.animationTargets];
+    },
     lfoTargetGroups() {
       const groups = {};
-      this.lfoTargets.forEach((target) => {
+      this.modulationTargets.forEach((target) => {
         const label = target.group || "Other";
         if (!groups[label]) groups[label] = [];
         groups[label].push(target);
@@ -1670,7 +1706,7 @@ export default {
       return Object.entries(groups).map(([label, items]) => ({ label, items }));
     },
     sequencerParamOptions() {
-      const opts = this.lfoTargets.map((t) => ({ key: t.key, label: t.label }));
+      const opts = this.modulationTargets.map((t) => ({ key: t.key, label: t.label }));
       this.cn.slots.forEach((s) => {
         opts.push({ key: `cn_${s.id}_weight`, label: `CN ${s.id} Weight`, group: "ControlNet" });
         opts.push({ key: `cn_${s.id}_start`, label: `CN ${s.id} Start`, group: "ControlNet" });
@@ -1702,7 +1738,7 @@ export default {
     },
     sequencerParamMetaMap() {
       const meta = {};
-      this.lfoTargets.forEach((target) => {
+      this.modulationTargets.forEach((target) => {
         meta[target.key] = {
           label: target.label,
           min: Number(target.min ?? 0),
@@ -1742,7 +1778,7 @@ export default {
           .slice(0, 2)
           .map((slot) => {
             if (slot.type === 'param' && slot.paramKey) {
-              const meta = this.lfoTargets.find((target) => target.key === slot.paramKey);
+              const meta = this.modulationTargetByKey(slot.paramKey);
               return meta ? meta.label : this.slotTypeLabel(slot.type);
             }
             return this.slotTypeLabel(slot.type);
@@ -1757,7 +1793,7 @@ export default {
     },
     bindingGroups() {
       const groups = {};
-      this.lfoTargets.forEach((t) => {
+      this.modulationTargets.forEach((t) => {
         const label = t.group || "Other";
         if (!groups[label]) groups[label] = [];
         groups[label].push(t);
@@ -2475,6 +2511,43 @@ onDefaultAnimationInput() {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
   this.saveSessionState();
 },
+modulationTargetByKey(key) {
+  if (!key) return null;
+  return this.lfoTargets.find((t) => t.key === key)
+    || this.animationTargets.find((t) => t.key === key)
+    || null;
+},
+isAnimationModKey(key) {
+  return typeof key === 'string' && key.startsWith('anim_');
+},
+applyAnimationModulation(field, value) {
+  if (!field) return;
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+    ...this.defaultAnimation,
+    [field]: value,
+  });
+},
+routeModulationValue(key, value, payload, cnUpdates) {
+  const anim = this.animationTargets.find((t) => t.key === key);
+  if (anim) {
+    this.applyAnimationModulation(anim.field, value);
+    return;
+  }
+  if (key.startsWith('cn_')) {
+    const parts = key.split('_');
+    const slotId = parts[1];
+    const field = parts[2];
+    const slot = this.cn.slots.find((s) => s.id === slotId);
+    if (slot) {
+      if (field === 'weight') slot.weight = value;
+      else if (field === 'start') slot.start = value;
+      else if (field === 'end') slot.end = value;
+      cnUpdates[slotId] = slot;
+    }
+    return;
+  }
+  payload[key] = value;
+},
 setDefaultAnimationMode(mode) {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
@@ -2885,26 +2958,13 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
       }
 
       lfo.targets.forEach((targetKey) => {
-        const target = this.lfoTargets.find((t) => t.key === targetKey);
+        const target = this.modulationTargetByKey(targetKey);
         if (!target) return;
         const base = lfo.base == null ? (target.default ?? (target.min + target.max) / 2) : this.clampVal(lfo.base, target.min, target.max);
         if (lfo.base === null) lfo.base = base;
         const amp = depth * (target.max - target.min) / 2;
         const value = this.clampVal(base + wave * amp, target.min, target.max);
-        if (targetKey.startsWith("cn_")) {
-          const parts = targetKey.split("_");
-          const slotId = parts[1];
-          const field = parts[2];
-          const slot = this.cn.slots.find(s => s.id === slotId);
-          if (slot) {
-            if (field === "weight") slot.weight = value;
-            else if (field === "start") slot.start = value;
-            else if (field === "end") slot.end = value;
-            cnUpdates[slotId] = slot;
-          }
-        } else {
-          payload[targetKey] = value;
-        }
+        this.routeModulationValue(targetKey, value, payload, cnUpdates);
       });
     });
     if (Object.keys(payload).length) {
@@ -3070,7 +3130,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
    const activeMacros = this.macrosRack.filter(m => m.on);
    
    activeMacros.forEach((macro) => {
-     const target = this.lfoTargets.find(t => t.key === macro.target);
+     const target = this.modulationTargetByKey(macro.target);
      if (!target) return;
      
      // Determine if this macro should trigger on this beat
@@ -3094,20 +3154,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
      }
      
      const clamped = this.clampVal(value, target.min, target.max);
-     if (macro.target.startsWith("cn_")) {
-       const parts = macro.target.split("_");
-       const slotId = parts[1];
-       const field = parts[2];
-       const slot = this.cn.slots.find(s => s.id === slotId);
-       if (slot) {
-         if (field === "weight") slot.weight = clamped;
-         else if (field === "start") slot.start = clamped;
-         else if (field === "end") slot.end = clamped;
-         cnUpdates[slotId] = slot;
-       }
-     } else {
-       payload[macro.target] = clamped;
-     }
+     this.routeModulationValue(macro.target, clamped, payload, cnUpdates);
    });
    
    if (Object.keys(payload).length) {
@@ -3936,11 +3983,16 @@ applyMotionPresetAndSelect(name) {
       const boundKey = Object.entries(self.keyBindings).find(([, v]) => v === e.key.toLowerCase());
       if (boundKey) {
         const [paramKey] = boundKey;
-        const target = self.lfoTargets.find(t => t.key === paramKey);
+        const target = self.modulationTargetByKey(paramKey);
         if (target) {
           const current = self.getParamValue(paramKey);
           const step = (target.max - target.min) * 0.05;
-          self.queueLiveParam(paramKey, Math.min(target.max, Math.max(target.min, current + step)));
+          const next = Math.min(target.max, Math.max(target.min, current + step));
+          if (target.field) {
+            self.applyAnimationModulation(target.field, next);
+          } else {
+            self.queueLiveParam(paramKey, next);
+          }
           e.preventDefault();
           return;
         }
@@ -3992,7 +4044,7 @@ applyMotionPresetAndSelect(name) {
     document.addEventListener("keydown", this._keyHandler);
   },
  midiTarget(key) {
-   return this.lfoTargets.find((t) => t.key === key) || null;
+   return this.modulationTargetByKey(key);
  },
  updateMidiMapping(map) {
    // noop hook for now; v-model already updates
@@ -4297,7 +4349,7 @@ toggleLfoTarget(lfo, targetKey) {
   } else {
     lfo.targets.push(targetKey);
     if (lfo.base == null) {
-      const target = this.lfoTargets.find((item) => item.key === targetKey);
+      const target = this.modulationTargetByKey(targetKey);
       if (target) lfo.base = target.default ?? (target.min + target.max) / 2;
     }
   }
@@ -4313,7 +4365,7 @@ toggleLfoTarget(lfo, targetKey) {
    }
    lfo.targets.push(pick);
    if (lfo.base === null) {
-     const target = this.lfoTargets.find((t) => t.key === pick);
+     const target = this.modulationTargetByKey(pick);
      if (target) lfo.base = target.default ?? (target.min + target.max) / 2;
    }
    this.lfoTargetPick[lfoIdx] = "";
@@ -4687,11 +4739,21 @@ audioBandWindowStyle(mapping) {
    }
  },
  getParamValue(key) {
+   const anim = this.animationTargets.find((t) => t.key === key);
+   if (anim && anim.field && this.defaultAnimation) {
+     const val = Number(this.defaultAnimation[anim.field]);
+     return Number.isFinite(val) ? val : (anim.default ?? 0);
+   }
    const all = [...this.liveVibe, ...this.liveCam];
    const p = all.find(p => p.key === key);
    return p ? p.val : 0;
  },
  queueLiveParam(key, val) {
+   const anim = this.animationTargets.find((t) => t.key === key);
+   if (anim) {
+     this.applyAnimationModulation(anim.field, val);
+     return;
+   }
    const all = [...this.liveVibe, ...this.liveCam];
    const p = all.find(p => p.key === key);
    if (p) {
@@ -5319,7 +5381,11 @@ onAudioUpload(evt) {
      const target = this.midiTarget(mapping.key);
      if (target) {
        const scaled = target.min + norm * (target.max - target.min);
-       this.sendControl("liveParam", { [target.key]: scaled });
+       const payload = {};
+       const cnUpdates = {};
+       this.routeModulationValue(target.key, scaled, payload, cnUpdates);
+       if (Object.keys(payload).length) this.sendControl('liveParam', payload);
+       Object.values(cnUpdates).forEach((slot) => this.updateControlNet(slot));
      } else {
        this.sendControl("liveParam", { [mapping.key]: norm });
      }
@@ -5473,20 +5539,15 @@ onAudioUpload(evt) {
    for (const tr of this.sequencer.tracks) {
      const v = this.interpolateTrack(tr, tSec);
      if (v === null || !Number.isFinite(v)) continue;
-     if (tr.param.startsWith("cn_")) {
-       const parts = tr.param.split("_");
-       const slotId = parts[1];
-       const field = parts[2];
-       const slot = this.cn.slots.find(s => s.id === slotId);
-       if (slot) {
-         if (field === "weight") slot.weight = Math.min(2, Math.max(0, v));
-         else if (field === "start") slot.start = Math.min(1, Math.max(0, v));
-         else if (field === "end") slot.end = Math.min(1, Math.max(0, v));
-         if (!cnUpdates[slotId]) cnUpdates[slotId] = slot;
-       }
-     } else {
-       payload[tr.param] = v;
+     const meta = this.modulationTargetByKey(tr.param);
+     let routed = v;
+     if (meta) {
+       routed = this.clampVal(v, meta.min, meta.max);
+     } else if (tr.param.startsWith('cn_')) {
+       if (tr.param.endsWith('_weight')) routed = Math.min(2, Math.max(0, v));
+       else routed = Math.min(1, Math.max(0, v));
      }
+     this.routeModulationValue(tr.param, routed, payload, cnUpdates);
    }
    if (Object.keys(payload).length) this.sendControl("liveParam", payload);
    Object.values(cnUpdates).forEach(slot => this.updateControlNet(slot));
@@ -6942,9 +7003,14 @@ reapplyEngineModelDefaults() {
      if (v == null) continue;
      if (slot.type === 'prompt') continue;
      if (slot.type === 'param' && slot.paramKey) {
-       live[slot.paramKey] = v;
-       const p = this.liveVibe.find((x) => x.key === slot.paramKey) || this.liveCam.find((x) => x.key === slot.paramKey);
-       if (p) p.val = v;
+       const anim = this.animationTargets.find((t) => t.key === slot.paramKey);
+       if (anim) {
+         this.applyAnimationModulation(anim.field, v);
+       } else {
+         live[slot.paramKey] = v;
+         const p = this.liveVibe.find((x) => x.key === slot.paramKey) || this.liveCam.find((x) => x.key === slot.paramKey);
+         if (p) p.val = v;
+       }
      } else if (slot.type === 'lora' && v && v.name) {
        const entry = { name: v.name, path: v.name, strength: v.strength ?? 1 };
        if (smoothstep(t) < 0.5) loraA.push(entry);

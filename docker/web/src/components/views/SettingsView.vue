@@ -364,7 +364,7 @@
                     <td>
                       <select class="framesync-select" v-model="m.key" @change="saveMidiMappings" style="width:120px; padding:4px;">
                         <option value="">None</option>
-                        <option v-for="t in lfoTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
+                        <option v-for="t in modulationTargets" :key="'mopt'+t.key" :value="t.key">{{ t.label }}</option>
                       </select>
                     </td>
                     <td><button class="framesync-button" @click="deleteMidiMapping(idx)" style="padding:4px 8px; cursor:pointer;">Delete</button></td>
