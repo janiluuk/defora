@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.16] - 2026-05-27
+
+## What's Changed
+
+- Feat/web UI refactor preview latency (#53) (0159dba)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.15...v0.6.16
+
+
 ## [0.6.15] - 2026-05-27
 
 ## What's Changed
