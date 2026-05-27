@@ -36,9 +36,17 @@
         </div>
 
         <template v-if="!defaultAnimation.preferDeforumVideo">
-          <div class="slider-row">
+          <div v-if="defaultAnimation.mode === 'volume'" class="slider-row">
             <label>Beam count</label>
             <input type="range" min="3" max="12" step="1" v-model.number="defaultAnimation.beamCount" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'orbital'" class="slider-row">
+            <label>Orbit size</label>
+            <input type="range" min="0.1" max="2.0" step="0.01" v-model.number="defaultAnimation.orbit" @input="onDefaultAnimationInput">
+          </div>
+          <div v-if="defaultAnimation.mode === 'nebula'" class="slider-row">
+            <label>Mist</label>
+            <input type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.mist" @input="onDefaultAnimationInput">
           </div>
           <div class="slider-row">
             <label>Speed</label>
