@@ -519,6 +519,32 @@
     .sub-pills { display: flex; gap: 4px; margin-bottom: 10px; flex-wrap: wrap; }
     .sub-pill { padding: 5px 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--bg-2); color: var(--text-secondary); cursor: pointer; font-size: 12px; }
     .sub-pill.active { border-color: var(--b-group); color: var(--text-primary); background: rgba(232, 121, 176, 0.12); }
+    .live-view__tabs { position: sticky; top: 0; z-index: 2; background: var(--bg-1); padding: 4px 0 8px; }
+    .live-view__tab-add { border-style: dashed; }
+    .deforum-job-panel__head { margin-bottom: 0; }
+    .deforum-job-panel__summary { margin: 8px 0 0; }
+    .deforum-job-panel__transport { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .deforum-job-panel__status { margin-top: 8px; opacity: 0.9; }
+    .live-add-source__status { margin-top: 8px; }
+    .live-add-source__library { margin-top: 12px; }
+    .live-add-source__library-actions { margin-bottom: 10px; }
+    .live-add-source__hint { margin-top: 8px; opacity: 0.85; }
+    .live-source-list { margin-top: 14px; display: flex; flex-direction: column; gap: 8px; }
+    .live-source-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-2);
+    }
+    .live-source-row__meta { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+    .live-source-row__type { font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-secondary); }
+    .live-source-row__label { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 280px; }
+    .live-source-row__actions { display: flex; gap: 6px; flex-shrink: 0; }
     .table { width: 100%; border-collapse: collapse; font-size: 13px; color: var(--text-primary); }
     .table th, .table td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: left; }
     .performance-deck .crossfade-deck-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 8px; }

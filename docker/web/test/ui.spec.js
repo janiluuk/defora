@@ -149,7 +149,7 @@ describe("Deforumation Web UI", () => {
 
   beforeEach(async () => {
     appVm.switchTab("LIVE");
-    appVm.currentSubTab = { PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
+    appVm.currentSubTab = { LIVE: 'MONITOR', PROMPTS: 'CROSSFADER', MODULATION: 'LFO', SETTINGS: 'ENGINE' };
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
@@ -207,6 +207,12 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
   });
   it("scopes standby controls to the default animation surface and resets them", async () => {
+    appVm.liveDrawerOpen = true;
+    await nextTick();
+    expect(document.body.textContent).to.include("Instance count");
+
+    appVm.setDefaultAnimationMode("volume");
+    await nextTick();
     expect(document.body.textContent).to.include("Beam count");
 
     appVm.defaultAnimation.beamCount = 11;
@@ -251,17 +257,40 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.not.include("Blob count");
 
     appVm.resetDefaultAnimationSettings();
-    expect(appVm.defaultAnimation.mode).to.equal("volume");
-    expect(appVm.defaultAnimation.beamCount).to.equal(7);
+    expect(appVm.defaultAnimation.mode).to.equal("instancing");
+    expect(appVm.defaultAnimation.instCount).to.equal(12000);
     expect(appVm.defaultAnimation.speed).to.equal(0.75);
     expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
 
     appVm.defaultAnimation.preferDeforumVideo = false;
     await nextTick();
-    expect(document.body.textContent).to.include("Beam count");
+    expect(document.body.textContent).to.include("Instance count");
 
     appVm.setDefaultAnimationMode("invalid-mode");
-    expect(appVm.defaultAnimation.mode).to.equal("volume");
+    expect(appVm.defaultAnimation.mode).to.equal("instancing");
+  });
+
+  it("shows LIVE sub-tabs for monitor, deforum job, and add source", async () => {
+    appVm.switchTab("LIVE");
+    appVm.liveDrawerOpen = true;
+    await nextTick();
+    const liveTabs = [...document.querySelectorAll("[data-testid='live-view'] .sub-pill")].map((el) => el.textContent.trim());
+    expect(liveTabs).to.include.members(["Monitor", "Deforum job", "+ Add source"]);
+
+    appVm.switchSubTab("LIVE", "DEFORUM_JOB");
+    await nextTick();
+    expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
+    expect(document.body.textContent).to.include("Deforum job");
+
+    appVm.switchSubTab("LIVE", "ADD_SOURCE");
+    await nextTick();
+    expect(document.querySelector("[data-testid='live-add-source']")).to.exist;
+    expect(document.body.textContent).to.include("Library (video-swarm)");
+    expect(document.body.textContent).to.include("Link cloud drive");
+
+    appVm.switchSubTab("LIVE", "MONITOR");
+    await nextTick();
+    expect(document.body.textContent).to.include("Default Animation");
   });
 
   it("includes video, sliders, and presets", async () => {
@@ -378,12 +407,11 @@ describe("Deforumation Web UI", () => {
 
     const pageText = document.body.textContent;
     expect(pageText).to.include("Animation Sequencer");
-    expect(pageText).to.include("Duration (s)");
-    expect(pageText).to.include("Playhead (s)");
-    expect(pageText).to.include("Preview frame");
+    expect(pageText).to.include("Playhead");
     expect(pageText).to.include("Preview frame ready");
     expect(pageText).to.include("Story generation text");
     expect(pageText).to.include("Theme: Neon city");
+    expect(pageText).to.include("LIVE");
   });
 
   it("shows img2img under the image subtab", async () => {

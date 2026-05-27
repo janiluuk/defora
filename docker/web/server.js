@@ -863,6 +863,137 @@ async function start(opts = {}) {
 
   app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
 
+  const VIDEO_EXT = new Set([".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"]);
+
+  function videoSwarmRoots() {
+    return [
+      { id: "frames", label: "Frames", path: framesDir },
+      { id: "uploads", label: "Uploads", path: uploadsDir },
+      { id: "hls", label: "HLS", path: hlsDir },
+    ];
+  }
+
+  function resolveVideoSwarmPath(inputPath, rootId) {
+    const roots = videoSwarmRoots();
+    const root = rootId ? roots.find((r) => r.id === rootId) : roots[0];
+    if (!root) return null;
+    const raw = String(inputPath || "").trim();
+    if (!raw) return path.resolve(root.path);
+    const resolved = path.resolve(root.path, raw.replace(/^\/+/, ""));
+    const allowed = roots.some((r) => {
+      const rootResolved = path.resolve(r.path);
+      return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
+    });
+    if (!allowed) return null;
+    return resolved;
+  }
+
+  async function browseVideoSwarm(targetPath, { recursive = false, sortKey = "name" } = {}) {
+    const st = await fsp.stat(targetPath);
+    if (!st.isDirectory()) {
+      const err = new Error("not a directory");
+      err.code = "ENOTDIR";
+      throw err;
+    }
+    const entries = await fsp.readdir(targetPath, { withFileTypes: true });
+    const parent = path.dirname(targetPath);
+    const roots = videoSwarmRoots();
+    const atRoot = roots.some((r) => path.resolve(r.path) === path.resolve(targetPath));
+    const videos = [];
+    const walk = async (dir) => {
+      const items = await fsp.readdir(dir, { withFileTypes: true });
+      for (const ent of items) {
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          if (recursive) await walk(full);
+          continue;
+        }
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (!VIDEO_EXT.has(ext)) continue;
+        const fst = await fsp.stat(full);
+        const root = roots.find((r) => full.startsWith(path.resolve(r.path) + path.sep) || full === path.resolve(r.path));
+        videos.push({
+          name: ent.name,
+          path: full,
+          rootId: root ? root.id : "",
+          size: fst.size,
+          mtimeMs: fst.mtimeMs,
+        });
+      }
+    };
+    if (recursive) {
+      await walk(targetPath);
+    } else {
+      for (const ent of entries) {
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (!VIDEO_EXT.has(ext)) continue;
+        const full = path.join(targetPath, ent.name);
+        const fst = await fsp.stat(full);
+        const root = roots.find((r) => full.startsWith(path.resolve(r.path) + path.sep) || full === path.resolve(r.path));
+        videos.push({
+          name: ent.name,
+          path: full,
+          rootId: root ? root.id : "",
+          size: fst.size,
+          mtimeMs: fst.mtimeMs,
+        });
+      }
+    }
+    const sortFn = {
+      name: (a, b) => a.name.localeCompare(b.name),
+      date: (a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0),
+      size: (a, b) => (b.size || 0) - (a.size || 0),
+    }[sortKey] || ((a, b) => a.name.localeCompare(b.name));
+    videos.sort(sortFn);
+    return {
+      path: targetPath,
+      parent: atRoot ? "" : parent,
+      videos,
+      videoCount: videos.length,
+    };
+  }
+
+  app.get("/api/video-swarm/roots", (_req, res) => {
+    res.json({ roots: videoSwarmRoots().map(({ id, label, path: p }) => ({ id, label, path: p })) });
+  });
+
+  app.get("/api/video-swarm/browse", async (req, res) => {
+    try {
+      const rootId = String(req.query.rootId || "").trim();
+      const browsePath = resolveVideoSwarmPath(String(req.query.path || ""), rootId || "frames");
+      if (!browsePath) return res.status(400).json({ error: "invalid path" });
+      const recursive = String(req.query.recursive || "") === "1" || req.query.recursive === "true";
+      const sortKey = ["name", "date", "size"].includes(String(req.query.sort || "")) ? String(req.query.sort) : "name";
+      const data = await browseVideoSwarm(browsePath, { recursive, sortKey });
+      res.json(data);
+    } catch (err) {
+      if (err.code === "ENOENT") return res.status(404).json({ error: "path not found" });
+      console.error("[api] video-swarm browse", err);
+      res.status(500).json({ error: err.message || "browse failed" });
+    }
+  });
+
+  app.get("/api/video-swarm/file", async (req, res) => {
+    try {
+      const filePath = resolveVideoSwarmPath(String(req.query.path || ""), String(req.query.rootId || "").trim() || null);
+      if (!filePath) return res.status(400).json({ error: "invalid path" });
+      const st = await fsp.stat(filePath);
+      if (!st.isFile()) return res.status(404).json({ error: "not a file" });
+      const ext = path.extname(filePath).toLowerCase();
+      const type =
+        ext === ".webm" ? "video/webm"
+          : ext === ".mov" ? "video/quicktime"
+            : "video/mp4";
+      res.type(type);
+      res.sendFile(filePath);
+    } catch (err) {
+      if (err.code === "ENOENT") return res.status(404).json({ error: "file not found" });
+      res.status(500).json({ error: err.message || "file unavailable" });
+    }
+  });
+
   const SEQUENCER_EASING = new Set(["linear", "easeIn", "easeOut", "easeInOut"]);
 
   function validateTimeline(body) {
