@@ -19,7 +19,7 @@
 
 <script>
 import LiveParamRow from './LiveParamRow.vue'
-import { proxyAppView } from './views/app-view-proxy.js'
+import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'ModulationActiveModsPanel',

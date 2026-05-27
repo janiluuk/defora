@@ -91,11 +91,24 @@ function installFileReaderMock({ failRead = false } = {}) {
       });
     }
   };
-  global.FileReader = MockFileReader;
+  globalThis.FileReader = MockFileReader;
+  if (typeof global !== "undefined") {
+    global.FileReader = MockFileReader;
+  }
   if (global.window && typeof global.window === "object") {
     global.window.FileReader = MockFileReader;
   }
   return MockFileReader;
+}
+
+function removeFileReaderMock() {
+  delete globalThis.FileReader;
+  if (typeof global !== "undefined" && global !== globalThis) {
+    delete global.FileReader;
+  }
+  if (global.window && typeof global.window === "object") {
+    delete global.window.FileReader;
+  }
 }
 
 function loadAppDefinition() {
@@ -1569,14 +1582,14 @@ describe("Deforumation Web UI behavior", () => {
     };
     installFileReaderMock();
     const instance = instantiate(loadAppDefinition());
-    const wav = new File([Buffer.alloc(32)], "track.wav", { type: "audio/wav" });
+    const wav = new File([new Uint8Array(32)], "track.wav", { type: "audio/wav" });
     await instance.handleAudioUpload({ target: { files: [wav] } });
 
     expect(calls[0].name).to.equal("track.wav");
     expect(instance.audio.track).to.equal("/tmp/uploaded.wav");
     expect(instance.audio.uploadedFile).to.equal("track.wav");
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 
   it("handleAudioUpload handles FileReader errors gracefully", async () => {
@@ -1590,7 +1603,7 @@ describe("Deforumation Web UI behavior", () => {
     expect(instance.audioStatus).to.include("Failed to read audio file");
     expect(instance.audioStatus).to.include("under 50MB");
 
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 
   it("addLfo creates a new LFO entry", () => {
@@ -1807,7 +1820,7 @@ describe("Reference A/V sync", () => {
       URL.revokeObjectURL(instance.audio.objectUrl);
     }
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 
   it("handleAudioUpload revokes objectUrl when upload fails after blob creation", async () => {
@@ -1819,7 +1832,7 @@ describe("Reference A/V sync", () => {
     expect(instance.audio.objectUrl).to.equal(null);
     expect(instance.audioStatus).to.include("disk full");
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 
   it("clearAudioFile revokes objectUrl and disables av sync", async () => {
@@ -1836,7 +1849,7 @@ describe("Reference A/V sync", () => {
     expect(instance.audio.objectUrl).to.equal(null);
     expect(instance.avSyncEnabled).to.equal(false);
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 });
 
@@ -1920,7 +1933,7 @@ describe("Reference A/V sync mounted e2e", () => {
     expect(appVm.audio.objectUrl).to.be.a("string").and.to.match(/^blob:/);
     expect(appVm.$refs.avSyncAudio).to.exist;
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 
   it("enabling sync after upload leaves checkbox enabled once objectUrl exists", async () => {
@@ -1937,7 +1950,7 @@ describe("Reference A/V sync mounted e2e", () => {
     await nextTick();
     expect(appVm.avSyncEnabled).to.equal(true);
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 
   it("mounted: syncReferenceAudioToVideo uses real DOM audio ref after upload", async () => {
@@ -1970,6 +1983,6 @@ describe("Reference A/V sync mounted e2e", () => {
     appVm.syncReferenceAudioToVideo(video);
     expect(ct).to.equal(9);
     delete global.fetch;
-    delete global.FileReader;
+    removeFileReaderMock();
   });
 });

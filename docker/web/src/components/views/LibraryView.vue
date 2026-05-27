@@ -235,7 +235,7 @@
 </template>
 
 <script>
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
 
 export default {

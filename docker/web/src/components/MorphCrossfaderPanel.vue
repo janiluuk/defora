@@ -155,7 +155,7 @@
 
 <script>
 import Crossfader from './Crossfader.vue'
-import { proxyAppView } from './views/app-view-proxy.js'
+import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'MorphCrossfaderPanel',

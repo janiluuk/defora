@@ -175,7 +175,7 @@
 <script>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiIcon from '../UiIcon.vue'
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'StreamView',

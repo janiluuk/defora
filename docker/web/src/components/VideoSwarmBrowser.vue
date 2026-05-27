@@ -173,7 +173,7 @@
 </template>
 
 <script>
-import { proxyAppView } from './views/app-view-proxy.js'
+import { proxyAppView } from './views/app-view-proxy.mjs'
 
 const RENDER_BUFFER = 24
 

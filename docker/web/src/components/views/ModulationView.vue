@@ -267,7 +267,7 @@ import TargetCell from '../TargetCell.vue'
 import AudioSpectrumEditor from '../AudioSpectrumEditor.vue'
 import MorphCrossfaderPanel from '../MorphCrossfaderPanel.vue'
 import ModulationActiveModsPanel from '../ModulationActiveModsPanel.vue'
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'ModulationView',

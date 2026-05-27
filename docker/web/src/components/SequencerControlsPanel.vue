@@ -486,7 +486,7 @@
 <script>
 import UiIcon from './UiIcon.vue'
 import Timeline from './generate/Timeline.vue'
-import { proxyAppView } from './views/app-view-proxy.js'
+import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'SequencerControlsPanel',

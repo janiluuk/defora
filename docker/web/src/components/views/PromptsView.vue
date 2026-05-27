@@ -672,7 +672,7 @@
 </template>
 
 <script>
-import { proxyAppView } from './app-view-proxy.js'
+import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'PromptsView',
