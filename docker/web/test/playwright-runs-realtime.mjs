@@ -66,6 +66,13 @@ try {
   if (!runIdMatch) throw new Error(`Could not parse run id from log: ${logAfterLaunch.slice(0, 300)}`);
   const runId = runIdMatch[1].replace(/[(),]/g, "");
 
+  const row = page
+    .locator(".runs-browser__table tbody tr")
+    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
+    .first();
+
+  await row.waitFor({ state: "visible", timeout: 15000 });
+
   await page.waitForFunction(
     () => {
       const el = document.querySelector('[data-testid="runs-job-log"]');
@@ -94,6 +101,7 @@ try {
   );
 
   await row.waitFor({ state: "visible", timeout: 5000 });
+
 
   if (!/Demo run (logged|started|completed|done)/i.test(logText)) {
     throw new Error(`Job log missing demo run entries: ${logText.slice(0, 400)}`);

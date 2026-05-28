@@ -849,12 +849,11 @@
 
 <script>
 import RunsBrowserPanel from '../RunsBrowserPanel.vue'
-import StylesSettingsPanel from '../StylesSettingsPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',
-  components: { RunsBrowserPanel, StylesSettingsPanel },
+  components: { RunsBrowserPanel },
   props: {
     app: { type: Object, required: true },
   },

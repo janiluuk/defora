@@ -377,9 +377,6 @@
       width: 100%;
       max-width: min(1200px, calc(100vw - 16px));
       margin: 0 auto;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
     }
     .preview {
       display: grid;
@@ -4428,19 +4425,19 @@
       color: var(--text-dim);
     }
     .runs-monitor-bar {
-      margin-top: 6px;
+      margin-top: 10px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .runs-monitor__auto {
       font-size: 11px;
       color: var(--text-dim);
     }
     .runs-job-log {
-      margin-top: 6px;
-      max-height: 72px;
+      margin-top: 10px;
+      max-height: 140px;
       overflow: auto;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;
