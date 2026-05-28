@@ -1,23 +1,49 @@
 <template>
   <div class="rack motion-view" data-testid="motion-controls-panel">
-    <div class="framesync-panel motion-panel">
-      <div class="framesync-header">
-        <div class="framesync-title">Motion <span class="framesync-accent">Performance</span></div>
-        <div class="motion-panel__header-actions">
-          <code class="motion-panel__readout">
-            <template v-if="isDeforumMotion2d">
-              Move {{ motionPadReadout.x.toFixed(2) }}, {{ motionPadReadout.y.toFixed(2) }}
-              · Zoom {{ motionPadReadout.zoom.toFixed(2) }}
-              · Tilt {{ motionPadReadout.lookX.toFixed(2) }}
-            </template>
-            <template v-else>
-              X {{ motionPadReadout.x.toFixed(2) }}
-              · Y {{ motionPadReadout.y.toFixed(2) }}
-              · Z {{ motionPadReadout.z.toFixed(2) }}
-              · Zoom {{ motionPadReadout.zoom.toFixed(2) }}
-              · Tilt {{ motionPadReadout.tilt.toFixed(2) }}
-            </template>
-          </code>
+      <div class="framesync-panel motion-panel">
+        <div class="framesync-header">
+          <div class="framesync-title">Motion <span class="framesync-accent">Performance</span></div>
+          <div class="motion-panel__header-actions">
+            <code class="motion-panel__readout">
+              <template v-if="isDeforumMotion2d">
+                Move {{ motionPadReadout.x.toFixed(2) }}, {{ motionPadReadout.y.toFixed(2) }}
+                · Look {{ motionPadReadout.lookX.toFixed(2) }}, {{ motionPadReadout.lookY.toFixed(2) }}
+              </template>
+              <template v-else>
+                X {{ motionPadReadout.x.toFixed(2) }}
+                · Y {{ motionPadReadout.y.toFixed(2) }}
+                · Z {{ motionPadReadout.z.toFixed(2) }}
+                · Zoom {{ motionPadReadout.zoom.toFixed(2) }}
+              </template>
+            </code>
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              data-testid="reset-motion-default"
+              title="Reset all motion axes to zero"
+              @click="resetMotionToDefault"
+            >
+              ↺ Reset to default
+            </button>
+          </div>
+        </div>
+
+        <div class="motion-preset-toolbar">
+          <select
+            class="framesync-select motion-preset-select"
+            v-model="motionSelectedPreset"
+          >
+            <optgroup label="Built-in">
+              <option v-for="presetName in Object.keys(motionPresets)" :key="presetName" :value="presetName">
+                {{ presetName }}
+              </option>
+            </optgroup>
+            <optgroup v-if="savedMotionPresetNames.length" label="Saved">
+              <option v-for="presetName in savedMotionPresetNames" :key="`saved-${presetName}`" :value="presetName">
+                {{ presetName }}
+              </option>
+            </optgroup>
+          </select>
           <button
             type="button"
             class="framesync-button framesync-button--compact"
@@ -110,16 +136,63 @@
         </span>
       </div>
 
-      <MotionPathPreview
-        v-if="!isDeforumMotion2d"
-        :deforum-settings="deforumSettings"
-        :motion-values="motionPathLiveValues"
-        :prefer-live-values="true"
-      />
+        <MotionPathPreview
+          v-if="!isDeforumMotion2d"
+          :deforum-settings="deforumSettings"
+          :motion-values="motionPathLiveValues"
+          :prefer-live-values="true"
+        />
 
-      <div v-if="isDeforumMotion2d" class="motion-controls-2d">
-        <div class="motion-controls-2d__block">
-          <div class="motion-controls-2d__label">Move controls</div>
+        <div v-if="isDeforumMotion2d" class="motion-controls-2d">
+          <div class="motion-controls-2d__block">
+            <div class="motion-controls-2d__label">Move controls</div>
+            <div
+              class="motion-pad-hero motion-pad-hero--move"
+              data-testid="motion-pad-move"
+              @mousedown="motionPadMouseDown($event, 'move')"
+              @mousemove="motionPadMouseMove($event, 'move')"
+              @mouseup="motionPadMouseUp"
+              @mouseleave="motionPadMouseUp"
+              @touchstart.prevent="motionPadMouseDown($event, 'move')"
+              @touchmove.prevent="motionPadMouseMove($event, 'move')"
+              @touchend.prevent="motionPadMouseUp"
+            >
+              <div class="motion-pad-hero__axis motion-pad-hero__axis--x">X</div>
+              <div class="motion-pad-hero__axis motion-pad-hero__axis--y">Y</div>
+              <div class="motion-pad-hero__crosshair motion-pad-hero__crosshair--x"></div>
+              <div class="motion-pad-hero__crosshair motion-pad-hero__crosshair--y"></div>
+              <div class="motion-pad-hero__puck" :style="motionPadPuckStyle"></div>
+              <code class="motion-pad-hero__readout">
+                {{ motionPadReadout.x.toFixed(2) }}, {{ motionPadReadout.y.toFixed(2) }}
+              </code>
+            </div>
+          </div>
+          <div class="motion-controls-2d__block">
+            <div class="motion-controls-2d__label">Look controls</div>
+            <div
+              class="motion-pad-hero motion-pad-hero--look"
+              data-testid="motion-pad-look"
+              @mousedown="motionPadMouseDown($event, 'look')"
+              @mousemove="motionPadMouseMove($event, 'look')"
+              @mouseup="motionPadMouseUp"
+              @mouseleave="motionPadMouseUp"
+              @touchstart.prevent="motionPadMouseDown($event, 'look')"
+              @touchmove.prevent="motionPadMouseMove($event, 'look')"
+              @touchend.prevent="motionPadMouseUp"
+            >
+              <div class="motion-pad-hero__axis motion-pad-hero__axis--x">Angle</div>
+              <div class="motion-pad-hero__axis motion-pad-hero__axis--y">Zoom</div>
+              <div class="motion-pad-hero__crosshair motion-pad-hero__crosshair--x"></div>
+              <div class="motion-pad-hero__crosshair motion-pad-hero__crosshair--y"></div>
+              <div class="motion-pad-hero__puck motion-pad-hero__puck--look" :style="motionLookPadPuckStyle"></div>
+              <code class="motion-pad-hero__readout">
+                {{ motionPadReadout.lookX.toFixed(2) }}, {{ motionPadReadout.lookY.toFixed(2) }}
+              </code>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="motion-controls-row">
           <div
             class="motion-pad-hero motion-pad-hero--move"
             data-testid="motion-pad-move"

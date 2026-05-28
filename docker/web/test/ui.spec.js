@@ -817,7 +817,7 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.include("Look controls");
     expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
-    expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
+    expect(document.querySelector(".motion-axis-sliders")).to.not.exist;
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
 
     appVm.updateMotionPad({
@@ -866,7 +866,7 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.translation_x).to.equal(0);
     expect(appVm.motionPadValues.translation_y).to.equal(0);
     expect(appVm.motionPadValues.translation_z).to.equal(0);
-    expect(appVm.motionPadValues.zoom).to.equal(1);
+    expect(appVm.motionPadValues.zoom).to.equal(0);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
     expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;
@@ -1042,7 +1042,7 @@ describe("Deforumation Web UI", () => {
 
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("CROSSFADER");
-    expect(drawerTabs.join(" ")).to.include("SYSTEM");
+    expect(drawerTabs.join(" ")).to.include("RUNS");
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
@@ -1115,9 +1115,9 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders the runs monitor in the bottom drawer SYSTEM tab", async () => {
+  it("renders recent runs in the bottom drawer RUNS tab", async () => {
     appVm.liveBottomDrawerOpen = true;
-    appVm.setLiveBottomDrawerTab("SYSTEM");
+    appVm.setLiveBottomDrawerTab("RUNS");
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
       { run_id: "run-002", status: "completed", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
@@ -1127,13 +1127,16 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector('[data-testid="bottom-drawer-system"]')).to.exist;
+    expect(document.querySelector('[data-testid="bottom-drawer-runs"]')).to.exist;
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
-    expect(drawerTabs.join(" ")).to.include("SYSTEM");
-    const runsBrowser = document.querySelector('[data-testid="bottom-drawer-system"] [data-testid="runs-browser"]');
-    expect(runsBrowser).to.exist;
-    expect(document.body.textContent).to.include("Runs Monitor");
-    expect(runsBrowser.closest('[data-testid="bottom-drawer"]')).to.exist;
+    expect(drawerTabs.join(" ")).to.include("RUNS");
+    const railItems = [...document.querySelectorAll(".recent-runs-rail__item")];
+    expect(railItems.length).to.equal(4);
+    expect(railItems[0].textContent).to.include("run-005");
+    expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
+    const railRoot = document.querySelector(".recent-runs-rail");
+    expect(railRoot).to.exist;
+    expect(railRoot.closest('[data-testid="bottom-drawer"]')).to.exist;
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
@@ -1172,7 +1175,6 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "SYSTEM");
-    appVm.runsBrowserTab = "past";
     await nextTick();
     await nextTick();
 
@@ -1283,52 +1285,6 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(document.querySelector('[data-testid="library-frame-rail"]')).to.equal(null);
     expect(document.querySelector('[data-testid="library-run-thumbs"]')).to.equal(null);
-  });
-
-  it("Library browser exposes new folder, videos-only, and cloud connect", async () => {
-    global.fetch = async (url) => {
-      const path = String(url);
-      if (path.includes("/api/video-swarm/roots")) {
-        return {
-          ok: true,
-          json: async () => ({
-            roots: [{ id: "uploads", label: "Uploads", path: "/tmp/uploads", kind: "local" }],
-            cloudSources: [],
-          }),
-        };
-      }
-      if (path.includes("/api/video-swarm/browse")) {
-        return {
-          ok: true,
-          json: async () => ({
-            kind: "local",
-            path: "/tmp/uploads",
-            parent: "",
-            folders: [],
-            videos: [{ name: "a.mp4", path: "/tmp/uploads/a.mp4", rootId: "uploads", size: 100 }],
-            folderCount: 0,
-            videoCount: 1,
-          }),
-        };
-      }
-      return { ok: true, json: async () => ({}) };
-    };
-    appVm.systemFiles._rootsLoaded = false;
-    appVm.switchTab("LIBRARY");
-    await appVm.initSystemFilesBrowser();
-    await nextTick();
-    await nextTick();
-
-    expect(document.querySelector('[data-testid="video-swarm-browser"]')).to.exist;
-    expect(document.querySelector('[data-testid="video-swarm-new-folder"]')).to.exist;
-    expect(document.querySelector('[data-testid="video-swarm-view-videos-only"]')).to.exist;
-    expect(document.querySelector('[data-testid="video-swarm-connect-cloud"]')).to.exist;
-
-    appVm.toggleSystemFilesVideosOnly();
-    await nextTick();
-    expect(appVm.systemFiles.viewMode).to.equal("videos-only");
-
-    delete global.fetch;
   });
 
   it("launchTestRun logs job and refreshes runs", async () => {

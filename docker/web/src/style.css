@@ -362,49 +362,15 @@
     .btn.playing { background: var(--live); box-shadow: 0 0 10px rgba(29, 158, 117, 0.35); }
     .btn.recording { background: var(--error); animation: btn-rec-pulse 1.5s ease-in-out infinite; }
     @keyframes btn-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-    .layout { flex: 1; display: grid; grid-template-columns: 1fr; gap: 10px; padding: 10px; min-height: 0; }
-    .layout--sidebar {
-      min-height: calc(100vh - 54px - 20px);
-      align-content: stretch;
-    }
+    .layout { flex: 1; display: grid; grid-template-columns: 1fr; gap: 10px; padding: 10px; }
     .layout--sidebar .preview {
       position: relative;
       width: 100%;
       max-width: min(1200px, calc(100vw - 16px));
       margin: 0 auto;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
     }
-    .preview {
-      display: grid;
-      grid-template-rows: 1fr;
-      align-content: stretch;
-      gap: 4px;
-      width: 100%;
-      min-height: 0;
-      flex: 1;
-    }
-    .preview--motion-dock {
-      grid-template-rows: 1fr minmax(196px, 196px);
-    }
-    .preview-bottom-dock {
-      min-height: 196px;
-      height: 196px;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-    .preview-bottom-dock__pane {
-      flex: 1 1 auto;
-      min-height: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
-    }
-    .preview-bottom-dock__pane--sequencer .stage-sequencer-shell {
-      margin-top: 0;
-    }
-    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: var(--media-bg); width: 100%; }
+    .preview { display: flex; flex-direction: column; gap: 0; }
+    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: radial-gradient(circle at 50% 35%, rgba(127, 119, 221, 0.18), transparent 40%), var(--media-bg); width: 100%; }
     .video-wrap__stage {
       position: relative;
       width: 100%;
@@ -1331,39 +1297,12 @@
       padding: 10px 10px 0;
       flex-wrap: wrap;
     }
-    .bottom-drawer-system.system-runs-tab {
-      max-height: calc(72vh - 52px);
-      min-height: 0;
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-      padding: 0 10px 10px;
-    }
-    .bottom-drawer-system.system-runs-tab .runs-browser {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-      gap: 8px;
-    }
-    .bottom-drawer-system.system-runs-tab .runs-browser__panel {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-    .bottom-drawer-system.system-runs-tab .runs-browser__table-wrap {
-      flex: 1;
-      min-height: 0;
-      max-height: none;
-    }
-    .bottom-drawer-system.system-runs-tab .runs-detail-card,
-    .bottom-drawer-system.system-runs-tab .runs-compare-card {
-      flex-shrink: 0;
-      max-height: min(32vh, 280px);
-      overflow-y: auto;
+    .bottom-drawer-runs.recent-runs-rail {
+      margin-top: 0;
+      border: none;
+      border-radius: 0;
+      background: transparent;
+      padding: 10px;
     }
     .live-mod-grid {
       display: grid;
@@ -3951,19 +3890,19 @@
       color: var(--text-dim);
     }
     .runs-monitor-bar {
-      margin-top: 6px;
+      margin-top: 10px;
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      gap: 10px;
     }
     .runs-monitor__auto {
       font-size: 11px;
       color: var(--text-dim);
     }
     .runs-job-log {
-      margin-top: 6px;
-      max-height: 72px;
+      margin-top: 10px;
+      max-height: 140px;
       overflow: auto;
       border: 1px solid rgba(255, 255, 255, 0.08);
       border-radius: 8px;

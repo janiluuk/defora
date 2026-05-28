@@ -13,7 +13,7 @@ const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
 // Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
-const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs'];
+const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'deforum-settings-verify.js', 'api-utils.js'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -143,7 +143,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue'].some((p) => nestedRel.endsWith(p))) {
+      if (nestedRel.includes('/views/') || nestedRel.endsWith('RunsBrowserPanel.vue') || nestedRel.endsWith('SequencerControlsPanel.vue') || nestedRel.endsWith('LoraCrossfaderPanel.vue')) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -176,7 +176,7 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue'].some((p) => relPath.endsWith(p))) {
+    if (relPath.includes('/views/') || relPath.endsWith('RunsBrowserPanel.vue') || relPath.endsWith('SequencerControlsPanel.vue') || relPath.endsWith('LoraCrossfaderPanel.vue')) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }
