@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.28] - 2026-05-28
+
+## What's Changed
+
+- feat(web): WebGL-first preview compositor and runs storage E2E (#68) (dc3bf48)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.27...v0.6.28
+
+
 ## [0.6.27] - 2026-05-27
 
 ## What's Changed
