@@ -567,24 +567,43 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div
-          v-if="currentTab === 'MOTION'"
-          class="preview-bottom-dock"
-          data-testid="preview-bottom-dock"
-        >
-          <div class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer">
-            <div
-              class="stage-sequencer-shell"
-              :class="{ 'stage-sequencer-shell--side-open': motionSequencerSideOpen }"
-              data-testid="motion-sequencer-dock"
-            >
-              <aside
-                v-show="motionSequencerSideOpen"
-                class="stage-sequencer-side"
-                data-testid="motion-sequencer-side-drawer"
-              >
-                <div class="stage-sequencer-side__head">
-                  <span class="stage-sequencer-side__title">Sequencer <span class="framesync-accent">Editor</span></span>
+        <div v-if="currentTab === 'MOTION'" class="stage-sequencer-shell" data-testid="motion-sequencer-dock">
+          <SequencerControlsPanel :app="appViewModel" stage show-timeline />
+          <GenerateView
+            v-if="generator.result || generator.status || performance.status || sequencerStatus"
+            :app="appViewModel"
+            story-only
+          />
+        </div>
+        <div v-else class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
+            <div class="frame-rail__header">
+              <div class="frame-rail__title-wrap">
+                <span class="frame-rail__title">Frames</span>
+                <span class="frame-rail__meta" v-if="frameStripThumbs.length">
+                  {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} generated
+                </span>
+                <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
+              </div>
+              <div class="frame-rail__actions">
+                <button
+                  type="button"
+                  class="frame-rail__toggle"
+                  :aria-expanded="showFrames ? 'true' : 'false'"
+                  :title="showFrames ? 'Collapse frames' : 'Expand frames'"
+                  @click="showFrames = !showFrames; saveSessionState()"
+                >
+                  <UiIcon class="frame-rail__toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
+                </button>
+                <div class="frame-rail__controls" v-if="showFrames && frameStripThumbs.length">
+                  <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
+                  <input
+                    class="frame-rail__scrubber"
+                    type="range"
+                    min="0"
+                    :max="Math.max(0, frameStripThumbs.length - 1)"
+                    :value="Math.max(0, selectedFrameIndex)"
+                    @input="selectFrame(Number($event.target.value))"
+                  >
                   <button
                     type="button"
                     class="framesync-button framesync-button--compact"
@@ -609,17 +628,16 @@
               >
                 <UiIcon :name="motionSequencerSideOpen ? 'arrow-left' : 'arrow-right'" />
               </button>
-              <div class="stage-sequencer-main">
-                <SequencerControlsPanel :app="appViewModel" stage show-timeline />
-                <GenerateView
-                  v-if="generator.result || generator.status || performance.status || sequencerStatus"
-                  :app="appViewModel"
-                  story-only
-                />
-              </div>
+            </div>
+            <div v-else-if="showFrames" class="frame-rail__empty">
+              <span class="lazy-loading-indicator">
+                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>{{ framesEmptyStatus.label }}</span>
+                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
             </div>
           </div>
-        </div>
 
           </div>
         </div>
@@ -652,12 +670,8 @@ import {
   removeNestedValue,
   patchFromKeyPath,
   mergeDeforumSettings,
-  readScheduleValueAtFrame,
-  buildLinearScheduleRamp,
-  normalizeDeforumMode2d3d,
-  isDeforum3dOnlyFieldKey,
-} from './deforum-settings-schema.mjs'
-import { verifyDeforumSettings } from './deforum-settings-verify.mjs'
+} from './deforum-settings-schema.js'
+import { verifyDeforumSettings } from './deforum-settings-verify.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
 import {
   buildRunDetailCurrentContext,
@@ -950,12 +964,6 @@ export default {
         zoomLevel: 2,
         selectedPaths: [],
         fullscreenIndex: -1,
-        cloudSources: [],
-        cloudSource: null,
-        cloudConnectOpen: false,
-        cloudVideoDraft: { name: '', url: '' },
-        newFolderOpen: false,
-        newFolderName: '',
         _rootsLoaded: false,
       },
       videoSwarmVisibleStart: 0,
@@ -1100,12 +1108,8 @@ export default {
       motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
       motionStylesSaved: {},
       motionSelectedPreset: "Static",
-      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1, rotation_z: 0, look_x: 0, look_y: 0 },
-      motionSmoothness: {
-        enabled: false,
-        frames: 1,
-      },
-      xyPad: { dragging: false, activePad: null, padSize: 420, dragStartValues: null },
+      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1, look_x: 0, look_y: 0 },
+      xyPad: { dragging: false, activePad: null, padSize: 420 },
       audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
       audioSpectrogramDataUrl: null,
       audioSpectrogramStatus: "",
@@ -1507,7 +1511,7 @@ export default {
     },
     runsMonitorActive() {
       if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
-      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'SYSTEM';
+      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'RUNS';
     },
     runsLastRefreshedLabel() {
       if (!this.runsLastRefreshedAt) return '';
@@ -1516,31 +1520,6 @@ export default {
       } catch (_e) {
         return '';
       }
-    },
-    runsActiveList() {
-      return (this.runsAll || []).filter((r) => r.status === 'running' || r.status === 'queued');
-    },
-    runsActiveRunningCount() {
-      return this.runsActiveList.filter((r) => r.status === 'running').length;
-    },
-    runsActiveQueuedCount() {
-      return this.runsActiveList.filter((r) => r.status === 'queued').length;
-    },
-    runsActiveWorkerCount() {
-      const names = this.runsActiveList
-        .map((r) => this.runWorkerName(r))
-        .filter((n) => n && n !== '—');
-      return new Set(names).size;
-    },
-    runsActiveSummaryLabel() {
-      const running = this.runsActiveRunningCount;
-      const queued = this.runsActiveQueuedCount;
-      const workers = this.runsActiveWorkerCount;
-      const workerPart = workers ? ` · ${workers} worker${workers === 1 ? '' : 's'}` : '';
-      return `${running} running · ${queued} queued${workerPart}`;
-    },
-    runsPastCount() {
-      return (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued').length;
     },
     rtmpStreamHref() {
       const nodes = this.infrastructure && Array.isArray(this.infrastructure.transcoders)
@@ -1620,14 +1599,7 @@ export default {
       return (latest && (latest.src || latest.url || latest.path)) || '';
     },
     activePreviewStillPath() {
-      if (this.deforumPlaying) {
-        return this.latestGeneratedFramePath
-          || this.performance.lastPreviewPath
-          || this.generator.lastPath
-          || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
-          || '';
-      }
-      if (this.currentTab === 'LIVE') {
+      if (!this.deforumPlaying && this.currentTab === 'LIVE') {
         return this.performance.lastPreviewPath
           || this.generator.lastPath
           || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
@@ -1699,7 +1671,7 @@ export default {
       return this.rightPanelOpen ? 'chevron-left' : 'chevron-right';
     },
     rightPanelToggleTitle() {
-      return this.rightPanelOpen ? 'Hide tab panel' : 'Show tab panel';
+      return this.rightPanelOpen ? 'Collapse sidebar' : 'Expand sidebar';
     },
     videoOverlayCssVars() {
       const b = this.videoOverlayBounds;
@@ -1724,12 +1696,6 @@ export default {
         left: `${Number.isFinite(left) ? left : 0}px`,
         height: `${height}px`,
       };
-    },
-    canStartHlsWatch() {
-      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
-    },
-    showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
     },
     canStartHlsWatch() {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
@@ -2518,6 +2484,15 @@ export default {
         knobSlot(pick(7), 'Knob 2'),
       ];
     },
+    recentRunsRail() {
+      return [...this.runsAll]
+        .sort((a, b) => {
+          const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
+          const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, 4);
+    },
     sessionCatalog() {
       try {
         if (typeof window === 'undefined' || !window.localStorage) return [];
@@ -2768,7 +2743,6 @@ export default {
         y: Number(this.motionPadValues.translation_y || 0),
         z: Number(this.motionPadValues.translation_z || 0),
         zoom: Number(this.motionPadValues.zoom ?? 1),
-        tilt: Number(this.motionPadValues.rotation_z ?? 0),
         lookX: Number(this.motionPadValues.look_x ?? 0),
         lookY: Number(this.motionPadValues.look_y ?? 0),
       };
@@ -2888,9 +2862,6 @@ export default {
         if (this.showDeforumVideo) this.clearHeldPreviewFrame();
       }
     },
-    showDeforumVideo(visible) {
-      if (visible) this.clearHeldPreviewFrame();
-    },
     currentTab() {
       this.syncRunsMonitorPolling();
     },
@@ -2919,7 +2890,7 @@ export default {
       if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
     },
     liveBottomDrawerTab(tab) {
-      if (tab === 'SYSTEM') void this.refreshRuns();
+      if (tab === 'RUNS') void this.refreshRuns();
       this.syncRunsMonitorPolling();
     },
     currentTab(tab, prev) {
@@ -3685,139 +3656,6 @@ export default {
       return dateStr;
     }
   },
-  runListingId(run) {
-    return String(run?.run_id || '').replace(/^batch:/, '');
-  },
-  runListingThumbUrl(run) {
-    if (!run) return '';
-    const id = this.runListingId(run);
-    if (!id) return '';
-    if (!run.has_thumbnail && !(Number(run.frames_done) > 0) && !run.latest_frame) return '';
-    const base = `/api/runs/${encodeURIComponent(id)}/thumb`;
-    const rev = run.thumb_rev || run.latest_frame || run.frames_done || '';
-    return rev ? `${base}?v=${encodeURIComponent(rev)}` : base;
-  },
-  runFramesDone(run) {
-    if (!run) return null;
-    if (Number.isFinite(run.frames_done)) return run.frames_done;
-    if (run._isBatch && run._batch) {
-      const b = run._batch;
-      const total = this.runFramesTotal(run);
-      if (Number.isFinite(b.frames_done)) return b.frames_done;
-      if (Number.isFinite(b.frames_completed)) return b.frames_completed;
-      if (Number.isFinite(b.current_frame)) return b.current_frame;
-      if (typeof b.progress === 'number' && total) return Math.round(b.progress * total);
-    }
-    return null;
-  },
-  runFramesTotal(run) {
-    if (!run) return null;
-    if (Number.isFinite(run.frames_total) && run.frames_total > 0) return run.frames_total;
-    const total = run.frame_count ?? run.length_frames ?? null;
-    if (Number.isFinite(total) && total > 0) return total;
-    if (run._isBatch && run._batch) {
-      const b = run._batch;
-      const candidate = b.max_frames ?? b.frame_count ?? b.frames ?? null;
-      if (Number.isFinite(candidate) && candidate > 0) return candidate;
-    }
-    return null;
-  },
-  runFrameProgressPct(run) {
-    if (!run) return null;
-    if (Number.isFinite(run.frames_progress_pct)) return run.frames_progress_pct;
-    const done = this.runFramesDone(run);
-    const total = this.runFramesTotal(run);
-    if (done != null && total != null && total > 0) {
-      return Math.min(100, Math.round((done / total) * 100));
-    }
-    return null;
-  },
-  runFrameProgressLabel(run) {
-    const done = this.runFramesDone(run);
-    const total = this.runFramesTotal(run);
-    if (done == null && total == null) return '-';
-    const pct = this.runFrameProgressPct(run);
-    const doneStr = done != null ? done : '?';
-    const totalStr = total != null ? total : '?';
-    if (pct != null) return `${doneStr}/${totalStr} · ${pct}%`;
-    return `${doneStr}/${totalStr}`;
-  },
-  runWorkerName(run) {
-    if (!run) return '—';
-    return (
-      run._gpu
-      || (run._batchNode && run._batchNode.name)
-      || (run._batch && run._batch._node && run._batch._node.name)
-      || (run.job && run.job.snapshot && run.job.snapshot.node && run.job.snapshot.node.name)
-      || '—'
-    );
-  },
-  runLiveFramesLabel(run) {
-    const done = this.runFramesDone(run);
-    if (done == null) return '—';
-    const total = this.runFramesTotal(run);
-    if (total != null) return `${done} / ${total} frames`;
-    return `${done} frames`;
-  },
-  formatDurationShort(seconds) {
-    const sec = Number(seconds);
-    if (!Number.isFinite(sec) || sec < 0) return '—';
-    if (sec < 45) return `~${Math.max(1, Math.round(sec))}s left`;
-    if (sec < 3600) return `~${Math.round(sec / 60)}m left`;
-    return `~${(sec / 3600).toFixed(1)}h left`;
-  },
-  runEtaLabel(run) {
-    if (!run) return '—';
-    if (run.status === 'queued') return 'Waiting in queue';
-    const done = this.runFramesDone(run);
-    const total = this.runFramesTotal(run);
-    if (total != null && done != null && done >= total) return 'Finishing…';
-    if (done == null || done <= 0 || !total) return 'Estimating…';
-    const startedMs = run.started_at ? new Date(run.started_at).getTime() : NaN;
-    if (!Number.isFinite(startedMs)) return 'Estimating…';
-    const elapsedSec = Math.max(1, (Date.now() - startedMs) / 1000);
-    const rate = done / elapsedSec;
-    if (!Number.isFinite(rate) || rate <= 0) return 'Estimating…';
-    const remaining = Math.max(0, total - done);
-    if (remaining <= 0) return 'Finishing…';
-    return this.formatDurationShort(remaining / rate);
-  },
-  runDetailCurrentContext() {
-    return buildRunDetailCurrentContext({
-      deforumSettings: this.normalizedDeforumSettings(),
-      forgeModel: this.forge?.selectedModel || this.forge?.currentModel,
-    });
-  },
-  runDetailJsonRows(run) {
-    return buildRunDetailJsonRows(run, this.runDetailCurrentContext(), {
-      diffOnly: !!this.runsDetailJsonShowDiffOnly,
-    });
-  },
-  runDetailJsonPretty(run) {
-    return runDetailJsonPretty(run);
-  },
-  runDetailJsonDiffCount(run) {
-    return buildRunDetailJsonRows(run, this.runDetailCurrentContext(), { diffOnly: true }).length;
-  },
-  async copyRunDetailJson(run) {
-    const text = this.runDetailJsonPretty(run);
-    if (!text) return;
-    try {
-      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      this.runsStatus = 'Run JSON copied';
-    } catch (_e) {
-      this.runsStatus = 'Failed to copy JSON';
-    }
-  },
  toggleRightPanel() {
    this.rightPanelOpen = !this.rightPanelOpen;
    this.liveDrawerOpen = this.rightPanelOpen;
@@ -3909,7 +3747,16 @@ export default {
      return;
    }
    if (id === 'RUNS') {
-     this.openRunsDrawerSystem();
+     this.currentTab = 'SETTINGS';
+     this.currentSubTab.SETTINGS = 'SYSTEM';
+     try {
+       if (typeof window !== 'undefined' && window.localStorage) {
+         window.localStorage.setItem('defora_tab', 'SETTINGS');
+         window.localStorage.setItem('defora_subtab_SETTINGS', 'SYSTEM');
+       }
+     } catch (_e) {}
+     void this.refreshRuns();
+     this.syncRunsMonitorPolling();
      return;
    }
    if (id !== 'LIBRARY') {
@@ -4004,9 +3851,9 @@ export default {
   this.saveSessionState();
  },
  setLiveBottomDrawerTab(tab) {
-  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
+  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'RUNS') return;
   this.liveBottomDrawerTab = tab;
-  if (tab === 'SYSTEM') {
+  if (tab === 'RUNS') {
     void this.refreshRuns();
   } else if (tab !== 'CROSSFADER') {
     this.loraCrossfaderPickerGroup = null;
@@ -5039,7 +4886,6 @@ async initSystemFilesBrowser() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not load library roots');
     this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
-    this.systemFiles.cloudSources = Array.isArray(data.cloudSources) ? data.cloudSources : [];
     this.systemFiles._rootsLoaded = true;
     const preferred =
       this.systemFiles.roots.find((r) => r.id === this.systemFiles.rootId)
@@ -5051,205 +4897,6 @@ async initSystemFilesBrowser() {
     }
   } catch (err) {
     this.systemFiles.status = err.message || 'Library unavailable';
-  }
-},
-async refreshCloudSources() {
-  try {
-    const res = await fetch('/api/video-swarm/cloud-sources');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not load cloud sources');
-    this.systemFiles.cloudSources = Array.isArray(data.sources) ? data.sources : [];
-    const localRoots = (this.systemFiles.roots || []).filter((r) => r.kind !== 'cloud');
-    this.systemFiles.roots = [
-      ...localRoots,
-      ...(this.systemFiles.cloudSources || []).map((source) => ({
-        id: `cloud:${source.id}`,
-        label: `${this.cloudProviderLabel(source.provider)} — ${source.label}`,
-        kind: 'cloud',
-        provider: source.provider,
-        url: source.url,
-        path: '',
-      })),
-    ];
-  } catch (err) {
-    this.systemFiles.status = err.message || 'Cloud storage unavailable';
-  }
-},
-async connectCloudStorage({ label, provider, url } = {}) {
-  const shareUrl = String(url || this.cloudDriveDraft.url || '').trim();
-  if (!shareUrl) {
-    this.systemFiles.status = 'Enter a cloud share link';
-    return;
-  }
-  try {
-    const res = await fetch('/api/video-swarm/cloud-sources', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        label: String(label || '').trim() || this.cloudProviderLabel(provider || this.cloudDriveDraft.provider),
-        provider: provider || this.cloudDriveDraft.provider || 'other',
-        url: shareUrl,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not connect cloud storage');
-    this.cloudDriveDraft.url = '';
-    this.systemFiles.cloudConnectOpen = false;
-    await this.refreshCloudSources();
-    const created = data.source;
-    if (created && created.id) {
-      this.systemFiles.rootId = `cloud:${created.id}`;
-      await this.browseSystemFiles('', { rootId: this.systemFiles.rootId });
-    }
-    this.systemFiles.status = 'Cloud storage connected';
-  } catch (err) {
-    this.systemFiles.status = err.message || 'Could not connect cloud storage';
-  }
-},
-async disconnectCloudStorage(sourceId) {
-  const id = String(sourceId || '').trim();
-  if (!id) return;
-  if (!window.confirm('Remove this cloud connection from the browser?')) return;
-  try {
-    const res = await fetch(`/api/video-swarm/cloud-sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not remove cloud storage');
-    await this.refreshCloudSources();
-    if (this.isCloudStorageRoot(this.systemFiles.rootId)) {
-      const fallback = (this.systemFiles.roots || []).find((r) => r.kind !== 'cloud') || this.systemFiles.roots[0];
-      if (fallback) {
-        this.systemFiles.rootId = fallback.id;
-        await this.browseSystemFiles(fallback.path, { rootId: fallback.id });
-      }
-    }
-    this.systemFiles.status = 'Cloud storage removed';
-  } catch (err) {
-    this.systemFiles.status = err.message || 'Could not remove cloud storage';
-  }
-},
-openCloudStorageLink(source) {
-  const targetUrl = source && source.url ? String(source.url) : '';
-  if (!targetUrl) return;
-  try {
-    window.open(targetUrl, '_blank', 'noopener,noreferrer');
-  } catch (_e) {
-    this.systemFiles.status = 'Could not open cloud link';
-  }
-},
-async addCloudStorageVideo(sourceId) {
-  const id = String(sourceId || this.cloudStorageSourceId() || '').trim();
-  const videoUrl = String(this.systemFiles.cloudVideoDraft.url || '').trim();
-  if (!id || !videoUrl) {
-    this.systemFiles.status = 'Enter a direct video URL from the cloud share';
-    return;
-  }
-  try {
-    const res = await fetch(`/api/video-swarm/cloud-sources/${encodeURIComponent(id)}/videos`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name: String(this.systemFiles.cloudVideoDraft.name || '').trim(),
-        url: videoUrl,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not add cloud video');
-    this.systemFiles.cloudVideoDraft = { name: '', url: '' };
-    if (this.isCloudStorageRoot(this.systemFiles.rootId)) {
-      await this.browseSystemFiles('', { rootId: this.systemFiles.rootId });
-    }
-    this.systemFiles.status = 'Cloud video added';
-  } catch (err) {
-    this.systemFiles.status = err.message || 'Could not add cloud video';
-  }
-},
-toggleSystemFilesVideosOnly() {
-  this.systemFiles.viewMode = this.systemFiles.viewMode === 'videos-only' ? 'browse' : 'videos-only';
-  void this.browseSystemFiles(this.systemFiles.currentPath);
-  this.saveSessionState();
-},
-openNewFolderDialog() {
-  if (this.isCloudStorageRoot()) {
-    this.systemFiles.status = 'Create folders on local storage roots only';
-    return;
-  }
-  this.systemFiles.newFolderName = '';
-  this.systemFiles.newFolderOpen = true;
-},
-cancelNewFolderDialog() {
-  this.systemFiles.newFolderOpen = false;
-  this.systemFiles.newFolderName = '';
-},
-async uploadSystemVideoFile(file, { target = "uploads" } = {}) {
-  if (!file) return;
-  const name = String(file.name || "upload.mp4");
-  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
-  const allowed = [".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"];
-  if (ext && !allowed.includes(ext)) {
-    this.systemFiles.status = "Unsupported file type (use mp4, webm, mov, mkv, m4v, avi)";
-    return;
-  }
-  this.systemFiles.loading = true;
-  this.systemFiles.status = `Uploading ${name}…`;
-  try {
-    const body = await file.arrayBuffer();
-    const q = new URLSearchParams({ name, dir: target === "videoswarm" ? "videoswarm" : "uploads" });
-    const res = await fetch(`/api/video-swarm/upload?${q.toString()}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": file.type || "application/octet-stream",
-        "X-Filename": name,
-      },
-      body,
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Upload failed");
-    this.systemFiles.status = `Uploaded ${data.name || name}`;
-    const browsePath = this.systemFiles.currentPath
-      || (this.systemFiles.roots || []).find((r) => r.id === (data.rootId || "uploads"))?.path;
-    await this.browseSystemFiles(browsePath, { rootId: data.rootId || "uploads" });
-    if (data.path) this.systemFiles.selectedPaths = [data.path];
-  } catch (err) {
-    this.systemFiles.status = err.message || "Upload failed";
-  } finally {
-    this.systemFiles.loading = false;
-  }
-},
-async uploadSystemVideoFiles(fileList) {
-  const files = Array.from(fileList || []).filter((f) => f && f.size);
-  if (!files.length) return;
-  for (const file of files) {
-    await this.uploadSystemVideoFile(file);
-  }
-},
-async createSystemFolder() {
-  const name = String(this.systemFiles.newFolderName || '').trim();
-  if (!name) {
-    this.systemFiles.status = 'Enter a folder name';
-    return;
-  }
-  if (this.isCloudStorageRoot()) {
-    this.systemFiles.status = 'Cannot create folders on cloud storage';
-    return;
-  }
-  try {
-    const res = await fetch('/api/video-swarm/mkdir', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        name,
-        path: this.systemFiles.currentPath,
-        rootId: this.systemFiles.rootId,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not create folder');
-    this.systemFiles.newFolderOpen = false;
-    this.systemFiles.newFolderName = '';
-    await this.browseSystemFiles(this.systemFiles.currentPath);
-    this.systemFiles.status = `Created folder “${name}”`;
-  } catch (err) {
-    this.systemFiles.status = err.message || 'Could not create folder';
   }
 },
 systemFilesSortApiKey(uiKey) {
@@ -5291,10 +4938,8 @@ async browseSystemFiles(targetPath, { rootId } = {}) {
     const activeRootId = rootId || this.systemFiles.rootId;
     const q = new URLSearchParams();
     if (targetPath) q.set('path', targetPath);
-    if (activeRootId) q.set('rootId', activeRootId);
-    const videosOnly = this.systemFiles.viewMode === 'videos-only';
-    if (videosOnly) q.set('videosOnly', '1');
-    else if (this.systemFiles.recursive) q.set('recursive', '1');
+    if (rootId || this.systemFiles.rootId) q.set('rootId', rootId || this.systemFiles.rootId);
+    if (this.systemFiles.recursive) q.set('recursive', '1');
     q.set('sort', this.systemFilesSortApiKey(this.systemFiles.sortKey));
     const res = await fetch(`/api/video-swarm/browse?${q.toString()}`);
     const data = await res.json();
@@ -5302,9 +4947,7 @@ async browseSystemFiles(targetPath, { rootId } = {}) {
     this.systemFiles.cloudSource = data.kind === 'cloud' ? (data.cloudSource || null) : null;
     this.systemFiles.currentPath = data.path || '';
     this.systemFiles.parent = data.parent || '';
-    this.systemFiles.folders = videosOnly || data.kind === 'cloud'
-      ? []
-      : (Array.isArray(data.folders) ? data.folders : []);
+    this.systemFiles.folders = Array.isArray(data.folders) ? data.folders : [];
     this.systemFiles.videos = Array.isArray(data.videos) ? data.videos : [];
     this.systemFiles.folderCount = Number.isFinite(Number(data.folderCount))
       ? Number(data.folderCount)
@@ -6806,10 +6449,6 @@ syncMotionPadFromPayload(payload) {
   }
   if (angle != null && Number.isFinite(Number(angle))) {
     this.motionPadValues.look_x = this.clampVal(Number(angle), -1, 1);
-  }
-  const tilt = payload.rotation_z ?? payload.tilt;
-  if (tilt != null && Number.isFinite(Number(tilt))) {
-    this.motionPadValues.rotation_z = Number(tilt);
   }
 },
  updateParam(p, evt) {
@@ -9639,8 +9278,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  motionPadMouseDown(evt, padKind) {
    this.xyPad.dragging = true;
    this.xyPad.activePad = padKind;
-   this.xyPad.dragStartValues = this.captureMotionPadSnapshot();
-   this.updateMotionPad(evt, padKind, { previewOnly: this.motionSmoothnessActive() });
+   this.updateMotionPad(evt, padKind);
    evt.preventDefault();
  },
  motionPadMouseMove(evt, padKind) {
@@ -9649,13 +9287,8 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    evt.preventDefault();
  },
  motionPadMouseUp() {
-   const padKind = this.xyPad.activePad;
-   if (this.xyPad.dragging && padKind && this.motionSmoothnessActive()) {
-     this.commitMotionPadDrag(padKind);
-   }
    this.xyPad.dragging = false;
    this.xyPad.activePad = null;
-   this.xyPad.dragStartValues = null;
  },
  xyPadMouseDown(evt) {
    this.motionPadMouseDown(evt, 'move');
@@ -9666,7 +9299,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  xyPadMouseUp() {
    this.motionPadMouseUp();
  },
- updateMotionPad(evt, padKind, opts = {}) {
+ updateMotionPad(evt, padKind) {
    const pad = evt.currentTarget;
    const rect = pad.getBoundingClientRect();
    let clientX;
@@ -9684,15 +9317,12 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    const y = Math.max(0, Math.min(height, clientY - rect.top));
    const normX = this.clampVal((x / width) * 2 - 1, -1, 1);
    const normY = this.clampVal(1 - (y / height) * 2, -1, 1);
-   const previewOnly = !!opts.previewOnly;
    if (padKind === 'look') {
      this.motionPadValues.look_x = normX;
      this.motionPadValues.look_y = normY;
      this.motionPadValues.zoom = normY;
-     if (!previewOnly) {
-       this.emitMotionLiveParam('angle_2d', normX);
-       this.emitMotionLiveParam('zoom_2d', normY);
-     }
+     this.emitMotionLiveParam('angle_2d', normX);
+     this.emitMotionLiveParam('zoom_2d', normY);
    } else {
      const range = this.motionMovePadRange;
      const translation_x = normX * range;
@@ -9703,12 +9333,10 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      const pany = this.liveHudParamByKey('pany');
      if (pan && range === 1) pan.val = translation_x;
      if (pany && range === 1) pany.val = translation_y;
-     if (!previewOnly) {
-       this.emitMotionLiveParam('translation_x', translation_x);
-       this.emitMotionLiveParam('translation_y', translation_y);
-     }
+     this.emitMotionLiveParam('translation_x', translation_x);
+     this.emitMotionLiveParam('translation_y', translation_y);
    }
-   if (!previewOnly && !this.deforumPlaying) this.schedulePreviewFrame();
+   if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
  async refreshLoras() {
@@ -10296,9 +9924,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        this.rightPanelOpen = s.liveDrawerOpen;
        this.liveDrawerOpen = s.liveDrawerOpen;
      }
-     if (s.sidePanelDock === 'auto' || s.sidePanelDock === 'edge' || s.sidePanelDock === 'video') {
-       this.sidePanelDock = s.sidePanelDock;
-     }
      if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
      if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
      if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
@@ -10352,7 +9977,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         ...this.systemFiles,
         rootId: typeof sf.rootId === 'string' ? sf.rootId : this.systemFiles.rootId,
         recursive: typeof sf.recursive === 'boolean' ? sf.recursive : this.systemFiles.recursive,
-        viewMode: sf.viewMode === 'videos-only' ? 'videos-only' : 'browse',
         showFilenames: typeof sf.showFilenames === 'boolean' ? sf.showFilenames : this.systemFiles.showFilenames,
         sortKey: typeof sf.sortKey === 'string' ? sf.sortKey : this.systemFiles.sortKey,
         zoomLevel: Number.isFinite(Number(sf.zoomLevel)) ? sf.zoomLevel : this.systemFiles.zoomLevel,
@@ -10384,10 +10008,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
     }
-    if (typeof s.editorFreecutRoute === 'string') this.editorFreecutRoute = s.editorFreecutRoute;
-    if (typeof s.editorPendingImportPath === 'string') this.editorPendingImportPath = s.editorPendingImportPath;
-    if (typeof s.editorPendingImportRootId === 'string') this.editorPendingImportRootId = s.editorPendingImportRootId;
-    if (typeof s.editorPendingImportUrl === 'string') this.editorPendingImportUrl = s.editorPendingImportUrl;
     if (typeof s.runsAutoRefresh === 'boolean') this.runsAutoRefresh = s.runsAutoRefresh;
     if (Number.isFinite(Number(s.runsPollIntervalSec))) {
       this.runsPollIntervalSec = Math.max(2, Math.min(60, Number(s.runsPollIntervalSec)));
@@ -10472,7 +10092,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       showFrames: this.showFrames,
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
-      sidePanelDock: this.sidePanelDock,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
@@ -10504,10 +10123,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       libraryFullscreen: this.libraryFullscreen,
       libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
-      editorFreecutRoute: this.editorFreecutRoute,
-      editorPendingImportPath: this.editorPendingImportPath,
-      editorPendingImportRootId: this.editorPendingImportRootId,
-      editorPendingImportUrl: this.editorPendingImportUrl,
       runsAutoRefresh: this.runsAutoRefresh,
       runsPollIntervalSec: this.runsPollIntervalSec,
        paramPanelOpen: this.paramPanelOpen,
@@ -10559,7 +10174,6 @@ getCurrentSessionSnapshotRaw() {
       showFrames: this.showFrames,
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
-      sidePanelDock: this.sidePanelDock,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
