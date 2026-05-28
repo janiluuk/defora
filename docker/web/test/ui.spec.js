@@ -220,6 +220,7 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(false);
 
     appVm.videoReady = true;
+    appVm.deforumPlaying = true;
 
     expect(appVm.showDeforumVideo).to.equal(true);
     expect(appVm.videoLayerStatusLabel).to.match(/live|ready/i);
@@ -235,10 +236,12 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(false);
 
     appVm.currentTab = "MOTION";
+    expect(appVm.showPreviewStill).to.equal(false);
+
+    appVm.selectVideoLayer("deforum");
     expect(appVm.showPreviewStill).to.equal(true);
 
     appVm.currentTab = "LIVE";
-    appVm.selectVideoLayer("deforum");
     expect(appVm.showPreviewStill).to.equal(true);
   });
 
@@ -361,6 +364,7 @@ describe("Deforumation Web UI", () => {
     const layerText = String(layerTabs && layerTabs.textContent || "");
     expect(layerText).to.include("WebGL");
     expect(layerText).to.include("Deforum");
+    expect(layerText).to.include("Both");
     expect(layerText).to.include("Input");
     expect(document.querySelector("[data-testid='video-layer-add-toggle']")).to.exist;
   });

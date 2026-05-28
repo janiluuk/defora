@@ -1,0 +1,144 @@
+/**
+ * Playwright E2E:
+ * 1) Cold load shows WebGL standby animation (not blank / not hidden by empty Deforum).
+ * 2) Saved run on disk appears in Library Runs Browser (storage connected via server runsDir).
+ * 3) After reload, the same run is still listed (persistence).
+ */
+import fs from "fs";
+import os from "os";
+import path from "path";
+import { chromium } from "playwright";
+import { start } from "../server.js";
+
+function tinyPngBuffer() {
+  return Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/eeo8u8AAAAASUVORK5CYII=",
+    "base64",
+  );
+}
+
+async function clickTab(page, label) {
+  const tab = page.locator("header .tab").filter({
+    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
+  }).first();
+  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
+  await tab.click();
+}
+
+const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-e2e-startup-runs-"));
+const runsDir = path.join(tmpRoot, "runs");
+const framesDir = path.join(tmpRoot, "frames");
+const uploadsDir = path.join(tmpRoot, "uploads");
+const sequencersDir = path.join(tmpRoot, "sequencers");
+fs.mkdirSync(runsDir, { recursive: true });
+fs.mkdirSync(framesDir, { recursive: true });
+fs.mkdirSync(uploadsDir, { recursive: true });
+fs.mkdirSync(sequencersDir, { recursive: true });
+
+const runId = "e2e-storage-run";
+const runPath = path.join(runsDir, runId);
+fs.mkdirSync(runPath, { recursive: true });
+fs.writeFileSync(
+  path.join(runPath, "run.json"),
+  JSON.stringify(
+    {
+      run_id: runId,
+      status: "completed",
+      started_at: new Date("2026-05-27T20:00:00.000Z").toISOString(),
+      model: "e2e-storage-model",
+      frame_count: 48,
+      tag: "e2e-storage",
+      prompt_positive: "storage positive",
+      notes: "e2e storage notes",
+    },
+    null,
+    2,
+  ),
+);
+fs.writeFileSync(path.join(runPath, "thumb.png"), tinyPngBuffer());
+
+const svc = await start({
+  port: 0,
+  runsDir,
+  framesDir,
+  uploadsDir,
+  sequencersDir,
+  enableMq: false,
+});
+const base = `http://127.0.0.1:${svc.port}`;
+
+const browser = await chromium.launch({ headless: true });
+
+async function dismissSessionModalIfOpen(page) {
+  const modal = page.locator(".restore-session-modal");
+  if ((await modal.count()) > 0) {
+    await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
+    await modal.waitFor({ state: "hidden", timeout: 10000 });
+  }
+}
+
+async function assertWebglStartup(page) {
+  await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
+  await dismissSessionModalIfOpen(page);
+  await page.waitForSelector("header .tab", { timeout: 30000 });
+
+  const standby = page.locator('[data-testid="preview-standby-animation"]');
+  await standby.waitFor({ state: "attached", timeout: 15000 });
+  const visible = await standby.evaluate((el) => {
+    const style = window.getComputedStyle(el);
+    return style.opacity !== "0" && style.visibility !== "hidden" && el.offsetWidth > 0;
+  });
+  if (!visible) throw new Error("WebGL standby animation should be visible on startup");
+
+  const webglTab = page.locator(".video-layer-tab.active .video-layer-tab__label").filter({ hasText: /^WebGL$/ });
+  if ((await webglTab.count()) === 0) {
+    throw new Error('Expected active preview layer tab "WebGL" on startup');
+  }
+
+  const apiRuns = await page.request.get(`${base}/api/runs`);
+  if (!apiRuns.ok()) throw new Error(`GET /api/runs failed: ${apiRuns.status()}`);
+  const body = await apiRuns.json();
+  const found = (body.runs || []).some((r) => r.run_id === runId);
+  if (!found) {
+    throw new Error(`Run "${runId}" missing from /api/runs (${(body.runs || []).length} runs) — storage not connected`);
+  }
+}
+
+async function assertRunInBrowser(page) {
+  await dismissSessionModalIfOpen(page);
+  await clickTab(page, "LIBRARY");
+  await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
+
+  const row = page
+    .locator(".runs-browser__table tbody tr")
+    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
+    .first();
+
+  const deadline = Date.now() + 30000;
+  while ((await row.count()) === 0 && Date.now() < deadline) {
+    await page.locator("button.framesync-button").filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
+    await page.waitForTimeout(500);
+  }
+  await row.waitFor({ state: "visible", timeout: 10000 });
+}
+
+try {
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await assertWebglStartup(page);
+  await assertRunInBrowser(page);
+
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await dismissSessionModalIfOpen(page);
+  await assertRunInBrowser(page);
+
+  console.log(`OK: WebGL on startup + run "${runId}" visible in browser after reload (runsDir connected)`);
+} finally {
+  await browser.close();
+  await svc.close();
+  try {
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
+  } catch (_e) {
+    /* ignore */
+  }
+}
