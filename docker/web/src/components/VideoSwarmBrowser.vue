@@ -547,6 +547,10 @@ export default {
       if (!folder || !folder.path) return
       void this.browseSystemFiles(folder.path, { rootId: folder.rootId || this.systemFiles.rootId })
     },
+    openSystemFolder(folder) {
+      if (!folder || !folder.path) return
+      void this.browseSystemFiles(folder.path, { rootId: folder.rootId || this.systemFiles.rootId })
+    },
     onGridScroll() {
       this.updateVisibleWindow()
     },
