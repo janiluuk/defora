@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.29] - 2026-05-28
+
+## What's Changed
+
+- Feat/e2e recording and UI unification (#69) (2c4483e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.28...v0.6.29
+
+
 ## [0.6.28] - 2026-05-28
 
 ## What's Changed
