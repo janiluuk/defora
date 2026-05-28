@@ -86,7 +86,7 @@ async function captureScreenshots() {
     { name: "audio", text: "AUDIO" },
     { name: "runs", text: "RUNS" },
     { name: "settings", text: "SETTINGS" },
-    { name: "motion-sequencer", text: "MOTION", subtext: "Sequencer" },
+    { name: "motion-sequencer", text: "MOTION" },
   ];
 
   // Capture screenshot for each tab

@@ -289,26 +289,7 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div v-if="currentTab === 'MOTION'" class="stage-motion-tabs">
-          <button
-            type="button"
-            class="sub-pill"
-            :class="{ active: currentSubTab.MOTION === 'PERFORMANCE' }"
-            @click="switchSubTab('MOTION', 'PERFORMANCE')"
-          >
-            Performance
-          </button>
-          <button
-            type="button"
-            class="sub-pill"
-            :class="{ active: currentSubTab.MOTION === 'SEQUENCER' }"
-            @click="switchSubTab('MOTION', 'SEQUENCER')"
-          >
-            Sequencer
-          </button>
-        </div>
-
-        <div v-if="showMotionSequencerDock" class="stage-sequencer-shell">
+        <div v-if="currentTab === 'MOTION'" class="stage-sequencer-shell" data-testid="motion-sequencer-dock">
           <SequencerControlsPanel :app="appViewModel" stage show-timeline />
           <GenerateView
             v-if="generator.result || generator.status || performance.status || sequencerStatus"
@@ -316,8 +297,7 @@
             story-only
           />
         </div>
-        <template v-else>
-          <div v-if="currentTab !== 'LIBRARY'" class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
+        <div v-else-if="currentTab !== 'LIBRARY'" class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
             <div class="frame-rail__header">
               <div class="frame-rail__title-wrap">
                 <span class="frame-rail__title">Frames</span>
@@ -378,7 +358,6 @@
               <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
             </div>
           </div>
-        </template>
         <div
           v-if="currentTab === 'LIBRARY'"
           class="frame-rail library-frame-rail"
@@ -548,7 +527,7 @@
       <!-- Right: control rack per tab -->
       <transition name="right-panel-slide">
         <div v-if="currentTab !== 'LIVE' && showRightPanel" :class="{
-          'stage-rack-overlay': currentTab === 'MOTION' && currentSubTab.MOTION === 'PERFORMANCE',
+          'stage-rack-overlay': currentTab === 'MOTION',
           'studio-right-column': currentTab === 'MODULATION'
         }">
           <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
@@ -1552,12 +1531,9 @@ export default {
       return this.performance.lastPreviewPath || this.generator.lastPath || '';
     },
     showMotionSequencerDock() {
-      return this.currentTab === 'MOTION' && this.currentSubTab.MOTION === 'SEQUENCER';
+      return this.currentTab === 'MOTION';
     },
     showRightPanel() {
-      if (this.currentTab === 'MOTION' && this.currentSubTab.MOTION === 'SEQUENCER') {
-        return false;
-      }
       return this.currentTab !== 'LIVE' || this.liveDrawerOpen;
     },
     rightPanelToggleIcon() {
@@ -3071,10 +3047,13 @@ export default {
      void this.refreshRuns();
      return;
    }
-  if (id === 'MOTION') {
-    this.currentSubTab.MOTION = this.normalizeMotionSubTab(this.currentSubTab.MOTION);
-  }
    this.currentTab = id;
+   if (id === 'MOTION') {
+     this.$nextTick(() => {
+       this.refreshSequencerList();
+       setTimeout(() => this.drawTimeline(), 200);
+     });
+   }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
   if (id === 'LIBRARY') {
     if (!this.runsAll.length && !this.runsLoading) {

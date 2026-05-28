@@ -243,7 +243,7 @@
                         <span v-else style="color:var(--text-dim);">—</span>
                       </td>
                       <td style="padding:4px 8px; text-align:center;">
-                        <button v-if="bindingLearnMode" class="framesync-button" style="padding:2px 6px; font-size:9px;" @click="bindingTargetKey=t.key">Bind here</button>
+                        <button v-if="bindingLearnMode" class="framesync-button framesync-button--compact" @click="bindingTargetKey=t.key">Bind here</button>
                       </td>
                     </tr>
                   </tbody>
@@ -268,7 +268,7 @@
           </div>
           <div class="framesync-footer" style="margin-top:10px;">
             <button class="framesync-button" @click="saveCurrentPreset">Save current as preset</button>
-            <button class="framesync-button" v-if="currentPreset" @click="deletePreset(currentPreset)" style="border-color:var(--error); color:var(--error);">Delete {{ currentPreset }}</button>
+            <button class="framesync-button framesync-button--danger" v-if="currentPreset" @click="deletePreset(currentPreset)">Delete {{ currentPreset }}</button>
           </div>
           <div v-if="presetStatus" class="framesync-subtitle" style="margin-top:8px; text-align:center;">{{ presetStatus }}</div>
 
@@ -293,8 +293,8 @@
             <li v-for="sp in sharedPresets" :key="sp.name" style="margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
               <strong>{{ sp.name }}</strong>
               <span style="color:var(--text-dim);">by {{ sp.sharedBy }}</span>
-              <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="loadSharedPreset(sp.name)">Load</button>
-              <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="deleteSharedPreset(sp.name)">Delete</button>
+              <button class="framesync-button framesync-button--compact" @click="loadSharedPreset(sp.name)">Load</button>
+              <button class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteSharedPreset(sp.name)">Delete</button>
             </li>
           </ul>
           <div v-else style="margin-top:10px; font-size:11px; color:var(--text-dim);">No shared presets yet.</div>
@@ -565,15 +565,15 @@
                 </div>
                 <div class="framesync-footer" style="flex-wrap:wrap; gap:4px; margin:0;">
                   <template v-if="n.enabled">
-                    <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="disableGpuNode(n)">Disable</button>
+                    <button class="framesync-button framesync-button--compact" @click="disableGpuNode(n)">Disable</button>
                   </template>
                   <template v-else>
-                    <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="enableGpuNode(n)">Enable</button>
-                    <button v-if="gpuPool.editId !== n.id" class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="startEditGpuNode(n)">Edit</button>
-                    <button v-else class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="saveGpuNodeEdit(n)">Save</button>
-                    <button class="framesync-button" style="padding:2px 8px; font-size:10px; border-color:var(--error); color:var(--error);" @click="removeGpuNode(n)">Remove</button>
+                    <button class="framesync-button framesync-button--compact" @click="enableGpuNode(n)">Enable</button>
+                    <button v-if="gpuPool.editId !== n.id" class="framesync-button framesync-button--compact" @click="startEditGpuNode(n)">Edit</button>
+                    <button v-else class="framesync-button framesync-button--compact" @click="saveGpuNodeEdit(n)">Save</button>
+                    <button class="framesync-button framesync-button--danger framesync-button--compact" @click="removeGpuNode(n)">Remove</button>
                   </template>
-                  <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="gpuPool.expandedLog = gpuPool.expandedLog === n.id ? null : n.id">
+                  <button class="framesync-button framesync-button--compact" @click="gpuPool.expandedLog = gpuPool.expandedLog === n.id ? null : n.id">
                     {{ gpuPool.expandedLog === n.id ? 'Hide log' : 'Log' }}{{ n.requestLog && n.requestLog.length ? ' (' + n.requestLog.length + ')' : '' }}
                   </button>
                 </div>
@@ -583,7 +583,7 @@
                   <option value="">Select Ollama model…</option>
                   <option v-for="model in ollamaModelOptions(gpuPool.editDraft.url)" :key="'edit-'+n.id+'-'+model" :value="model">{{ model }}</option>
                 </select>
-                <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="refreshGpuEditModels">Load models</button>
+                <button class="framesync-button framesync-button--compact" @click="refreshGpuEditModels">Load models</button>
               </div>
               <div v-if="gpuPool.expandedLog === n.id" class="gpu-node-log">
                 <div v-if="!n.requestLog || !n.requestLog.length" class="gpu-node-log__empty">No requests logged yet.</div>
@@ -746,7 +746,7 @@
           <ul v-if="collab.recordings.length" class="framesync-list" style="margin-top:8px; font-size:11px; padding-left:16px;">
             <li v-for="r in collab.recordings" :key="r.filename" style="display:flex; gap:8px; align-items:center;">
               {{ r.filename }}
-              <button class="framesync-button" style="padding:2px 8px; font-size:10px;" @click="playbackSessionRecording(r.filename)">Play</button>
+              <button class="framesync-button framesync-button--compact" @click="playbackSessionRecording(r.filename)">Play</button>
             </li>
           </ul>
           <div v-if="collab.status" class="framesync-subtitle" style="margin-top:10px; color:var(--success);">{{ collab.status }}</div>

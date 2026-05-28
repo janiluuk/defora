@@ -1,6 +1,5 @@
 <template>
-  <div class="rack motion-view">
-    <template v-if="currentSubTab.MOTION === 'PERFORMANCE'">
+  <div class="rack motion-view" data-testid="motion-controls-panel">
       <div class="framesync-panel motion-panel">
         <div class="framesync-header">
           <div class="framesync-title">Motion <span class="framesync-accent">Performance</span></div>
@@ -45,6 +44,19 @@
             @click="saveCurrentMotionStyle"
           >
             <UiIcon name="save" />
+          </button>
+        </div>
+
+        <div class="motion-preset-row">
+          <button
+            v-for="name in motionQuickPresets"
+            :key="name"
+            type="button"
+            class="chip"
+            :class="{ active: motionSelectedPreset === name }"
+            @click="applyMotionPresetAndSelect(name)"
+          >
+            {{ name }}
           </button>
         </div>
 
@@ -105,7 +117,6 @@
           </div>
         </div>
       </div>
-    </template>
   </div>
 </template>
 
@@ -124,6 +135,9 @@ export default {
     return proxyAppView(props)
   },
   computed: {
+    motionQuickPresets() {
+      return ['Static', 'Orbit', 'Tunnel', 'Handheld', 'Chaos'];
+    },
     motionPathLiveValues() {
       return {
         translation_x: Number(this.motionPadValues?.translation_x) || 0,

@@ -12,6 +12,9 @@ Two files, used together:
    instrument language: LIVE (stage), MODULATION (patch bay), MOTION + AUDIO, GENERATE (timeline
    dock), PROMPTS + RUNS + SETTINGS. This is what "done" looks like.
 
+3. **`03-ux-audit.md`** — component-by-component compliance audit against the style guide, with
+   status table, gaps, and verification commands. Update after each UI migration pass.
+
 ## The one rule that unifies everything
 One control per job · the thing you watch is biggest · teal = live/modulated · A = blue / B = pink
 · setup hidden until needed.

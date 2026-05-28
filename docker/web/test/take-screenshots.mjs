@@ -118,15 +118,14 @@ try {
   await clickSubPill(page, 'PROMPTS');
   await shot(page, 'prompts-tab.png');
 
-  // ── MOTION tab
+  // ── MOTION tab (sequencer below preview + motion controls on the side)
   await clickTab(page, 'MOTION');
-  await clickSubPill(page, 'MOTION');
   await shot(page, 'motion-tab.png');
-
-  // ── MOTION / SEQUENCER
-  await clickTab(page, 'MOTION');
-  await clickSubPill(page, 'SEQUENCER');
-  await page.waitForTimeout(400);
+  const motionSequencer = page.locator('[data-testid="motion-sequencer-dock"]');
+  if (await motionSequencer.count()) {
+    await motionSequencer.scrollIntoViewIfNeeded();
+    await page.waitForTimeout(300);
+  }
   await shot(page, 'motion-sequencer-tab.png');
 
   // ── MODULATION

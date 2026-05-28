@@ -133,12 +133,17 @@
         <div class="framesync-panel audio-reactive-panel">
           <div class="framesync-header">
             <div class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
-            <button class="framesync-button audio-start-button" :class="{ active: audioReactiveActive }" @click="startAudioStream">
+            <button
+              type="button"
+              class="framesync-button"
+              :class="{ 'framesync-button--live': audioReactiveActive }"
+              @click="startAudioStream"
+            >
               {{ audioReactiveActive ? 'Running' : 'Start' }}
             </button>
           </div>
           <div class="framesync-subtitle audio-reactive-panel__intro">
-            Map Low / Mid / High frequency bands to live parameters. Drag the bands on the spectrum while audio plays.
+            Map frequency bands to live parameters. Meters animate from real audio analysis — drag bands on the spectrum to retune.
           </div>
 
           <AudioSpectrumEditor
@@ -154,74 +159,84 @@
             @update-band="updateAudioMappingBand"
           />
 
-          <div class="audio-band-tabs sub-pills">
+          <div class="audio-reactive-mappings">
             <button
-              v-for="(tab, tabIndex) in audioBandTabDefs"
-              :key="'audio-band-tab-' + tab.key"
+              v-for="(mapping, mapIndex) in audioMappings"
+              :key="'audio-meter-' + mapIndex"
               type="button"
-              class="sub-pill"
-              :class="{ active: audioActiveBandTab === tab.key }"
-              @click="setAudioActiveBandTab(tab.key)"
+              class="audio-reactive-mapping-card"
+              :class="{
+                'audio-reactive-mapping-card--active': activeAudioMappingIndex === mapIndex,
+                'audio-reactive-mapping-card--live': audioSpectrumPlaying || audioReactiveActive,
+              }"
+              @click="onAudioSpectrumSelectBand(mapIndex)"
             >
-              {{ tab.label }}
-              <span class="audio-band-tabs__level">{{ Math.round((audioMappingLevels[tabIndex] || 0) * 100) }}%</span>
+              <div class="audio-reactive-mapping-card__head">
+                <span class="audio-map-card__target-name">{{ mapping.param ? (lfoTargets.find(t => t.key === mapping.param)?.label || mapping.param) : 'Unmapped' }}</span>
+                <code class="modulation-lfo-card__meta">{{ mapping.freq_min }}–{{ mapping.freq_max }} Hz</code>
+              </div>
+              <div
+                class="audio-map-card__freq-meter audio-reactive-mapping-card__meter"
+                :class="{ 'audio-map-card__freq-meter--active': audioSpectrumPlaying || audioReactiveActive }"
+              >
+                <div class="audio-map-card__freq-band" :style="audioBandWindowStyle(mapping)"></div>
+                <div
+                  class="audio-map-card__freq-bar"
+                  :style="{ width: ((audioMappingLevels[mapIndex] || 0) * 100) + '%' }"
+                ></div>
+              </div>
+              <div class="audio-reactive-mapping-card__level">
+                {{ Math.round((audioMappingLevels[mapIndex] || 0) * 100) }}%
+                · {{ audioBandTabDefs[mapIndex]?.label || 'Band' }}
+              </div>
             </button>
           </div>
 
-          <div
-            v-if="activeAudioMapping"
-            class="modulation-lfo-card modulation-audio-band-card"
-            :class="{ 'modulation-lfo-card--active': audioReactiveActive || audioSpectrumPlaying }"
-          >
-            <div class="modulation-lfo-card__header">
-              <div class="modulation-lfo-card__title">
-                <span class="modulation-lfo-card__dot"></span>
-                <span>{{ audioBandTabDefs.find(t => t.key === audioActiveBandTab)?.label || 'Band' }} band</span>
-              </div>
-              <code class="modulation-lfo-card__meta">
-                {{ activeAudioMapping.freq_min }}–{{ activeAudioMapping.freq_max }} Hz
-              </code>
+          <div v-if="activeAudioMapping" class="audio-reactive-detail">
+            <div class="audio-band-presets">
+              <button
+                v-for="chip in audioBandChips"
+                :key="'audio-preset-' + chip.key"
+                type="button"
+                class="chip"
+                @click="applyAudioBandPreset(activeAudioMappingIndex, chip.key)"
+              >
+                {{ chip.label }}
+              </button>
+              <button type="button" class="chip chip--ghost" @click="addAudioMapping">+ map</button>
             </div>
 
-            <div class="modulation-audio-band-card__meter">
-              <div class="audio-map-card__freq-meter" :class="{ 'audio-map-card__freq-meter--active': audioSpectrumPlaying || audioReactiveActive }">
-                <div class="audio-map-card__freq-band" :style="audioBandWindowStyle(activeAudioMapping)"></div>
-                <div
-                  class="audio-map-card__freq-bar"
-                  :style="{ width: ((audioMappingLevels[activeAudioMappingIndex] || 0) * 100) + '%' }"
-                ></div>
+            <div
+              class="modulation-lfo-card modulation-audio-band-card"
+              :class="{ 'modulation-lfo-card--active': audioReactiveActive || audioSpectrumPlaying }"
+            >
+              <div class="modulation-lfo-card__controls modulation-audio-band-card__controls modulation-audio-band-card__controls--compact">
+                <label class="modulation-lfo-card__control modulation-audio-band-card__control--wide">
+                  <span class="framesync-subtitle">Target</span>
+                  <select class="framesync-select" v-model="activeAudioMapping.param">
+                    <option value="">Select target…</option>
+                    <option v-for="target in lfoTargets" :key="'audio-target-' + activeAudioMappingIndex + '-' + target.key" :value="target.key">
+                      {{ target.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="modulation-lfo-card__control">
+                  <span class="framesync-subtitle">Hz</span>
+                  <span class="audio-reactive-hz-pair">
+                    <input type="number" class="framesync-input" v-model.number="activeAudioMapping.freq_min" min="20" max="20000" step="1" aria-label="Min Hz">
+                    <span class="audio-reactive-hz-pair__sep">–</span>
+                    <input type="number" class="framesync-input" v-model.number="activeAudioMapping.freq_max" min="20" max="20000" step="1" aria-label="Max Hz">
+                  </span>
+                </label>
+                <label class="modulation-lfo-card__control">
+                  <span class="framesync-subtitle">Out</span>
+                  <span class="audio-reactive-hz-pair">
+                    <input type="number" class="framesync-input" v-model.number="activeAudioMapping.out_min" step="any" aria-label="Out min">
+                    <span class="audio-reactive-hz-pair__sep">–</span>
+                    <input type="number" class="framesync-input" v-model.number="activeAudioMapping.out_max" step="any" aria-label="Out max">
+                  </span>
+                </label>
               </div>
-              <div class="audio-map-card__meter-note">
-                {{ audioSpectrumPlaying ? 'Live level from this band' : (audioReactiveActive ? 'Reactive stream active' : 'Play uploaded audio to preview levels') }}
-              </div>
-            </div>
-
-            <div class="modulation-lfo-card__controls modulation-audio-band-card__controls">
-              <label class="modulation-lfo-card__control modulation-audio-band-card__control--wide">
-                <span class="framesync-subtitle">Target</span>
-                <select class="framesync-select" v-model="activeAudioMapping.param">
-                  <option value="">Select target…</option>
-                  <option v-for="target in lfoTargets" :key="'audio-target-' + activeAudioMappingIndex + '-' + target.key" :value="target.key">
-                    {{ target.label }}
-                  </option>
-                </select>
-              </label>
-              <label class="modulation-lfo-card__control">
-                <span class="framesync-subtitle">Min Hz</span>
-                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.freq_min" min="20" max="20000" step="1">
-              </label>
-              <label class="modulation-lfo-card__control">
-                <span class="framesync-subtitle">Max Hz</span>
-                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.freq_max" min="20" max="20000" step="1">
-              </label>
-              <label class="modulation-lfo-card__control">
-                <span class="framesync-subtitle">Out min</span>
-                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.out_min" step="any">
-              </label>
-              <label class="modulation-lfo-card__control">
-                <span class="framesync-subtitle">Out max</span>
-                <input type="number" class="framesync-input" v-model.number="activeAudioMapping.out_max" step="any">
-              </label>
             </div>
           </div>
 
