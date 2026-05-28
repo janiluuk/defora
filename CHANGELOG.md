@@ -3,6 +3,33 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.28] - 2026-05-28
+
+## What's Changed
+
+- feat(web): WebGL-first preview compositor and runs storage E2E (#68) (dc3bf48)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.27...v0.6.28
+
+
+## [0.6.27] - 2026-05-27
+
+## What's Changed
+
+- chore(web): add UI tab screenshots and refresh built index entry (29e866b)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.26...v0.6.27
+
+
+## [0.6.26] - 2026-05-27
+
+## What's Changed
+
+- test(web): Playwright E2E for recording + clip metadata (#67) (2efa57f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.25...v0.6.26
+
+
 ## [0.6.25] - 2026-05-27
 
 ## What's Changed
