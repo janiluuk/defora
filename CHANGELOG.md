@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.31] - 2026-05-28
+
+## What's Changed
+
+- feat(web): instrument UI — MOTION layout, design system, audio reactive meters (#71) (18efeb0)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.30...v0.6.31
+
+
 ## [0.6.30] - 2026-05-28
 
 ## What's Changed
