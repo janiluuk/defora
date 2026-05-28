@@ -3887,7 +3887,7 @@ void main() {
 				gl_FragColor = textureCube( envMap, vec3( flipEnvMap * vOutputDirection.x, vOutputDirection.yz ) );
 
 			}
-		`,blending:Ni,depthTest:!1,depthWrite:!1})}function Sl(){return`
+		`,blending:Ii,depthTest:!1,depthWrite:!1})}function dl(){return`
 
 		precision mediump float;
 		precision mediump int;
@@ -4065,7 +4065,7 @@ void main() {
 `)),o=Od(o),o=Gf(o,n),o=Hf(o,n),l=Od(l),l=Gf(l,n),l=Hf(l,n),o=Wf(o),l=Wf(l),n.isRawShaderMaterial!==!0&&(_=`#version 300 es
 `,b=[g,"#define attribute in","#define varying out","#define texture2D texture"].join(`
 `)+`
-`+b,y=["#define varying in",n.glslVersion===Hh?"":"layout(location = 0) out highp vec4 pc_fragColor;",n.glslVersion===Hh?"":"#define gl_FragColor pc_fragColor","#define gl_FragDepthEXT gl_FragDepth","#define texture2D texture","#define textureCube texture","#define texture2DProj textureProj","#define texture2DLodEXT textureLod","#define texture2DProjLodEXT textureProjLod","#define textureCubeLodEXT textureLod","#define texture2DGradEXT textureGrad","#define texture2DProjGradEXT textureProjGrad","#define textureCubeGradEXT textureGrad"].join(`
+`+v,y=["#define varying in",n.glslVersion===Ah?"":"layout(location = 0) out highp vec4 pc_fragColor;",n.glslVersion===Ah?"":"#define gl_FragColor pc_fragColor","#define gl_FragDepthEXT gl_FragDepth","#define texture2D texture","#define textureCube texture","#define texture2DProj textureProj","#define texture2DLodEXT textureLod","#define texture2DProjLodEXT textureProjLod","#define textureCubeLodEXT textureLod","#define texture2DGradEXT textureGrad","#define texture2DProjGradEXT textureProjGrad","#define textureCubeGradEXT textureGrad"].join(`
 `)+`
 `+y);const P=_+b+o,w=_+y+l,k=Vf(s,s.VERTEX_SHADER,P),A=Vf(s,s.FRAGMENT_SHADER,w);s.attachShader(x,k),s.attachShader(x,A),n.index0AttributeName!==void 0?s.bindAttribLocation(x,0,n.index0AttributeName):n.morphTargets===!0&&s.bindAttribLocation(x,0,"position"),s.linkProgram(x);function L(F){if(t.debug.checkShaderErrors){const D=s.getProgramInfoLog(x)||"",G=s.getShaderInfoLog(k)||"",Y=s.getShaderInfoLog(A)||"",z=D.trim(),H=G.trim(),W=Y.trim();let te=!0,ce=!0;if(s.getProgramParameter(x,s.LINK_STATUS)===!1)if(te=!1,typeof t.debug.onShaderError=="function")t.debug.onShaderError(s,x,k,A);else{const we=$f(s,k,"vertex"),Ee=$f(s,A,"fragment");vt("THREE.WebGLProgram: Shader Error "+s.getError()+" - VALIDATE_STATUS "+s.getProgramParameter(x,s.VALIDATE_STATUS)+`
 

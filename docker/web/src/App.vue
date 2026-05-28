@@ -6962,6 +6962,36 @@ resetMotionToDefault() {
   this.sendControl('liveParam', payload);
   if (!this.deforumPlaying) this.schedulePreviewFrame();
 },
+resetMotionToDefault() {
+  this.motionSelectedPreset = 'Static';
+  this.motionPadValues.translation_x = 0;
+  this.motionPadValues.translation_y = 0;
+  this.motionPadValues.translation_z = 0;
+  this.motionPadValues.zoom = 0;
+  this.motionPadValues.look_x = 0;
+  this.motionPadValues.look_y = 0;
+  const pan = this.liveHudParamByKey('panx');
+  const pany = this.liveHudParamByKey('pany');
+  if (pan) pan.val = 0;
+  if (pany) pany.val = 0;
+  const payload = this.isDeforumMotion2d
+    ? {
+        translation_x: 0,
+        translation_y: 0,
+        angle_2d: 0,
+        zoom_2d: 0,
+      }
+    : {
+        translation_x: 0,
+        translation_y: 0,
+        translation_z: 0,
+        zoom_2d: 0,
+        rotation_z: 0,
+        rotation_y: 0,
+      };
+  this.sendControl('liveParam', payload);
+  if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
 emitMotionLiveParam(key, val) {
   const num = Number(val);
   if (!Number.isFinite(num)) return;
