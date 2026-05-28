@@ -134,6 +134,11 @@ try {
 
   // ── LIBRARY
   await clickTab(page, 'LIBRARY');
+  const libRootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
+  if ((await libRootSelect.count()) > 0) {
+    await libRootSelect.selectOption({ value: 'uploads' }).catch(() => null);
+    await page.waitForTimeout(800);
+  }
   await page.waitForTimeout(600);
   await shot(page, 'library-tab.png');
 
@@ -146,16 +151,10 @@ try {
   await clickSubPill(page, 'CN');
   await shot(page, 'cn-tab.png');
 
-  // ── SETTINGS / SYSTEM
+  // ── SETTINGS / SYSTEM (runs monitor)
   await clickSubPill(page, 'SYSTEM');
+  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 20000 });
   await page.waitForTimeout(800);
-
-  // Switch VideoSwarm browser to Uploads to show the demo video tile
-  const rootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
-  if ((await rootSelect.count()) > 0) {
-    await rootSelect.selectOption({ value: 'uploads' }).catch(() => null);
-    await page.waitForTimeout(800);
-  }
   await shot(page, 'settings-tab.png');
 
   // ── Main overview (default landing state)

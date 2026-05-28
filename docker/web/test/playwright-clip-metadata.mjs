@@ -99,7 +99,9 @@ try {
   const thumbRes = await page.request.get(`${base}/api/runs/${runId}/thumb`);
   if (!thumbRes.ok()) throw new Error(`Expected thumb 200, got ${thumbRes.status()}`);
 
-  await clickTab(page, "LIBRARY");
+  await clickTab(page, "SETTINGS");
+  await page.locator(".sub-pill").filter({ hasText: /^SYSTEM$/ }).first().click();
+  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
   await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
 
   const runRow = page

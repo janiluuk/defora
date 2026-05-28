@@ -12,7 +12,8 @@ const root = join(__dirname, '..');
 const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
-const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js'];
+// Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
+const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'deforum-settings-verify.js', 'api-utils.js'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -83,6 +84,25 @@ const emittedComponentStubs = new Set();
 const emittedComponentPaths = new Set();
 let needsAppViewProxyStub = false;
 
+function extractMethodsClause(scriptBody) {
+  const idx = scriptBody.indexOf('methods:');
+  if (idx < 0) return '';
+  const start = scriptBody.indexOf('{', idx);
+  if (start < 0) return '';
+  let depth = 0;
+  for (let i = start; i < scriptBody.length; i++) {
+    const ch = scriptBody[i];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return `, methods: ${scriptBody.slice(start, i + 1)}`;
+      }
+    }
+  }
+  return '';
+}
+
 function extractComponentDefinition(scriptBody) {
   const usesProxy = scriptBody.includes('proxyAppView');
   const propsMatch = scriptBody.match(/props:\s*\{([\s\S]*?)\n\s*\},/);
@@ -91,7 +111,8 @@ function extractComponentDefinition(scriptBody) {
     propsClause = `props: {${propsMatch[1]}\n  }`;
   }
   const setupClause = usesProxy ? ', setup(props) { return __proxyAppView(props); }' : '';
-  return { propsClause, setupClause, usesProxy };
+  const methodsClause = extractMethodsClause(scriptBody);
+  return { propsClause, setupClause, methodsClause, usesProxy };
 }
 
 function motionPathPreviewStub(name) {
@@ -108,9 +129,9 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
   const componentSrc = readFileSync(componentPath, 'utf8');
   const componentTemplate = extractVueTemplate(componentSrc, relPath);
   const scriptMatch = componentSrc.match(/<script>([\s\S]*?)<\/script>/);
-  const { propsClause, setupClause, usesProxy } = scriptMatch
+  const { propsClause, setupClause, methodsClause, usesProxy } = scriptMatch
     ? extractComponentDefinition(scriptMatch[1])
-    : { propsClause: "props: ['app']", setupClause: ', setup(props) { return __proxyAppView(props); }', usesProxy: true };
+    : { propsClause: "props: ['app']", setupClause: ', setup(props) { return __proxyAppView(props); }', methodsClause: '', usesProxy: true };
   if (usesProxy) {
     needsAppViewProxyStub = true;
   }
@@ -122,7 +143,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (nestedRel.includes('/views/') || nestedRel.endsWith('SequencerControlsPanel.vue') || nestedRel.endsWith('LoraCrossfaderPanel.vue')) {
+      if (nestedRel.includes('/views/') || nestedRel.endsWith('RunsBrowserPanel.vue') || nestedRel.endsWith('SequencerControlsPanel.vue') || nestedRel.endsWith('LoraCrossfaderPanel.vue')) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -146,7 +167,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     ? `, components: { ${childComponents.join(', ')} }`
     : '';
   lines.push(
-    `const ${name} = { ${propsClause}${setupClause}${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
+    `const ${name} = { ${propsClause}${setupClause}${methodsClause}${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
   );
   emittedComponentStubs.add(name);
 }
@@ -155,7 +176,7 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (relPath.includes('/views/') || relPath.endsWith('SequencerControlsPanel.vue') || relPath.endsWith('LoraCrossfaderPanel.vue')) {
+    if (relPath.includes('/views/') || relPath.endsWith('RunsBrowserPanel.vue') || relPath.endsWith('SequencerControlsPanel.vue') || relPath.endsWith('LoraCrossfaderPanel.vue')) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }
@@ -174,23 +195,31 @@ const proxyStubBlock = needsAppViewProxyStub
 function __proxyAppView(props) {
   return new Proxy({}, {
     get(_target, key) {
+      if (__hasOwnProp(props, 'app') && key === 'app') return props.app;
       if (__hasOwnProp(props, key) && key !== 'app') return props[key];
+      if (props.app == null) return undefined;
       const value = Reflect.get(props.app, key);
       if (typeof value === 'function') return value.bind(props.app);
       return value;
     },
     set(_target, key, value) {
       if (__hasOwnProp(props, key) && key !== 'app') return false;
+      if (props.app == null) return false;
       Reflect.set(props.app, key, value);
       return true;
     },
     has(_target, key) {
-      return (__hasOwnProp(props, key) && key !== 'app') || key in props.app;
+      if (__hasOwnProp(props, 'app') && key === 'app') return true;
+      return (__hasOwnProp(props, key) && key !== 'app') || (props.app != null && key in props.app);
     },
     getOwnPropertyDescriptor(_target, key) {
+      if (__hasOwnProp(props, 'app') && key === 'app') {
+        return { configurable: true, enumerable: true, value: props.app, writable: false };
+      }
       if (__hasOwnProp(props, key) && key !== 'app') {
         return { configurable: true, enumerable: true, value: props[key], writable: false };
       }
+      if (props.app == null) return undefined;
       return {
         configurable: true,
         enumerable: true,

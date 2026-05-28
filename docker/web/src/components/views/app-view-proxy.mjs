@@ -7,9 +7,13 @@ export function proxyAppView(props) {
     {},
     {
       get(_target, key) {
+        if (key === 'app' && hasOwnProp(props, 'app')) {
+          return props.app;
+        }
         if (hasOwnProp(props, key) && key !== 'app') {
           return props[key];
         }
+        if (props.app == null) return undefined;
         const value = Reflect.get(props.app, key);
         if (typeof value === 'function') {
           return value.bind(props.app);
@@ -24,9 +28,18 @@ export function proxyAppView(props) {
         return true;
       },
       has(_target, key) {
-        return (hasOwnProp(props, key) && key !== 'app') || key in props.app;
+        if (key === 'app' && hasOwnProp(props, 'app')) return true;
+        return (hasOwnProp(props, key) && key !== 'app') || (props.app != null && key in props.app);
       },
       getOwnPropertyDescriptor(_target, key) {
+        if (key === 'app' && hasOwnProp(props, 'app')) {
+          return {
+            configurable: true,
+            enumerable: true,
+            value: props.app,
+            writable: false,
+          };
+        }
         if (hasOwnProp(props, key) && key !== 'app') {
           return {
             configurable: true,
@@ -35,6 +48,7 @@ export function proxyAppView(props) {
             writable: false,
           };
         }
+        if (props.app == null) return undefined;
         return {
           configurable: true,
           enumerable: true,

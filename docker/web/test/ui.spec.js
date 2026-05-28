@@ -78,7 +78,7 @@ function installFileReaderMock({ failRead = false } = {}) {
   const MockFileReader = class {
     readAsDataURL() {
       if (failRead) {
-        setImmediate(() => {
+        queueMicrotask(() => {
           if (typeof this.onerror === "function") {
             this.onerror(new Error("Read failed"));
           }
@@ -86,9 +86,9 @@ function installFileReaderMock({ failRead = false } = {}) {
         return;
       }
       this.result = "data:audio/wav;base64,ZmFrZQ==";
-      setImmediate(() => {
-        if (typeof this.onload === "function") this.onload();
-      });
+      if (typeof this.onload === "function") {
+        this.onload({ target: this });
+      }
     }
   };
   globalThis.FileReader = MockFileReader;
@@ -271,6 +271,7 @@ describe("Deforumation Web UI", () => {
   it("scopes standby controls to the WebGL animation engine and resets them", async () => {
     appVm.switchSubTab("LIVE", "MONITOR");
     appVm.selectVideoLayer("webgl");
+    appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
     appVm.liveAnimationBoxOpen = true;
     await nextTick();
@@ -338,6 +339,7 @@ describe("Deforumation Web UI", () => {
 
   it("shows LIVE sub-tabs for monitor and deforum", async () => {
     appVm.switchTab("LIVE");
+    appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
     await nextTick();
     const liveTabs = [...document.querySelectorAll("[data-testid='live-view'] .sub-pill")].map((el) => el.textContent.trim());
@@ -372,6 +374,7 @@ describe("Deforumation Web UI", () => {
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
+    appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
     appVm.paramPanelOpen = true;
     await nextTick();
@@ -472,6 +475,7 @@ describe("Deforumation Web UI", () => {
 
   it("shows a 3D motion path preview above performance axis controls", async () => {
     appVm.switchTab("MOTION");
+    appVm.deforumSettings.animation_mode = "3D";
     appVm.motionPadValues.translation_x = 3;
     appVm.motionPadValues.translation_z = 1.5;
     await nextTick();
@@ -480,6 +484,38 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.exist;
     expect(document.body.textContent).to.include("3D motion preview");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
+    expect(document.querySelector(".motion-controls-2d")).to.not.exist;
+  });
+
+  it("shows 2D move and look XY pads when Deforum animation mode is 2D", async () => {
+    appVm.switchTab("MOTION");
+    appVm.deforumSettings.animation_mode = "2D";
+    await nextTick();
+    await nextTick();
+
+    expect(document.querySelector(".motion-controls-2d")).to.exist;
+    expect(document.body.textContent).to.include("Move controls");
+    expect(document.body.textContent).to.include("Look controls");
+    expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
+    expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
+    expect(document.querySelector(".motion-axis-sliders")).to.not.exist;
+    expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
+
+    appVm.updateMotionPad({
+      currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }) },
+      clientX: 75,
+      clientY: 25,
+    }, "move");
+    expect(appVm.motionPadValues.translation_x).to.equal(0.5);
+    expect(appVm.motionPadValues.translation_y).to.equal(0.5);
+
+    appVm.updateMotionPad({
+      currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }) },
+      clientX: 0,
+      clientY: 100,
+    }, "look");
+    expect(appVm.motionPadValues.look_x).to.equal(-1);
+    expect(appVm.motionPadValues.look_y).to.equal(-1);
   });
 
   it("shows motion sequencer below preview and motion controls on the side", async () => {
@@ -501,6 +537,18 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".stage-sequencer-bar")).to.exist;
     expect(document.querySelector(".sequencer-controls-panel--stage")).to.exist;
     expect(document.querySelector("[data-testid='motion-controls-panel']")).to.exist;
+    expect(document.querySelector("[data-testid='reset-motion-default']")).to.exist;
+    appVm.motionPadValues.translation_x = 2;
+    appVm.motionPadValues.translation_y = -1.5;
+    appVm.motionPadValues.translation_z = 3;
+    appVm.motionPadValues.zoom = 1.4;
+    appVm.deforumSettings.animation_mode = "3D";
+    appVm.resetMotionToDefault();
+    expect(appVm.motionPadValues.translation_x).to.equal(0);
+    expect(appVm.motionPadValues.translation_y).to.equal(0);
+    expect(appVm.motionPadValues.translation_z).to.equal(0);
+    expect(appVm.motionPadValues.zoom).to.equal(0);
+    expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
     expect(document.querySelector(".stage-motion-tabs")).to.not.exist;
   });
@@ -642,6 +690,27 @@ describe("Deforumation Web UI", () => {
     expect(appVm.cn.slots[0].enabled).to.equal(true);
   });
 
+  it("clamps bottom modulation values and routes mapping to LFO targets", () => {
+    appVm.liveBottomDrawerOpen = true;
+    appVm.liveBottomDrawerTab = "MODULATION";
+    const pan = appVm.liveCam.find((p) => p.key === "panx");
+    appVm.setLiveModValue("panx", 99);
+    expect(pan.val).to.equal(1);
+    appVm.setLiveModValue("panx", -99);
+    expect(pan.val).to.equal(-1);
+
+    const beforeTargets = appVm.lfos[0].targets.length;
+    appVm.openModulationMapping("panx");
+    expect(appVm.currentTab).to.equal("MODULATION");
+    expect(appVm.currentSubTab.MODULATION).to.equal("LFO");
+    expect(appVm.modulationRouteFocusKey).to.equal("translation_x");
+    expect(appVm.lfos[0].targets).to.include("translation_x");
+    expect(appVm.lfos[0].targets.length).to.be.greaterThan(beforeTargets);
+
+    appVm.clearParamMapping("panx");
+    expect(appVm.lfos[0].targets).to.not.include("translation_x");
+  });
+
   it("shows the LoRA crossfader in the bottom drawer with group pickers", async () => {
     appVm.liveBottomDrawerOpen = true;
     appVm.liveBottomDrawerTab = "CROSSFADER";
@@ -650,6 +719,7 @@ describe("Deforumation Web UI", () => {
 
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("CROSSFADER");
+    expect(drawerTabs.join(" ")).to.include("RUNS");
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
@@ -692,14 +762,10 @@ describe("Deforumation Web UI", () => {
     expect(appVm.currentSubTab.MODULATION).to.equal("BEAT_MACROS");
     expect(appVm.audioMappings.length).to.be.greaterThan(0);
 
-    appVm.switchSubTab("MODULATION", "CROSSFADER");
-    const slotCount = appVm.performance.slots.length;
-    appVm.addCrossfadeSlot();
-    expect(appVm.currentSubTab.MODULATION).to.equal("CROSSFADER");
-    expect(appVm.performance.slots.length).to.equal(slotCount + 1);
-
+    appVm.switchSubTab("MODULATION", "MAPPINGS");
+    expect(appVm.currentSubTab.MODULATION).to.equal("MAPPINGS");
     appVm.switchSubTab("MODULATION", "ACTIVE_MODS");
-    expect(appVm.currentSubTab.MODULATION).to.equal("ACTIVE_MODS");
+    expect(appVm.currentSubTab.MODULATION).to.equal("MAPPINGS");
     
     appVm.audio.uploadedFile = "song.wav";
     appVm.audio.track = "/tmp/song.wav";
@@ -726,8 +792,9 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders a recent runs rail on LIVE from shared runs data", async () => {
-    appVm.switchTab("LIVE");
+  it("renders recent runs in the bottom drawer RUNS tab", async () => {
+    appVm.liveBottomDrawerOpen = true;
+    appVm.setLiveBottomDrawerTab("RUNS");
     appVm.runsAll = [
       { run_id: "run-001", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
       { run_id: "run-002", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
@@ -737,13 +804,19 @@ describe("Deforumation Web UI", () => {
     ];
     await nextTick();
 
+    expect(document.querySelector('[data-testid="bottom-drawer-runs"]')).to.exist;
+    const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
+    expect(drawerTabs.join(" ")).to.include("RUNS");
     const railItems = [...document.querySelectorAll(".recent-runs-rail__item")];
     expect(railItems.length).to.equal(4);
     expect(railItems[0].textContent).to.include("run-005");
     expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
+    const railRoot = document.querySelector(".recent-runs-rail");
+    expect(railRoot).to.exist;
+    expect(railRoot.closest('[data-testid="bottom-drawer"]')).to.exist;
   });
 
-  it("shows the runs browser under Library with table and details", async () => {
+  it("shows the runs monitor under Settings → System with table and details", async () => {
     appVm.runsAll = [
       { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: false, frame_count: 2, model: "xl-a", tag: "defora" },
       { run_id: "run-a-001", status: "completed", started_at: "2026-05-26T11:00:00Z", has_thumbnail: false, frame_count: 3, model: "xl-a", tag: "defora" },
@@ -758,14 +831,15 @@ describe("Deforumation Web UI", () => {
       return { ok: true, json: async () => ({ run_id: "run-a-002", status: "completed", frames: ["frame_0001.png", "frame_0002.png"], model: "xl-a" }) };
     };
 
-    appVm.switchTab("LIBRARY");
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "SYSTEM");
     await nextTick();
     await nextTick();
 
     const runsBrowser = document.querySelector(".runs-browser");
     expect(runsBrowser).to.exist;
-    expect(document.body.textContent).to.include("Runs Browser");
-    expect(document.body.textContent).to.include("Storage Browser");
+    expect(document.body.textContent).to.include("Runs Monitor");
+    expect(document.querySelector('[data-testid="settings-system-runs"]')).to.exist;
 
     const rows = [...document.querySelectorAll(".runs-browser__table tbody tr")].filter(
       (row) => !row.querySelector(".runs-browser__empty")
@@ -804,7 +878,8 @@ describe("Deforumation Web UI", () => {
     ];
     appVm.applyRunsFilters();
 
-    appVm.switchTab("LIBRARY");
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "SYSTEM");
     await nextTick();
 
     expect(document.querySelector(".runs-active-jobs")).to.exist;
@@ -843,10 +918,58 @@ describe("Deforumation Web UI", () => {
     delete global.confirm;
   });
 
-  it("openRunsSettings navigates to Library runs browser", () => {
+  it("openRunsSettings navigates to Settings → System runs monitor", async () => {
     appVm.openRunsSettings();
-    expect(appVm.currentTab).to.equal("LIBRARY");
+    expect(appVm.currentTab).to.equal("SETTINGS");
+    expect(appVm.currentSubTab.SETTINGS).to.equal("SYSTEM");
+    await nextTick();
     expect(document.querySelector(".runs-browser")).to.exist;
+    expect(document.querySelector('[data-testid="runs-launch-test"]')).to.exist;
+  });
+
+  it("Library tab does not show the legacy runs frame rail", async () => {
+    appVm.switchTab("LIBRARY");
+    await nextTick();
+    expect(document.querySelector('[data-testid="library-frame-rail"]')).to.equal(null);
+    expect(document.querySelector('[data-testid="library-run-thumbs"]')).to.equal(null);
+  });
+
+  it("launchTestRun logs job and refreshes runs", async () => {
+    const fetchCalls = [];
+    global.fetch = async (url, opts = {}) => {
+      const path = String(url);
+      fetchCalls.push(path);
+      if (path.includes("/api/deforum/warmup")) {
+        return { ok: false, status: 502, json: async () => ({ error: "forge unavailable" }) };
+      }
+      if (path.includes("/api/runs/launch-demo")) {
+        return { ok: true, json: async () => ({ ok: true, run_id: "demo-test-1", status: "running" }) };
+      }
+      if (path.includes("/api/runs")) {
+        return {
+          ok: true,
+          json: async () => ({
+            runs: [{ run_id: "demo-test-1", status: "running", tag: "demo", started_at: new Date().toISOString() }],
+          }),
+        };
+      }
+      if (path.includes("/api/deforum/batches")) {
+        return { ok: true, json: async () => ({ batches: [], nodes: [], errors: [] }) };
+      }
+      if (path.includes("/api/gpu-pool")) {
+        return { ok: true, json: async () => ({ enabled: false, nodes: [], healthyNodes: 0 }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "SYSTEM");
+    await nextTick();
+    await appVm.launchTestRun();
+    await nextTick();
+    expect(fetchCalls.some((p) => p.includes("/api/runs/launch-demo"))).to.equal(true);
+    expect(appVm.runsJobLog.length).to.be.greaterThan(0);
+    expect(appVm.runsJobLog[0].message).to.include("demo-test-1");
+    delete global.fetch;
   });
 });
 
@@ -1587,8 +1710,8 @@ describe("Deforumation Web UI behavior", () => {
       return { ok: true, json: async () => ({ ok: true, path: "/tmp/uploaded.wav" }) };
     };
     installFileReaderMock();
-    const instance = instantiate(loadAppDefinition());
-    const wav = new File([new Uint8Array(32)], "track.wav", { type: "audio/wav" });
+    const instance = instantiate(appDef);
+    const wav = new File([Buffer.from("RIFFxxxxWAVEfmt ")], "track.wav", { type: "audio/wav" });
     await instance.handleAudioUpload({ target: { files: [wav] } });
 
     expect(calls[0].name).to.equal("track.wav");

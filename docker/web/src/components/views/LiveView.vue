@@ -646,6 +646,15 @@
           <label class="deforum-advanced-toggle">
             <input type="checkbox" v-model="deforumAdvancedOpen"> JSON
           </label>
+          <button
+            type="button"
+            class="framesync-button"
+            data-testid="deforum-settings-verify"
+            title="Check settings for errors and optimization hints"
+            @click="runDeforumSettingsVerify"
+          >
+            Verify
+          </button>
         </div>
 
         <div v-if="deforumAdvancedOpen" class="deforum-advanced-json">
@@ -658,6 +667,43 @@
           ></textarea>
           <p v-if="deforumSettingsJsonError" class="deforum-json-error">{{ deforumSettingsJsonError }}</p>
         </div>
+
+        <div
+          v-if="deforumVerifyResults && (deforumVerifyResults.errors.length || deforumVerifyResults.warnings.length)"
+          class="deforum-verify-results"
+          data-testid="deforum-verify-results"
+        >
+          <div class="deforum-verify-results__head">
+            <span class="framesync-subtitle" style="margin:0;">Verification</span>
+            <span class="deforum-verify-results__counts">
+              <span v-if="deforumVerifyResults.errors.length" class="deforum-verify-results__badge deforum-verify-results__badge--error">
+                {{ deforumVerifyResults.errors.length }} error{{ deforumVerifyResults.errors.length === 1 ? '' : 's' }}
+              </span>
+              <span v-if="deforumVerifyResults.warnings.length" class="deforum-verify-results__badge deforum-verify-results__badge--warn">
+                {{ deforumVerifyResults.warnings.length }} hint{{ deforumVerifyResults.warnings.length === 1 ? '' : 's' }}
+              </span>
+            </span>
+          </div>
+          <ul v-if="deforumVerifyResults.errors.length" class="deforum-verify-results__list deforum-verify-results__list--error">
+            <li v-for="(issue, idx) in deforumVerifyResults.errors" :key="'deforum-verr-' + idx">
+              <strong>{{ issue.field }}</strong> — {{ issue.message }}
+              <span v-if="issue.hint" class="deforum-verify-results__hint">{{ issue.hint }}</span>
+            </li>
+          </ul>
+          <ul v-if="deforumVerifyResults.warnings.length" class="deforum-verify-results__list deforum-verify-results__list--warn">
+            <li v-for="(issue, idx) in deforumVerifyResults.warnings" :key="'deforum-vwarn-' + idx">
+              <strong>{{ issue.field }}</strong> — {{ issue.message }}
+              <span v-if="issue.hint" class="deforum-verify-results__hint">{{ issue.hint }}</span>
+            </li>
+          </ul>
+        </div>
+        <p
+          v-else-if="deforumVerifyResults && !deforumVerifyResults.errors.length && !deforumVerifyResults.warnings.length"
+          class="deforum-verify-results deforum-verify-results--ok"
+          data-testid="deforum-verify-results"
+        >
+          Settings look good — no issues found.
+        </p>
 
         <div v-else class="deforum-settings-groups">
           <div class="sub-pills deforum-settings-tabs">

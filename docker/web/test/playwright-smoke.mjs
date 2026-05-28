@@ -70,11 +70,18 @@ try {
   }
   await clickTab(page, 'LIBRARY');
   await page.waitForTimeout(300);
-  const runsBrowser = page.locator('.runs-browser');
-  if ((await runsBrowser.count()) === 0) {
-    throw new Error('Runs browser not found under LIBRARY');
+  const storageBrowser = page.locator('.library-storage-browser');
+  if ((await storageBrowser.count()) === 0) {
+    throw new Error('Storage browser not found under LIBRARY');
   }
   await clickTab(page, 'SETTINGS');
+  await page.waitForTimeout(300);
+  await page.locator('.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
+  await page.waitForTimeout(300);
+  const runsBrowser = page.locator('[data-testid="runs-browser"]');
+  if ((await runsBrowser.count()) === 0) {
+    throw new Error('Runs monitor not found under SETTINGS → SYSTEM');
+  }
   await page.waitForTimeout(300);
   await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(300);

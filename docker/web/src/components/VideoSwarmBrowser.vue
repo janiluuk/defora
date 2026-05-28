@@ -79,6 +79,9 @@
       </div>
       <div class="video-swarm-browser__path">
         <code>{{ systemFiles.currentPath || '—' }}</code>
+        <span v-if="systemFiles.folderCount != null && systemFiles.folderCount > 0" class="video-swarm-browser__count">
+          {{ systemFiles.folderCount }} folders
+        </span>
         <span v-if="systemFiles.videoCount != null" class="video-swarm-browser__count">
           {{ systemFiles.videoCount }} videos
         </span>
@@ -87,7 +90,7 @@
     </div>
 
     <div v-if="systemFiles.loading" class="video-swarm-browser__empty">Scanning folder…</div>
-    <div v-else-if="!displayVideos.length" class="video-swarm-browser__empty">No videos in this location.</div>
+    <div v-else-if="!displayFolders.length && !displayVideos.length" class="video-swarm-browser__empty">No folders or videos in this location.</div>
     <div
       v-else
       ref="gridEl"
@@ -95,6 +98,19 @@
       :class="'video-swarm-browser__grid--zoom-' + systemFiles.zoomLevel"
       @scroll.passive="onGridScroll"
     >
+      <button
+        v-for="folder in displayFolders"
+        :key="'folder-' + folder.path"
+        type="button"
+        class="video-swarm-browser__tile video-swarm-browser__tile--folder"
+        data-testid="video-swarm-folder"
+        :data-folder-path="folder.path"
+        :title="folder.name"
+        @click="openSystemFolder(folder)"
+      >
+        <div class="video-swarm-browser__folder-icon" aria-hidden="true">📁</div>
+        <div v-if="systemFiles.showFilenames" class="video-swarm-browser__label">{{ folder.name }}</div>
+      </button>
       <button
         v-for="(video, index) in displayVideos"
         :key="video.path"
@@ -196,6 +212,10 @@ export default {
     }
   },
   computed: {
+    displayFolders() {
+      const list = Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : []
+      return list
+    },
     displayVideos() {
       const list = Array.isArray(this.systemFiles.videos) ? this.systemFiles.videos : []
       return list.slice(this.visibleStart, this.visibleEnd)
@@ -241,6 +261,10 @@ export default {
     onRootChange(rootId) {
       const root = (this.systemFiles.roots || []).find((r) => r.id === rootId)
       if (root) void this.browseSystemFiles(root.path, { rootId })
+    },
+    openSystemFolder(folder) {
+      if (!folder || !folder.path) return
+      void this.browseSystemFiles(folder.path, { rootId: folder.rootId || this.systemFiles.rootId })
     },
     onGridScroll() {
       this.updateVisibleWindow()

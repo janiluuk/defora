@@ -76,13 +76,46 @@ async function start(opts = {}) {
 
   const repoRoot = path.resolve(__dirname, "..", "..");
   const aiInvokeScript = path.join(__dirname, "scripts", "ai_invoke.py");
+  const { execFile, execSync } = require("child_process");
+
+  function resolvePythonBin() {
+    const fromEnv = process.env.PYTHON || process.env.PYTHON3;
+    if (fromEnv) return fromEnv;
+    for (const bin of ["python3", "python", "/usr/bin/python3", "/usr/local/bin/python3"]) {
+      try {
+        execSync(`"${bin}" -c "import sys"`, { stdio: "ignore", timeout: 5000 });
+        return bin;
+      } catch (_e) {
+        /* try next */
+      }
+    }
+    return "python3";
+  }
+
+  const PYTHON_BIN = resolvePythonBin();
+
+  function spawnPython(args, opts = {}) {
+    return spawner(PYTHON_BIN, args, {
+      cwd: repoRoot,
+      env: { ...process.env, PYTHONPATH: repoRoot },
+      ...opts,
+    });
+  }
+
+  function execPythonModule(moduleArgs, callback) {
+    execFile(
+      PYTHON_BIN,
+      moduleArgs,
+      { cwd: repoRoot, env: { ...process.env, PYTHONPATH: repoRoot }, maxBuffer: 10 * 1024 * 1024 },
+      callback
+    );
+  }
 
   function invokeAi(op, payload) {
     return new Promise((resolve, reject) => {
       const req = JSON.stringify({ op, ...payload });
-      const child = spawner("python3", [aiInvokeScript], {
-        cwd: repoRoot,
-        env: { ...process.env, PYTHONPATH: repoRoot },
+      const child = spawnPython([aiInvokeScript], {
+        stdio: ["pipe", "pipe", "pipe"],
       });
       let stdout = "";
       let stderr = "";
@@ -837,18 +870,18 @@ async function start(opts = {}) {
     }
     try {
       const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
-      const cmd = ["python3", "-m", "defora_cli.stream_helper", "start", 
-                   "--source", framesDir, "--target", target,
-                   "--fps", String(fps || 24)];
-      if (resolution) cmd.push("--resolution", resolution);
-      if (protocol) cmd.push("--protocol", protocol);
-      if (overlay) cmd.push("--overlay", overlay);
-      if (transition) cmd.push("--transition", transition);
-      
-      const { exec } = require('child_process');
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = [
+        "-m", "defora_cli.stream_helper", "start",
+        "--source", framesDir, "--target", target,
+        "--fps", String(fps || 24),
+      ];
+      if (resolution) args.push("--resolution", resolution);
+      if (protocol) args.push("--protocol", protocol);
+      if (overlay) args.push("--overlay", String(overlay).trim());
+      if (transition) args.push("--transition", String(transition).trim());
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -859,10 +892,9 @@ async function start(opts = {}) {
 
   app.post("/api/stream/stop", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.stream_helper stop", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "stop"], (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -873,11 +905,11 @@ async function start(opts = {}) {
 
   app.get("/api/stream/status", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.stream_helper status", (error, stdout, stderr) => {
-        res.json({ 
+      execPythonModule(["-m", "defora_cli.stream_helper", "status"], (error, stdout) => {
+        res.json({
           status: error ? "stopped" : "running",
           output: stdout,
+          python: PYTHON_BIN,
         });
       });
     } catch (err) {
@@ -892,17 +924,17 @@ async function start(opts = {}) {
     }
     try {
       const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
-      const cmd = ["python3", "-m", "defora_cli.stream_helper", "record",
-                   "--source", framesDir, "--output", output,
-                   "--fps", String(fps || 24)];
-      if (resolution) cmd.push("--resolution", resolution);
-      if (codec) cmd.push("--codec", codec);
-      if (quality) cmd.push("--quality", quality);
-      
-      const { exec } = require('child_process');
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = [
+        "-m", "defora_cli.stream_helper", "record",
+        "--source", framesDir, "--output", output,
+        "--fps", String(fps || 24),
+      ];
+      if (resolution) args.push("--resolution", resolution);
+      if (codec) args.push("--codec", codec);
+      if (quality) args.push("--quality", quality);
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -913,10 +945,9 @@ async function start(opts = {}) {
 
   app.post("/api/stream/stop-record", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.stream_helper stop-record", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "stop-record"], (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -927,8 +958,7 @@ async function start(opts = {}) {
 
   app.get("/api/stream/record-status", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.stream_helper record-status", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "record-status"], (error, stdout) => {
         res.json({
           status: error ? "stopped" : "recording",
           output: stdout,
@@ -1005,7 +1035,7 @@ async function start(opts = {}) {
     if (live) {
       args.push("--live", "--mediator-host", mediatorHost, "--mediator-port", String(mediatorPort));
     }
-    const child = spawner("python3", args, { stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawnPython(args, { stdio: ["ignore", "pipe", "pipe"] });
     if (!child || typeof child.on !== "function") {
       return res.status(500).json({ error: "could not start audio processor" });
     }
@@ -1065,21 +1095,40 @@ async function start(opts = {}) {
     ];
   }
 
-  function resolveVideoSwarmPath(inputPath, rootId) {
-    const roots = videoSwarmRoots();
-    const root = rootId ? roots.find((r) => r.id === rootId) : roots[0];
-    if (!root) return null;
-    const raw = String(inputPath || "").trim();
-    if (!raw) return path.resolve(root.path);
-    // IMPORTANT: the browser sends back absolute paths that we previously returned.
-    // Preserve absolute paths; only join relative paths against the chosen root.
-    const resolved = path.resolve(path.isAbsolute(raw) ? raw : path.join(root.path, raw));
-    const allowed = roots.some((r) => {
+  function rootForResolvedPath(resolved, roots) {
+    return roots.find((r) => {
       const rootResolved = path.resolve(r.path);
       return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
-    });
+    }) || null;
+  }
+
+  function resolveVideoSwarmPath(inputPath, rootId) {
+    const roots = videoSwarmRoots();
+    const raw = String(inputPath || "").trim();
+    if (!raw) {
+      const root = rootId ? roots.find((r) => r.id === rootId) : roots[0];
+      return root ? path.resolve(root.path) : null;
+    }
+    // IMPORTANT: the browser sends back absolute paths that we previously returned.
+    // Preserve absolute paths; only join relative paths against the chosen root.
+    let resolved;
+    if (path.isAbsolute(raw)) {
+      resolved = path.resolve(raw);
+    } else {
+      const root = rootId ? roots.find((r) => r.id === rootId) : roots[0];
+      if (!root) return null;
+      resolved = path.resolve(path.join(root.path, raw));
+    }
+    const allowed = rootForResolvedPath(resolved, roots);
     if (!allowed) return null;
     return resolved;
+  }
+
+  function parseVideoSwarmSortKey(sort) {
+    const raw = String(sort || "name").trim().toLowerCase();
+    if (raw === "date" || raw.startsWith("mtime")) return "date";
+    if (raw === "size" || raw.startsWith("size")) return "size";
+    return "name";
   }
 
   async function browseVideoSwarm(targetPath, { recursive = false, sortKey = "name" } = {}) {
@@ -1094,9 +1143,11 @@ async function start(opts = {}) {
     const roots = videoSwarmRoots();
     const atRoot = roots.some((r) => path.resolve(r.path) === path.resolve(targetPath));
     const videos = [];
+    const folders = [];
     const walk = async (dir) => {
       const items = await fsp.readdir(dir, { withFileTypes: true });
       for (const ent of items) {
+        if (ent.name.startsWith(".")) continue;
         const full = path.join(dir, ent.name);
         if (ent.isDirectory()) {
           if (recursive) await walk(full);
@@ -1106,7 +1157,7 @@ async function start(opts = {}) {
         const ext = path.extname(ent.name).toLowerCase();
         if (!VIDEO_EXT.has(ext)) continue;
         const fst = await fsp.stat(full);
-        const root = roots.find((r) => full.startsWith(path.resolve(r.path) + path.sep) || full === path.resolve(r.path));
+        const root = rootForResolvedPath(full, roots);
         videos.push({
           name: ent.name,
           path: full,
@@ -1120,12 +1171,22 @@ async function start(opts = {}) {
       await walk(targetPath);
     } else {
       for (const ent of entries) {
+        if (ent.name.startsWith(".")) continue;
+        const full = path.join(targetPath, ent.name);
+        if (ent.isDirectory()) {
+          const root = rootForResolvedPath(full, roots);
+          folders.push({
+            name: ent.name,
+            path: full,
+            rootId: root ? root.id : "",
+          });
+          continue;
+        }
         if (!ent.isFile()) continue;
         const ext = path.extname(ent.name).toLowerCase();
         if (!VIDEO_EXT.has(ext)) continue;
-        const full = path.join(targetPath, ent.name);
         const fst = await fsp.stat(full);
-        const root = roots.find((r) => full.startsWith(path.resolve(r.path) + path.sep) || full === path.resolve(r.path));
+        const root = rootForResolvedPath(full, roots);
         videos.push({
           name: ent.name,
           path: full,
@@ -1140,10 +1201,13 @@ async function start(opts = {}) {
       date: (a, b) => (b.mtimeMs || 0) - (a.mtimeMs || 0),
       size: (a, b) => (b.size || 0) - (a.size || 0),
     }[sortKey] || ((a, b) => a.name.localeCompare(b.name));
+    folders.sort((a, b) => a.name.localeCompare(b.name));
     videos.sort(sortFn);
     return {
       path: targetPath,
       parent: atRoot ? "" : parent,
+      folders,
+      folderCount: folders.length,
       videos,
       videoCount: videos.length,
     };
@@ -1159,7 +1223,7 @@ async function start(opts = {}) {
       const browsePath = resolveVideoSwarmPath(String(req.query.path || ""), rootId || "frames");
       if (!browsePath) return res.status(400).json({ error: "invalid path" });
       const recursive = String(req.query.recursive || "") === "1" || req.query.recursive === "true";
-      const sortKey = ["name", "date", "size"].includes(String(req.query.sort || "")) ? String(req.query.sort) : "name";
+      const sortKey = parseVideoSwarmSortKey(req.query.sort);
       const data = await browseVideoSwarm(browsePath, { recursive, sortKey });
       res.json(data);
     } catch (err) {
@@ -3819,17 +3883,15 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "input_dir and output_dir required" });
     }
     try {
-      const { exec } = require('child_process');
-      const cmd = [
-        "python3", "-m", "defora_cli.frame_interpolator", "interpolate",
+      execPythonModule([
+        "-m", "defora_cli.frame_interpolator", "interpolate",
         "--input-dir", input_dir,
         "--output-dir", output_dir,
         "--factor", String(factor || 2),
         "--method", method || "blend",
-      ];
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      ], (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -3843,16 +3905,16 @@ async function start(opts = {}) {
     const { fps, resolution, port } = req.body || {};
     try {
       const framesDir = process.env.FRAMES_DIR || path.join(__dirname, "frames");
-      const cmd = ["python3", "-m", "defora_cli.stream_helper", "webrtc",
-                   "--source", framesDir,
-                   "--fps", String(fps || 24)];
-      if (resolution) cmd.push("--resolution", resolution);
-      if (port) cmd.push("--port", String(port));
-      
-      const { exec } = require('child_process');
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = [
+        "-m", "defora_cli.stream_helper", "webrtc",
+        "--source", framesDir,
+        "--fps", String(fps || 24),
+      ];
+      if (resolution) args.push("--resolution", resolution);
+      if (port) args.push("--port", String(port));
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout, url: `http://localhost:${port || 8088}` });
       });
@@ -3863,10 +3925,9 @@ async function start(opts = {}) {
 
   app.post("/api/webrtc/stop", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.stream_helper stop-webrtc", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "stop-webrtc"], (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -3877,8 +3938,7 @@ async function start(opts = {}) {
 
   app.get("/api/webrtc/status", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.stream_helper webrtc-status", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "webrtc-status"], (error, stdout) => {
         res.json({
           status: error ? "stopped" : "running",
           output: stdout,
@@ -3893,16 +3953,13 @@ async function start(opts = {}) {
   app.post("/api/sync/ableton-link", async (req, res) => {
     const { bpm, mediator_host, mediator_port, fps } = req.body || {};
     try {
-      const { exec } = require('child_process');
-      const cmd = ["python3", "-m", "defora_cli.ableton_link", "sync",
-                   "--bpm", String(bpm || 120)];
-      if (mediator_host) cmd.push("--mediator-host", mediator_host);
-      if (mediator_port) cmd.push("--mediator-port", mediator_port);
-      if (fps) cmd.push("--fps", String(fps));
-      
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = ["-m", "defora_cli.ableton_link", "sync", "--bpm", String(bpm || 120)];
+      if (mediator_host) args.push("--mediator-host", mediator_host);
+      if (mediator_port) args.push("--mediator-port", String(mediator_port));
+      if (fps) args.push("--fps", String(fps));
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -3913,10 +3970,9 @@ async function start(opts = {}) {
 
   app.get("/api/sync/ableton-link/status", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.ableton_link status", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.ableton_link", "status"], (error, stdout, stderr) => {
         if (error) {
-          return res.json({ status: "stopped", error: stderr || stdout });
+          return res.json({ status: "stopped", error: stderr || stdout || error.message });
         }
         try {
           const status = JSON.parse(stdout);
@@ -3936,16 +3992,13 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "mode required (ltc or mtc)" });
     }
     try {
-      const { exec } = require('child_process');
-      const cmd = ["python3", "-m", "defora_cli.timecode_sync", mode,
-                   "--fps", String(fps || 24)];
-      if (midi_device) cmd.push("--midi-device", midi_device);
-      if (mediator_host) cmd.push("--mediator-host", mediator_host);
-      if (mediator_port) cmd.push("--mediator-port", mediator_port);
-      
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = ["-m", "defora_cli.timecode_sync", mode, "--fps", String(fps || 24)];
+      if (midi_device) args.push("--midi-device", midi_device);
+      if (mediator_host) args.push("--mediator-host", mediator_host);
+      if (mediator_port) args.push("--mediator-port", String(mediator_port));
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -3956,10 +4009,9 @@ async function start(opts = {}) {
 
   app.get("/api/sync/timecode/status", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.timecode_sync status", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.timecode_sync", "status"], (error, stdout, stderr) => {
         if (error) {
-          return res.json({ status: "stopped", error: stderr || stdout });
+          return res.json({ status: "stopped", error: stderr || stdout || error.message });
         }
         try {
           const status = JSON.parse(stdout);
@@ -3980,17 +4032,17 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "provider, gpu_type, and pool_name required" });
     }
     try {
-      const { exec } = require('child_process');
-      const cmd = ["python3", "-m", "defora_cli.cloud_gpu", "provision",
-                   "--provider", provider,
-                   "--gpu-type", gpu_type,
-                   "--pool-name", pool_name];
-      if (count) cmd.push("--count", String(count));
-      if (max_cost) cmd.push("--max-cost", String(max_cost));
-      
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = [
+        "-m", "defora_cli.cloud_gpu", "provision",
+        "--provider", provider,
+        "--gpu-type", gpu_type,
+        "--pool-name", pool_name,
+      ];
+      if (count) args.push("--count", String(count));
+      if (max_cost) args.push("--max-cost", String(max_cost));
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -4005,18 +4057,20 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "pool_name required" });
     }
     try {
-      const { exec } = require('child_process');
-      exec(`python3 -m defora_cli.cloud_gpu status --pool-name ${pool_name}`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+      execPythonModule(
+        ["-m", "defora_cli.cloud_gpu", "status", "--pool-name", String(pool_name)],
+        (error, stdout, stderr) => {
+          if (error) {
+            return res.status(500).json({ error: stderr || stdout || error.message });
+          }
+          try {
+            const status = JSON.parse(stdout);
+            res.json(status);
+          } catch (e) {
+            res.json({ output: stdout });
+          }
         }
-        try {
-          const status = JSON.parse(stdout);
-          res.json(status);
-        } catch (e) {
-          res.json({ output: stdout });
-        }
-      });
+      );
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -4028,13 +4082,15 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "pool_name required" });
     }
     try {
-      const { exec } = require('child_process');
-      exec(`python3 -m defora_cli.cloud_gpu stop --pool-name ${pool_name}`, (error, stdout, stderr) => {
-        if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+      execPythonModule(
+        ["-m", "defora_cli.cloud_gpu", "stop", "--pool-name", String(pool_name)],
+        (error, stdout, stderr) => {
+          if (error) {
+            return res.status(500).json({ error: stderr || stdout || error.message });
+          }
+          res.json({ success: true, message: stdout });
         }
-        res.json({ success: true, message: stdout });
-      });
+      );
     } catch (err) {
       res.status(500).json({ error: err.message });
     }
@@ -4046,14 +4102,14 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "provider and gpu_type required" });
     }
     try {
-      const { exec } = require('child_process');
-      const cmd = ["python3", "-m", "defora_cli.cloud_gpu", "cost-estimate",
-                   "--provider", provider,
-                   "--gpu-type", gpu_type,
-                   "--hours", String(hours || 8)];
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      execPythonModule([
+        "-m", "defora_cli.cloud_gpu", "cost-estimate",
+        "--provider", provider,
+        "--gpu-type", gpu_type,
+        "--hours", String(hours || 8),
+      ], (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ estimate: stdout });
       });
@@ -4069,15 +4125,13 @@ async function start(opts = {}) {
       return res.status(400).json({ error: "interface_type required (artnet, sacn, or openrgb)" });
     }
     try {
-      const { exec } = require('child_process');
-      const cmd = ["python3", "-m", "defora_cli.dmx_control", interface_type];
-      if (universe) cmd.push("--universe", String(universe));
-      if (fps) cmd.push("--fps", String(fps));
-      if (broadcast_ip && interface_type === "artnet") cmd.push("--ip", broadcast_ip);
-      
-      exec(cmd.join(" "), (error, stdout, stderr) => {
+      const args = ["-m", "defora_cli.dmx_control", interface_type];
+      if (universe) args.push("--universe", String(universe));
+      if (fps) args.push("--fps", String(fps));
+      if (broadcast_ip && interface_type === "artnet") args.push("--ip", broadcast_ip);
+      execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
-          return res.status(500).json({ error: stderr || stdout });
+          return res.status(500).json({ error: stderr || stdout || error.message });
         }
         res.json({ success: true, message: stdout });
       });
@@ -4088,10 +4142,9 @@ async function start(opts = {}) {
 
   app.get("/api/dmx/status", async (_req, res) => {
     try {
-      const { exec } = require('child_process');
-      exec("python3 -m defora_cli.dmx_control status", (error, stdout, stderr) => {
+      execPythonModule(["-m", "defora_cli.dmx_control", "status"], (error, stdout, stderr) => {
         if (error) {
-          return res.json({ status: "stopped", error: stderr || stdout });
+          return res.json({ status: "stopped", error: stderr || stdout || error.message });
         }
         try {
           const status = JSON.parse(stdout);
@@ -4102,6 +4155,42 @@ async function start(opts = {}) {
       });
     } catch (err) {
       res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/runs/launch-demo", async (req, res) => {
+    try {
+      const runId = `demo-${Date.now().toString(36)}`;
+      const snapshot = {
+        kind: "demo",
+        maxFrames: 12,
+        fps: 12,
+        settings: {
+          max_frames: 12,
+          tag: "demo",
+          sd_model_checkpoint: "demo-model",
+          animation_prompts_positive: "e2e demo run",
+        },
+      };
+      await persistRunJobSnapshot(runId, snapshot);
+      await updateRunManifest(runId, {
+        status: "running",
+        tag: "demo",
+        model: "demo-model",
+        frame_count: 12,
+        prompt_positive: "e2e demo run",
+      });
+      broadcast({ type: "run_demo_started", runId });
+      setTimeout(async () => {
+        await updateRunManifest(runId, {
+          status: "completed",
+          completed_at: new Date().toISOString(),
+        });
+        broadcast({ type: "run_demo_done", runId, status: "completed" });
+      }, 1200);
+      res.json({ ok: true, run_id: runId, status: "running" });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "demo launch failed" });
     }
   });
 

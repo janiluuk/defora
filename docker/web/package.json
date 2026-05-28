@@ -11,7 +11,7 @@
     "pretest": "node scripts/sync-app-definition.mjs",
     "test": "node --test test/*.spec.js",
     "capture-ui-shots": "node scripts/capture-web-ui.mjs",
-    "test:playwright": "npm run build && node test/playwright-smoke.mjs && node test/playwright-startup-and-runs-storage.mjs && node test/playwright-clip-metadata.mjs && node test/playwright-recording-appears.mjs"
+    "test:playwright": "npm run build && node test/playwright-smoke.mjs && node test/playwright-startup-and-runs-storage.mjs && node test/playwright-runs-realtime.mjs && node test/playwright-clip-metadata.mjs && node test/playwright-recording-appears.mjs && node test/playwright-storage-browser.mjs"
   },
   "dependencies": {
     "amqplib": "^0.10.3",

@@ -763,20 +763,20 @@
       </div>
     </div>
 
-    <div v-else-if="currentSubTab.SETTINGS==='SYSTEM'" class="system-files-tab" data-testid="video-swarm-browser">
-      <VideoSwarmBrowser :app="app" />
+    <div v-else-if="currentSubTab.SETTINGS==='SYSTEM'" class="system-runs-tab" data-testid="settings-system-runs">
+      <RunsBrowserPanel :app="app" />
     </div>
 
   </div>
 </template>
 
 <script>
-import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
+import RunsBrowserPanel from '../RunsBrowserPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',
-  components: { VideoSwarmBrowser },
+  components: { RunsBrowserPanel },
   props: {
     app: { type: Object, required: true },
   },

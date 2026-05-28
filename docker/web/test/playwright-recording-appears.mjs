@@ -1,6 +1,6 @@
 /**
  * Playwright E2E: when the user records material, it shows up in the browser
- * after processing completes (Settings → SYSTEM video swarm browser).
+ * after processing completes (Library → VideoSwarm browser).
  *
  * We boot a real `server.js` with a temp `uploadsDir`, then intercept the
  * `/api/stream/record` call to simulate an async processing pipeline that
@@ -98,12 +98,9 @@ try {
   if ((await recordBtn.count()) === 0) throw new Error("Record button not found on LIVE");
   await recordBtn.click();
 
-  // Go to Settings → SYSTEM (video swarm browser).
-  await clickTab(page, "SETTINGS");
-  await page.waitForSelector(".sub-pill", { timeout: 30000 });
-  await clickSubPill(page, "SYSTEM");
-
-  // SettingsView wraps VideoSwarmBrowser in a container that shares the same testid.
+  // Go to Library (VideoSwarm browser).
+  await clickTab(page, "LIBRARY");
+  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
   const browserRoot = page.locator(".video-swarm-browser[data-testid=\"video-swarm-browser\"]").first();
   await browserRoot.waitFor({ state: "visible", timeout: 30000 });
 

@@ -59,7 +59,7 @@
       />
     </header>
 
-    <div class="layout" :class="{
+    <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION',
       'layout--studio': currentTab === 'MODULATION'
@@ -297,7 +297,7 @@
             story-only
           />
         </div>
-        <div v-else-if="currentTab !== 'LIBRARY'" class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
+        <div v-else class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
             <div class="frame-rail__header">
               <div class="frame-rail__title-wrap">
                 <span class="frame-rail__title">Frames</span>
@@ -358,186 +358,39 @@
               <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
             </div>
           </div>
-        <div
-          v-if="currentTab === 'LIBRARY'"
-          class="frame-rail library-frame-rail"
-          :class="{ 'frame-rail--collapsed': !showFrames }"
-          style="margin-top: 4px;"
-          data-testid="library-frame-rail"
-        >
-          <div class="frame-rail__header">
-            <div class="frame-rail__title-wrap">
-              <span class="frame-rail__title">Runs</span>
-              <span class="frame-rail__meta" v-if="librarySelectedRunSummary && librarySelectedFrames.length">
-                {{ librarySelectedFrameLabel }} · {{ librarySelectedFrames.length }} frames
-              </span>
-              <span class="frame-rail__meta" v-else-if="runsLoading">Loading runs…</span>
-              <span class="frame-rail__meta" v-else-if="libraryRailRuns.length">{{ libraryRailRuns.length }} runs</span>
-              <span class="frame-rail__meta" v-else>No runs yet</span>
-            </div>
-            <div class="frame-rail__actions">
-              <button
-                type="button"
-                class="frame-rail__toggle"
-                :aria-expanded="showFrames ? 'true' : 'false'"
-                :title="showFrames ? 'Collapse frames' : 'Expand frames'"
-                @click="showFrames = !showFrames; saveSessionState()"
-              >
-                <UiIcon class="frame-rail__toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
-              </button>
-              <div class="frame-rail__controls" v-if="showFrames && librarySelectedFrames.length">
-                <button
-                  type="button"
-                  class="frame-rail__step"
-                  @click="stepLibraryFrame(-1)"
-                  :disabled="librarySelectedFrameIndex <= 0"
-                >
-                  Prev
-                </button>
-                <input
-                  class="frame-rail__scrubber"
-                  type="range"
-                  min="0"
-                  :max="Math.max(0, librarySelectedFrames.length - 1)"
-                  :value="Math.max(0, librarySelectedFrameIndex)"
-                  @input="selectLibraryFrame(librarySelectedFrames[Number($event.target.value)] || '')"
-                >
-                <button
-                  type="button"
-                  class="frame-rail__step"
-                  @click="stepLibraryFrame(1)"
-                  :disabled="librarySelectedFrameIndex >= librarySelectedFrames.length - 1"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="runsLoading" class="frame-rail__empty">Loading runs…</div>
-          <div v-else-if="!libraryRailRuns.length" class="frame-rail__empty">No runs yet. Runs will appear here after you render.</div>
-          <template v-else>
-            <div v-if="library.status" class="frame-rail__empty">{{ library.status }}</div>
-            <div v-else-if="library.loading" class="frame-rail__empty">Loading frames…</div>
-            <div v-else class="library-frame-rail__runs" data-testid="library-run-thumbs">
-              <button
-                v-for="run in libraryRailRuns"
-                :key="'library-rail-run-' + run.run_id"
-                type="button"
-                class="frame-rail__item library-frame-rail__run"
-                :class="{ 'frame-rail__item--active': librarySelectedRunSummary && librarySelectedRunSummary.run_id === run.run_id }"
-                @click="openLibraryRun(run)"
-              >
-                <img
-                  v-if="run.has_thumbnail"
-                  class="frame-rail__thumb"
-                  :src="`/api/runs/${run.run_id}/thumb`"
-                  :alt="run.run_id"
-                />
-                <div v-else class="frame-rail__thumb library-frame-rail__run-empty">No img</div>
-                <span class="frame-rail__label">{{ run.run_id }}</span>
-              </button>
-            </div>
-
-            <template v-if="showFrames">
-              <div
-                v-if="librarySelectedRunSummary && !library.loading && !librarySelectedFrames.length"
-                class="frame-rail__empty"
-              >
-                This run has no exported frames to inspect.
-              </div>
-              <div v-if="librarySelectedFrames.length" class="frame-rail__list" data-testid="library-frame-thumbs">
-                <button
-                  v-for="frameName in librarySelectedFrames"
-                  :key="'library-rail-frame-' + librarySelectedRunSummary.run_id + '-' + frameName"
-                  type="button"
-                  class="frame-rail__item"
-                  :class="{ 'frame-rail__item--active': frameName === librarySelectedFrameResolved }"
-                  @click="selectLibraryFrame(frameName)"
-                >
-                  <img
-                    class="frame-rail__thumb"
-                    :src="`/api/runs/${encodeURIComponent(librarySelectedRunSummary.run_id)}/frames/${encodeURIComponent(frameName)}`"
-                    :alt="frameName"
-                  />
-                  <span class="frame-rail__label">
-                    {{ Number.isFinite(parseFrameNumber(frameName)) && parseFrameNumber(frameName) >= 0 ? parseFrameNumber(frameName) : frameName }}
-                  </span>
-                </button>
-              </div>
-            </template>
-          </template>
-        </div>
 
         <!-- transport moved to top bar in LIVE -->
-
-        <div v-if="currentTab === 'LIVE'" class="recent-runs-rail">
-          <div class="recent-runs-rail__header">
-            <span class="recent-runs-rail__title">Recent runs</span>
-            <button type="button" class="recent-runs-rail__link" @click="openRunsSettings">All runs</button>
-          </div>
-          <div v-if="recentRunsRail.length" class="recent-runs-rail__list">
-            <button
-              v-for="run in recentRunsRail"
-              :key="'recent-run-' + run.run_id"
-              type="button"
-              class="recent-runs-rail__item"
-              @click="openRecentRun(run)"
-            >
-              <img
-                v-if="run.has_thumbnail"
-                class="recent-runs-rail__thumb"
-                :src="`/api/runs/${run.run_id}/thumb`"
-                :alt="run.run_id"
-              />
-              <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">No img</div>
-              <div class="recent-runs-rail__meta">
-                <span class="recent-runs-rail__id">{{ run.run_id }}</span>
-                <span class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</span>
-              </div>
-            </button>
-          </div>
-          <div v-else class="recent-runs-rail__empty">No recent runs yet.</div>
-        </div>
 
       </div>
 
       <div
-        v-if="currentTab === 'LIVE'"
         class="live-drawer-shell"
-        :class="{ 'live-drawer-shell--open': liveDrawerOpen }"
+        :class="{ 'live-drawer-shell--open': rightPanelOpen }"
+        data-testid="right-panel-drawer"
       >
         <button
           type="button"
           class="live-overlay-btn live-overlay-btn--attached"
-          :class="{ 'live-overlay-btn--open': showRightPanel }"
+          :class="{ 'live-overlay-btn--open': rightPanelOpen }"
           :title="rightPanelToggleTitle"
-          :aria-expanded="showRightPanel ? 'true' : 'false'"
-          @click="liveDrawerOpen = !liveDrawerOpen"
+          :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+          data-testid="right-panel-toggle"
+          @click="toggleRightPanel"
         >
           <span class="live-overlay-btn__arrow-wrap">
             <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
           </span>
         </button>
-        <div class="live-right-column">
-          <LiveView :app="appViewModel" />
+        <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
+          <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+          <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+          <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
+          <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
+          <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
+          <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
+          <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
         </div>
       </div>
-
-      <!-- Right: control rack per tab -->
-      <transition name="right-panel-slide">
-        <div v-if="currentTab !== 'LIVE' && showRightPanel" :class="{
-          'stage-rack-overlay': currentTab === 'MOTION',
-          'studio-right-column': currentTab === 'MODULATION'
-        }">
-          <LibraryView v-if="currentTab==='LIBRARY'" :app="appViewModel" />
-          <StreamView v-else-if="currentTab==='STREAM'" :app="appViewModel" />
-          <PromptsView v-else-if="currentTab==='PROMPTS'" :app="appViewModel" />
-          <MotionView v-else-if="currentTab==='MOTION'" :app="appViewModel" />
-          <ModulationView v-else-if="currentTab==='MODULATION'" :app="appViewModel" />
-          <SettingsView v-else-if="currentTab==='SETTINGS'" :app="appViewModel" />
-        </div>
-      </transition>
     </div>
 
     <div
@@ -574,11 +427,17 @@
           >
             CROSSFADER
           </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'RUNS' }"
+            @click="setLiveBottomDrawerTab('RUNS')"
+          >
+            RUNS
+          </button>
         </div>
 
         <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
-          <div v-if="!liveModulating.length" class="live-hud-empty">No active modulators</div>
-          <template v-else>
             <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
               <div class="live-mod-slot__head">
                 <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
@@ -659,10 +518,42 @@
                 </div>
               </div>
             </div>
-          </template>
         </div>
 
-        <LoraCrossfaderPanel v-else :app="appViewModel" />
+        <LoraCrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
+
+        <div
+          v-else-if="liveBottomDrawerTab === 'RUNS'"
+          class="bottom-drawer-runs recent-runs-rail"
+          data-testid="bottom-drawer-runs"
+        >
+          <div class="recent-runs-rail__header">
+            <span class="recent-runs-rail__title">Recent runs</span>
+            <button type="button" class="recent-runs-rail__link" @click="openRunsSettings">All runs</button>
+          </div>
+          <div v-if="recentRunsRail.length" class="recent-runs-rail__list">
+            <button
+              v-for="run in recentRunsRail"
+              :key="'recent-run-' + run.run_id"
+              type="button"
+              class="recent-runs-rail__item"
+              @click="openRecentRun(run)"
+            >
+              <img
+                v-if="run.has_thumbnail"
+                class="recent-runs-rail__thumb"
+                :src="`/api/runs/${run.run_id}/thumb`"
+                :alt="run.run_id"
+              />
+              <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">No img</div>
+              <div class="recent-runs-rail__meta">
+                <span class="recent-runs-rail__id">{{ run.run_id }}</span>
+                <span class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</span>
+              </div>
+            </button>
+          </div>
+          <div v-else class="recent-runs-rail__empty">No recent runs yet.</div>
+        </div>
       </div>
     </div>
 
@@ -687,6 +578,7 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
 } from './deforum-settings-schema.js'
+import { verifyDeforumSettings } from './deforum-settings-verify.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
@@ -754,6 +646,7 @@ export default {
       paramPanelOpen: false,
       deforumPanelOpen: false,
       liveDrawerOpen: true,
+      rightPanelOpen: true,
       videoStageSize: 'medium', // small | medium | full
       liveAnimationBoxOpen: true,
       libraryFullscreen: false,
@@ -767,6 +660,7 @@ export default {
        deforumSettingsJson: '',
        deforumSettingsJsonError: '',
        deforumSettingsStatus: '',
+       deforumVerifyResults: null,
        deforumSaveTimer: null,
        deforumPreviewTimer: null,
        crossfadeSlotTypes: CROSSFADE_SLOT_TYPES,
@@ -929,16 +823,19 @@ export default {
         rootId: 'frames',
         currentPath: '',
         parent: '',
+        folders: [],
         videos: [],
         videoCount: null,
+        folderCount: null,
         loading: false,
         status: '',
         recursive: false,
         showFilenames: true,
-        sortKey: 'name',
+        sortKey: 'name-asc',
         zoomLevel: 2,
         selectedPaths: [],
         fullscreenIndex: -1,
+        _rootsLoaded: false,
       },
       librarySubTab: 'BROWSER',
       liveBottomDrawerOpen: false,
@@ -961,8 +858,8 @@ export default {
       ],
       liveCam: [
         { key: "zoom", label: "Zoom", val: 0.8, min: -5, max: 5, step: 0.05, sourceable: true },
-        { key: "panx", label: "Pan X", val: 0.1, min: -1, max: 1, step: 0.05, sourceable: false },
-        { key: "pany", label: "Pan Y", val: 0.0, min: -1, max: 1, step: 0.05, sourceable: false },
+        { key: "panx", label: "Pan X", val: 0.1, min: -1, max: 1, step: 0.01, sourceable: false },
+        { key: "pany", label: "Pan Y", val: 0.0, min: -1, max: 1, step: 0.01, sourceable: false },
         { key: "tilt", label: "Tilt / Rotate", val: 0.0, min: -180, max: 180, step: 0.5, sourceable: false },
       ],
       paramSources: {
@@ -972,6 +869,15 @@ export default {
         cfgscale: "Manual",
         zoom: "Beat",
       },
+      /** HUD slider keys → modulation / liveParam keys used by LFO and backend */
+      liveParamAliases: {
+        panx: "translation_x",
+        pany: "translation_y",
+        zoom: "zoom_2d",
+        tilt: "rotation_z",
+        noise: "noise_multiplier",
+      },
+      modulationRouteFocusKey: null,
       pinnedParams: (() => {
         try {
           const raw = typeof localStorage !== 'undefined' && localStorage.getItem('defora_pinned_params');
@@ -1060,14 +966,18 @@ export default {
       motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
       motionStylesSaved: {},
       motionSelectedPreset: "Static",
-      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1 },
-      xyPad: { dragging: false, padSize: 420 },
+      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1, look_x: 0, look_y: 0 },
+      xyPad: { dragging: false, activePad: null, padSize: 420 },
       audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
       audioSpectrogramDataUrl: null,
       audioSpectrogramStatus: "",
       _spectrogramGen: 0,
       avSyncEnabled: false,
       avSyncLeadSec: 4,
+      liveModSlotParamKeys: ['', '', '', '', '', '', '', ''],
+      modulationMapPicker: null,
+      mappingsActiveOnly: false,
+      mappingsGroupTab: '',
       audioBeatMacrosCollapsed: true,
       audioStatus: "Idle",
       audioMappings: [
@@ -1349,13 +1259,14 @@ export default {
        ],
        runsDetailView: null,
        runsStatus: "",
-       library: {
-         selectedRunId: '',
-         selectedFrameName: '',
-         runDetail: null,
-         loading: false,
-         status: '',
-       },
+       runsAutoRefresh: true,
+       runsPollIntervalSec: 5,
+       _runsPollTimer: null,
+       runsLaunching: false,
+       runsJobLog: [],
+       _runsJobLogSeq: 0,
+       _runsActivityKey: '',
+       runsLastRefreshedAt: null,
        genData: {
          defaultThemes: ['A journey through light', 'Neon cathedral', 'Ocean depths'],
          sceneDescriptors: { opening: ['ethereal', 'quiet'], buildup: ['rising', 'vivid'], climax: ['intense', 'surreal'], closing: ['soft', 'fading'] },
@@ -1439,6 +1350,18 @@ export default {
         jobs: activeByNode[node.id || node.url] || activeByNode[node.name || node.url] || [],
       }));
     },
+    runsMonitorActive() {
+      if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
+      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'RUNS';
+    },
+    runsLastRefreshedLabel() {
+      if (!this.runsLastRefreshedAt) return '';
+      try {
+        return `Updated ${new Date(this.runsLastRefreshedAt).toLocaleTimeString()}`;
+      } catch (_e) {
+        return '';
+      }
+    },
     rtmpStreamHref() {
       const nodes = this.infrastructure && Array.isArray(this.infrastructure.transcoders)
         ? this.infrastructure.transcoders
@@ -1511,9 +1434,6 @@ export default {
       return `${count} frames generated · latest #${latestNum}`;
     },
     activePreviewStillPath() {
-      if (!this.deforumPlaying && this.currentTab === 'LIBRARY') {
-        return this.librarySelectedFrameSrc || '';
-      }
       if (!this.deforumPlaying && this.currentTab === 'LIVE') {
         return this.performance.lastPreviewPath
           || this.generator.lastPath
@@ -1534,13 +1454,13 @@ export default {
       return this.currentTab === 'MOTION';
     },
     showRightPanel() {
-      return this.currentTab !== 'LIVE' || this.liveDrawerOpen;
+      return this.rightPanelOpen;
     },
     rightPanelToggleIcon() {
-      return this.showRightPanel ? 'arrow-right' : 'arrow-left';
+      return this.rightPanelOpen ? 'arrow-right' : 'arrow-left';
     },
     rightPanelToggleTitle() {
-      return this.showRightPanel ? 'Hide controls menu' : 'Show controls menu';
+      return this.rightPanelOpen ? 'Collapse sidebar' : 'Expand sidebar';
     },
     showDeforumVideo() {
       if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
@@ -1898,6 +1818,70 @@ export default {
       const el = this.$refs && this.$refs.avSyncAudio;
       return !!(el && this.audio.objectUrl && !el.paused && !el.ended);
     },
+    audioSpectrumEditorLive() {
+      return !!(this.audio.objectUrl || (this.audioSpectrumBins && this.audioSpectrumBins.length));
+    },
+    animationModeGroupLabel() {
+      const mode = (this.defaultAnimation && this.defaultAnimation.mode) || 'instancing';
+      const labels = {
+        instancing: 'Instancing',
+        volume: 'Volume',
+        nebula: 'Nebula',
+        raycast: 'Raycast',
+        marching: 'Marching',
+        ocean: 'Ocean',
+      };
+      return `Standby — ${labels[mode] || 'Instancing'}`;
+    },
+    modulationMappingsGroups() {
+      const groups = new Map();
+      this.animationTargets.forEach((t) => {
+        const label = t.group || 'Animation';
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push(t);
+      });
+      this.lfoTargets.forEach((t) => {
+        const label = t.group || 'Deforum';
+        if (!groups.has(label)) groups.set(label, []);
+        groups.get(label).push(t);
+      });
+      const modeLabel = this.animationModeGroupLabel;
+      const entries = [...groups.entries()].map(([label, items]) => ({
+        label,
+        shortLabel: String(label).replace(/^Standby — /, ''),
+        items,
+      }));
+      entries.sort((a, b) => {
+        if (a.label === modeLabel) return -1;
+        if (b.label === modeLabel) return 1;
+        return a.label.localeCompare(b.label);
+      });
+      return entries;
+    },
+    modulationMappingsVisibleGroups() {
+      let groups = this.modulationMappingsGroups;
+      if (this.mappingsActiveOnly) {
+        groups = groups
+          .map((g) => ({
+            ...g,
+            items: g.items.filter((t) => this.paramHasActiveMapping(t.key)),
+          }))
+          .filter((g) => g.items.length);
+      }
+      return groups;
+    },
+    liveModSlotPickerOptions() {
+      return [
+        { index: 0, label: 'Slider 1' },
+        { index: 1, label: 'Slider 2' },
+        { index: 2, label: 'XY Pad 1 · X' },
+        { index: 3, label: 'XY Pad 1 · Y' },
+        { index: 4, label: 'XY Pad 2 · X' },
+        { index: 5, label: 'XY Pad 2 · Y' },
+        { index: 6, label: 'Knob 1' },
+        { index: 7, label: 'Knob 2' },
+      ];
+    },
     audioBandTabDefs() {
       return [
         { key: 'low', label: 'Low' },
@@ -1931,6 +1915,19 @@ export default {
       [...this.liveVibe, ...this.liveCam].forEach(p => { paramMap[p.key] = p; });
       this.modulationTargets.forEach(t => {
         if (!paramMap[t.key]) {
+          const hudKey = Object.entries(this.liveParamAliases).find(([, route]) => route === t.key)?.[0];
+          const hud = hudKey ? this.liveHudParamByKey(hudKey) : null;
+          if (hud) {
+            paramMap[t.key] = {
+              key: t.key,
+              label: t.label,
+              val: Number(hud.val ?? 0),
+              min: hud.min ?? 0,
+              max: hud.max ?? 1,
+              step: hud.step ?? 0.01,
+            };
+            return;
+          }
           const animField = t.field;
           const val = animField && this.defaultAnimation
             ? Number(this.defaultAnimation[animField])
@@ -1941,6 +1938,7 @@ export default {
             val: Number.isFinite(val) ? val : (t.default || 0),
             min: t.min || 0,
             max: t.max || 1,
+            step: t.step ?? 0.01,
           };
         }
       });
@@ -1977,8 +1975,22 @@ export default {
       });
     },
     liveModulationSlots() {
-      const mods = Array.isArray(this.liveModulating) ? this.liveModulating : [];
-      const pick = (i) => mods[i] || null;
+      const pick = (i) => {
+        const key = this.liveModSlotParamKeys[i];
+        if (!key) return null;
+        const target = this.modulationTargetByKey(key);
+        const meta = this.paramControlMeta(key);
+        const src = this.paramSources[key] || this.paramSources[this.liveParamCanonicalKey(key)] || 'Manual';
+        return {
+          key,
+          label: (target && target.label) || key,
+          val: meta.hud ? meta.hud.val : meta.value,
+          min: meta.min,
+          max: meta.max,
+          step: meta.step,
+          source: src,
+        };
+      };
       const fmtVal = (v) => {
         const n = Number(v);
         if (!Number.isFinite(n)) return '—';
@@ -1993,38 +2005,55 @@ export default {
         return Math.round(30 + Math.max(0, Math.min(1, t)) * 70);
       };
 
-      const sliderSlot = (p, label) => ({
-        kind: 'slider',
-        label,
-        paramKey: p?.key || '',
-        mappingLabel: p?.source && p.source !== 'Manual' ? p.source : '',
-        min: p?.min ?? 0,
-        max: p?.max ?? 1,
-        step: p?.step ?? 0.01,
-        value: p?.val ?? 0,
-        valueLabel: fmtVal(p?.val),
-        shade: shadeFrom(p),
-      });
+      const sliderSlot = (p, label) => {
+        if (!p?.key) {
+          return { kind: 'slider', label, paramKey: '', mappingLabel: '', min: 0, max: 1, step: 0.01, value: 0, valueLabel: '—', shade: 35 };
+        }
+        const meta = this.paramControlMeta(p.key);
+        const val = meta.hud ? meta.hud.val : meta.value;
+        const slotParam = { ...p, val, min: meta.min, max: meta.max };
+        return {
+          kind: 'slider',
+          label: p.label || label,
+          paramKey: p.key,
+          mappingLabel: p?.source && p.source !== 'Manual' ? p.source : '',
+          min: meta.min,
+          max: meta.max,
+          step: meta.step,
+          value: val,
+          valueLabel: fmtVal(val),
+          shade: shadeFrom(slotParam),
+        };
+      };
 
-      const knobSlot = (p, label) => ({
-        kind: 'knob',
-        label,
-        paramKey: p?.key || '',
-        mappingLabel: p?.source && p.source !== 'Manual' ? p.source : '',
-        min: p?.min ?? 0,
-        max: p?.max ?? 1,
-        step: p?.step ?? 0.01,
-        value: p?.val ?? 0,
-        valueLabel: fmtVal(p?.val),
-      });
+      const knobSlot = (p, label) => {
+        if (!p?.key) {
+          return { kind: 'knob', label, paramKey: '', mappingLabel: '', min: 0, max: 1, step: 0.01, value: 0, valueLabel: '—' };
+        }
+        const meta = this.paramControlMeta(p.key);
+        const val = meta.hud ? meta.hud.val : meta.value;
+        return {
+          kind: 'knob',
+          label: p.label || label,
+          paramKey: p.key,
+          mappingLabel: p?.source && p.source !== 'Manual' ? p.source : '',
+          min: meta.min,
+          max: meta.max,
+          step: meta.step,
+          value: val,
+          valueLabel: fmtVal(val),
+        };
+      };
 
       const xySlot = (px, py, label) => {
-        const xMin = Number(px?.min ?? 0);
-        const xMax = Number(px?.max ?? 1);
-        const yMin = Number(py?.min ?? 0);
-        const yMax = Number(py?.max ?? 1);
-        const xVal = Number(px?.val ?? 0);
-        const yVal = Number(py?.val ?? 0);
+        const xMeta = px?.key ? this.paramControlMeta(px.key) : null;
+        const yMeta = py?.key ? this.paramControlMeta(py.key) : null;
+        const xMin = Number(xMeta?.min ?? px?.min ?? 0);
+        const xMax = Number(xMeta?.max ?? px?.max ?? 1);
+        const yMin = Number(yMeta?.min ?? py?.min ?? 0);
+        const yMax = Number(yMeta?.max ?? py?.max ?? 1);
+        const xVal = Number(xMeta?.hud ? xMeta.hud.val : xMeta?.value ?? px?.val ?? 0);
+        const yVal = Number(yMeta?.hud ? yMeta.hud.val : yMeta?.value ?? py?.val ?? 0);
         const nx = (xVal - xMin) / ((xMax - xMin) || 1);
         const ny = (yVal - yMin) / ((yMax - yMin) || 1);
         const clx = Math.max(0, Math.min(1, Number.isFinite(nx) ? nx : 0));
@@ -2061,51 +2090,6 @@ export default {
           return bTime - aTime;
         })
         .slice(0, 4);
-    },
-    libraryRailRuns() {
-      return [...this.runsAll].sort((a, b) => {
-        const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
-        const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
-        return bTime - aTime;
-      });
-    },
-    librarySelectedRunSummary() {
-      return this.libraryRailRuns.find((run) => run.run_id === this.library.selectedRunId)
-        || this.libraryRailRuns[0]
-        || null;
-    },
-    librarySelectedRunDetail() {
-      return this.library.runDetail && this.librarySelectedRunSummary && this.library.runDetail.run_id === this.librarySelectedRunSummary.run_id
-        ? this.library.runDetail
-        : null;
-    },
-    librarySelectedFrames() {
-      return Array.isArray(this.librarySelectedRunDetail && this.librarySelectedRunDetail.frames)
-        ? this.librarySelectedRunDetail.frames
-        : [];
-    },
-    librarySelectedFrameResolved() {
-      if (!this.librarySelectedFrames.length) return '';
-      if (this.librarySelectedFrames.includes(this.library.selectedFrameName)) return this.library.selectedFrameName;
-      return this.librarySelectedFrames[0];
-    },
-    librarySelectedFrameIndex() {
-      return this.librarySelectedFrames.indexOf(this.librarySelectedFrameResolved);
-    },
-    libraryVisibleFrames() {
-      if (!this.librarySelectedFrames.length) return [];
-      const current = this.librarySelectedFrameIndex >= 0 ? this.librarySelectedFrameIndex : 0;
-      const start = Math.max(0, current - 24);
-      return this.librarySelectedFrames.slice(start, start + 49);
-    },
-    librarySelectedFrameSrc() {
-      if (!this.librarySelectedRunSummary || !this.librarySelectedFrameResolved) return '';
-      return `/api/runs/${encodeURIComponent(this.librarySelectedRunSummary.run_id)}/frames/${encodeURIComponent(this.librarySelectedFrameResolved)}`;
-    },
-    librarySelectedFrameLabel() {
-      if (!this.librarySelectedFrameResolved) return 'No frame selected';
-      const parsed = this.parseFrameNumber(this.librarySelectedFrameResolved);
-      return Number.isFinite(parsed) && parsed >= 0 ? `Frame ${parsed}` : this.librarySelectedFrameResolved;
     },
     sessionCatalog() {
       try {
@@ -2338,14 +2322,18 @@ export default {
     selectedModulationLfo() {
       return this.lfos.find((lfo) => lfo.id === this.modulationSelectedLfoId) || this.lfos[0] || null;
     },
+    isDeforumMotion2d() {
+      const mode = String(this.deforumSettings?.animation_mode || '2D').trim().toUpperCase();
+      return mode === '2D';
+    },
+    motionMovePadRange() {
+      return this.isDeforumMotion2d ? 1 : 10;
+    },
     motionPadPuckStyle() {
-      const range = 10;
-      const xPct = ((this.motionPadValues.translation_x + range) / (range * 2)) * 100;
-      const yPct = (1 - ((this.motionPadValues.translation_y + range) / (range * 2))) * 100;
-      return {
-        left: `${Math.min(100, Math.max(0, xPct))}%`,
-        top: `${Math.min(100, Math.max(0, yPct))}%`,
-      };
+      return this.motionPadPuckStyleFor('move');
+    },
+    motionLookPadPuckStyle() {
+      return this.motionPadPuckStyleFor('look');
     },
     motionPadReadout() {
       return {
@@ -2353,6 +2341,8 @@ export default {
         y: Number(this.motionPadValues.translation_y || 0),
         z: Number(this.motionPadValues.translation_z || 0),
         zoom: Number(this.motionPadValues.zoom ?? 1),
+        lookX: Number(this.motionPadValues.look_x ?? 0),
+        lookY: Number(this.motionPadValues.look_y ?? 0),
       };
     },
     savedMotionPresetNames() {
@@ -2395,8 +2385,8 @@ export default {
         return `${active}/${this.lfos.length} LFO active`;
       }
       if (sub === 'AV_SYNC') {
-        if (this.avSyncEnabled && this.audio.objectUrl) return 'A/V sync on';
-        return this.audio.objectUrl ? 'A/V sync off' : 'Upload track';
+        if (this.avSyncEnabled && this.audio.objectUrl) return 'Sync on';
+        return this.audio.objectUrl ? 'Sync off' : 'Upload track';
       }
       if (sub === 'AUDIO_REACTIVE') {
         return this.audioReactiveActive ? 'Audio live' : 'Audio idle';
@@ -2404,11 +2394,11 @@ export default {
       if (sub === 'BEAT_MACROS') {
         return this.beatMacroOn ? 'Beat macros on' : 'Beat macros off';
       }
-      if (sub === 'ACTIVE_MODS') {
-        return this.liveModulating.length ? `${this.liveModulating.length} modulated` : 'No active mods';
-      }
-      if (sub === 'CROSSFADER') {
-        return `${this.morphHudSummary.a} · ${this.morphHudSummary.b}`;
+      if (sub === 'MAPPINGS') {
+        const n = this.mappingsActiveOnly
+          ? this.modulationMappingsVisibleGroups.reduce((sum, g) => sum + g.items.length, 0)
+          : this.modulationMappingsGroups.reduce((sum, g) => sum + g.items.length, 0);
+        return n ? `${n} parameters` : 'No mappings';
       }
       return '';
     },
@@ -2453,8 +2443,24 @@ export default {
     videoReady(ready) {
       if (ready) this.maybePromoteDeforumPreview();
     },
-    currentTab(tab) {
-      if (tab === 'LIBRARY') void this.refreshRuns();
+    currentTab() {
+      this.syncRunsMonitorPolling();
+    },
+    'currentSubTab.SETTINGS'(sub) {
+      if (this.currentTab !== 'SETTINGS') return;
+      this.syncRunsMonitorPolling();
+      if (sub === 'SYSTEM') void this.refreshRuns();
+    },
+    runsAutoRefresh() {
+      this.syncRunsMonitorPolling();
+      this.saveSessionState();
+    },
+    liveBottomDrawerOpen() {
+      this.syncRunsMonitorPolling();
+    },
+    liveBottomDrawerTab(tab) {
+      if (tab === 'RUNS') void this.refreshRuns();
+      this.syncRunsMonitorPolling();
     },
   },
   mounted() {
@@ -2519,6 +2525,7 @@ export default {
     });
     this.initPromptHistory();
     this.refreshServiceHealth();
+    this.syncRunsMonitorPolling();
   },
   beforeUnmount() {
     this.disposeLiveAudioAnalyser();
@@ -2532,6 +2539,7 @@ export default {
     if (this.deforumPreviewTimer) clearTimeout(this.deforumPreviewTimer);
     if (this.frameRefreshTimer) clearTimeout(this.frameRefreshTimer);
     if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
+    this.stopRunsPolling();
     this.stopLfoAnimation();
     if (this.playerEl) {
       this.detachPlayerListeners(this.playerEl);
@@ -2679,38 +2687,104 @@ export default {
       setTimeout(() => { if (this.performance.status && this.performance.status.startsWith('Service health refreshed')) this.performance.status = ''; }, 2500);
     }
   },
-  syncLibrarySelection() {
-    if (!this.libraryRailRuns.length) {
-      this.library.selectedRunId = '';
-      this.library.selectedFrameName = '';
-      this.library.runDetail = null;
-      return;
-    }
-    if (!this.libraryRailRuns.some((run) => run.run_id === this.library.selectedRunId)) {
-      this.library.selectedRunId = (this.libraryRailRuns[0] && this.libraryRailRuns[0].run_id) || '';
-      this.library.selectedFrameName = '';
-      this.library.runDetail = null;
-    }
-    if (this.library.runDetail && this.library.runDetail.run_id !== this.library.selectedRunId) {
-      this.library.runDetail = null;
-      this.library.selectedFrameName = '';
+  appendRunsJobLog(message, level = 'info') {
+    const entry = {
+      id: `log-${++this._runsJobLogSeq}`,
+      ts: new Date().toISOString(),
+      message: String(message || ''),
+      level,
+    };
+    this.runsJobLog = [entry, ...this.runsJobLog].slice(0, 80);
+  },
+  clearRunsJobLog() {
+    this.runsJobLog = [];
+  },
+  formatRunsLogTime(ts) {
+    if (!ts) return '';
+    try {
+      return new Date(ts).toLocaleTimeString();
+    } catch (_e) {
+      return '';
     }
   },
-  async ensureLibraryRunDetail() {
-    this.syncLibrarySelection();
-    const run = this.librarySelectedRunSummary;
-    if (!run) return;
-    if (this.librarySelectedRunDetail) {
-      if (!this.library.selectedFrameName && this.librarySelectedFrames.length) {
-        this.library.selectedFrameName = this.librarySelectedFrames[0];
+  onRunsAutoRefreshChange() {
+    if (this.runsAutoRefresh) this.startRunsPolling();
+    else this.stopRunsPolling();
+    this.saveSessionState();
+  },
+  syncRunsMonitorPolling() {
+    if (this.runsMonitorActive && this.runsAutoRefresh) this.startRunsPolling();
+    else this.stopRunsPolling();
+  },
+  startRunsPolling() {
+    this.stopRunsPolling();
+    if (!this.runsAutoRefresh) return;
+    const ms = Math.max(2000, (Number(this.runsPollIntervalSec) || 5) * 1000);
+    this._runsPollTimer = setInterval(() => {
+      if (this.runsMonitorActive) void this.refreshRuns({ fromPoll: true });
+    }, ms);
+  },
+  stopRunsPolling() {
+    if (this._runsPollTimer) {
+      clearInterval(this._runsPollTimer);
+      this._runsPollTimer = null;
+    }
+  },
+  noteRunsActivityAfterRefresh() {
+    if (!this.runsMonitorActive) return;
+    const running = this.runsAll.filter((r) => r.status === 'running').length;
+    const queued = this.runsAll.filter((r) => r.status === 'queued').length;
+    const gpu = this.runsActiveGpuJobs.length;
+    const key = `${running}|${queued}|${gpu}|${this.runsAll.length}`;
+    if (key === this._runsActivityKey) return;
+    this._runsActivityKey = key;
+    this.appendRunsJobLog(
+      `Activity: ${running} running, ${queued} queued, ${gpu} GPU batch(es), ${this.runsAll.length} total`,
+      'info',
+    );
+  },
+  async launchTestRun() {
+    if (this.runsLaunching || typeof fetch !== 'function') return;
+    this.runsLaunching = true;
+    this.appendRunsJobLog('Launching test job…', 'info');
+    try {
+      let res = await fetch('/api/deforum/warmup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ maxFrames: 24, fps: 12 }),
+      });
+      let data = res.ok ? await res.json() : null;
+      if (res.ok && data && data.ok && data.batchId) {
+        const note = data.status === 'already_running' ? 'already running' : 'submitted';
+        this.appendRunsJobLog(`Warmup batch ${note}: ${data.batchId}`, 'info');
+        void this.refreshRuns();
+        return;
       }
-      return;
+      res = await fetch('/api/runs/launch-demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      data = res.ok ? await res.json() : null;
+      if (res.ok && data && data.ok && data.run_id) {
+        this.appendRunsJobLog(`Demo run logged: ${data.run_id} (${data.status || 'queued'})`, 'success');
+        void this.refreshRuns();
+      } else {
+        const err = (data && data.error) || `Launch failed (${res.status})`;
+        this.appendRunsJobLog(err, 'error');
+        this.runsStatus = err;
+      }
+    } catch (e) {
+      const msg = e && e.message ? e.message : String(e);
+      this.appendRunsJobLog(`Launch error: ${msg}`, 'error');
+      this.runsStatus = 'Failed to launch test job';
+    } finally {
+      this.runsLaunching = false;
     }
-    await this.openLibraryRun(run);
   },
-  async refreshRuns() {
+  async refreshRuns(opts = {}) {
     if (typeof fetch !== "function") return;
-    this.runsLoading = true;
+    if (!opts.fromPoll) this.runsLoading = true;
     try {
       const res = await fetch("/api/runs");
       if (!res.ok) return;
@@ -2764,14 +2838,13 @@ export default {
         this.runsAll = [...mapped, ...existing];
       }
       this.applyRunsFilters();
-      this.syncLibrarySelection();
-      if (this.currentTab === 'LIBRARY') {
-        await this.ensureLibraryRunDetail();
-      }
+      this.runsLastRefreshedAt = Date.now();
+      this.noteRunsActivityAfterRefresh();
     } catch (_e) {
       this.runsStatus = "Failed to load runs";
+      if (this.runsMonitorActive) this.appendRunsJobLog('Failed to load runs', 'error');
     } finally {
-      this.runsLoading = false;
+      if (!opts.fromPoll) this.runsLoading = false;
     }
   },
   openMidiSettings() {
@@ -2783,40 +2856,15 @@ export default {
     this.switchSubTab('SETTINGS', 'GPUS');
   },
   openRunsSettings() {
-    this.switchTab('LIBRARY');
-    this.librarySubTab = 'BROWSER';
+    this.switchTab('SETTINGS');
+    this.switchSubTab('SETTINGS', 'SYSTEM');
     void this.refreshRuns();
+    this.syncRunsMonitorPolling();
   },
   openRecentRun(run) {
     if (!run) return;
     this.openRunsSettings();
     this.showRunDetails(run);
-  },
-  async openLibraryRun(run) {
-    if (!run || !run.run_id || typeof fetch !== 'function') return;
-    this.library.selectedRunId = run.run_id;
-    this.library.selectedFrameName = '';
-    this.library.loading = true;
-    this.library.status = '';
-    try {
-      const res = await fetch(`/api/runs/${run.run_id}`);
-      if (!res.ok) return;
-      this.library.runDetail = await res.json();
-      this.library.selectedFrameName = (this.library.runDetail.frames && this.library.runDetail.frames[0]) || '';
-    } catch (_e) {
-      this.library.status = 'Failed to load run frames';
-    } finally {
-      this.library.loading = false;
-    }
-  },
-  selectLibraryFrame(frameName) {
-    this.library.selectedFrameName = frameName || '';
-  },
-  stepLibraryFrame(direction) {
-    if (!this.librarySelectedFrames.length) return;
-    const current = this.librarySelectedFrameIndex >= 0 ? this.librarySelectedFrameIndex : 0;
-    const next = Math.min(this.librarySelectedFrames.length - 1, Math.max(0, current + Number(direction || 0)));
-    this.library.selectedFrameName = this.librarySelectedFrames[next] || '';
   },
   applyRunsFilters() {
     let filtered = [...this.runsAll];
@@ -3013,6 +3061,11 @@ export default {
       return dateStr;
     }
   },
+ toggleRightPanel() {
+   this.rightPanelOpen = !this.rightPanelOpen;
+   this.liveDrawerOpen = this.rightPanelOpen;
+   this.saveSessionState();
+ },
  switchTab(id) {
    if (id === 'GENERATE') {
      this.currentTab = 'MOTION';
@@ -3037,14 +3090,16 @@ export default {
      return;
    }
    if (id === 'RUNS') {
-     this.currentTab = 'LIBRARY';
-     this.librarySubTab = 'BROWSER';
+     this.currentTab = 'SETTINGS';
+     this.currentSubTab.SETTINGS = 'SYSTEM';
      try {
        if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'LIBRARY');
+         window.localStorage.setItem('defora_tab', 'SETTINGS');
+         window.localStorage.setItem('defora_subtab_SETTINGS', 'SYSTEM');
        }
      } catch (_e) {}
      void this.refreshRuns();
+     this.syncRunsMonitorPolling();
      return;
    }
    this.currentTab = id;
@@ -3068,8 +3123,9 @@ export default {
  },
  normalizeModulationSubTab(sub) {
    if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
-   if (sub === 'ACTIVE') return 'ACTIVE_MODS';
-   const allowed = ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS', 'ACTIVE_MODS', 'CROSSFADER'];
+   if (sub === 'ACTIVE' || sub === 'ACTIVE_MODS') return 'MAPPINGS';
+   if (sub === 'CROSSFADER') return 'LFO';
+   const allowed = ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS', 'MAPPINGS'];
    return allowed.includes(sub) ? sub : 'LFO';
  },
  normalizeLiveSubTab(sub) {
@@ -3104,18 +3160,25 @@ export default {
     sub = 'MONITOR';
     this.toggleVideoLayerAdd(true);
   }
-  if (tab === 'LIVE' && this.videoLayerAddOpen && !this.systemFiles.roots.length) {
+  if (tab === 'LIVE' && this.videoLayerAddOpen && !this.systemFiles._rootsLoaded) {
     void this.initSystemFilesBrowser();
+  }
+  if (tab === 'SETTINGS') {
+    if (sub === 'SYSTEM') void this.refreshRuns();
+    this.syncRunsMonitorPolling();
   }
  },
  setLiveBottomDrawerTab(tab) {
-  if (tab !== 'MODULATION' && tab !== 'CROSSFADER') return;
+  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'RUNS') return;
   this.liveBottomDrawerTab = tab;
-  if (tab !== 'CROSSFADER') {
+  if (tab === 'RUNS') {
+    void this.refreshRuns();
+  } else if (tab !== 'CROSSFADER') {
     this.loraCrossfaderPickerGroup = null;
   } else if (!this.lorasLoading && !this.loras.available.length) {
     this.refreshLoras();
   }
+  this.syncRunsMonitorPolling();
   this.saveSessionState();
  },
  toggleLoraCrossfaderPicker(group) {
@@ -3139,6 +3202,7 @@ export default {
    }
  },
  async startDeforumAnimation() {
+   if (!this.guardDeforumSettingsBeforeRun('start the Deforum job')) return;
    if (!this.deforumSessionStartedAt) {
      const ONE_HOUR_MS = 3600000;
      const activeJobs = (this.runsActiveGpuJobs || []).filter((j) => {
@@ -3216,11 +3280,17 @@ export default {
          body: JSON.stringify({ output, fps: 24 }),
        });
        const data = await res.json();
-       this.performance.status = data.success ? `Recording → ${output}` : (data.error || 'Record failed');
+       const errText = String(data.error || data.message || '').trim();
+       this.performance.status = data.success
+         ? `Recording → ${output}`
+         : (errText.includes('python') ? 'Recording unavailable (Python not installed on server)' : (errText || 'Record failed'));
        if (!data.success) this.isRecording = false;
      } catch (e) {
        this.isRecording = false;
-       this.performance.status = 'Record failed';
+       const msg = String(e.message || e);
+       this.performance.status = msg.includes('python')
+         ? 'Recording unavailable (Python not installed on server)'
+         : 'Record failed';
      }
    }
  },
@@ -3372,10 +3442,89 @@ onDefaultAnimationInput() {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
   this.saveSessionState();
 },
+liveParamCanonicalKey(key) {
+  if (!key) return key;
+  return this.liveParamAliases[key] || key;
+},
+liveHudParamByKey(key) {
+  return [...this.liveVibe, ...this.liveCam].find((p) => p.key === key) || null;
+},
+paramControlMeta(key) {
+  const routeKey = this.liveParamCanonicalKey(key);
+  let hud = this.liveHudParamByKey(key);
+  if (!hud) {
+    const hudKey = Object.entries(this.liveParamAliases).find(
+      ([, route]) => route === key || route === routeKey
+    )?.[0];
+    if (hudKey) hud = this.liveHudParamByKey(hudKey);
+  }
+  if (hud) {
+    return {
+      min: Number(hud.min ?? 0),
+      max: Number(hud.max ?? 1),
+      step: Number(hud.step ?? 0.01) || 0.01,
+      routeKey,
+      hud,
+      value: Number(hud.val ?? 0),
+    };
+  }
+  const target = this.modulationTargetByKey(routeKey) || this.modulationTargetByKey(key);
+  if (target) {
+    let value = Number(target.default ?? 0);
+    if (target.field && this.defaultAnimation) {
+      const animVal = Number(this.defaultAnimation[target.field]);
+      if (Number.isFinite(animVal)) value = animVal;
+    } else if (target.key === 'translation_x') {
+      value = Number(this.motionPadValues.translation_x ?? 0);
+    } else if (target.key === 'translation_y') {
+      value = Number(this.motionPadValues.translation_y ?? 0);
+    } else if (target.key === 'translation_z') {
+      value = Number(this.motionPadValues.translation_z ?? 0);
+    } else if (target.key === 'zoom_2d') {
+      value = Number(this.motionPadValues.zoom ?? 1);
+    }
+    return {
+      min: Number(target.min ?? 0),
+      max: Number(target.max ?? 1),
+      step: Number(target.step ?? 0.01) || 0.01,
+      routeKey: target.key,
+      hud: null,
+      value,
+    };
+  }
+  return {
+    min: 0,
+    max: 1,
+    step: 0.01,
+    routeKey,
+    hud: null,
+    value: 0,
+  };
+},
+clampParamToMeta(value, meta) {
+  const min = Number(meta?.min ?? 0);
+  const max = Number(meta?.max ?? 1);
+  const step = Number(meta?.step ?? 0.01) || 0.01;
+  let v = this.clampVal(Number(value), min, max);
+  if (step > 0) {
+    v = Math.round(v / step) * step;
+    const decimals = (String(step).split('.')[1] || '').length;
+    if (decimals > 0) v = Number(v.toFixed(decimals));
+  }
+  return v;
+},
+syncHudMotionFromParam(hudKey, value) {
+  const v = Number(value);
+  if (!Number.isFinite(v)) return;
+  if (hudKey === 'panx') this.motionPadValues.translation_x = v;
+  else if (hudKey === 'pany') this.motionPadValues.translation_y = v;
+  else if (hudKey === 'zoom') this.motionPadValues.zoom = v;
+},
 modulationTargetByKey(key) {
   if (!key) return null;
-  return this.lfoTargets.find((t) => t.key === key)
-    || this.animationTargets.find((t) => t.key === key)
+  const canonical = this.liveParamCanonicalKey(key);
+  return this.lfoTargets.find((t) => t.key === canonical || t.key === key)
+    || this.animationTargets.find((t) => t.key === canonical || t.key === key)
     || null;
 },
 isAnimationModKey(key) {
@@ -3546,7 +3695,7 @@ selectVideoLayer(id, opts = {}) {
 toggleVideoLayerAdd(open) {
   const next = typeof open === 'boolean' ? open : !this.videoLayerAddOpen;
   this.videoLayerAddOpen = next;
-  if (next && !this.systemFiles.roots.length) {
+  if (next && !this.systemFiles._rootsLoaded) {
     void this.initSystemFilesBrowser();
   }
   this.saveSessionState();
@@ -3641,19 +3790,56 @@ assignInputFromSelection() {
   this.saveSessionState();
 },
 async initSystemFilesBrowser() {
-  if (this.systemFiles.roots.length) return;
+  if (this.systemFiles._rootsLoaded) return;
   try {
     const res = await fetch('/api/video-swarm/roots');
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not load library roots');
     this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
-    const preferred = this.systemFiles.roots.find((r) => r.id === 'frames') || this.systemFiles.roots[0];
+    this.systemFiles._rootsLoaded = true;
+    const preferred =
+      this.systemFiles.roots.find((r) => r.id === this.systemFiles.rootId)
+      || this.systemFiles.roots.find((r) => r.id === 'frames')
+      || this.systemFiles.roots[0];
     if (preferred) {
       this.systemFiles.rootId = preferred.id;
       await this.browseSystemFiles(preferred.path, { rootId: preferred.id });
     }
   } catch (err) {
     this.systemFiles.status = err.message || 'Library unavailable';
+  }
+},
+systemFilesSortApiKey(uiKey) {
+  const key = String(uiKey || 'name-asc').toLowerCase();
+  if (key.startsWith('mtime') || key === 'date') return 'date';
+  if (key.startsWith('size')) return 'size';
+  return 'name';
+},
+setSystemFilesSort(sortKey) {
+  this.systemFiles.sortKey = sortKey;
+  void this.browseSystemFiles(this.systemFiles.currentPath);
+  this.saveSessionState();
+},
+refreshSystemFilesBrowse() {
+  const target = this.systemFiles.currentPath
+    || (this.systemFiles.roots || []).find((r) => r.id === this.systemFiles.rootId)?.path;
+  void this.browseSystemFiles(target);
+},
+setSystemFilesZoom(level) {
+  this.systemFiles.zoomLevel = Math.max(0, Math.min(4, Number(level) || 0));
+  this.saveSessionState();
+},
+async copySystemFilePath(filePath) {
+  const value = String(filePath || '').trim();
+  if (!value) return;
+  try {
+    await navigator.clipboard.writeText(value);
+    this.systemFiles.status = 'Path copied';
+    setTimeout(() => {
+      if (this.systemFiles.status === 'Path copied') this.systemFiles.status = '';
+    }, 2000);
+  } catch (_e) {
+    this.systemFiles.status = 'Could not copy path';
   }
 },
 async browseSystemFiles(targetPath, { rootId } = {}) {
@@ -3663,20 +3849,35 @@ async browseSystemFiles(targetPath, { rootId } = {}) {
     if (targetPath) q.set('path', targetPath);
     if (rootId || this.systemFiles.rootId) q.set('rootId', rootId || this.systemFiles.rootId);
     if (this.systemFiles.recursive) q.set('recursive', '1');
-    q.set('sort', this.systemFiles.sortKey || 'name');
+    q.set('sort', this.systemFilesSortApiKey(this.systemFiles.sortKey));
     const res = await fetch(`/api/video-swarm/browse?${q.toString()}`);
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Browse failed');
     this.systemFiles.currentPath = data.path || '';
     this.systemFiles.parent = data.parent || '';
+    this.systemFiles.folders = Array.isArray(data.folders) ? data.folders : [];
     this.systemFiles.videos = Array.isArray(data.videos) ? data.videos : [];
+    this.systemFiles.folderCount = Number.isFinite(Number(data.folderCount))
+      ? Number(data.folderCount)
+      : this.systemFiles.folders.length;
     this.systemFiles.videoCount = Number.isFinite(Number(data.videoCount))
       ? Number(data.videoCount)
       : this.systemFiles.videos.length;
+    if (rootId) this.systemFiles.rootId = rootId;
+    else if (this.systemFiles.currentPath) {
+      const match = (this.systemFiles.roots || []).find((r) => {
+        const rootPath = String(r.path || '');
+        return this.systemFiles.currentPath === rootPath
+          || this.systemFiles.currentPath.startsWith(`${rootPath}/`);
+      });
+      if (match) this.systemFiles.rootId = match.id;
+    }
     this.systemFiles.status = '';
   } catch (err) {
     this.systemFiles.status = err.message || 'Could not browse folder';
+    this.systemFiles.folders = [];
     this.systemFiles.videos = [];
+    this.systemFiles.folderCount = 0;
     this.systemFiles.videoCount = 0;
   } finally {
     this.systemFiles.loading = false;
@@ -4386,11 +4587,23 @@ toggleCollaboration() {
   if (msg.type === "warmup_started") {
     this.selectVideoLayer('deforum');
     this.performance.status = 'Startup clip generating…';
+    this.appendRunsJobLog(`Warmup started (batch ${msg.batchId || '—'})`, 'info');
+    void this.refreshRuns({ fromPoll: true });
   }
   if (msg.type === "warmup_done") {
     if (this.performance.status === 'Startup clip generating…') {
       this.performance.status = 'Startup clip ready';
     }
+    this.appendRunsJobLog(`Warmup finished: ${msg.status || 'done'} (batch ${msg.batchId || '—'})`, 'success');
+    void this.refreshRuns({ fromPoll: true });
+  }
+  if (msg.type === "run_demo_started") {
+    this.appendRunsJobLog(`Demo run started: ${msg.runId || '—'}`, 'info');
+    void this.refreshRuns({ fromPoll: true });
+  }
+  if (msg.type === "run_demo_done") {
+    this.appendRunsJobLog(`Demo run ${msg.status || 'done'}: ${msg.runId || '—'}`, 'success');
+    void this.refreshRuns({ fromPoll: true });
   }
   if (msg.type === "deforum_settings") {
     this.loadDeforumSettings({ syncServerModel: false });
@@ -5105,6 +5318,7 @@ syncMotionPadFromPayload(payload) {
   const y = payload.translation_y ?? payload.pany;
   const z = payload.translation_z;
   const zoom = payload.zoom_2d ?? payload.zoom;
+  const angle = payload.angle_2d ?? payload.angle;
   if (x != null && Number.isFinite(Number(x))) {
     this.motionPadValues.translation_x = Number(x);
   }
@@ -5115,7 +5329,12 @@ syncMotionPadFromPayload(payload) {
     this.motionPadValues.translation_z = Number(z);
   }
   if (zoom != null && Number.isFinite(Number(zoom))) {
-    this.motionPadValues.zoom = Number(zoom);
+    const zv = Number(zoom);
+    this.motionPadValues.zoom = zv;
+    this.motionPadValues.look_y = this.clampVal(zv, -1, 1);
+  }
+  if (angle != null && Number.isFinite(Number(angle))) {
+    this.motionPadValues.look_x = this.clampVal(Number(angle), -1, 1);
   }
 },
  updateParam(p, evt) {
@@ -5123,8 +5342,10 @@ syncMotionPadFromPayload(payload) {
      console.warn(`[Defora] Parameter "${p.key}" is locked by ${this.collab.locks[p.key]}`);
      return;
    }
-   const val = parseFloat(evt.target.value);
-   p.val = val;
+   const meta = this.paramControlMeta(p.key);
+   const val = this.clampParamToMeta(evt.target.value, meta);
+   if (meta.hud) meta.hud.val = val;
+   this.syncHudMotionFromParam(p.key, val);
    this.queueLiveParam(p.key, val);
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
@@ -5132,25 +5353,144 @@ syncMotionPadFromPayload(payload) {
    this.paramSources[key] = source;
    this.sendControl("paramSource", { key, source });
  },
+ clearLiveModSlotForParam(paramKey) {
+   if (!paramKey) return;
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   this.liveModSlotParamKeys = this.liveModSlotParamKeys.map((k) =>
+     (k === routeKey || k === paramKey ? '' : k)
+   );
+ },
+ paramLiveModSlotIndex(paramKey) {
+   if (!paramKey) return -1;
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   return this.liveModSlotParamKeys.findIndex((k) => k === routeKey || k === paramKey);
+ },
+ assignParamToLiveModSlot(paramKey, slotIndex) {
+   if (!paramKey || slotIndex < 0 || slotIndex > 7) return;
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   this.liveModSlotParamKeys = this.liveModSlotParamKeys.map((k, i) => {
+     if (i === slotIndex) return routeKey;
+     if (k === routeKey || k === paramKey) return '';
+     return k;
+   });
+ },
+ paramHasActiveMapping(paramKey) {
+   if (!paramKey) return false;
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   if (this.paramLiveModSlotIndex(routeKey) >= 0) return true;
+   const owners = this.targetOwners[routeKey] || this.targetOwners[paramKey] || [];
+   if (owners.length) return true;
+   if (this.audioMappings.some((m) => m.param === routeKey || m.param === paramKey)) return true;
+   if (this.macrosRack.some((m) => m.on && (m.target === routeKey || m.target === paramKey))) return true;
+   const src = this.paramSources[routeKey] || this.paramSources[paramKey];
+   return !!(src && src !== 'Manual');
+ },
+ paramMappingLabels(paramKey) {
+   if (!paramKey) return [];
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   const labels = [];
+   const slotIdx = this.paramLiveModSlotIndex(routeKey);
+   if (slotIdx >= 0) {
+     const opt = this.liveModSlotPickerOptions.find((o) => o.index === slotIdx);
+     labels.push(opt ? opt.label : `Slot ${slotIdx + 1}`);
+   }
+   const owners = this.targetOwners[routeKey] || this.targetOwners[paramKey] || [];
+   owners.forEach((o) => labels.push(o));
+   this.audioMappings.forEach((m, idx) => {
+     if (m.param !== routeKey && m.param !== paramKey) return;
+     labels.push(`Audio ${this.audioBandTabDefs[idx]?.label || idx + 1}`);
+   });
+   this.macrosRack.forEach((m, idx) => {
+     if (!m.on || (m.target !== routeKey && m.target !== paramKey)) return;
+     labels.push(`Macro ${idx + 1}`);
+   });
+   const src = this.paramSources[routeKey] || this.paramSources[paramKey];
+   if (src && src !== 'Manual' && !labels.length) labels.push(src);
+   return labels;
+ },
+ openModulationMapPicker(paramKey) {
+   if (!paramKey) return;
+   this.modulationMapPicker = {
+     paramKey: this.liveParamCanonicalKey(paramKey),
+     step: 'choose',
+   };
+ },
+ closeModulationMapPicker() {
+   this.modulationMapPicker = null;
+ },
+ assignModulationMapToSlot(slotIndex) {
+   const key = this.modulationMapPicker && this.modulationMapPicker.paramKey;
+   if (!key) return;
+   this.assignParamToLiveModSlot(key, slotIndex);
+   this.closeModulationMapPicker();
+ },
+ mapModulationParamToLfo(lfoId) {
+   const key = this.modulationMapPicker && this.modulationMapPicker.paramKey;
+   if (!key) return;
+   const lfo = this.lfos.find((l) => l.id === lfoId);
+   if (!lfo) return;
+   if (!lfo.on) lfo.on = true;
+   if (!lfo.targets.includes(key)) this.toggleLfoTarget(lfo, key);
+   this.modulationSelectedLfoId = lfo.id;
+   this.closeModulationMapPicker();
+ },
+ onAudioFileDrop(evt) {
+   const file = evt && evt.dataTransfer && evt.dataTransfer.files && evt.dataTransfer.files[0];
+   if (!file) return;
+   if (file.type && !String(file.type).startsWith('audio/')) return;
+   this.handleAudioUpload({ target: { files: [file], value: '' } });
+ },
  clearParamMapping(paramKey) {
    if (!paramKey) return;
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   this.clearLiveModSlotForParam(routeKey);
+   this.lfos.forEach((lfo) => {
+     [routeKey, paramKey].forEach((k) => {
+       const idx = lfo.targets.indexOf(k);
+       if (idx >= 0) lfo.targets.splice(idx, 1);
+     });
+   });
+   this.audioMappings = this.audioMappings.filter(
+     (m) => m.param !== routeKey && m.param !== paramKey
+   );
+   this.macrosRack.forEach((m) => {
+     if (m.target === routeKey || m.target === paramKey) m.on = false;
+   });
+   this.clearMidiBinding(routeKey);
    this.setSource(paramKey, 'Manual');
+   if (routeKey !== paramKey) this.setSource(routeKey, 'Manual');
  },
  openModulationMapping(paramKey) {
-   // Best-effort: jump to modulation view where mappings are managed.
    if (!paramKey) return;
+   const routeKey = this.liveParamCanonicalKey(paramKey);
+   this.modulationRouteFocusKey = routeKey;
+   let lfo = this.selectedModulationLfo;
+   if (!lfo) {
+     lfo = this.lfos.find((l) => l.on) || this.lfos[0];
+     if (lfo) this.modulationSelectedLfoId = lfo.id;
+   }
+   if (lfo) {
+     if (!lfo.on) lfo.on = true;
+     if (!lfo.targets.includes(routeKey)) {
+       this.toggleLfoTarget(lfo, routeKey);
+     }
+   }
    this.switchTab('MODULATION');
-   this.currentSubTab.MODULATION = 'ACTIVE_MODS';
-   try { window.localStorage && window.localStorage.setItem('defora_subtab_MODULATION', 'ACTIVE_MODS'); } catch (_e) {}
+   this.currentSubTab.MODULATION = 'LFO';
+   try { window.localStorage && window.localStorage.setItem('defora_subtab_MODULATION', 'LFO'); } catch (_e) {}
  },
  setLiveModValue(paramKey, value) {
    if (!paramKey) return;
-   const v = Number(value);
-   if (!Number.isFinite(v)) return;
+   const meta = this.paramControlMeta(paramKey);
+   const v = this.clampParamToMeta(value, meta);
    const t = this.modulationTargetByKey(paramKey);
    if (t && t.field) {
      this.applyAnimationModulation(t.field, v);
    } else {
+     if (meta.hud) {
+       meta.hud.val = v;
+       this.syncHudMotionFromParam(meta.hud.key, v);
+     }
      this.queueLiveParam(paramKey, v);
    }
    if (!this.deforumPlaying) this.schedulePreviewFrame();
@@ -5169,14 +5509,14 @@ syncMotionPadFromPayload(payload) {
    const ny = (point.clientY - rect.top) / (rect.height || 1);
    const x = Math.max(0, Math.min(1, nx));
    const y = Math.max(0, Math.min(1, 1 - ny));
-   const px = this.modulationTargetByKey(slot.paramKeyX);
-   const py = this.modulationTargetByKey(slot.paramKeyY);
-   if (slot.paramKeyX && px) {
-     const xv = (px.min ?? 0) + x * (((px.max ?? 1) - (px.min ?? 0)) || 1);
+   const pxMeta = slot.paramKeyX ? this.paramControlMeta(slot.paramKeyX) : null;
+   const pyMeta = slot.paramKeyY ? this.paramControlMeta(slot.paramKeyY) : null;
+   if (slot.paramKeyX && pxMeta) {
+     const xv = pxMeta.min + x * ((pxMeta.max - pxMeta.min) || 1);
      this.setLiveModValue(slot.paramKeyX, xv);
    }
-   if (slot.paramKeyY && py) {
-     const yv = (py.min ?? 0) + y * (((py.max ?? 1) - (py.min ?? 0)) || 1);
+   if (slot.paramKeyY && pyMeta) {
+     const yv = pyMeta.min + y * ((pyMeta.max - pyMeta.min) || 1);
      this.setLiveModValue(slot.paramKeyY, yv);
    }
  },
@@ -5213,6 +5553,36 @@ setMotionAxis(axis, value) {
   else if (axis === 'zoom') this.motionPadValues.zoom = num;
   const paramKey = axis === 'zoom' ? 'zoom_2d' : axis;
   this.emitMotionLiveParam(paramKey, num);
+  if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
+resetMotionToDefault() {
+  this.motionSelectedPreset = 'Static';
+  this.motionPadValues.translation_x = 0;
+  this.motionPadValues.translation_y = 0;
+  this.motionPadValues.translation_z = 0;
+  this.motionPadValues.zoom = 0;
+  this.motionPadValues.look_x = 0;
+  this.motionPadValues.look_y = 0;
+  const pan = this.liveHudParamByKey('panx');
+  const pany = this.liveHudParamByKey('pany');
+  if (pan) pan.val = 0;
+  if (pany) pany.val = 0;
+  const payload = this.isDeforumMotion2d
+    ? {
+        translation_x: 0,
+        translation_y: 0,
+        angle_2d: 0,
+        zoom_2d: 0,
+      }
+    : {
+        translation_x: 0,
+        translation_y: 0,
+        translation_z: 0,
+        zoom_2d: 0,
+        rotation_z: 0,
+        rotation_y: 0,
+      };
+  this.sendControl('liveParam', payload);
   if (!this.deforumPlaying) this.schedulePreviewFrame();
 },
 emitMotionLiveParam(key, val) {
@@ -5756,21 +6126,33 @@ toggleLfoTarget(lfo, targetKey) {
   this.syncMotionPadFromPayload(preset);
  },
  queueLiveParam(key, val) {
-   const now = this.getNow();
-   const last = this.lastParamSent[key] || 0;
-   this.liveParamPending[key] = val;
-   if (now - last > this.controlDelayMs) {
-     this.lastParamSent[key] = now;
-     this.sendControl("liveParam", { [key]: val });
+   const meta = this.paramControlMeta(key);
+   const v = this.clampParamToMeta(val, meta);
+   const routeKey = meta.routeKey || key;
+   const anim = this.animationTargets.find((t) => t.key === routeKey || t.key === key);
+   if (anim && anim.field) {
+     this.applyAnimationModulation(anim.field, v);
      return;
    }
-   clearTimeout(this.liveParamTimers[key]);
-   this.liveParamTimers[key] = setTimeout(() => {
-     const v = this.liveParamPending[key];
-     delete this.liveParamPending[key];
-     this.lastParamSent[key] = this.getNow();
-     this.sendControl("liveParam", { [key]: v });
-   }, this.controlDelayMs);
+   if (meta.hud) {
+     meta.hud.val = v;
+     this.syncHudMotionFromParam(meta.hud.key, v);
+   }
+   const now = this.getNow();
+   const last = this.lastParamSent[routeKey] || 0;
+   this.liveParamPending[routeKey] = v;
+   const flush = () => {
+     const pending = this.liveParamPending[routeKey];
+     delete this.liveParamPending[routeKey];
+     this.lastParamSent[routeKey] = this.getNow();
+     this.sendControl("liveParam", { [routeKey]: pending });
+   };
+   if (now - last > this.controlDelayMs) {
+     flush();
+     return;
+   }
+   clearTimeout(this.liveParamTimers[routeKey]);
+   this.liveParamTimers[routeKey] = setTimeout(flush, this.controlDelayMs);
  },
  async refreshFrames() {
    if (typeof fetch !== "function") return;
@@ -6066,27 +6448,23 @@ audioBandWindowStyle(mapping) {
    }
  },
  getParamValue(key) {
-   const anim = this.animationTargets.find((t) => t.key === key);
+   const routeKey = this.liveParamCanonicalKey(key);
+   const hud = this.liveHudParamByKey(key)
+     || this.liveHudParamByKey(
+       Object.entries(this.liveParamAliases).find(([, route]) => route === key || route === routeKey)?.[0]
+     );
+   if (hud) return hud.val;
+   const anim = this.animationTargets.find((t) => t.key === key || t.key === routeKey);
    if (anim && anim.field && this.defaultAnimation) {
      const val = Number(this.defaultAnimation[anim.field]);
      return Number.isFinite(val) ? val : (anim.default ?? 0);
    }
-   const all = [...this.liveVibe, ...this.liveCam];
-   const p = all.find(p => p.key === key);
-   return p ? p.val : 0;
- },
- queueLiveParam(key, val) {
-   const anim = this.animationTargets.find((t) => t.key === key);
-   if (anim) {
-     this.applyAnimationModulation(anim.field, val);
-     return;
-   }
-   const all = [...this.liveVibe, ...this.liveCam];
-   const p = all.find(p => p.key === key);
-   if (p) {
-     p.val = val;
-     this.sendControl("liveParam", { [key]: val });
-   }
+   if (routeKey === 'translation_x') return Number(this.motionPadValues.translation_x ?? 0);
+   if (routeKey === 'translation_y') return Number(this.motionPadValues.translation_y ?? 0);
+   if (routeKey === 'translation_z') return Number(this.motionPadValues.translation_z ?? 0);
+   if (routeKey === 'zoom_2d') return Number(this.motionPadValues.zoom ?? 1);
+   const target = this.modulationTargetByKey(routeKey);
+   return target ? (target.default ?? 0) : 0;
  },
  // Preset management methods
  async refreshPresets() {
@@ -6519,6 +6897,7 @@ audioBandWindowStyle(mapping) {
      };
      if (typeof this.$nextTick === "function") this.$nextTick(scheduleSetup);
      else setTimeout(scheduleSetup, 0);
+     this.primeAudioSpectrumPlaceholder();
    } catch (err) {
      if (this.audio.objectUrl) {
        try {
@@ -6535,6 +6914,13 @@ audioBandWindowStyle(mapping) {
 onAudioUpload(evt) {
   return this.handleAudioUpload(evt);
 },
+ primeAudioSpectrumPlaceholder() {
+   const bins = new Array(512);
+   for (let i = 0; i < bins.length; i++) {
+     bins[i] = Math.min(255, Math.round(24 + 20 * Math.sin(i / 11) + 12 * Math.sin(i / 37)));
+   }
+   this.audioSpectrumBins = bins;
+ },
  clearAudioFile() {
    this.disposeLiveAudioAnalyser();
    this.invalidateAudioSpectrogram();
@@ -6548,6 +6934,7 @@ onAudioUpload(evt) {
    }
   this.audioBeatMacrosCollapsed = true;
    this.avSyncEnabled = false;
+   this.audioSpectrumBins = [];
    const a = this.$refs.avSyncAudio;
    if (a) {
      try {
@@ -7133,8 +7520,13 @@ onAudioUpload(evt) {
  previewSequencerFrame() {
    this.clampSequencerPlayhead();
    this.jobPlaybackTimeSec = Number(this.sequencerPlayhead) || 0;
-   if (!this.ws || this.ws.readyState !== 1) return;
    this.applySequencerAt(this.sequencerPlayhead);
+   const wsLive = this.ws && this.ws.readyState === 1;
+   if (!wsLive && this.sequencer.tracks.some((tr) => tr.keyframes && tr.keyframes.length)) {
+     this.sequencerStatus = 'Preview applied locally — connect live control for engine output';
+   } else if (wsLive) {
+     this.sequencerStatus = '';
+   }
  },
  tickSequencer() {
    const dur = Number(this.sequencer.durationSec) || 0;
@@ -7206,12 +7598,8 @@ onAudioUpload(evt) {
      this.stopSequencerPlayback();
      return;
    }
-   if (!this.ws || this.ws.readyState !== 1) {
-     this.sequencerStatus = "WebSocket not connected";
-     return;
-   }
    if (!this.sequencer.tracks.length) {
-     this.sequencerStatus = "Add at least one track with keyframes";
+     this.sequencerStatus = "Add a track (+ Track) then keyframes (+ Keyframe)";
      return;
    }
    const hasKf = this.sequencer.tracks.some((tr) => tr.keyframes && tr.keyframes.length);
@@ -7219,8 +7607,9 @@ onAudioUpload(evt) {
      this.sequencerStatus = "Add keyframes to play";
      return;
    }
+   const wsLive = this.ws && this.ws.readyState === 1;
    this.sequencerPlaying = true;
-   this.sequencerStatus = "";
+   this.sequencerStatus = wsLive ? '' : 'Playing locally — connect live control for engine output';
    const ms = Math.max(16, Math.round(1000 / Math.max(1, Number(this.sequencer.fps) || 24)));
    this.sequencerTimer = setInterval(() => this.tickSequencer(), ms);
  },
@@ -7362,7 +7751,7 @@ async applySequencerToDeforumSettings() {
     scheduleUpdates[deforumKey] = parts.join(', ');
   }
   if (!Object.keys(scheduleUpdates).length) {
-    this.sequencerStatus = 'No tracks with keyframes to export';
+    this.sequencerStatus = 'No keyframed tracks — add tracks/keyframes or Apply a Story first';
     return;
   }
   try {
@@ -7593,23 +7982,50 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    this.timelineHoverTime = Math.max(0, Math.min(dur, (x / rect.width) * dur));
    this.timelineHoverPercent = (x / rect.width) * 100;
  },
- xyPadMouseDown(evt) {
+ motionPadPuckStyleFor(padKind) {
+   const range = padKind === 'look' ? 1 : this.motionMovePadRange;
+   const xVal = padKind === 'look'
+     ? Number(this.motionPadValues.look_x ?? 0)
+     : Number(this.motionPadValues.translation_x || 0);
+   const yVal = padKind === 'look'
+     ? Number(this.motionPadValues.look_y ?? 0)
+     : Number(this.motionPadValues.translation_y || 0);
+   const xPct = ((xVal + range) / (range * 2)) * 100;
+   const yPct = (1 - ((yVal + range) / (range * 2))) * 100;
+   return {
+     left: `${Math.min(100, Math.max(0, xPct))}%`,
+     top: `${Math.min(100, Math.max(0, yPct))}%`,
+   };
+ },
+ motionPadMouseDown(evt, padKind) {
    this.xyPad.dragging = true;
-   this.updateXyPad(evt);
+   this.xyPad.activePad = padKind;
+   this.updateMotionPad(evt, padKind);
    evt.preventDefault();
+ },
+ motionPadMouseMove(evt, padKind) {
+   if (!this.xyPad.dragging || this.xyPad.activePad !== padKind) return;
+   this.updateMotionPad(evt, padKind);
+   evt.preventDefault();
+ },
+ motionPadMouseUp() {
+   this.xyPad.dragging = false;
+   this.xyPad.activePad = null;
+ },
+ xyPadMouseDown(evt) {
+   this.motionPadMouseDown(evt, 'move');
  },
  xyPadMouseMove(evt) {
-   if (!this.xyPad.dragging) return;
-   this.updateXyPad(evt);
-   evt.preventDefault();
+   this.motionPadMouseMove(evt, 'move');
  },
  xyPadMouseUp() {
-   this.xyPad.dragging = false;
+   this.motionPadMouseUp();
  },
- updateXyPad(evt) {
+ updateMotionPad(evt, padKind) {
    const pad = evt.currentTarget;
    const rect = pad.getBoundingClientRect();
-   let clientX, clientY;
+   let clientX;
+   let clientY;
    if (evt.touches && evt.touches.length > 0) {
      clientX = evt.touches[0].clientX;
      clientY = evt.touches[0].clientY;
@@ -7617,20 +8033,31 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      clientX = evt.clientX;
      clientY = evt.clientY;
    }
-  const width = rect.width || this.xyPad.padSize || 1;
-  const height = rect.height || this.xyPad.padSize || 1;
-  const x = Math.max(0, Math.min(width, clientX - rect.left));
-  const y = Math.max(0, Math.min(height, clientY - rect.top));
-   // Normalize pad coordinates to -1..1, then scale to translation range -10..10
-  const normX = (x / width) * 2 - 1;
-  const normY = 1 - (y / height) * 2;
-   const TRANSLATION_RANGE = 10; // Max translation distance for camera movement
-   const translation_x = normX * TRANSLATION_RANGE;
-   const translation_y = normY * TRANSLATION_RANGE;
-  this.motionPadValues.translation_x = translation_x;
-  this.motionPadValues.translation_y = translation_y;
-   this.emitMotionLiveParam("translation_x", translation_x);
-   this.emitMotionLiveParam("translation_y", translation_y);
+   const width = rect.width || this.xyPad.padSize || 1;
+   const height = rect.height || this.xyPad.padSize || 1;
+   const x = Math.max(0, Math.min(width, clientX - rect.left));
+   const y = Math.max(0, Math.min(height, clientY - rect.top));
+   const normX = this.clampVal((x / width) * 2 - 1, -1, 1);
+   const normY = this.clampVal(1 - (y / height) * 2, -1, 1);
+   if (padKind === 'look') {
+     this.motionPadValues.look_x = normX;
+     this.motionPadValues.look_y = normY;
+     this.motionPadValues.zoom = normY;
+     this.emitMotionLiveParam('angle_2d', normX);
+     this.emitMotionLiveParam('zoom_2d', normY);
+   } else {
+     const range = this.motionMovePadRange;
+     const translation_x = normX * range;
+     const translation_y = normY * range;
+     this.motionPadValues.translation_x = translation_x;
+     this.motionPadValues.translation_y = translation_y;
+     const pan = this.liveHudParamByKey('panx');
+     const pany = this.liveHudParamByKey('pany');
+     if (pan && range === 1) pan.val = translation_x;
+     if (pany && range === 1) pany.val = translation_y;
+     this.emitMotionLiveParam('translation_x', translation_x);
+     this.emitMotionLiveParam('translation_y', translation_y);
+   }
    if (!this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
@@ -7905,6 +8332,93 @@ generatorRequestBody() {
    if (tcyParts.length > 1) motion['Transform Center Y'] = tcyParts.join(', ');
    return motion;
  },
+storyMotionDeforumKeyMap() {
+  return {
+    Zoom: 'zoom',
+    'Translation X': 'translation_x',
+    'Translation Y': 'translation_y',
+    'Transform Center X': 'transform_center_x',
+    'Transform Center Y': 'transform_center_y',
+    'Rotation 3D X': 'rotation_3d_x',
+    'Rotation 3D Y': 'rotation_3d_y',
+    'Rotation 3D Z': 'rotation_3d_z',
+  };
+},
+sequencerParamForDeforumKey(deforumKey) {
+  if (!deforumKey) return null;
+  const target = this.modulationTargets.find((t) => t.deforumKey === deforumKey || t.key === deforumKey);
+  return target ? target.key : deforumKey;
+},
+parseMotionScheduleToKeyframes(schedule, fps) {
+  const text = String(schedule || '').trim();
+  if (!text) return [];
+  const rate = Math.max(1, Number(fps) || 24);
+  const keyframes = [];
+  for (const part of text.split(',')) {
+    const chunk = part.trim();
+    if (!chunk) continue;
+    const m = chunk.match(/^(\d+)\s*:\s*\(([^)]+)\)\s*$/);
+    if (!m) continue;
+    const frame = Number(m[1]);
+    const expr = m[2].trim();
+    let v = Number(expr);
+    if (!Number.isFinite(v)) {
+      const simple = expr.match(/^-?\d+(?:\.\d+)?/);
+      v = simple ? Number(simple[0]) : NaN;
+    }
+    if (!Number.isFinite(frame) || !Number.isFinite(v)) continue;
+    keyframes.push({ t: frame / rate, v });
+  }
+  return keyframes.sort((a, b) => a.t - b.t);
+},
+importStoryMotionToSequencer(motion) {
+  if (!motion || typeof motion !== 'object') return 0;
+  const fps = Math.max(1, Number(this.sequencer.fps) || 24);
+  const map = this.storyMotionDeforumKeyMap();
+  let count = 0;
+  for (const [storyKey, schedule] of Object.entries(motion)) {
+    const deforumKey = map[storyKey];
+    if (!deforumKey) continue;
+    const param = this.sequencerParamForDeforumKey(deforumKey);
+    const keyframes = this.parseMotionScheduleToKeyframes(schedule, fps);
+    if (!keyframes.length) continue;
+    let tr = this.sequencer.tracks.find((t) => t.param === param);
+    if (!tr) {
+      tr = { id: `tr-story-${param}-${Date.now()}`, param, keyframes: [] };
+      this.sequencer.tracks.push(tr);
+    }
+    tr.keyframes = keyframes;
+    count += 1;
+  }
+  if (count) {
+    this.sequencerSelectedTrackId = this.sequencer.tracks[0]?.id || null;
+    this.sequencerStatus = `Imported ${count} motion track(s) from story`;
+    this.saveSessionState();
+  }
+  return count;
+},
+async applyStoryMotionToDeforumSettings(motion) {
+  if (!motion || typeof motion !== 'object' || typeof fetch !== 'function') return;
+  const map = this.storyMotionDeforumKeyMap();
+  const scheduleUpdates = {};
+  for (const [storyKey, schedule] of Object.entries(motion)) {
+    const deforumKey = map[storyKey];
+    if (deforumKey && schedule) scheduleUpdates[deforumKey] = String(schedule);
+  }
+  if (!Object.keys(scheduleUpdates).length) return;
+  try {
+    const merged = { ...(this.deforumSettings || {}), ...scheduleUpdates };
+    const res = await fetch('/api/deforum/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ settings: merged }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    this.loadDeforumSettings({ syncServerModel: false });
+  } catch (err) {
+    console.warn('[story] apply motion to deforum failed', err);
+  }
+},
 buildLocalStoryResult() {
   const payload = this.generatorRequestBody();
   const framesPerScene = Math.max(1, Math.floor(payload.totalFrames / payload.numScenes));
@@ -7965,10 +8479,14 @@ async generateStory() {
    this.prompts.pos = JSON.stringify(scenes, null, 2);
    this.sendPrompts();
    this.sendControl('motionSettings', motion);
+   void this.applyStoryMotionToDeforumSettings(motion);
+   const imported = this.importStoryMotionToSequencer(motion);
    this.generator.result = null;
-   this.generator.status = 'Applied!';
+   this.generator.status = imported
+     ? `Applied prompts and ${imported} motion track(s) to sequencer`
+     : 'Applied prompts and motion to Deforum';
    this.currentTab = 'PROMPTS';
-   setTimeout(() => { this.generator.status = ''; }, 3000);
+   setTimeout(() => { this.generator.status = ''; }, 4000);
  },
  rejectStory() {
    this.generator.result = null;
@@ -8116,8 +8634,15 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (typeof s.genericPrompt === 'string') this.performance.genericPrompt = s.genericPrompt;
      if (Array.isArray(s.slots)) this.performance.slots = s.slots;
      if (typeof s.showFrames === 'boolean') this.showFrames = s.showFrames;
+     if (typeof s.rightPanelOpen === 'boolean') {
+       this.rightPanelOpen = s.rightPanelOpen;
+       this.liveDrawerOpen = s.rightPanelOpen;
+     } else if (typeof s.liveDrawerOpen === 'boolean') {
+       this.rightPanelOpen = s.liveDrawerOpen;
+       this.liveDrawerOpen = s.liveDrawerOpen;
+     }
      if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
-     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER') this.liveBottomDrawerTab = s.liveBottomDrawerTab;
+     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'RUNS') this.liveBottomDrawerTab = s.liveBottomDrawerTab;
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
@@ -8141,18 +8666,35 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       };
     }
     if (s.systemFiles && typeof s.systemFiles === 'object') {
+      const sf = s.systemFiles;
       this.systemFiles = {
         ...this.systemFiles,
-        ...s.systemFiles,
+        rootId: typeof sf.rootId === 'string' ? sf.rootId : this.systemFiles.rootId,
+        recursive: typeof sf.recursive === 'boolean' ? sf.recursive : this.systemFiles.recursive,
+        showFilenames: typeof sf.showFilenames === 'boolean' ? sf.showFilenames : this.systemFiles.showFilenames,
+        sortKey: typeof sf.sortKey === 'string' ? sf.sortKey : this.systemFiles.sortKey,
+        zoomLevel: Number.isFinite(Number(sf.zoomLevel)) ? sf.zoomLevel : this.systemFiles.zoomLevel,
+        roots: [],
+        currentPath: '',
+        parent: '',
+        folders: [],
         videos: [],
+        folderCount: null,
+        videoCount: null,
         loading: false,
-        selectedPaths: Array.isArray(s.systemFiles.selectedPaths) ? s.systemFiles.selectedPaths : [],
+        status: '',
+        selectedPaths: Array.isArray(sf.selectedPaths) ? sf.selectedPaths : [],
         fullscreenIndex: -1,
+        _rootsLoaded: false,
       };
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
+    }
+    if (typeof s.runsAutoRefresh === 'boolean') this.runsAutoRefresh = s.runsAutoRefresh;
+    if (Number.isFinite(Number(s.runsPollIntervalSec))) {
+      this.runsPollIntervalSec = Math.max(2, Math.min(60, Number(s.runsPollIntervalSec)));
     }
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
@@ -8212,6 +8754,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        genericPrompt: this.performance.genericPrompt,
        slots: this.performance.slots,
       showFrames: this.showFrames,
+      rightPanelOpen: this.rightPanelOpen,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
       currentSubTab: { ...this.currentSubTab },
@@ -8233,6 +8776,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       },
       libraryFullscreen: this.libraryFullscreen,
       librarySubTab: this.librarySubTab,
+      runsAutoRefresh: this.runsAutoRefresh,
+      runsPollIntervalSec: this.runsPollIntervalSec,
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
@@ -8263,6 +8808,7 @@ getCurrentSessionSnapshotRaw() {
       genericPrompt: this.performance.genericPrompt,
       slots: this.performance.slots,
       showFrames: this.showFrames,
+      rightPanelOpen: this.rightPanelOpen,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
       currentSubTab: { ...this.currentSubTab },
@@ -9298,6 +9844,73 @@ onGpuForgeModalResolutionInput(axis, rawValue) {
      this.deforumSettingsJsonError = String(e.message || e);
    }
  },
+ runDeforumSettingsVerify({ forSave = false } = {}) {
+   if (this.deforumAdvancedOpen) {
+     try {
+       this.applyDeforumSettingsJson();
+     } catch (_e) {
+       this.deforumVerifyResults = {
+         ok: false,
+         errors: [{ field: 'JSON', message: this.deforumSettingsJsonError || 'Invalid JSON' }],
+         warnings: [],
+       };
+       this.deforumSettingsStatus = 'Fix JSON before verifying';
+       return this.deforumVerifyResults;
+     }
+   }
+   const settings = forSave ? this.activeDeforumSettings() : this.normalizedDeforumSettings();
+   this.deforumVerifyResults = verifyDeforumSettings(settings, { onlyDefinedKeys: forSave });
+   const { errors, warnings } = this.deforumVerifyResults;
+   if (!errors.length && !warnings.length) {
+     this.deforumSettingsStatus = 'Settings look good';
+   } else {
+     this.deforumSettingsStatus = `${errors.length} error(s), ${warnings.length} optimization hint(s)`;
+   }
+   return this.deforumVerifyResults;
+ },
+ guardDeforumSettingsBeforeRun(actionLabel = 'continue') {
+   const hasWindow = typeof window !== 'undefined';
+   if (this.deforumAdvancedOpen && this.deforumSettingsJsonError) {
+     if (hasWindow) window.alert(`Fix JSON errors before you ${actionLabel}.`);
+     else this.deforumSettingsStatus = `Fix JSON errors before you ${actionLabel}`;
+     return false;
+   }
+   if (this.deforumAdvancedOpen) {
+     try {
+       this.applyDeforumSettingsJson();
+     } catch (_e) {
+       if (hasWindow) window.alert(`Invalid settings JSON — fix errors before you ${actionLabel}.`);
+       else this.deforumSettingsStatus = `Invalid JSON — cannot ${actionLabel}`;
+       return false;
+     }
+   }
+   const forSave = /save/i.test(String(actionLabel));
+   const result = this.runDeforumSettingsVerify({ forSave });
+   if (result.errors.length) {
+     const lines = result.errors.map((i) => `• ${i.field}: ${i.message}`).join('\n');
+     if (hasWindow) {
+       window.alert(`Cannot ${actionLabel} — fix these settings first:\n\n${lines}\n\nUse Verify in the JSON panel for the full list.`);
+     } else {
+       this.deforumSettingsStatus = `Cannot ${actionLabel}: ${result.errors.length} error(s)`;
+     }
+     return false;
+   }
+   if (result.warnings.length) {
+     const preview = result.warnings.slice(0, 10);
+     const lines = preview.map((i) => `• ${i.field}: ${i.message}`).join('\n');
+     const more = result.warnings.length > 10
+       ? `\n…and ${result.warnings.length - 10} more (open Verify for the full list)`
+       : '';
+     let ok = true;
+     if (hasWindow) {
+       ok = window.confirm(
+         `Settings may not be optimal:\n\n${lines}${more}\n\n${actionLabel} anyway?`
+       );
+     }
+     if (!ok) return false;
+   }
+   return true;
+ },
  applyDeforumSettingsJson() {
    try {
      const parsed = JSON.parse(this.deforumSettingsJson);
@@ -9375,6 +9988,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
      this.performance.status = 'Stop animation to preview single frames';
      return false;
    }
+   if (!this.guardDeforumSettingsBeforeRun('render a preview frame')) return false;
    if (this.previewGenerating) return false;
    this.applyCrossfadeMorph();
    this.previewGenerating = true;
