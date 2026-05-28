@@ -181,45 +181,50 @@ export default {
     },
   },
   data() {
+    // Keep only plain Vue state here. Three.js objects MUST NOT be reactive (Vue 3 Proxy
+    // breaks modelViewMatrix during WebGLRenderer.render).
     return {
-      renderer: null,
-      scene: null,
-      camera: null,
-      clock: null,
-      rafId: null,
-      resizeObserver: null,
-      particleSystem: null,
-      particleBase: null,
-      haloMesh: null,
-      beamMeshes: [],
-      fogSprites: [],
-      beamMap: null,
-      mistMap: null,
-      lfoGroups: [],
-      fatLineRoot: null,
-      fatLine: null,
-      fatThresholdLine: null,
-      fatSegments: null,
-      fatThresholdSegments: null,
-      marchingRoot: null,
-      marchingEffect: null,
-      marchingMaterials: null,
+      dragState: null,
       marchingResolution: 28,
       marchingMaterialKey: 'shiny',
-      oceanRoot: null,
-      oceanSky: null,
-      oceanWater: null,
-      oceanMesh: null,
-      oceanSun: null,
-      oceanPmrem: null,
-      oceanPmremTarget: null,
-      oceanNormalsTexture: null,
       oceanSettingsKey: '',
-      instancingRoot: null,
-      instancingMesh: null,
       baseRendererToneMapping: null,
       baseRendererExposure: 1,
     }
+  },
+  created() {
+    this.renderer = null
+    this.scene = null
+    this.camera = null
+    this.clock = null
+    this.rafId = null
+    this.resizeObserver = null
+    this.particleSystem = null
+    this.particleBase = null
+    this.haloMesh = null
+    this.beamMeshes = []
+    this.fogSprites = []
+    this.beamMap = null
+    this.mistMap = null
+    this.lfoGroups = []
+    this.fatLineRoot = null
+    this.fatLine = null
+    this.fatThresholdLine = null
+    this.fatSegments = null
+    this.fatThresholdSegments = null
+    this.marchingRoot = null
+    this.marchingEffect = null
+    this.marchingMaterials = null
+    this.oceanRoot = null
+    this.oceanSky = null
+    this.oceanWater = null
+    this.oceanMesh = null
+    this.oceanSun = null
+    this.oceanPmrem = null
+    this.oceanPmremTarget = null
+    this.oceanNormalsTexture = null
+    this.instancingRoot = null
+    this.instancingMesh = null
   },
   mounted() {
     if (typeof window === 'undefined') return
@@ -666,6 +671,7 @@ export default {
         },
         vertexShader: INSTANCING_VERTEX,
         fragmentShader: INSTANCING_FRAGMENT,
+        glslVersion: THREE.GLSL1,
         side: THREE.DoubleSide,
         transparent: true,
         depthWrite: false,
