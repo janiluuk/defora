@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.30] - 2026-05-28
+
+## What's Changed
+
+- perf(forge): ~3x generation speed — Lightning 2-step, no-half-vae, live preview off (#70) (f6a68a5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.29...v0.6.30
+
+
 ## [0.6.29] - 2026-05-28
 
 ## What's Changed
