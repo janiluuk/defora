@@ -70,7 +70,7 @@
 
 ### Remaining gaps (future passes)
 
-1. **AUDIO reactive (in ModulationView)** — mappings still field-heavy; brief calls for band-meter hero (Step 4 in declutter brief).
+1. **AUDIO reactive polish** — optional stacked mini-bars inside each meter card (mockup SVG style); core meter-first layout shipped.
 2. **Tab accent colors** — per-tab hues in `style.css` (`.tab--live`, etc.) are intentional wayfinding, not control chrome.
 3. **`live-seq-*` layout utilities** — time readout / dock shell classes remain; only button styles deprecated.
 4. **`param-pin-btn` / `param-lock-btn`** — emoji icon affordances on param drawer; acceptable micro-controls.
@@ -107,6 +107,6 @@ npm run build
 - [x] Views extracted to `components/views/`
 - [x] Primary actions use `framesync-button` (including sequencer docks)
 - [x] MOTION: pad + sequencer visible together, no Performance/Sequencer sub-tabs
-- [ ] MODULATION/AUDIO: meters driven by real analysis everywhere (partial)
+- [x] MODULATION/AUDIO: per-band meter cards + live levels from analysis (Reactive sub-tab)
 - [x] Pinned params ≠ WS collab lock
 - [x] Export / preset formats unchanged
