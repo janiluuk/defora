@@ -46,18 +46,18 @@
           <input type="checkbox" v-model="sequencer.loop">
           <span>Loop</span>
         </label>
-        <button type="button" class="stage-sequencer-bar__text-btn" @click="addSequencerClip('prompt')">+ Prompt</button>
-        <button type="button" class="stage-sequencer-bar__text-btn" @click="addSequencerClip('lora')">+ LoRA</button>
-        <button type="button" class="stage-sequencer-bar__text-btn" @click="addSequencerClip('controlnet')">+ CN</button>
+        <button type="button" class="framesync-button framesync-button--compact" @click="addSequencerClip('prompt')">+ Prompt</button>
+        <button type="button" class="framesync-button framesync-button--compact" @click="addSequencerClip('lora')">+ LoRA</button>
+        <button type="button" class="framesync-button framesync-button--compact" @click="addSequencerClip('controlnet')">+ CN</button>
         <button
           type="button"
-          class="stage-sequencer-bar__text-btn"
-          :class="{ 'stage-sequencer-bar__text-btn--active': generateDockExpanded }"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: generateDockExpanded }"
           @click="generateDockExpanded = !generateDockExpanded; saveSessionState()"
         >
           {{ generateDockExpanded ? 'Less' : 'Edit' }}
         </button>
-        <button type="button" class="stage-sequencer-bar__text-btn stage-sequencer-bar__text-btn--accent" @click="applySequencerToDeforumSettings">
+        <button type="button" class="framesync-button framesync-button--compact framesync-button--live" @click="applySequencerToDeforumSettings">
           Apply
         </button>
       </div>

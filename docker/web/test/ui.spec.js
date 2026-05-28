@@ -472,7 +472,6 @@ describe("Deforumation Web UI", () => {
 
   it("shows a 3D motion path preview above performance axis controls", async () => {
     appVm.switchTab("MOTION");
-    appVm.switchSubTab("MOTION", "PERFORMANCE");
     appVm.motionPadValues.translation_x = 3;
     appVm.motionPadValues.translation_z = 1.5;
     await nextTick();
@@ -483,9 +482,8 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector(".motion-pad-hero")).to.exist;
   });
 
-  it("shows preview-ready and story generation text in the motion sequencer sub-tab", async () => {
+  it("shows motion sequencer below preview and motion controls on the side", async () => {
     appVm.switchTab("MOTION");
-    appVm.switchSubTab("MOTION", "SEQUENCER");
     appVm.performance.status = "Preview frame ready";
     appVm.generator.status = "Story ready";
     appVm.generator.result = {
@@ -496,11 +494,15 @@ describe("Deforumation Web UI", () => {
     await nextTick();
 
     const pageText = document.body.textContent;
-    expect(pageText).to.include("Sequencer");
     expect(pageText).to.include("Preview frame ready");
+    expect(document.querySelector('[data-testid="motion-sequencer-dock"]')).to.exist;
+    expect(document.querySelector('[data-testid="sequencer-controls-panel"]')).to.exist;
     expect(document.querySelector(".stage-sequencer-shell")).to.exist;
     expect(document.querySelector(".stage-sequencer-bar")).to.exist;
     expect(document.querySelector(".sequencer-controls-panel--stage")).to.exist;
+    expect(document.querySelector("[data-testid='motion-controls-panel']")).to.exist;
+    expect(document.querySelector(".motion-pad-hero")).to.exist;
+    expect(document.querySelector(".stage-motion-tabs")).to.not.exist;
   });
 
   it("shows the modern story generator under the story subtab", async () => {

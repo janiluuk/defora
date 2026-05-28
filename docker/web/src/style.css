@@ -3584,13 +3584,6 @@
     .generate-sequencer__empty-markers { font-size: 11px; color: var(--text-dim); padding: 8px 0; }
     .generate-sequencer__status-text { margin-top: 8px; font-size: 11px; color: var(--live-text); }
     .generate-dock-shell { margin-top: 8px; }
-    .stage-motion-tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-top: 8px;
-      padding: 0 2px;
-    }
     .stage-sequencer-shell {
       margin-top: 8px;
       display: grid;
@@ -3856,6 +3849,12 @@
       gap: 10px;
       margin-bottom: 10px;
     }
+    .generate-track-card__title.framesync-button {
+      text-align: left;
+      justify-content: flex-start;
+      flex: 1;
+      min-width: 0;
+    }
     .generate-track-card__title {
       border: 0;
       background: transparent;
@@ -4066,7 +4065,36 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      align-items: stretch;
+      align-items: center;
+    }
+    .live-seq-transport .framesync-button {
+      flex: 0 1 auto;
+    }
+    .live-seq-load-select {
+      width: auto;
+      min-width: 9rem;
+      flex: 1 1 8rem;
+      max-width: 14rem;
+    }
+    .live-seq-builder {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .live-seq-builder .framesync-select {
+      flex: 1 1 10rem;
+      min-width: 8rem;
+      width: auto;
+    }
+    .live-seq-input--value {
+      width: 5.5rem;
+      flex: 0 0 auto;
+    }
+    .live-seq-input--label {
+      flex: 1 1 10rem;
+      min-width: 8rem;
+      width: auto;
     }
     .live-seq-btn {
       min-height: 44px;
@@ -4099,8 +4127,8 @@
       background: transparent;
     }
     .live-seq-btn--danger {
-      border-color: rgba(255, 120, 120, 0.35);
-      color: #ffb4b4;
+      border-color: color-mix(in srgb, var(--error) 45%, var(--border));
+      color: var(--error-text);
     }
     .live-seq-select,
     .live-seq-input {
@@ -4638,26 +4666,28 @@
        Floating glass HUD language — P1 alignment to mock
        ───────────────────────────────────────────────────────────────── */
 
-    /* MOTION: single-column stage, right panel floats absolute over video */
+    /* MOTION: preview + sequencer left, motion controls right */
     .layout--stage {
-      position: relative;
-      grid-template-columns: 1fr;
+      grid-template-columns: minmax(0, 1.65fr) minmax(280px, 1fr);
+      align-items: start;
+    }
+    .layout--stage .preview {
+      min-width: 0;
     }
     .layout--stage .video-wrap video,
     .layout--stage .video-wrap .video-still-preview {
       object-fit: cover;
     }
     .stage-rack-overlay {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      width: 300px;
-      max-height: calc(56.25vw - 30px); /* approx 16:9 height of the preview */
-      z-index: 20;
+      position: static;
+      width: auto;
+      max-height: none;
+      z-index: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
       gap: 10px;
+      max-height: calc(100vh - 120px);
     }
     .stage-rack-overlay .rack {
       background: rgba(17, 19, 28, 0.88);

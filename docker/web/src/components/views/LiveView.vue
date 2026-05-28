@@ -501,7 +501,7 @@
 
             <div class="crossfade-slot-meta">
               <span class="crossfade-type-pill">{{ slotTypeLabel(slot.type) }}</span>
-              <button type="button" class="framesync-button" style="padding:2px 6px;" @click="removeCrossfadeSlot(slot.id)">✕</button>
+              <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="removeCrossfadeSlot(slot.id)" title="Remove slot">✕</button>
             </div>
 
             <div class="crossfade-side crossfade-side-b">
