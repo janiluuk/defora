@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.32] - 2026-05-28
+
+## What's Changed
+
+- fix(web): restore WebGL animation by keeping Three.js out of Vue reactivity (#72) (574f2a1)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.31...v0.6.32
+
+
 ## [0.6.31] - 2026-05-28
 
 ## What's Changed
