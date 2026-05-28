@@ -757,6 +757,7 @@ export default {
        isPlaying: false,
        isRecording: false,
        deforumPlaying: false,
+       deforumSessionStartedAt: null,
        previewGenerating: false,
        previewDebounceTimer: null,
        previewQueuedKind: null,
@@ -2458,8 +2459,11 @@ export default {
       this.applyCrossfadeMorph();
       this.saveSessionState();
     },
-    session() {
+    session(newSession) {
       this.saveSessionState();
+      if (this.deforumSettings) {
+        this.deforumSettings = { ...this.deforumSettings, batch_name: newSession };
+      }
     },
     showDefaultAnimation(visible) {
       if (visible) this.$nextTick(() => this.kickstandbyAnimation());
@@ -3155,11 +3159,26 @@ export default {
      this.startDeforumAnimation();
    }
  },
- startDeforumAnimation() {
+ async startDeforumAnimation() {
+   if (!this.deforumSessionStartedAt) {
+     const ONE_HOUR_MS = 3600000;
+     const activeJobs = (this.runsActiveGpuJobs || []).filter((j) => {
+       if (!j.startedAt) return false;
+       return Date.now() - new Date(j.startedAt).getTime() < ONE_HOUR_MS;
+     });
+     if (activeJobs.length) {
+       const mins = Math.floor((Date.now() - new Date(activeJobs[0].startedAt).getTime()) / 60000);
+       const label = mins < 1 ? 'less than a minute' : `${mins} minute${mins !== 1 ? 's' : ''}`;
+       const ok = window.confirm(`A Deforum job has been running for ${label}. Stop it and start a new job?`);
+       if (!ok) return;
+     }
+   }
    this.applyCrossfadeMorph();
+   if (this.deforumSettings) this.deforumSettings.batch_name = this.session;
    const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
    this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
    this.deforumPlaying = true;
+   if (!this.deforumSessionStartedAt) this.deforumSessionStartedAt = Date.now();
    this.performance.status = 'Deforum animation playing';
    this.isPlaying = true;
  },
@@ -3172,6 +3191,7 @@ export default {
  stopDeforumPlay() {
    this.sendControl('liveParam', { is_paused_rendering: 1, should_resume: 0 });
    this.deforumPlaying = false;
+   this.deforumSessionStartedAt = null;
    this.performance.status = '';
    this.isPlaying = false;
    const video = this.playerEl || document.getElementById("player");
@@ -9325,6 +9345,9 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
     if (!this.sessionDeforumSettingsLoaded && data.settings && typeof data.settings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
      }
+    if (this.deforumSettings && this.session) {
+      this.deforumSettings = { ...this.deforumSettings, batch_name: this.session };
+    }
     this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
     this.syncSelectedModelFromDeforumSettings();
      this.syncDeforumSettingsJson();

@@ -129,17 +129,17 @@ const CROSSFADE_SLOT_TYPES = [
  */
 
 const DEFORUM_DEFAULT_SETTINGS = {
-  W: 960,
-  H: 540,
+  W: 768,
+  H: 432,
   show_info_on_ui: false,
   tiling: false,
   restore_faces: false,
   seed_resize_from_w: 0,
   seed_resize_from_h: 0,
   seed: 1693,
-  sampler: 'HeunPP2',
-  scheduler: 'Normal',
-  steps: 6,
+  sampler: 'Euler',
+  scheduler: 'sgm_uniform',
+  steps: 2,
   batch_name: 'floral_neu',
   seed_behavior: 'random',
   seed_iter_N: 1,
@@ -161,23 +161,23 @@ const DEFORUM_DEFAULT_SETTINGS = {
   rotation_3d_x: '0: (0)',
   rotation_3d_y: '0: (0)',
   rotation_3d_z: '0: (0)',
-  noise_schedule: '0: (0.01)',
-  strength_schedule: '0: (0.7)',
+  noise_schedule: '0: (0.065)',
+  strength_schedule: '0: (0.60)',
   keyframe_strength_schedule: '0: (0.50)',
   contrast_schedule: '0: (1.0)',
-  cfg_scale_schedule: '0:(9)',
-  distilled_cfg_scale_schedule: '0: (1.5)',
+  cfg_scale_schedule: '0:(0)',
+  distilled_cfg_scale_schedule: '0: (0)',
   enable_steps_scheduling: false,
-  steps_schedule: '0: (6)',
+  steps_schedule: '0: (2)',
   prompts: {
     '0':
-      ' <lora:floral_dreamshaper:1.5>silhouette black  big wild flowers and  wild plants and berries , red background, many different flowers, layered silhouettes, folk art style floral graphics, flat folk art style illustration, layered composition, detailed composition,   natural colors, medium high contrast    --neg star, star shape, watermark, signature , dreamstime, logo, writing, text, poster element, year, number, date, label,   vignette, glow, , symbol, alphabet, number, freepik',
+      '<lora:floralv2:1.2>silhouette black big wild flowers and wild plants and berries, red background, many different flowers, layered silhouettes, folk art style floral graphics, flat folk art style illustration, layered composition, detailed composition, natural colors, medium high contrast',
   },
   positive_prompts: '',
   negative_prompts:
-    'star, star shape, watermark, signature , dreamstime, logo, writing, text, poster element, year, number, date, label,   vignette, glow, , symbol, alphabet, number, freepik',
+    'star, star shape, watermark, signature, dreamstime, logo, writing, text, poster element, year, number, date, label, vignette, glow, symbol, alphabet, number, freepik, blurry, low quality, ugly',
   fps: 24,
-  sd_model_name: 'nightvisionxl_v0811.safetensors',
+  sd_model_name: 'SDXL_sdxl_lightning_2step',
   skip_video_creation: true,
   cn_1_enabled: false,
   cn_1_weight: '0:(2)',
@@ -647,6 +647,7 @@ module.exports = {
        isPlaying: false,
        isRecording: false,
        deforumPlaying: false,
+       deforumSessionStartedAt: null,
        previewGenerating: false,
        previewDebounceTimer: null,
        previewQueuedKind: null,
@@ -2348,8 +2349,11 @@ module.exports = {
       this.applyCrossfadeMorph();
       this.saveSessionState();
     },
-    session() {
+    session(newSession) {
       this.saveSessionState();
+      if (this.deforumSettings) {
+        this.deforumSettings = { ...this.deforumSettings, batch_name: newSession };
+      }
     },
     showDefaultAnimation(visible) {
       if (visible) this.$nextTick(() => this.kickstandbyAnimation());
@@ -3045,11 +3049,26 @@ module.exports = {
      this.startDeforumAnimation();
    }
  },
- startDeforumAnimation() {
+ async startDeforumAnimation() {
+   if (!this.deforumSessionStartedAt) {
+     const ONE_HOUR_MS = 3600000;
+     const activeJobs = (this.runsActiveGpuJobs || []).filter((j) => {
+       if (!j.startedAt) return false;
+       return Date.now() - new Date(j.startedAt).getTime() < ONE_HOUR_MS;
+     });
+     if (activeJobs.length) {
+       const mins = Math.floor((Date.now() - new Date(activeJobs[0].startedAt).getTime()) / 60000);
+       const label = mins < 1 ? 'less than a minute' : `${mins} minute${mins !== 1 ? 's' : ''}`;
+       const ok = window.confirm(`A Deforum job has been running for ${label}. Stop it and start a new job?`);
+       if (!ok) return;
+     }
+   }
    this.applyCrossfadeMorph();
+   if (this.deforumSettings) this.deforumSettings.batch_name = this.session;
    const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
    this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
    this.deforumPlaying = true;
+   if (!this.deforumSessionStartedAt) this.deforumSessionStartedAt = Date.now();
    this.performance.status = 'Deforum animation playing';
    this.isPlaying = true;
  },
@@ -3062,6 +3081,7 @@ module.exports = {
  stopDeforumPlay() {
    this.sendControl('liveParam', { is_paused_rendering: 1, should_resume: 0 });
    this.deforumPlaying = false;
+   this.deforumSessionStartedAt = null;
    this.performance.status = '';
    this.isPlaying = false;
    const video = this.playerEl || document.getElementById("player");
@@ -9215,6 +9235,9 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
     if (!this.sessionDeforumSettingsLoaded && data.settings && typeof data.settings === 'object') {
        this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, data.settings);
      }
+    if (this.deforumSettings && this.session) {
+      this.deforumSettings = { ...this.deforumSettings, batch_name: this.session };
+    }
     this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
     this.syncSelectedModelFromDeforumSettings();
      this.syncDeforumSettingsJson();
