@@ -837,7 +837,7 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.include("Look controls");
     expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
-    expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
+    expect(document.querySelector(".motion-axis-sliders")).to.not.exist;
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
 
     appVm.updateMotionPad({
@@ -886,7 +886,7 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.translation_x).to.equal(0);
     expect(appVm.motionPadValues.translation_y).to.equal(0);
     expect(appVm.motionPadValues.translation_z).to.equal(0);
-    expect(appVm.motionPadValues.zoom).to.equal(1);
+    expect(appVm.motionPadValues.zoom).to.equal(0);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
     expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;
@@ -1062,7 +1062,7 @@ describe("Deforumation Web UI", () => {
 
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("CROSSFADER");
-    expect(drawerTabs.join(" ")).to.include("SYSTEM");
+    expect(drawerTabs.join(" ")).to.include("RUNS");
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
@@ -1135,9 +1135,9 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders the runs monitor in the bottom drawer SYSTEM tab", async () => {
+  it("renders recent runs in the bottom drawer RUNS tab", async () => {
     appVm.liveBottomDrawerOpen = true;
-    appVm.setLiveBottomDrawerTab("SYSTEM");
+    appVm.setLiveBottomDrawerTab("RUNS");
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
       { run_id: "run-002", status: "completed", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
@@ -1147,13 +1147,16 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector('[data-testid="bottom-drawer-system"]')).to.exist;
+    expect(document.querySelector('[data-testid="bottom-drawer-runs"]')).to.exist;
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
-    expect(drawerTabs.join(" ")).to.include("SYSTEM");
-    const runsBrowser = document.querySelector('[data-testid="bottom-drawer-system"] [data-testid="runs-browser"]');
-    expect(runsBrowser).to.exist;
-    expect(document.body.textContent).to.include("Runs Monitor");
-    expect(runsBrowser.closest('[data-testid="bottom-drawer"]')).to.exist;
+    expect(drawerTabs.join(" ")).to.include("RUNS");
+    const railItems = [...document.querySelectorAll(".recent-runs-rail__item")];
+    expect(railItems.length).to.equal(4);
+    expect(railItems[0].textContent).to.include("run-005");
+    expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
+    const railRoot = document.querySelector(".recent-runs-rail");
+    expect(railRoot).to.exist;
+    expect(railRoot.closest('[data-testid="bottom-drawer"]')).to.exist;
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
@@ -1200,7 +1203,6 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "SYSTEM");
-    appVm.runsBrowserTab = "past";
     await nextTick();
     await Promise.resolve();
     await nextTick();
