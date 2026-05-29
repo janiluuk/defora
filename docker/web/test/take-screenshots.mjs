@@ -80,17 +80,6 @@ async function clickTab(page, label) {
   await page.waitForTimeout(500);
 }
 
-async function openFramesPanel(page) {
-  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]');
-  if ((await drawerToggle.count()) > 0) {
-    const expanded = await drawerToggle.getAttribute('aria-expanded');
-    if (expanded !== 'true') await drawerToggle.click();
-  }
-  await page.locator('.live-top-drawer__tabs .sub-pill').filter({ hasText: /^SYSTEM$/ }).click();
-  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
-  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
-}
-
 async function clickSubPill(page, label) {
   const pill = page.locator('.sub-pill').filter({ hasText: new RegExp(`^${label}$`) }).first();
   if ((await pill.count()) > 0) {
