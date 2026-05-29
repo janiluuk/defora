@@ -483,7 +483,39 @@
 
         <!-- transport moved to top bar in LIVE -->
 
-      </div>
+        <div
+          class="live-drawer-shell"
+          :class="{
+            'live-drawer-shell--open': rightPanelOpen,
+            'live-drawer-shell--dock-edge': sidePanelUsesEdgeDock,
+            'live-drawer-shell--dock-video': !sidePanelUsesEdgeDock,
+          }"
+          :style="sidePanelDockStyle"
+          data-testid="right-panel-drawer"
+        >
+          <button
+            type="button"
+            class="live-overlay-btn live-overlay-btn--attached"
+            :class="{ 'live-overlay-btn--open': rightPanelOpen }"
+            :title="rightPanelToggleTitle"
+            :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+            data-testid="right-panel-toggle"
+            @click="toggleRightPanel"
+          >
+            <span class="live-overlay-btn__arrow-wrap">
+              <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+            </span>
+          </button>
+          <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
+            <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+            <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+            <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
+            <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
+            <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
+            <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
+            <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+          </div>
+        </div>
 
         <div
           v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
@@ -664,7 +696,7 @@ import {
   CROSSFADE_SLOT_TYPES,
   morphSlotValue,
   smoothstep,
-} from './morph-utils.js'
+} from './morph-utils.mjs'
 import {
   DEFORUM_DEFAULT_SETTINGS,
   DEFORUM_FIELD_GROUPS,
@@ -984,6 +1016,8 @@ export default {
         newFolderName: '',
         _rootsLoaded: false,
       },
+      videoSwarmVisibleStart: 0,
+      videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
       liveBottomDrawerOpen: false,
       liveBottomDrawerTab: 'MODULATION',
@@ -2058,6 +2092,30 @@ export default {
       return this.loraBrowserFamilies
         .map((family) => ({ ...family, items: family.items.filter(Boolean) }))
         .filter((family) => family.items.length);
+    },
+    videoSwarmIsCloudRoot() {
+      return this.isCloudStorageRoot(this.systemFiles.rootId);
+    },
+    videoSwarmIsVideosOnly() {
+      return this.systemFiles.viewMode === 'videos-only';
+    },
+    videoSwarmCloudPathLabel() {
+      const src = this.systemFiles.cloudSource;
+      if (!src) return 'Cloud storage';
+      return `${this.cloudProviderLabel(src.provider)} — ${src.label}`;
+    },
+    videoSwarmDisplayFolders() {
+      if (this.videoSwarmIsVideosOnly || this.videoSwarmIsCloudRoot) return [];
+      return Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : [];
+    },
+    videoSwarmDisplayVideos() {
+      const list = Array.isArray(this.systemFiles.videos) ? this.systemFiles.videos : [];
+      return list.slice(this.videoSwarmVisibleStart, this.videoSwarmVisibleEnd);
+    },
+    videoSwarmFullscreenVideo() {
+      const list = this.systemFiles.videos || [];
+      const idx = this.systemFiles.fullscreenIndex;
+      return idx >= 0 && idx < list.length ? list[idx] : null;
     },
     loraCrossfaderReady() {
       return this.loras.groupA.length > 0 && this.loras.groupB.length > 0;
@@ -5201,6 +5259,12 @@ systemFilePlaybackUrl(video) {
   const q = new URLSearchParams({ path: video.path });
   if (video.rootId) q.set('rootId', video.rootId);
   return `/api/video-swarm/file?${q.toString()}`;
+},
+formatVideoSwarmFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 },
 systemFileMediaUrl(filePath) {
   const raw = String(filePath || '');

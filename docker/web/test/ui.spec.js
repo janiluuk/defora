@@ -143,6 +143,13 @@ function mountQuietApp(appDef) {
   const app = createApp(appDef);
   // CI logs become unusable when Vue dumps the full proxied app object.
   app.config.warnHandler = () => {};
+  // Render Teleport children in-place (JSDOM has no document.body target parity).
+  app.component("Teleport", {
+    name: "Teleport",
+    setup(_, { slots }) {
+      return () => (slots.default ? slots.default() : null);
+    },
+  });
   return app.mount("#app");
 }
 
@@ -1202,6 +1209,7 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("SETTINGS", "SYSTEM");
     appVm.runsBrowserTab = "past";
     await nextTick();
+    await Promise.resolve();
     await nextTick();
 
     const settingsRuns = document.querySelector('[data-testid="settings-system-runs"]');
