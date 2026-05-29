@@ -235,25 +235,6 @@ export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
 );
 
 /** Engine fields that should stay editable without schedule on/off toggles. */
-/** Schedules ignored in 2D animation_mode (see deforum-settings-verify). */
-export const DEFORUM_3D_ONLY_FIELD_KEYS = new Set([
-  'translation_z',
-  'rotation_3d_x',
-  'rotation_3d_y',
-  'rotation_3d_z',
-]);
-
-export const DEFORUM_MOTION_3D_GROUP_ID = 'motion3d';
-
-export function normalizeDeforumMode2d3d(animationMode) {
-  const mode = String(animationMode || '2D').trim().toUpperCase();
-  return mode === '3D' ? '3D' : '2D';
-}
-
-export function isDeforum3dOnlyFieldKey(keyPath) {
-  return DEFORUM_3D_ONLY_FIELD_KEYS.has(keyPath);
-}
-
 export const DEFORUM_NON_TOGGLEABLE_KEYS = new Set([
   'sampler',
   'scheduler',

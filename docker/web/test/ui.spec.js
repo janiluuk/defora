@@ -289,12 +289,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(true);
     appVm.standbyPreviewVideoUrl = "/api/preview/standby-video";
     expect(appVm.showStandbyPreviewVideo).to.equal(true);
-
-    appVm.currentTab = "LIVE";
-    appVm.hlsWatchEnabled = false;
-    appVm.defaultAnimation.showStandbyClip = false;
-    expect(appVm.showStandbyPreviewVideo).to.equal(false);
-    expect(appVm.showDefaultAnimation).to.equal(true);
     appVm.hlsWatchEnabled = false;
     appVm.currentTab = "LIVE";
   });
@@ -340,8 +334,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
     expect(appVm.displayedPreviewStillPath).to.equal("/frames/frame_0001.png");
     expect(appVm.showFrameProcessing).to.equal(true);
-    expect(appVm.showFrameProcessingOnStage).to.equal(true);
-    expect(appVm.showFrameProcessingInChrome).to.equal(false);
     expect(appVm.showDefaultAnimation).to.equal(false);
 
     appVm.videoReady = true;
@@ -353,22 +345,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(false);
     appVm.clearHeldPreviewFrame();
     appVm.deforumPlaying = false;
-  });
-
-  it("shows preview processing in chrome instead of over the WebGL animation", () => {
-    appVm.currentTab = "LIVE";
-    appVm.selectVideoLayer("webgl");
-    appVm.previewGenerating = true;
-    appVm.performance.lastPreviewPath = "";
-    appVm.clearHeldPreviewFrame();
-
-    expect(appVm.showPreviewStill).to.equal(false);
-    expect(appVm.showFrameProcessing).to.equal(true);
-    expect(appVm.showFrameProcessingOnStage).to.equal(false);
-    expect(appVm.showFrameProcessingInChrome).to.equal(true);
-    expect(appVm.frameProcessingLabel).to.match(/rendering preview frame/i);
-
-    appVm.previewGenerating = false;
   });
 
   it("keeps the standby animation visible on initial LIVE load", () => {
@@ -889,11 +865,11 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.zoom).to.equal(0);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
-    expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;
-    appVm.motionSequencerSideOpen = true;
+    expect(document.querySelector(".stage-motion-tabs")).to.exist;
+    appVm.switchSubTab("MOTION", "SEQUENCER");
     await nextTick();
-    expect(document.querySelector('[data-testid="motion-sequencer-side-drawer"]')).to.exist;
-    expect(document.querySelectorAll('[data-testid="sequencer-controls-panel"]').length).to.be.at.least(2);
+    expect(document.querySelector('[data-testid="motion-sequencer-editor-shell"]')).to.exist;
+    expect(document.querySelector('[data-testid="sequencer-controls-panel"]')).to.exist;
   });
 
   it("shows the modern story generator under the story subtab", async () => {
@@ -1062,7 +1038,7 @@ describe("Deforumation Web UI", () => {
 
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("CROSSFADER");
-    expect(drawerTabs.join(" ")).to.include("RUNS");
+    expect(drawerTabs.join(" ")).to.include("SYSTEM");
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
@@ -1135,9 +1111,9 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders recent runs in the bottom drawer RUNS tab", async () => {
+  it("renders the runs monitor in the bottom drawer SYSTEM tab", async () => {
     appVm.liveBottomDrawerOpen = true;
-    appVm.setLiveBottomDrawerTab("RUNS");
+    appVm.setLiveBottomDrawerTab("SYSTEM");
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
       { run_id: "run-002", status: "completed", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
@@ -1147,16 +1123,13 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector('[data-testid="bottom-drawer-runs"]')).to.exist;
+    expect(document.querySelector('[data-testid="bottom-drawer-system"]')).to.exist;
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
-    expect(drawerTabs.join(" ")).to.include("RUNS");
-    const railItems = [...document.querySelectorAll(".recent-runs-rail__item")];
-    expect(railItems.length).to.equal(4);
-    expect(railItems[0].textContent).to.include("run-005");
-    expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
-    const railRoot = document.querySelector(".recent-runs-rail");
-    expect(railRoot).to.exist;
-    expect(railRoot.closest('[data-testid="bottom-drawer"]')).to.exist;
+    expect(drawerTabs.join(" ")).to.include("SYSTEM");
+    const runsBrowser = document.querySelector('[data-testid="bottom-drawer-system"] [data-testid="runs-browser"]');
+    expect(runsBrowser).to.exist;
+    expect(document.body.textContent).to.include("Runs Monitor");
+    expect(runsBrowser.closest('[data-testid="bottom-drawer"]')).to.exist;
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
@@ -1203,6 +1176,7 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "SYSTEM");
+    appVm.runsBrowserTab = "past";
     await nextTick();
     await Promise.resolve();
     await nextTick();

@@ -62,7 +62,7 @@ import {
   deforaMediaFileUrl,
   freecutEditorUrl,
   freecutProjectsUrl,
-} from '../../shared/freecut-bridge.mjs'
+} from '../../lib/freecut-bridge.mjs'
 
 export default {
   name: 'EditorView',
