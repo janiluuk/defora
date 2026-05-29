@@ -1202,7 +1202,6 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("SETTINGS", "SYSTEM");
     appVm.runsBrowserTab = "past";
     await nextTick();
-    await Promise.resolve();
     await nextTick();
 
     const settingsRuns = document.querySelector('[data-testid="settings-system-runs"]');
