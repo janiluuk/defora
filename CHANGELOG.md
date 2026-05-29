@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.43] - 2026-05-29
+
+## What's Changed
+
+- test (789e04e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.42...v0.6.43
+
+
 ## [0.6.42] - 2026-05-29
 
 ## What's Changed
