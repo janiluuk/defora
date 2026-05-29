@@ -93,6 +93,56 @@
 
     <LibraryWorkspaceOverlay :app="appViewModel" />
 
+    <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav">
+      <div class="top-nav__inner">
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+          </span>
+        </button>
+      </div>
+    </nav>
+
+    <div
+      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+      class="live-drawer-shell live-drawer-shell--dock-top"
+      :class="{ 'live-drawer-shell--open': rightPanelOpen }"
+      data-testid="right-panel-drawer"
+    >
+      <button
+        type="button"
+        class="live-overlay-btn live-overlay-btn--top"
+        :class="{ 'live-overlay-btn--open': rightPanelOpen }"
+        :title="rightPanelToggleTitle"
+        :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+        data-testid="right-panel-toggle"
+        @click="toggleRightPanel"
+      >
+        <span class="live-overlay-btn__arrow-wrap">
+          <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+        </span>
+        <span class="live-overlay-btn__top-label">{{ rightPanelOpen ? 'Hide panel' : 'Show panel' }}</span>
+      </button>
+      <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
+        <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+        <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+        <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
+        <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
+        <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
+        <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
+        <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+      </div>
+    </div>
+
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
@@ -115,6 +165,141 @@
           data-testid="preview-stage-row"
         >
           <div class="preview-stage-main">
+        <div
+          v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+          class="top-drawer-shell"
+          :class="{ 'top-drawer-shell--open': liveBottomDrawerOpen }"
+          data-testid="bottom-drawer"
+        >
+        <div class="live-top-drawer__tabs">
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
+            @click="setLiveBottomDrawerTab('MODULATION')"
+          >
+            MODULATION
+          </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
+            @click="setLiveBottomDrawerTab('CROSSFADER')"
+          >
+            CROSSFADER
+          </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'SYSTEM' }"
+            @click="setLiveBottomDrawerTab('SYSTEM')"
+          >
+            SYSTEM
+          </button>
+        </div>
+          <div
+            class="top-drawer-panel"
+            :class="{
+              'top-drawer-panel--open': liveBottomDrawerOpen,
+              'top-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
+              'top-drawer-panel--crossfader': liveBottomDrawerOpen && liveBottomDrawerTab === 'CROSSFADER',
+            }"
+          >
+        <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
+            <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
+              <div class="live-mod-slot__head">
+                <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
+                <span v-if="slot.mappingLabel" class="live-mod-slot__map">
+                  <UiIcon name="arrow-left" />
+                  <span>{{ slot.mappingLabel }}</span>
+                </span>
+                <div class="live-mod-slot__actions">
+                  <button
+                    v-if="slot.paramKey"
+                    type="button"
+                    class="framesync-button framesync-button--compact"
+                    title="Remove mapping"
+                    @click="clearParamMapping(slot.paramKey)"
+                  >
+                    <UiIcon name="close" />
+                  </button>
+                  <button
+                    v-if="slot.paramKey"
+                    type="button"
+                    class="framesync-button framesync-button--compact"
+                    title="Add mapping"
+                    @click="openModulationMapping(slot.paramKey)"
+                  >
+                    <UiIcon name="sliders" />
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
+                <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
+                  <input
+                    type="range"
+                    class="framesync-input live-mod-slider__input"
+                    :min="slot.min"
+                    :max="slot.max"
+                    :step="slot.step"
+                    :value="slot.value"
+                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                  />
+                  <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
+                </div>
+              </div>
+
+              <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
+                <div
+                  class="live-mod-pad"
+                  @mousedown="livePadDown($event, slot)"
+                  @mousemove="livePadMove($event, slot)"
+                  @mouseup="livePadUp"
+                  @mouseleave="livePadUp"
+                  @touchstart.prevent="livePadDown($event, slot)"
+                  @touchmove.prevent="livePadMove($event, slot)"
+                  @touchend.prevent="livePadUp"
+                >
+                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
+                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
+                  <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
+                </div>
+                <div class="live-mod-pad__axes">
+                  <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
+                  <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
+                </div>
+              </div>
+
+              <div v-else class="live-mod-slot__body">
+                <div class="live-mod-knob">
+                  <input
+                    type="range"
+                    class="framesync-input live-mod-knob__input"
+                    :min="slot.min"
+                    :max="slot.max"
+                    :step="slot.step"
+                    :value="slot.value"
+                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                  />
+                  <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        <CrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
+
+        <div
+          v-else-if="liveBottomDrawerTab === 'SYSTEM'"
+          class="top-drawer-system system-runs-tab"
+          data-testid="bottom-drawer-system"
+        >
+          <RunsBrowserPanel :app="appViewModel" />
+        </div>
+          </div>
+        </div>
+
         <div class="preview-stage-video-stack">
         <div
           class="video-wrap video-wrap--anchored"
@@ -3646,6 +3831,12 @@ export default {
   },
   openFramesInRunsPanel() {
     this.switchTab('RUNS');
+    this.setRunsBrowserTab('frames');
+    this.syncRunsMonitorPolling();
+  },
+  openFramesInRunsPanel() {
+    this.liveBottomDrawerOpen = true;
+    this.liveBottomDrawerTab = 'SYSTEM';
     this.setRunsBrowserTab('frames');
     this.syncRunsMonitorPolling();
   },
