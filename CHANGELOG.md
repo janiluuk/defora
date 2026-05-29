@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.42] - 2026-05-29
+
+## What's Changed
+
+- Feat/bottom nav (#80) (ceed343)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.41...v0.6.42
+
+
 ## [0.6.41] - 2026-05-29
 
 ## What's Changed
