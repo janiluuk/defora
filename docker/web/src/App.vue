@@ -309,6 +309,7 @@
           <div
             ref="videoStageRef"
             class="video-wrap__stage"
+            :style="previewStageStyle"
             :class="{
               'video-wrap__stage--preview': videoStageSize === 'small',
               'video-wrap__stage--canvas': videoStageSize === 'medium',
@@ -318,7 +319,13 @@
             <ThreeBackground
               ref="threeBackgroundRef"
               data-testid="preview-standby-animation"
-              :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]"
+              :class="[
+                'video-wrap__default-animation',
+                {
+                  'video-wrap__default-animation--visible': showDefaultAnimation,
+                  'video-wrap__default-animation--blend-dim': isBlendLayerActive && showDefaultAnimation,
+                },
+              ]"
               :lfos="lfos"
               :audio-metrics="backgroundAudioMetrics"
               :active-tab="currentTab"
@@ -665,6 +672,7 @@ import {
   runDetailJsonPretty,
 } from './shared/run-detail-json.mjs'
 import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
+import { diffPromptLines } from '../shared/prompt-diff.js'
 import {
   DEFAULT_FORGE_MODEL,
   DEFAULT_LCM_ENGINE,
@@ -1298,6 +1306,8 @@ export default {
         preferDeforumVideo: false,
         showStandbyClip: false,
         autoTransitionToDeforum: true,
+        rememberCompositorLayerOnStartup: false,
+        previewCompositorCrossfadeMs: 800,
         mode: 'instancing',
         instCount: 12000,
         beamCount: 7,
@@ -1703,14 +1713,35 @@ export default {
     },
     videoOverlayCssVars() {
       const b = this.videoOverlayBounds;
-      if (!b || !Number(b.height) || b.height < 8) return null;
+      const compositor = this.previewStageStyle || {};
+      if (!b || !Number(b.height) || b.height < 8) return Object.keys(compositor).length ? compositor : null;
       return {
         '--video-overlay-top': `${b.top}px`,
         '--video-overlay-left': `${b.left}px`,
         '--video-overlay-width': `${b.width}px`,
         '--video-overlay-height': `${b.height}px`,
         '--video-overlay-right': `${b.right}px`,
+        ...compositor,
       };
+    },
+    previewStageStyle() {
+      const ms = Math.max(
+        0,
+        Math.min(5000, Math.round(Number(this.defaultAnimation?.previewCompositorCrossfadeMs) || 800)),
+      );
+      const forgeOpacity = this.effectiveForgeLayerOpacity;
+      return {
+        '--preview-compositor-crossfade-ms': `${ms}ms`,
+        '--preview-forge-layer-opacity': String(forgeOpacity),
+      };
+    },
+    runsPromptDiff() {
+      if (!Array.isArray(this.runsSelected) || this.runsSelected.length !== 2) return null;
+      const [idA, idB] = this.runsSelected;
+      const runA = (this.runsAll || []).find((r) => r.run_id === idA);
+      const runB = (this.runsAll || []).find((r) => r.run_id === idB);
+      if (!runA || !runB) return null;
+      return this.buildRunsPromptDiff(runA, runB);
     },
     sidePanelDockStyle() {
       if (this.sidePanelUsesEdgeDock) return null;
@@ -4336,6 +4367,11 @@ normalizeDefaultAnimationSettings(input = {}) {
     preferDeforumVideo: !!next.preferDeforumVideo,
     showStandbyClip: !!next.showStandbyClip,
     autoTransitionToDeforum: next.autoTransitionToDeforum !== false,
+    rememberCompositorLayerOnStartup: !!next.rememberCompositorLayerOnStartup,
+    previewCompositorCrossfadeMs: Math.max(
+      0,
+      Math.min(5000, Math.round(Number(next.previewCompositorCrossfadeMs) || 800)),
+    ),
     mode,
     instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
@@ -4776,14 +4812,28 @@ updateHeldPreviewFromLatestFrame() {
   if (path) this.heldPreviewFramePath = path;
 },
 applyStartupVideoPreview() {
-  this._userPickedPreviewLayer = false;
-  this.activeVideoLayerId = 'webgl';
+  const remember = !!this.defaultAnimation?.rememberCompositorLayerOnStartup;
+  if (!remember) {
+    this._userPickedPreviewLayer = false;
+    this.activeVideoLayerId = 'webgl';
+  }
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
-    preferDeforumVideo: false,
+    preferDeforumVideo: remember ? this.defaultAnimation.preferDeforumVideo : false,
     autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
   });
   this.$nextTick(() => this.kickstandbyAnimation());
+},
+promoteToDeforum() {
+  this.selectVideoLayer('deforum', { userInitiated: true });
+},
+buildRunsPromptDiff(runA, runB) {
+  return {
+    runA: runA.run_id,
+    runB: runB.run_id,
+    positive: diffPromptLines(runA.prompt_positive, runB.prompt_positive),
+    negative: diffPromptLines(runA.prompt_negative, runB.prompt_negative),
+  };
 },
 maybePromoteDeforumPreview() {
   const anim = this.defaultAnimation || {};

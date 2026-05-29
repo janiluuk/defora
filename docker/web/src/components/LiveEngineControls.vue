@@ -7,6 +7,55 @@
     <PresetSelectorBar v-if="!compact" :app="app" />
 
     <div
+      class="live-engine-controls__section live-engine-controls__section--compositor"
+      data-testid="preview-compositor-controls"
+    >
+      <div class="live-engine-controls__section-head">
+        <span class="framesync-subtitle live-engine-controls__section-title">Preview compositor</span>
+      </div>
+      <label class="live-engine-controls__toggle">
+        <input
+          type="checkbox"
+          :checked="defaultAnimation.autoTransitionToDeforum !== false"
+          data-testid="auto-transition-deforum"
+          @change="defaultAnimation.autoTransitionToDeforum = $event.target.checked; onDefaultAnimationInput()"
+        >
+        <span>Auto-switch to Deforum when frames arrive</span>
+      </label>
+      <label class="live-engine-controls__toggle">
+        <input
+          type="checkbox"
+          :checked="!!defaultAnimation.rememberCompositorLayerOnStartup"
+          data-testid="remember-compositor-layer"
+          @change="defaultAnimation.rememberCompositorLayerOnStartup = $event.target.checked; onDefaultAnimationInput()"
+        >
+        <span>Remember last preview layer on reload</span>
+      </label>
+      <div class="slider-row">
+        <span class="framesync-subtitle" style="margin:0;">Crossfade duration</span>
+        <input
+          class="framesync-input"
+          type="range"
+          min="0"
+          max="5000"
+          step="50"
+          v-model.number="defaultAnimation.previewCompositorCrossfadeMs"
+          data-testid="preview-compositor-crossfade-ms"
+          @input="onDefaultAnimationInput"
+        >
+      </div>
+      <button
+        v-if="defaultAnimation.autoTransitionToDeforum === false"
+        type="button"
+        class="framesync-button framesync-button--compact"
+        data-testid="promote-to-deforum"
+        @click="promoteToDeforum()"
+      >
+        Promote to Deforum now
+      </button>
+    </div>
+
+    <div
       v-if="forceWebgl || (!forcePerformance && (isWebglLayerActive || isBlendLayerActive))"
       class="live-engine-controls__section live-engine-controls__section--webgl"
       data-testid="live-webgl-controls"

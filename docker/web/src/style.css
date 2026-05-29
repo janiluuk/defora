@@ -500,11 +500,14 @@
       z-index: 0;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.55s ease;
+      transition: opacity var(--preview-compositor-crossfade-ms, 0.55s) ease;
     }
     .video-wrap__default-animation--visible {
       opacity: 1;
       pointer-events: auto;
+    }
+    .video-wrap__default-animation--blend-dim.video-wrap__default-animation--visible {
+      opacity: calc(1 - var(--preview-forge-layer-opacity, 0.88));
     }
     .video-layer-tabs {
       display: flex;
@@ -638,7 +641,7 @@
       object-fit: cover;
       opacity: 0;
       pointer-events: none;
-      transition: opacity 0.55s ease, mix-blend-mode 0.2s ease;
+      transition: opacity var(--preview-compositor-crossfade-ms, 0.55s) ease, mix-blend-mode 0.2s ease;
     }
     .video-feed--visible {
       opacity: 1;
@@ -4911,6 +4914,47 @@
       border-bottom: 1px solid var(--border);
     }
     .runs-compare-card__table th { color: var(--text-dim); }
+
+    .runs-prompt-diff {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-1);
+    }
+    .runs-prompt-diff__block + .runs-prompt-diff__block { margin-top: 8px; }
+    .runs-prompt-diff__label { margin-bottom: 4px; }
+    .runs-prompt-diff__columns {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-family: var(--mono, ui-monospace, monospace);
+      font-size: 10px;
+      line-height: 1.45;
+    }
+    .runs-prompt-diff__line--same { color: var(--text-dim); }
+    .runs-prompt-diff__line--removed { color: var(--danger, #f87171); }
+    .runs-prompt-diff__line--added { color: var(--success, #34d399); }
+    .runs-prompt-diff__line--changed { color: var(--accent, #38bdf8); }
+
+    .live-engine-controls__compositor {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--border);
+    }
+    .live-engine-controls__compositor-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      margin-top: 6px;
+    }
+    .animation-engine-panel__head-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-left: auto;
+    }
 
     /* GPU node card */
     .gpu-node-card {

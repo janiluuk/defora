@@ -13,12 +13,16 @@ Goal: always show a smooth WebGL standby animation on load, then optionally cros
 | Runs browser | `/api/runs` backed by server `runsDir`; Library tab lists saved runs |
 | E2E | Playwright verifies WebGL on load + run persists in browser after reload |
 
-## Phase 2 — Polish (follow-up)
+## Phase 2 — Shipped
 
-- Configurable crossfade duration (CSS variable → compositor timeline)
-- Manual “Promote to Deforum” button in Animation Engine when auto-transition is off
-- Fade WebGL opacity down during blend instead of full-opacity overlay
-- Remember last compositor mode per session without forcing WebGL on every visit (optional setting)
+| Item | Behavior |
+|------|----------|
+| Crossfade | `previewCompositorCrossfadeMs` (0–5000) → `--preview-compositor-crossfade-ms` on the preview stage |
+| Promote | **Deforum →** in Animation Engine + **Promote to Deforum** in LIVE → Controls (compositor section) |
+| Blend dim | WebGL layer opacity scales with forge blend when **Both** is active |
+| Remember layer | `rememberCompositorLayerOnStartup` skips forcing WebGL on cold start |
+
+Tests: `docker/web/test/preview-compositor.spec.js`
 
 ## Phase 3 — Advanced
 

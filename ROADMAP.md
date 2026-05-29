@@ -300,7 +300,7 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 **Remaining Enhancements** (moved to future roadmap):
 - Advanced filtering and search (basic search/filter exists in RUNS tab)
 - ✅ Export comparison reports — `POST /api/runs/compare` + RUNS compare export buttons
-- Visual diff for prompts (side-by-side text diff)
+- ✅ Visual diff for prompts — side-by-side diff in RUNS browser + `prompt_diffs` on `POST /api/runs/compare` (2 runs)
 
 ### ✅ API Fallback Systems (COMPLETED in v0.2.7)
 
