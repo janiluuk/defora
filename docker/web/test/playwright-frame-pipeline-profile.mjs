@@ -49,6 +49,17 @@ function fmt(ms) {
   return `${ms}ms`;
 }
 
+async function openFramesPanel(page) {
+  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]');
+  if ((await drawerToggle.count()) > 0) {
+    const expanded = await drawerToggle.getAttribute("aria-expanded");
+    if (expanded !== "true") await drawerToggle.click();
+  }
+  await page.locator(".live-top-drawer__tabs .sub-pill").filter({ hasText: /^SYSTEM$/ }).click();
+  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
+  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
+}
+
 // ── setup ─────────────────────────────────────────────────────────────────────
 
 const FRAMES_TO_TEST = 6;
@@ -135,17 +146,13 @@ try {
   }
   await page.waitForSelector("header .tab", { timeout: 30_000 });
 
-  // Go to LIVE tab so frame-rail renders
-  const liveTab = page.locator("header .tab").filter({
+  // Go to LIVE tab and open frames in System → Runs → Frames
+  const liveTab = page.locator(".top-nav .tab, header .tab").filter({
     has: page.locator(".tab__label").filter({ hasText: /^LIVE$/ }),
   }).first();
   if ((await liveTab.count()) > 0) await liveTab.click();
 
-  // Expand frame rail via JS (live drawer overlay can intercept pointer events)
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openFramesPanel(page);
   await page.waitForTimeout(200);
 
   // Capture performance.timeOrigin so we can convert WS performance.now() to epoch ms

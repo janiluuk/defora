@@ -6,6 +6,7 @@
         <div class="runs-browser__meta">
           <span class="runs-browser__count">
             <template v-if="runsBrowserTab === 'active'">{{ runsActiveList.length }} active</template>
+            <template v-else-if="runsBrowserTab === 'frames'">{{ frameStripThumbs.length }} frames</template>
             <template v-else>{{ runsFiltered.length }} / {{ runsPastCount }}</template>
           </span>
           <span v-if="runsLastRefreshedLabel" class="runs-monitor__refreshed">{{ runsLastRefreshedLabel }}</span>
@@ -19,7 +20,7 @@
           class="sub-pill"
           :class="{ active: runsBrowserTab === 'active' }"
           data-testid="runs-browser-tab-active"
-          @click="runsBrowserTab = 'active'"
+          @click="setRunsBrowserTab('active')"
         >
           Runs
           <span v-if="runsActiveList.length" class="runs-browser__tab-badge">{{ runsActiveList.length }}</span>
@@ -27,16 +28,30 @@
         <button
           type="button"
           class="sub-pill"
+          :class="{ active: runsBrowserTab === 'frames' }"
+          data-testid="runs-browser-tab-frames"
+          @click="setRunsBrowserTab('frames')"
+        >
+          Frames
+          <span v-if="frameStripThumbs.length" class="runs-browser__tab-badge">{{ frameStripThumbs.length }}</span>
+        </button>
+        <button
+          type="button"
+          class="sub-pill"
           :class="{ active: runsBrowserTab === 'past' }"
           data-testid="runs-browser-tab-past"
-          @click="runsBrowserTab = 'past'"
+          @click="setRunsBrowserTab('past')"
         >
           Past runs
           <span v-if="runsPastCount" class="runs-browser__tab-badge runs-browser__tab-badge--dim">{{ runsPastCount }}</span>
         </button>
       </div>
 
-      <template v-if="runsBrowserTab === 'active'">
+      <div v-if="runsBrowserTab === 'frames'" class="runs-browser__frames-pane" data-testid="runs-browser-frames-pane">
+        <FrameRailPanel :app="app" />
+      </div>
+
+      <template v-else-if="runsBrowserTab === 'active'">
       <div class="runs-monitor-bar">
         <button
           type="button"
@@ -471,12 +486,14 @@
 
 <script>
 import { proxyAppView } from './views/app-view-proxy.mjs'
+import FrameRailPanel from './FrameRailPanel.vue'
 
 export default {
   name: 'RunsBrowserPanel',
   props: {
     app: { type: Object, required: true },
   },
+  components: { FrameRailPanel },
   setup(props) {
     return proxyAppView(props)
   },

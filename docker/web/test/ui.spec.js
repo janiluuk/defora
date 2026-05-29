@@ -1054,7 +1054,7 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
+    const drawerTabs = [...document.querySelectorAll(".live-top-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("CROSSFADER");
     expect(drawerTabs.join(" ")).to.include("SYSTEM");
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
@@ -1145,7 +1145,7 @@ describe("Deforumation Web UI", () => {
     await nextTick();
 
     expect(document.querySelector('[data-testid="bottom-drawer-system"]')).to.exist;
-    const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
+    const drawerTabs = [...document.querySelectorAll(".live-top-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("SYSTEM");
     const runsBrowser = document.querySelector('[data-testid="bottom-drawer-system"] [data-testid="runs-browser"]');
     expect(runsBrowser).to.exist;

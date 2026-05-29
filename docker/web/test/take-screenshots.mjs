@@ -58,11 +58,22 @@ async function shot(page, name) {
 }
 
 async function clickTab(page, label) {
-  const tab = page.locator('header .tab').filter({
+  const tab = page.locator('.top-nav .tab, header .tab').filter({
     has: page.locator('.tab__label').filter({ hasText: new RegExp(`^${label}$`) }),
   }).first();
   await tab.click();
   await page.waitForTimeout(300);
+}
+
+async function openFramesPanel(page) {
+  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]');
+  if ((await drawerToggle.count()) > 0) {
+    const expanded = await drawerToggle.getAttribute('aria-expanded');
+    if (expanded !== 'true') await drawerToggle.click();
+  }
+  await page.locator('.live-top-drawer__tabs .sub-pill').filter({ hasText: /^SYSTEM$/ }).click();
+  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
+  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
 }
 
 async function clickSubPill(page, label) {
@@ -101,11 +112,7 @@ try {
 
   await page.waitForTimeout(1200);
 
-  // Expand frame rail
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openFramesPanel(page);
   await page.waitForTimeout(400);
   await shot(page, 'live-tab.png');
 
