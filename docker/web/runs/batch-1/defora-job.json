@@ -1,0 +1,23 @@
+{
+  "run_id": "batch-1",
+  "captured_at": "2026-05-29T04:41:52.826Z",
+  "snapshot": {
+    "kind": "txt2img_fallback",
+    "settings": {
+      "prompts": [
+        "test preview"
+      ],
+      "negative_prompts": "",
+      "W": 512,
+      "H": 512,
+      "steps": 4,
+      "sampler": "Euler a",
+      "seed": -1
+    },
+    "options_overrides": {},
+    "node": {
+      "name": "node-a",
+      "url": "http://node-a:7860"
+    }
+  }
+}
