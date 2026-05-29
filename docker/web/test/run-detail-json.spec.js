@@ -3,7 +3,7 @@ const { expect } = require('chai');
 const {
   buildRunDetailCurrentContext,
   buildRunDetailJsonRows,
-} = require('../src/lib/run-detail-json.mjs');
+} = require('../src/shared/run-detail-json.mjs');
 
 describe('run-detail-json', () => {
   it('flags rows that differ from current deforum settings', () => {
