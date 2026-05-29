@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.52] - 2026-05-29
+
+## What's Changed
+
+- Feat/motion sequencer vimage3 streaming (#85) (68965f8)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.51...v0.6.52
+
+
 ## [0.6.51] - 2026-05-29
 
 ## What's Changed
