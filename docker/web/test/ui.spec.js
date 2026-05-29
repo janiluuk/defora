@@ -839,7 +839,7 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.include("Look controls");
     expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
-    expect(document.querySelector(".motion-axis-sliders")).to.not.exist;
+    expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
 
     appVm.updateMotionPad({
@@ -888,7 +888,7 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.translation_x).to.equal(0);
     expect(appVm.motionPadValues.translation_y).to.equal(0);
     expect(appVm.motionPadValues.translation_z).to.equal(0);
-    expect(appVm.motionPadValues.zoom).to.equal(0);
+    expect(appVm.motionPadValues.zoom).to.equal(1);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
     expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;

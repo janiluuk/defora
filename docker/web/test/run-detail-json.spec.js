@@ -1,12 +1,10 @@
 const { describe, it } = require('node:test');
 const { expect } = require('chai');
-const {
-  buildRunDetailCurrentContext,
-  buildRunDetailJsonRows,
-} = require('../src/shared/run-detail-json.mjs');
+const { loadEsm } = require('./load-esm');
 
 describe('run-detail-json', () => {
-  it('flags rows that differ from current deforum settings', () => {
+  it('flags rows that differ from current deforum settings', async () => {
+    const { buildRunDetailCurrentContext, buildRunDetailJsonRows } = await loadEsm('..', 'src', 'shared', 'run-detail-json.mjs');
     const ctx = buildRunDetailCurrentContext({
       deforumSettings: { max_frames: 48, seed: 1, steps: 20, sd_model_name: 'xl-current' },
     });
