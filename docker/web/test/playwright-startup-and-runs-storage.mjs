@@ -9,20 +9,13 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
   return Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/eeo8u8AAAAASUVORK5CYII=",
     "base64",
   );
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function openRunsMonitor(page) {
@@ -86,7 +79,7 @@ async function dismissSessionModalIfOpen(page) {
 async function assertWebglStartup(page) {
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
   await dismissSessionModalIfOpen(page);
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   const standby = page.locator('[data-testid="preview-standby-animation"]');
   await standby.waitFor({ state: "attached", timeout: 15000 });
@@ -139,7 +132,7 @@ try {
   await assertRunInBrowser(page);
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
   await dismissSessionModalIfOpen(page);
   await assertRunInBrowser(page);
 

@@ -33,6 +33,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -144,13 +145,10 @@ try {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10_000 });
   }
-  await page.waitForSelector("header .tab", { timeout: 30_000 });
+  await waitForNavTabs(page);
 
   // Go to LIVE tab and open frames in System → Runs → Frames
-  const liveTab = page.locator(".top-nav .tab, header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: /^LIVE$/ }),
-  }).first();
-  if ((await liveTab.count()) > 0) await liveTab.click();
+  await clickTab(page, "LIVE");
 
   await openFramesPanel(page);
   await page.waitForTimeout(200);

@@ -9,17 +9,10 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   return Buffer.from("defora-e2e-storage-mp4");
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function dismissSessionModalIfOpen(page) {
@@ -124,7 +117,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
   await dismissSessionModalIfOpen(page);
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   const browserRoot = await openLibraryBrowser(page);
 
