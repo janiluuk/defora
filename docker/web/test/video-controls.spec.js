@@ -32,6 +32,10 @@ function instantiate(appDef, overrides = {}) {
       Object.defineProperty(instance, k, { get: fn.bind(instance) });
     });
   }
+  // Avoid background frame/run polls that keep the Node test runner alive.
+  instance.scheduleFrameRefresh = () => {};
+  instance.syncRunsMonitorPolling = () => {};
+  instance.$nextTick = (fn) => Promise.resolve().then(fn);
   return instance;
 }
 

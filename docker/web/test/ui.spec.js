@@ -2630,4 +2630,30 @@ describe("Reference A/V sync mounted e2e", () => {
     delete global.fetch;
     removeFileReaderMock();
   });
+
+  after(async () => {
+    await nextTick();
+    await nextTick();
+    if (appVm) {
+      for (const key of ["previewDebounceTimer", "deforumPreviewTimer", "frameRefreshTimer", "framesTimer", "apiStatusTimer", "wsReconnectTimer", "sequencerTimer", "_runsPollTimer"]) {
+        if (appVm[key]) {
+          clearTimeout(appVm[key]);
+          clearInterval(appVm[key]);
+          appVm[key] = null;
+        }
+      }
+      for (const key of ["playbackTimer", "lfoTimer", "beatTimer"]) {
+        if (appVm[key]) {
+          clearInterval(appVm[key]);
+          appVm[key] = null;
+        }
+      }
+    }
+    if (dom && dom.window) {
+      try { dom.window.close(); } catch (_) {}
+    }
+    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node", "requestAnimationFrame", "cancelAnimationFrame"]) {
+      delete global[key];
+    }
+  });
 });
