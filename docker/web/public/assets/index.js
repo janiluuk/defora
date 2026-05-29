@@ -3887,7 +3887,7 @@ void main() {
 				gl_FragColor = textureCube( envMap, vec3( flipEnvMap * vOutputDirection.x, vOutputDirection.yz ) );
 
 			}
-		`,blending:Ii,depthTest:!1,depthWrite:!1})}function Sl(){return`
+		`,blending:0,depthTest:!1,depthWrite:!1})}function Ab(){return`
 
 		precision mediump float;
 		precision mediump int;
@@ -4027,7 +4027,7 @@ void main() {
 `),i=[],s=Math.max(e-6,0),r=Math.min(e+6,n.length);for(let o=s;o<r;o++){const l=o+1;i.push(`${l===e?">":" "} ${l}: ${n[o]}`)}return i.join(`
 `)}const zf=new at;function AT(t){gt._getMatrix(zf,gt.workingColorSpace,t);const e=`mat3( ${zf.elements.map(n=>n.toFixed(4))} )`;switch(gt.getTransfer(t)){case el:return[e,"LinearTransferOETF"];case Et:return[e,"sRGBTransferOETF"];default:return tt("WebGLProgram: Unsupported color space: ",t),[e,"LinearTransferOETF"]}}function $f(t,e,n){const i=t.getShaderParameter(e,t.COMPILE_STATUS),r=(t.getShaderInfoLog(e)||"").trim();if(i&&r==="")return"";const o=/ERROR: 0:(\d+)/.exec(r);if(o){const l=parseInt(o[1]);return n.toUpperCase()+`
 
-`+r+`
+`+i+`
 
 `+ET(t.getShaderSource(e),l)}else return r}function CT(t,e){const n=AT(e);return[`vec4 ${t}( vec4 value ) {`,`	return ${n[1]}( vec4( value.rgb * ${n[0]}, value.a ) );`,"}"].join(`
 `)}const kT={[Pp]:"Linear",[Tp]:"Reinhard",[Ep]:"Cineon",[lc]:"ACESFilmic",[Cp]:"AgX",[kp]:"Neutral",[Ap]:"Custom"};function RT(t,e){const n=kT[e];return n===void 0?(tt("WebGLProgram: Unsupported toneMapping:",e),"vec3 "+t+"( vec3 color ) { return LinearToneMapping( color ); }"):"vec3 "+t+"( vec3 color ) { return "+n+"ToneMapping( color ); }"}const wa=new B;function LT(){gt.getLuminanceCoefficients(wa);const t=wa.x.toFixed(4),e=wa.y.toFixed(4),n=wa.z.toFixed(4);return["float luminance( const in vec3 rgb ) {",`	const vec3 weights = vec3( ${t}, ${e}, ${n} );`,"	return dot( weights, rgb );","}"].join(`
@@ -4065,7 +4065,7 @@ void main() {
 `)),o=Od(o),o=Gf(o,n),o=Hf(o,n),l=Od(l),l=Gf(l,n),l=Hf(l,n),o=Wf(o),l=Wf(l),n.isRawShaderMaterial!==!0&&(_=`#version 300 es
 `,b=[g,"#define attribute in","#define varying out","#define texture2D texture"].join(`
 `)+`
-`+_,v=["#define varying in",n.glslVersion===Gh?"":"layout(location = 0) out highp vec4 pc_fragColor;",n.glslVersion===Gh?"":"#define gl_FragColor pc_fragColor","#define gl_FragDepthEXT gl_FragDepth","#define texture2D texture","#define textureCube texture","#define texture2DProj textureProj","#define texture2DLodEXT textureLod","#define texture2DProjLodEXT textureProjLod","#define textureCubeLodEXT textureLod","#define texture2DGradEXT textureGrad","#define texture2DProjGradEXT textureProjGrad","#define textureCubeGradEXT textureGrad"].join(`
+`+g,_=[`#define varying in`,n.glslVersion===`300 es`?``:`layout(location = 0) out highp vec4 pc_fragColor;`,n.glslVersion===`300 es`?``:`#define gl_FragColor pc_fragColor`,`#define gl_FragDepthEXT gl_FragDepth`,`#define texture2D texture`,`#define textureCube texture`,`#define texture2DProj textureProj`,`#define texture2DLodEXT textureLod`,`#define texture2DProjLodEXT textureProjLod`,`#define textureCubeLodEXT textureLod`,`#define texture2DGradEXT textureGrad`,`#define texture2DProjGradEXT textureProjGrad`,`#define textureCubeGradEXT textureGrad`].join(`
 `)+`
 `+y);const P=_+b+o,w=_+y+l,k=Vf(s,s.VERTEX_SHADER,P),A=Vf(s,s.FRAGMENT_SHADER,w);s.attachShader(x,k),s.attachShader(x,A),n.index0AttributeName!==void 0?s.bindAttribLocation(x,0,n.index0AttributeName):n.morphTargets===!0&&s.bindAttribLocation(x,0,"position"),s.linkProgram(x);function L(F){if(t.debug.checkShaderErrors){const D=s.getProgramInfoLog(x)||"",G=s.getShaderInfoLog(k)||"",Y=s.getShaderInfoLog(A)||"",z=D.trim(),H=G.trim(),W=Y.trim();let te=!0,ce=!0;if(s.getProgramParameter(x,s.LINK_STATUS)===!1)if(te=!1,typeof t.debug.onShaderError=="function")t.debug.onShaderError(s,x,k,A);else{const we=$f(s,k,"vertex"),Ee=$f(s,A,"fragment");vt("THREE.WebGLProgram: Shader Error "+s.getError()+" - VALIDATE_STATUS "+s.getProgramParameter(x,s.VALIDATE_STATUS)+`
 
