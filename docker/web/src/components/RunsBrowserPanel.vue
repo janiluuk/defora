@@ -265,7 +265,7 @@
             class="framesync-button framesync-button--danger framesync-button--compact"
             @click="killQueuedRun(runsDetailView)"
           >Kill</button>
-          <button class="framesync-button framesync-button--compact" @click="runsDetailView = null">Close</button>
+          <button class="framesync-button framesync-button--compact" @click="closeRunsDetailView()">Close</button>
         </div>
       </div>
 
@@ -479,6 +479,34 @@
             </tr>
           </tbody>
         </table>
+      </div>
+      <div
+        v-if="runsSelected.length === 2 && runsPromptDiff"
+        class="runs-prompt-diff"
+        data-testid="runs-prompt-diff"
+      >
+        <div class="framesync-subtitle">Prompt diff ({{ runsPromptDiff.runA }} vs {{ runsPromptDiff.runB }})</div>
+        <div v-for="section in ['positive', 'negative']" :key="section" class="runs-prompt-diff__block">
+          <div class="framesync-subtitle runs-prompt-diff__label">{{ section === 'positive' ? 'Positive' : 'Negative' }}</div>
+          <div class="runs-prompt-diff__columns">
+            <div class="runs-prompt-diff__col">
+              <div
+                v-for="(line, idx) in runsPromptDiff[section]"
+                :key="section + '-l-' + idx"
+                class="runs-prompt-diff__line"
+                :class="'runs-prompt-diff__line--' + line.kind"
+              >{{ line.left || ' ' }}</div>
+            </div>
+            <div class="runs-prompt-diff__col">
+              <div
+                v-for="(line, idx) in runsPromptDiff[section]"
+                :key="section + '-r-' + idx"
+                class="runs-prompt-diff__line"
+                :class="'runs-prompt-diff__line--' + line.kind"
+              >{{ line.right || ' ' }}</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>

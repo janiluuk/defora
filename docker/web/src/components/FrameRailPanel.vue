@@ -4,8 +4,10 @@
       <div class="frame-rail__title-wrap">
         <span class="frame-rail__title">Frames</span>
         <span class="frame-rail__meta" v-if="frameStripThumbs.length">
-          {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} generated
-          <span v-if="deforumPlaying && frameRailFollowLatest" class="frame-rail__live-tag">Live</span>
+          {{ selectedFrameLabel }} · {{ frameStripThumbs.length }}
+          <template v-if="frameRailSourceLabel"> from {{ frameRailSourceLabel }}</template>
+          <template v-else> generated</template>
+          <span v-if="deforumPlaying && frameRailFollowLatest && !frameRailSourceLabel" class="frame-rail__live-tag">Live</span>
         </span>
         <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
       </div>

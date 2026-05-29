@@ -7,6 +7,80 @@
     <PresetSelectorBar v-if="!compact" :app="app" />
 
     <div
+      class="live-engine-controls__section live-engine-controls__section--compositor"
+      data-testid="preview-compositor-controls"
+    >
+      <div class="live-engine-controls__section-head">
+        <span class="framesync-subtitle live-engine-controls__section-title">Preview compositor</span>
+      </div>
+      <label class="live-engine-controls__toggle">
+        <input
+          type="checkbox"
+          :checked="defaultAnimation.autoTransitionToDeforum !== false"
+          data-testid="auto-transition-deforum"
+          @change="defaultAnimation.autoTransitionToDeforum = $event.target.checked; onDefaultAnimationInput()"
+        >
+        <span>Auto-switch to Deforum when frames arrive</span>
+      </label>
+      <label class="live-engine-controls__toggle">
+        <input
+          type="checkbox"
+          :checked="!!defaultAnimation.rememberCompositorLayerOnStartup"
+          data-testid="remember-compositor-layer"
+          @change="defaultAnimation.rememberCompositorLayerOnStartup = $event.target.checked; onDefaultAnimationInput()"
+        >
+        <span>Remember last preview layer on reload</span>
+      </label>
+      <div class="slider-row">
+        <span class="framesync-subtitle" style="margin:0;">Crossfade duration</span>
+        <input
+          class="framesync-input"
+          type="range"
+          min="0"
+          max="5000"
+          step="50"
+          v-model.number="defaultAnimation.previewCompositorCrossfadeMs"
+          data-testid="preview-compositor-crossfade-ms"
+          @input="onDefaultAnimationInput"
+        >
+      </div>
+      <button
+        v-if="defaultAnimation.autoTransitionToDeforum === false"
+        type="button"
+        class="framesync-button framesync-button--compact"
+        data-testid="promote-to-deforum"
+        @click="promoteToDeforum()"
+      >
+        Promote to Deforum now
+      </button>
+      <div class="live-engine-controls__compositor-row" data-testid="compositor-lfo-links">
+        <span class="framesync-subtitle" style="margin:0;">Forge mix LFO</span>
+        <button
+          type="button"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: !defaultAnimation.forgeLayerOpacityLfoLink }"
+          @click="setForgeLayerOpacityLfoLink(null)"
+        >
+          Manual
+        </button>
+        <button
+          v-for="lfo in lfos.slice(0, 6)"
+          :key="'compositor-lfo-' + lfo.id"
+          type="button"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: defaultAnimation.forgeLayerOpacityLfoLink === lfo.id }"
+          :data-testid="'compositor-lfo-link-' + lfo.id"
+          @click="setForgeLayerOpacityLfoLink(lfo.id)"
+        >
+          {{ 'LFO ' + lfo.id }}
+        </button>
+      </div>
+      <p class="framesync-subtitle live-engine-controls__hint">
+        LFO modulates forge opacity on WebGL + Deforum (Both). Use MODULATION to route audio into LFO depth.
+      </p>
+    </div>
+
+    <div
       v-if="forceWebgl || (!forcePerformance && (isWebglLayerActive || isBlendLayerActive))"
       class="live-engine-controls__section live-engine-controls__section--webgl"
       data-testid="live-webgl-controls"
@@ -119,7 +193,7 @@
           step="0.01"
           v-model.number="defaultAnimation.forgeLayerOpacity"
           data-testid="forge-layer-opacity"
-          @input="onDefaultAnimationInput"
+          @input="defaultAnimation.forgeLayerOpacityLfoBase = defaultAnimation.forgeLayerOpacity; onDefaultAnimationInput()"
         >
       </div>
       <p class="framesync-subtitle live-engine-controls__hint">

@@ -5122,6 +5122,8 @@ async function start(opts = {}) {
     "prompt_positive", "prompt_negative", "started_at",
   ];
 
+  const { diffPromptLines } = require("./shared/prompt-diff.cjs");
+
   function buildRunComparison(runIds, runs) {
     const selected = runIds
       .map((id) => runs.find((r) => r.run_id === id))
@@ -5133,7 +5135,17 @@ async function start(opts = {}) {
         matrix[field][run.run_id] = run[field] != null ? run[field] : null;
       }
     }
-    return { run_ids: selected.map((r) => r.run_id), fields: RUN_COMPARE_FIELDS, matrix, runs: selected };
+    const result = { run_ids: selected.map((r) => r.run_id), fields: RUN_COMPARE_FIELDS, matrix, runs: selected };
+    if (selected.length === 2) {
+      const [runA, runB] = selected;
+      result.prompt_diffs = {
+        run_a: runA.run_id,
+        run_b: runB.run_id,
+        prompt_positive: diffPromptLines(runA.prompt_positive, runB.prompt_positive),
+        prompt_negative: diffPromptLines(runA.prompt_negative, runB.prompt_negative),
+      };
+    }
+    return result;
   }
 
   app.post("/api/runs/compare", async (req, res) => {

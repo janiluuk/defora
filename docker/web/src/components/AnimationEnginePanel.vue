@@ -19,15 +19,26 @@
         <UiIcon class="framesync-title-icon" name="film" />
         <span class="framesync-accent">Layers</span>
       </div>
-      <button
-        v-if="!rightPanelOpen"
-        type="button"
-        class="framesync-button framesync-button--compact"
-        data-testid="animation-engine-open-controls"
-        @click="openEngineControlsInRightPanel"
-      >
-        Controls →
-      </button>
+      <div class="animation-engine-panel__head-actions">
+        <button
+          type="button"
+          class="framesync-button framesync-button--compact"
+          data-testid="animation-engine-promote-deforum"
+          title="Switch preview to Deforum layer"
+          @click="promoteToDeforum()"
+        >
+          Deforum →
+        </button>
+        <button
+          v-if="!rightPanelOpen"
+          type="button"
+          class="framesync-button framesync-button--compact"
+          data-testid="animation-engine-open-controls"
+          @click="openEngineControlsInRightPanel"
+        >
+          Controls →
+        </button>
+      </div>
     </div>
 
     <ul class="animation-engine-layer-list" data-testid="animation-engine-layer-list">

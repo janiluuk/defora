@@ -64,8 +64,8 @@ class NodeWebServer:
             ["node", "server.js"],
             cwd=WEB_DIR,
             env=env,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         self.base = f"http://127.0.0.1:{self.port}"
         self._wait_for_health(attempts, interval)
@@ -76,7 +76,14 @@ class NodeWebServer:
         last_err = None
         for _ in range(attempts):
             if self.proc.poll() is not None:
-                raise RuntimeError(f"server.js exited early (code {self.proc.returncode})")
+                out, err = self.proc.communicate(timeout=2)
+                detail = (err or out or b"").decode("utf-8", errors="replace").strip()
+                if len(detail) > 800:
+                    detail = detail[:800] + "…"
+                msg = f"server.js exited early (code {self.proc.returncode})"
+                if detail:
+                    msg += f": {detail}"
+                raise RuntimeError(msg)
             try:
                 r = httpx.get(f"{self.base}/api/health", timeout=1)
                 if r.status_code == 200:
