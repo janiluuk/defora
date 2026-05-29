@@ -140,9 +140,10 @@ function extractComponentDefinition(scriptBody) {
     propsClause = `props: {${propsMatch[1]}\n  }`;
   }
   const setupClause = usesProxy ? ', setup(props) { return __proxyAppView(props); }' : '';
-  const dataClause = extractDataFunctionClause(scriptBody);
-  const methodsClause = extractMethodsClause(scriptBody);
-  const computedClause = extractComputedClause(scriptBody);
+  // Proxy-backed panels delegate to app; inlining local data/computed/methods breaks the test harness.
+  const dataClause = usesProxy ? '' : extractDataFunctionClause(scriptBody);
+  const methodsClause = usesProxy ? '' : extractMethodsClause(scriptBody);
+  const computedClause = usesProxy ? '' : extractComputedClause(scriptBody);
   return { propsClause, setupClause, dataClause, methodsClause, computedClause, usesProxy };
 }
 
