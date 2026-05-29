@@ -1,36 +1,43 @@
 {
   "enabled": true,
-  "defaultForgeModel": "SDXL/sd_xl_turbo_1.0_fp16.safetensors",
   "strategy": "least_busy",
+  "defaultForgeModel": "SDXL/sd_xl_turbo_1.0_fp16.safetensors",
   "healthCheckInterval": 30,
   "timeout": 300,
   "retryAttempts": 2,
   "nodes": [
     {
+      "id": "26d494a60a286431",
       "url": "http://192.168.2.101:7860",
       "name": "vimage2",
       "backend": "sd-forge",
       "enabled": true,
       "priority": 1,
-      "gpuModel": null
+      "gpuModel": null,
+      "model": null,
+      "forgeSettings": {}
     },
     {
+      "id": "ae92f5c943692d95",
       "url": "http://192.168.2.104:7860",
       "name": "vimage5",
       "backend": "sd-forge",
       "enabled": true,
       "priority": 2,
       "gpuModel": null,
-      "model": "SDXL/sd_xl_turbo_1.0_fp16.safetensors"
+      "model": "SDXL/sd_xl_turbo_1.0_fp16.safetensors",
+      "forgeSettings": {}
     },
     {
+      "id": "d2e136d3a7118d41",
       "url": "http://192.168.2.104:11434",
       "name": "ollama-vimage5",
       "backend": "ollama",
       "enabled": true,
       "priority": 3,
       "gpuModel": "Ollama",
-      "model": null
+      "model": "qwen3.6:latest",
+      "forgeSettings": {}
     }
   ]
 }
