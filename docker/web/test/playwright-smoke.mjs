@@ -3,7 +3,7 @@
  * Usage: BASE_URL=http://127.0.0.1:3999 node test/playwright-smoke.mjs
  */
 import { chromium } from 'playwright';
-import { clickTab, getTabLabels, openLibraryBrowser, waitForNavTabs } from './playwright-nav.mjs';
+import { clickTab, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
 const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
@@ -54,10 +54,7 @@ try {
   if ((await storageBrowser.count()) === 0) {
     throw new Error('Storage browser not found under LIBRARY');
   }
-  await clickTab(page, 'SETTINGS');
-  await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
-  await page.waitForTimeout(300);
+  await openRunsMonitor(page);
   const runsBrowser = page.locator('[data-testid="runs-browser"]');
   if ((await runsBrowser.count()) === 0) {
     throw new Error('Runs monitor not found under SETTINGS → SYSTEM');

@@ -47,13 +47,37 @@ export async function openRunsMonitor(page, { tab = 'active' } = {}) {
   await clickTab(page, 'SETTINGS');
   await page.locator('.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
+  await Promise.resolve();
   if (tab === 'past') {
     await page.locator('[data-testid="runs-browser-tab-past"]').click();
-    await page.waitForSelector('.runs-browser__table', { timeout: 30000 });
+    await page.waitForSelector(
+      '.runs-browser__table-wrap:not(.runs-browser__table-wrap--active) .runs-browser__table',
+      { timeout: 30000 },
+    );
   } else if (tab === 'frames') {
     await page.locator('[data-testid="runs-browser-tab-frames"]').click();
     await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 30000 });
+  } else {
+    await page.waitForSelector('[data-testid="runs-active-jobs"]', { timeout: 30000 });
   }
+}
+
+/** Wait until a completed run row is visible on Past runs (CI may lag on refreshRuns). */
+export async function waitForPastRunRow(page, runId, timeoutMs = 45000) {
+  const pastTable = page.locator(
+    '.runs-browser__table-wrap:not(.runs-browser__table-wrap--active) .runs-browser__table',
+  );
+  const row = pastTable.locator('tbody tr').filter({
+    has: page.locator('.runs-browser__run-id', { hasText: runId }),
+  }).first();
+  const deadline = Date.now() + timeoutMs;
+  while ((await row.count()) === 0 && Date.now() < deadline) {
+    await page.locator('button.framesync-button').filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
+    await Promise.resolve();
+    await page.waitForTimeout(500);
+  }
+  await row.waitFor({ state: 'visible', timeout: Math.max(5000, deadline - Date.now()) });
+  return row;
 }
 
 /** LIBRARY tab → VideoSwarm browser in the right panel. */

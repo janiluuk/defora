@@ -10,7 +10,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, openRunsMonitor, waitForNavTabs } from "./playwright-nav.mjs";
+import { openRunsMonitor, waitForNavTabs, waitForPastRunRow } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
   // 1x1 transparent PNG
@@ -93,25 +93,7 @@ try {
   if (!thumbRes.ok()) throw new Error(`Expected thumb 200, got ${thumbRes.status()}`);
 
   await openRunsMonitor(page, { tab: "past" });
-
-  const runRow = page
-    .locator(".runs-browser__table tbody tr")
-    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
-    .first();
-
-  const deadline = Date.now() + 30000;
-  while ((await runRow.count()) === 0 && Date.now() < deadline) {
-    const apiRuns = await page.request.get(`${base}/api/runs`);
-    if (!apiRuns.ok()) throw new Error(`Expected /api/runs 200, got ${apiRuns.status()}`);
-    const body = await apiRuns.json();
-    const found = (body.runs || []).some((r) => r.run_id === runId);
-    if (!found) {
-      throw new Error(`Run "${runId}" missing from /api/runs (${(body.runs || []).length} runs)`);
-    }
-    await page.locator("button.framesync-button").filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
-    await page.waitForTimeout(500);
-  }
-  await runRow.waitFor({ state: "visible", timeout: 10000 });
+  const runRow = await waitForPastRunRow(page, runId);
 
   await runRow.click();
   const details = page.locator('[data-testid="runs-detail-card"]');

@@ -9,7 +9,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, openRunsMonitor, waitForNavTabs } from "./playwright-nav.mjs";
+import { clickTab, openRunsMonitor, waitForNavTabs, waitForPastRunRow } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
   return Buffer.from(
@@ -105,19 +105,7 @@ async function assertWebglStartup(page) {
 async function assertRunInBrowser(page) {
   await dismissSessionModalIfOpen(page);
   await openRunsMonitor(page, { tab: "past" });
-  await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
-
-  const row = page
-    .locator(".runs-browser__table tbody tr")
-    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
-    .first();
-
-  const deadline = Date.now() + 30000;
-  while ((await row.count()) === 0 && Date.now() < deadline) {
-    await page.locator("button.framesync-button").filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
-    await page.waitForTimeout(500);
-  }
-  await row.waitFor({ state: "visible", timeout: 10000 });
+  await waitForPastRunRow(page, runId);
 }
 
 try {
