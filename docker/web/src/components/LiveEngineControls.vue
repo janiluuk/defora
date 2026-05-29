@@ -53,6 +53,31 @@
       >
         Promote to Deforum now
       </button>
+      <div class="live-engine-controls__compositor-row" data-testid="compositor-lfo-links">
+        <span class="framesync-subtitle" style="margin:0;">Forge mix LFO</span>
+        <button
+          type="button"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: !defaultAnimation.forgeLayerOpacityLfoLink }"
+          @click="setForgeLayerOpacityLfoLink(null)"
+        >
+          Manual
+        </button>
+        <button
+          v-for="lfo in lfos.slice(0, 6)"
+          :key="'compositor-lfo-' + lfo.id"
+          type="button"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: defaultAnimation.forgeLayerOpacityLfoLink === lfo.id }"
+          :data-testid="'compositor-lfo-link-' + lfo.id"
+          @click="setForgeLayerOpacityLfoLink(lfo.id)"
+        >
+          {{ 'LFO ' + lfo.id }}
+        </button>
+      </div>
+      <p class="framesync-subtitle live-engine-controls__hint">
+        LFO modulates forge opacity on WebGL + Deforum (Both). Use MODULATION to route audio into LFO depth.
+      </p>
     </div>
 
     <div
@@ -168,7 +193,7 @@
           step="0.01"
           v-model.number="defaultAnimation.forgeLayerOpacity"
           data-testid="forge-layer-opacity"
-          @input="onDefaultAnimationInput"
+          @input="defaultAnimation.forgeLayerOpacityLfoBase = defaultAnimation.forgeLayerOpacity; onDefaultAnimationInput()"
         >
       </div>
       <p class="framesync-subtitle live-engine-controls__hint">

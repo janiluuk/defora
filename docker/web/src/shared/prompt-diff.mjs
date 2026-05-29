@@ -3,9 +3,9 @@
  */
 
 function splitLines(text) {
-  const raw = String(text || "").replace(/\r\n/g, "\n");
+  const raw = String(text || '').replace(/\r\n/g, '\n');
   if (!raw.trim()) return [];
-  return raw.split("\n");
+  return raw.split('\n');
 }
 
 /**
@@ -27,29 +27,28 @@ function diffPromptLines(leftText, rightText) {
   let j = 0;
   while (i < n && j < m) {
     if (left[i] === right[j]) {
-      chunks.push({ left: left[i], right: right[j], kind: "same" });
+      chunks.push({ left: left[i], right: right[j], kind: 'same' });
       i++;
       j++;
       continue;
     }
     if (dp[i + 1][j] >= dp[i][j + 1]) {
-      chunks.push({ left: left[i], right: "", kind: "removed" });
+      chunks.push({ left: left[i], right: '', kind: 'removed' });
       i++;
     } else {
-      chunks.push({ left: "", right: right[j], kind: "added" });
+      chunks.push({ left: '', right: right[j], kind: 'added' });
       j++;
     }
   }
   while (i < n) {
-    chunks.push({ left: left[i], right: "", kind: "removed" });
+    chunks.push({ left: left[i], right: '', kind: 'removed' });
     i++;
   }
   while (j < m) {
-    chunks.push({ left: "", right: right[j], kind: "added" });
+    chunks.push({ left: '', right: right[j], kind: 'added' });
     j++;
   }
   return chunks;
 }
 
-module.exports = { diffPromptLines, splitLines };
 export { diffPromptLines, splitLines };

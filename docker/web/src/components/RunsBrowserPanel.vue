@@ -265,7 +265,7 @@
             class="framesync-button framesync-button--danger framesync-button--compact"
             @click="killQueuedRun(runsDetailView)"
           >Kill</button>
-          <button class="framesync-button framesync-button--compact" @click="runsDetailView = null">Close</button>
+          <button class="framesync-button framesync-button--compact" @click="closeRunsDetailView()">Close</button>
         </div>
       </div>
 

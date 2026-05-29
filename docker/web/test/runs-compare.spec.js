@@ -6,7 +6,7 @@ const { expect } = require("chai");
 const { describe, it, beforeEach, afterEach } = require("node:test");
 
 const { start } = require("../server");
-const { diffPromptLines } = require("../shared/prompt-diff.js");
+const { diffPromptLines } = require("../shared/prompt-diff.cjs");
 
 describe("Runs compare API", () => {
   let svc;

@@ -67,4 +67,25 @@ describe("preview compositor", () => {
     const style = appVm.previewStageStyle;
     expect(style["--preview-compositor-crossfade-ms"]).to.equal("1200ms");
   });
+
+  it("setForgeLayerOpacityLfoLink toggles compositor LFO and selects blend", () => {
+    appVm.activeVideoLayerId = "webgl";
+    appVm.setForgeLayerOpacityLfoLink(2);
+    expect(appVm.defaultAnimation.forgeLayerOpacityLfoLink).to.equal(2);
+    expect(appVm.activeVideoLayerId).to.equal("blend");
+    appVm.setForgeLayerOpacityLfoLink(2);
+    expect(appVm.defaultAnimation.forgeLayerOpacityLfoLink).to.equal(null);
+  });
+
+  it("frameStripThumbs uses run detail frames when frame rail is linked", () => {
+    appVm.thumbs = [{ src: "/frames/live.png", name: "live.png" }];
+    appVm.runsDetailView = {
+      run_id: "run_x",
+      frames: ["00001.png", "00002.png"],
+    };
+    appVm.frameRailRunId = "run_x";
+    const thumbs = appVm.frameStripThumbs;
+    expect(thumbs).to.have.length(2);
+    expect(thumbs[0].src).to.include("/api/runs/run_x/frames/00001.png");
+  });
 });

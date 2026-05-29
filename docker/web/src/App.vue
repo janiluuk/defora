@@ -672,7 +672,7 @@ import {
   runDetailJsonPretty,
 } from './shared/run-detail-json.mjs'
 import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
-import { diffPromptLines } from '../shared/prompt-diff.js'
+import { diffPromptLines } from './shared/prompt-diff.mjs'
 import {
   DEFAULT_FORGE_MODEL,
   DEFAULT_LCM_ENGINE,
@@ -1343,7 +1343,10 @@ export default {
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
         forgeLayerOpacity: 0.88,
+        forgeLayerOpacityLfoLink: null,
+        forgeLayerOpacityLfoBase: 0.88,
       },
+      frameRailRunId: null,
       thumbs: [],
       frameThumbLoadingKeys: {},
       framesTimer: null,
@@ -1564,7 +1567,27 @@ export default {
       return '/hls/live/deforum.m3u8';
     },
     frameStripThumbs() {
+      const runId = this.frameRailRunId;
+      const detail = this.runsDetailView;
+      if (
+        runId
+        && detail
+        && detail.run_id === runId
+        && Array.isArray(detail.frames)
+        && detail.frames.length
+      ) {
+        return detail.frames.map((name, idx) => {
+          const frameName = String(name);
+          const src = `/api/runs/${encodeURIComponent(detail.run_id)}/frames/${encodeURIComponent(frameName)}`;
+          return { name: frameName, src, url: src, path: src, frame: idx + 1 };
+        });
+      }
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
+    },
+    frameRailSourceLabel() {
+      const runId = this.frameRailRunId;
+      if (!runId) return '';
+      return `Run ${runId}`;
     },
     framesEmptyStatus() {
       const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
@@ -3536,9 +3559,40 @@ export default {
       const res = await fetch(`/api/runs/${run.run_id}`);
       if (!res.ok) return;
       this.runsDetailView = await res.json();
+      this.syncCompositorAndFrameRailFromRun(this.runsDetailView);
     } catch (_e) {
       this.runsStatus = "Failed to load run details";
     }
+  },
+  closeRunsDetailView() {
+    this.runsDetailView = null;
+    this.frameRailRunId = null;
+  },
+  syncCompositorAndFrameRailFromRun(run) {
+    if (!run || run._isBatch) return;
+    this.frameRailRunId = run.run_id;
+    const hasVideo = !!(
+      run.has_video
+      || run.primary_video
+      || (Array.isArray(run.videos) && run.videos.length)
+      || (run.outputs || []).some((o) => o && o.kind === 'video')
+    );
+    const hasFrames = !!(
+      run.has_frames
+      || (Array.isArray(run.frames) && run.frames.length)
+      || (run.outputs || []).some((o) => o && o.kind === 'frames')
+    );
+    if (hasVideo && hasFrames) {
+      this.selectVideoLayer('blend', { userInitiated: false });
+    } else if (hasVideo) {
+      this.selectVideoLayer('deforum', { userInitiated: false });
+    } else if (hasFrames) {
+      this.selectVideoLayer('deforum', { userInitiated: false });
+    }
+    this.$nextTick(() => {
+      const thumbs = this.frameStripThumbs;
+      if (thumbs.length) this.selectFrame(thumbs.length - 1, { userInitiated: false });
+    });
   },
   onRunRowClick(run, event) {
     if (!run) return;
@@ -4409,6 +4463,21 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
     forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
+    forgeLayerOpacityLfoLink: (() => {
+      const id = Number(next.forgeLayerOpacityLfoLink || 0);
+      return id >= 1 && id <= 6 ? id : null;
+    })(),
+    forgeLayerOpacityLfoBase: Math.max(
+      0,
+      Math.min(
+        1,
+        Number.isFinite(Number(next.forgeLayerOpacityLfoBase))
+          ? Number(next.forgeLayerOpacityLfoBase)
+          : Number.isFinite(Number(next.forgeLayerOpacity))
+            ? Number(next.forgeLayerOpacity)
+            : 0.88,
+      ),
+    ),
   };
 },
 onDefaultAnimationInput() {
@@ -4826,6 +4895,30 @@ applyStartupVideoPreview() {
 },
 promoteToDeforum() {
   this.selectVideoLayer('deforum', { userInitiated: true });
+},
+applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {}) {
+  const next = this.clampVal(Number(value) || 0, 0, 1);
+  this.defaultAnimation.forgeLayerOpacity = next;
+  if (commitBase || !fromModulation) {
+    this.defaultAnimation.forgeLayerOpacityLfoBase = next;
+  }
+  if (!fromModulation) this.onDefaultAnimationInput();
+},
+setForgeLayerOpacityLfoLink(lfoId) {
+  const nextId = Number(lfoId || 0);
+  const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
+  this.defaultAnimation.forgeLayerOpacityLfoLink = this.defaultAnimation.forgeLayerOpacityLfoLink === allowed
+    ? null
+    : allowed;
+  this.defaultAnimation.forgeLayerOpacityLfoBase = this.defaultAnimation.forgeLayerOpacity;
+  if (this.defaultAnimation.forgeLayerOpacityLfoLink) {
+    const linked = this.lfos.find((lfo) => lfo.id === this.defaultAnimation.forgeLayerOpacityLfoLink);
+    if (linked) linked.on = true;
+    if (!this.isBlendLayerActive && !this.isForgeAnimationLayerActive) {
+      this.selectVideoLayer('blend', { userInitiated: false });
+    }
+  }
+  this.onDefaultAnimationInput();
 },
 buildRunsPromptDiff(runA, runB) {
   return {
@@ -5745,7 +5838,10 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         && Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id
         && lfo.id >= 1
         && lfo.id <= 6;
-      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader)) return;
+      const drivesCompositorOpacity = Number(this.defaultAnimation?.forgeLayerOpacityLfoLink || 0) === lfo.id
+        && lfo.id >= 1
+        && lfo.id <= 6;
+      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader && !drivesCompositorOpacity)) return;
       const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
       const inc = dtSec * this.lfoRateRadPerSec(lfo);
       const phase = (lfo.phase || 0) + inc;
@@ -5773,6 +5869,17 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         const amp = depth * 0.5;
         const value = this.clampVal(base + wave * amp, 0, 1);
         this.applyLoraCrossfader(value, { fromModulation: true });
+      }
+
+      if (drivesCompositorOpacity) {
+        const base = this.clampVal(
+          Number(this.defaultAnimation?.forgeLayerOpacityLfoBase ?? this.defaultAnimation?.forgeLayerOpacity ?? 0.88) || 0.88,
+          0,
+          1,
+        );
+        const amp = depth * 0.5;
+        const value = this.clampVal(base + wave * amp, 0, 1);
+        this.applyForgeLayerOpacity(value, { fromModulation: true });
       }
 
       lfo.targets.forEach((targetKey) => {

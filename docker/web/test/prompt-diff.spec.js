@@ -1,6 +1,6 @@
 const { describe, it } = require("node:test");
 const assert = require("node:assert/strict");
-const { diffPromptLines } = require("../shared/prompt-diff.js");
+const { diffPromptLines } = require("../shared/prompt-diff.cjs");
 
 describe("prompt-diff", () => {
   it("marks identical lines as same", () => {

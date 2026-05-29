@@ -24,11 +24,15 @@ Goal: always show a smooth WebGL standby animation on load, then optionally cros
 
 Tests: `docker/web/test/preview-compositor.spec.js`
 
-## Phase 3 — Advanced
+## Phase 3 — In progress
 
-- Audio-reactive crossfade (LFO drives `deforum` vs `webgl` mix)
-- Per-run thumbnail rail sync with compositor state
-- GPU texture share: feed last Deforum frame into WebGL as background
+| Item | Behavior |
+|------|----------|
+| LFO crossfade | **Forge mix LFO** in compositor controls modulates `forgeLayerOpacity` (use **Both** layer); audio can drive LFO depth in MODULATION |
+| Run frame rail | Opening run details links the Frames tab rail to that run’s saved frames and picks blend/deforum preview |
+| GPU texture share | Feed last Deforum frame into WebGL as background (not started) |
+
+Tests: `docker/web/test/preview-compositor.spec.js`
 
 ## User controls
 
