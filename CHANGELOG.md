@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.45] - 2026-05-29
+
+## What's Changed
+
+- Add (ccdc17f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.44...v0.6.45
+
+
 ## [0.6.44] - 2026-05-29
 
 ## What's Changed
