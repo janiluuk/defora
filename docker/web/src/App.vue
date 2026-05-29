@@ -14,7 +14,40 @@
         </div>
       </div>
     </div>
-    <header>
+    <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav">
+      <div class="top-nav__inner">
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+          </span>
+        </button>
+      </div>
+      <div class="top-nav__actions">
+        <button
+          type="button"
+          class="top-nav__perf-btn"
+          :class="{ 'top-nav__perf-btn--active': liveBottomDrawerOpen }"
+          :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
+          :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel (Crossfader, Runs, Modulation)'"
+          data-testid="bottom-drawer-toggle"
+          @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
+        >
+          <UiIcon :name="liveBottomDrawerOpen ? 'chevron-up' : 'sliders'" style="width:14px;height:14px;" />
+          <span>Perf</span>
+        </button>
+      </div>
+    </nav>
+
+    <header class="app-header">
       <StatusStrip
         :playing="deforumPlaying"
         :recording="isRecording"
@@ -49,25 +82,6 @@
       />
     </header>
 
-    <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav">
-      <div class="top-nav__inner">
-        <button
-          class="tab"
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
-          @click="switchTab(tab.id)"
-        >
-          <span class="tab__icon-wrap" aria-hidden="true">
-            <UiIcon class="tab__icon" :name="tab.icon" />
-          </span>
-          <span class="tab__copy">
-            <span class="tab__label">{{ tab.label }}</span>
-          </span>
-        </button>
-      </div>
-    </nav>
-
     <div
       v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
       class="live-drawer-shell live-drawer-shell--dock-top"
@@ -78,17 +92,17 @@
         type="button"
         class="live-overlay-btn live-overlay-btn--top"
         :class="{ 'live-overlay-btn--open': rightPanelOpen }"
-        :title="rightPanelToggleTitle"
+        :title="rightPanelOpen ? 'Hide panel' : 'Show panel'"
         :aria-expanded="rightPanelOpen ? 'true' : 'false'"
         data-testid="right-panel-toggle"
         @click="toggleRightPanel"
       >
         <span class="live-overlay-btn__arrow-wrap">
-          <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+          <UiIcon class="live-overlay-btn__state" :name="rightPanelOpen ? 'chevron-left' : 'chevron-right'" />
         </span>
-        <span class="live-overlay-btn__top-label">{{ rightPanelOpen ? 'Hide panel' : 'Show panel' }}</span>
+        <span class="live-overlay-btn__top-label">{{ currentTab }}</span>
       </button>
-      <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
+      <div class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
         <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
         <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
         <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
