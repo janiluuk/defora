@@ -5465,6 +5465,10 @@ async function start(opts = {}) {
     clearInterval(pollTimer);
     if (forgePollTimer) clearInterval(forgePollTimer);
     clearInterval(cleanupTimer);
+    if (wsMessageBatcher.timer) {
+      clearTimeout(wsMessageBatcher.timer);
+      wsMessageBatcher.timer = null;
+    }
     if (gpuPool && typeof gpuPool.close === "function") gpuPool.close();
     if (frameWatcher && frameWatcher.close) frameWatcher.close();
     wss.clients.forEach((c) => {
@@ -5473,6 +5477,7 @@ async function start(opts = {}) {
       } catch (_) {}
     });
     await new Promise((resolve) => wss.close(resolve));
+    if (typeof server.closeAllConnections === "function") server.closeAllConnections();
     await new Promise((resolve) => server.close(resolve));
     if (channel) {
       try {

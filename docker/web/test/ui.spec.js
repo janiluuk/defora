@@ -3,7 +3,7 @@ const path = require("path");
 const { JSDOM } = require("jsdom");
 const { expect } = require("chai");
 const vm = require("vm");
-const { describe, it, before, beforeEach } = require("node:test");
+const { describe, it, before, after, beforeEach } = require("node:test");
 let createApp;
 let nextTick;
 
@@ -64,7 +64,11 @@ ensureGlobalFileAndBlob();
 function ensureGlobalAnimationFrame(win) {
   const raf = win && typeof win.requestAnimationFrame === "function"
     ? win.requestAnimationFrame.bind(win)
-    : (cb) => setTimeout(() => cb(Date.now()), 16);
+    : (cb) => {
+        const t = setTimeout(() => cb(Date.now()), 16);
+        if (t && typeof t.unref === "function") t.unref();
+        return t;
+      };
   const caf = win && typeof win.cancelAnimationFrame === "function"
     ? win.cancelAnimationFrame.bind(win)
     : (id) => clearTimeout(id);
@@ -171,11 +175,38 @@ describe("Deforumation Web UI", () => {
     ensureGlobalAnimationFrame(dom.window);
     ({ createApp, nextTick } = require("vue/dist/vue.cjs.js"));
 
+
     const appDef = loadAppDefinition();
     appDef.mounted = () => {};
     appVm = mountQuietApp(appDef);
     appVm.refreshStreamStatus = async () => {};
     document = dom.window.document;
+  });
+
+  after(async () => {
+    await nextTick();
+    await nextTick();
+    if (appVm) {
+      for (const key of ["previewDebounceTimer", "deforumPreviewTimer", "frameRefreshTimer", "framesTimer", "apiStatusTimer", "wsReconnectTimer", "sequencerTimer", "_runsPollTimer"]) {
+        if (appVm[key]) {
+          clearTimeout(appVm[key]);
+          clearInterval(appVm[key]);
+          appVm[key] = null;
+        }
+      }
+      for (const key of ["playbackTimer", "lfoTimer", "beatTimer"]) {
+        if (appVm[key]) {
+          clearInterval(appVm[key]);
+          appVm[key] = null;
+        }
+      }
+    }
+    if (dom && dom.window) {
+      try { dom.window.close(); } catch (_) {}
+    }
+    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node", "requestAnimationFrame", "cancelAnimationFrame"]) {
+      delete global[key];
+    }
   });
 
   beforeEach(async () => {
