@@ -239,6 +239,12 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(true);
     appVm.standbyPreviewVideoUrl = "/api/preview/standby-video";
     expect(appVm.showStandbyPreviewVideo).to.equal(true);
+
+    appVm.currentTab = "LIVE";
+    appVm.hlsWatchEnabled = false;
+    appVm.defaultAnimation.showStandbyClip = false;
+    expect(appVm.showStandbyPreviewVideo).to.equal(false);
+    expect(appVm.showDefaultAnimation).to.equal(true);
     appVm.hlsWatchEnabled = false;
     appVm.currentTab = "LIVE";
   });
@@ -355,6 +361,24 @@ describe("Deforumation Web UI", () => {
 
     expect(appVm.activeVideoLayerId).to.equal("webgl");
     expect(appVm.showDefaultAnimation).to.equal(true);
+  });
+
+  it("docks the side panel on the video unless the stage is full-bleed", () => {
+    appVm.currentTab = "LIVE";
+    appVm.sidePanelDock = "auto";
+    appVm.videoStageSize = "medium";
+    expect(appVm.sidePanelUsesEdgeDock).to.equal(false);
+
+    appVm.videoStageSize = "full";
+    expect(appVm.sidePanelUsesEdgeDock).to.equal(true);
+
+    appVm.sidePanelDock = "video";
+    appVm.videoStageSize = "full";
+    expect(appVm.sidePanelUsesEdgeDock).to.equal(false);
+
+    appVm.sidePanelDock = "edge";
+    appVm.videoStageSize = "medium";
+    expect(appVm.sidePanelUsesEdgeDock).to.equal(true);
   });
 
   it("scopes standby controls to the WebGL animation engine and resets them", async () => {
@@ -804,11 +828,11 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.zoom).to.equal(0);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
-    expect(document.querySelector(".stage-motion-tabs")).to.exist;
-    appVm.switchSubTab("MOTION", "SEQUENCER");
+    expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;
+    appVm.motionSequencerSideOpen = true;
     await nextTick();
-    expect(document.querySelector('[data-testid="motion-sequencer-editor-shell"]')).to.exist;
-    expect(document.querySelector('[data-testid="sequencer-controls-panel"]')).to.exist;
+    expect(document.querySelector('[data-testid="motion-sequencer-side-drawer"]')).to.exist;
+    expect(document.querySelectorAll('[data-testid="sequencer-controls-panel"]').length).to.be.at.least(2);
   });
 
   it("shows the modern story generator under the story subtab", async () => {

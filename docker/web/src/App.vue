@@ -70,17 +70,31 @@
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION',
       'layout--studio': currentTab === 'MODULATION',
-      'layout--editor': currentTab === 'EDITOR',
+      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
-        'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full'
+        'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',
+        'preview--motion-dock': currentTab === 'MOTION',
       }">
         <div
-          v-if="currentTab === 'EDITOR'"
+          v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
           class="editor-workspace-shell"
           data-testid="editor-workspace"
         >
+          <div class="editor-workspace-shell__toolbar">
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              data-testid="close-library-editor"
+              @click="closeLibraryEditor()"
+            >
+              ← Back to Library
+            </button>
+            <span v-if="editorStatus" class="editor-workspace-shell__status" :class="{ 'editor-workspace-shell__status--live': editorStatusLive }">
+              {{ editorStatus }}
+            </span>
+          </div>
           <EditorView :app="appViewModel" />
         </div>
         <div
@@ -92,6 +106,7 @@
           }"
         >
           <div
+            ref="videoStageRef"
             class="video-wrap__stage"
             :class="{
               'video-wrap__stage--preview': videoStageSize === 'small',
@@ -217,6 +232,77 @@
               />
             </GlassPanel>
           </div>
+          <div
+            v-if="currentTab !== 'MOTION'"
+            class="frame-rail-overlay"
+            :class="{ 'frame-rail-overlay--expanded': showFrames }"
+            data-testid="frame-rail-overlay"
+          >
+            <button
+              type="button"
+              class="frame-rail-overlay__toggle frame-rail__toggle"
+              :aria-expanded="showFrames ? 'true' : 'false'"
+              :title="showFrames ? 'Hide frames' : 'Show frames'"
+              data-testid="frame-rail-toggle"
+              @click="showFrames = !showFrames; saveSessionState()"
+            >
+              <UiIcon class="frame-rail__toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
+            </button>
+            <div v-show="showFrames" class="frame-rail-overlay__panel">
+              <div class="frame-rail">
+                <div class="frame-rail__header">
+                  <div class="frame-rail__title-wrap">
+                    <span class="frame-rail__title">Frames</span>
+                    <span class="frame-rail__meta" v-if="frameStripThumbs.length">
+                      {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} generated
+                    </span>
+                    <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
+                  </div>
+                  <div class="frame-rail__actions">
+                    <div class="frame-rail__controls" v-if="frameStripThumbs.length">
+                      <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
+                      <input
+                        class="frame-rail__scrubber"
+                        type="range"
+                        min="0"
+                        :max="Math.max(0, frameStripThumbs.length - 1)"
+                        :value="Math.max(0, selectedFrameIndex)"
+                        @input="selectFrame(Number($event.target.value))"
+                      >
+                      <button
+                        type="button"
+                        class="frame-rail__step"
+                        @click="stepFrameSelection(1)"
+                        :disabled="selectedFrameIndex >= frameStripThumbs.length - 1"
+                      >Next</button>
+                    </div>
+                  </div>
+                </div>
+                <div v-if="frameStripThumbs.length" ref="frameRail" class="frame-rail__list">
+                  <button
+                    v-for="(f, idx) in frameStripThumbs"
+                    :key="'frame-rail-' + (f.name || idx)"
+                    type="button"
+                    class="frame-rail__item"
+                    :class="{ 'frame-rail__item--active': idx === selectedFrameIndex }"
+                    :data-frame-index="idx"
+                    @click="selectFrame(idx)"
+                  >
+                    <img class="frame-rail__thumb" :src="f.src || f.url" :alt="f.name || ('Frame ' + idx)" />
+                    <span class="frame-rail__label">{{ frameLabel(f) }}</span>
+                  </button>
+                </div>
+                <div v-else class="frame-rail__empty">
+                  <span class="lazy-loading-indicator">
+                    <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                    <span>{{ framesEmptyStatus.label }}</span>
+                    <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                  </span>
+                  <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
           </div>
 
           <div class="video-layer-tabs video-layer-tabs--preview" data-testid="video-layer-tabs">
@@ -319,119 +405,96 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div class="preview-bottom-dock" data-testid="preview-bottom-dock">
         <div
-          v-show="currentTab === 'MOTION'"
-          class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer"
+          v-if="currentTab === 'MOTION'"
+          class="preview-bottom-dock"
+          data-testid="preview-bottom-dock"
         >
-          <div class="stage-sequencer-shell" data-testid="motion-sequencer-dock">
-            <SequencerControlsPanel :app="appViewModel" stage show-timeline />
-            <GenerateView
-              v-if="generator.result || generator.status || performance.status || sequencerStatus"
-              :app="appViewModel"
-              story-only
-            />
-          </div>
-        </div>
-        <div
-          v-show="currentTab !== 'MOTION'"
-          class="preview-bottom-dock__pane preview-bottom-dock__pane--frames"
-        >
-        <div class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }">
-            <div class="frame-rail__header">
-              <div class="frame-rail__title-wrap">
-                <span class="frame-rail__title">Frames</span>
-                <span class="frame-rail__meta" v-if="frameStripThumbs.length">
-                  {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} generated
-                </span>
-                <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
-              </div>
-              <div class="frame-rail__actions">
-                <button
-                  type="button"
-                  class="frame-rail__toggle"
-                  :aria-expanded="showFrames ? 'true' : 'false'"
-                  :title="showFrames ? 'Collapse frames' : 'Expand frames'"
-                  @click="showFrames = !showFrames; saveSessionState()"
-                >
-                  <UiIcon class="frame-rail__toggle-icon" :name="showFrames ? 'chevron-up' : 'chevron-down'" />
-                </button>
-                <div class="frame-rail__controls" v-if="showFrames && frameStripThumbs.length">
-                  <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
-                  <input
-                    class="frame-rail__scrubber"
-                    type="range"
-                    min="0"
-                    :max="Math.max(0, frameStripThumbs.length - 1)"
-                    :value="Math.max(0, selectedFrameIndex)"
-                    @input="selectFrame(Number($event.target.value))"
-                  >
+          <div class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer">
+            <div
+              class="stage-sequencer-shell"
+              :class="{ 'stage-sequencer-shell--side-open': motionSequencerSideOpen }"
+              data-testid="motion-sequencer-dock"
+            >
+              <aside
+                v-show="motionSequencerSideOpen"
+                class="stage-sequencer-side"
+                data-testid="motion-sequencer-side-drawer"
+              >
+                <div class="stage-sequencer-side__head">
+                  <span class="stage-sequencer-side__title">Sequencer <span class="framesync-accent">Editor</span></span>
                   <button
                     type="button"
-                    class="frame-rail__step"
-                    @click="stepFrameSelection(1)"
-                    :disabled="selectedFrameIndex >= frameStripThumbs.length - 1"
-                  >Next</button>
+                    class="framesync-button framesync-button--compact"
+                    title="Close sequencer editor"
+                    @click="motionSequencerSideOpen = false; saveSessionState()"
+                  >
+                    <UiIcon name="arrow-left" />
+                  </button>
                 </div>
+                <div class="stage-sequencer-side__body">
+                  <SequencerControlsPanel :app="appViewModel" side-drawer />
+                </div>
+              </aside>
+              <button
+                type="button"
+                class="stage-sequencer-side-toggle"
+                :class="{ 'stage-sequencer-side-toggle--open': motionSequencerSideOpen }"
+                :aria-expanded="motionSequencerSideOpen ? 'true' : 'false'"
+                :title="motionSequencerSideOpen ? 'Hide sequencer editor' : 'Show sequencer editor'"
+                data-testid="motion-sequencer-side-toggle"
+                @click="motionSequencerSideOpen = !motionSequencerSideOpen; saveSessionState()"
+              >
+                <UiIcon :name="motionSequencerSideOpen ? 'arrow-left' : 'arrow-right'" />
+              </button>
+              <div class="stage-sequencer-main">
+                <SequencerControlsPanel :app="appViewModel" stage show-timeline />
+                <GenerateView
+                  v-if="generator.result || generator.status || performance.status || sequencerStatus"
+                  :app="appViewModel"
+                  story-only
+                />
               </div>
             </div>
-            <div v-if="showFrames && frameStripThumbs.length" ref="frameRail" class="frame-rail__list">
-              <button
-                v-for="(f, idx) in frameStripThumbs"
-                :key="'frame-rail-' + (f.name || idx)"
-                type="button"
-                class="frame-rail__item"
-                :class="{ 'frame-rail__item--active': idx === selectedFrameIndex }"
-                :data-frame-index="idx"
-                @click="selectFrame(idx)"
-              >
-                <img class="frame-rail__thumb" :src="f.src || f.url" :alt="f.name || ('Frame ' + idx)" />
-                <span class="frame-rail__label">{{ frameLabel(f) }}</span>
-              </button>
-            </div>
-            <div v-else-if="showFrames" class="frame-rail__empty">
-              <span class="lazy-loading-indicator">
-                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-                <span>{{ framesEmptyStatus.label }}</span>
-                <span v-if="framesEmptyStatus.kind === 'loading'" class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-              </span>
-              <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
-            </div>
           </div>
-        </div>
         </div>
 
         <!-- transport moved to top bar in LIVE -->
 
-      </div>
-
-      <div
-        class="live-drawer-shell"
-        :class="{ 'live-drawer-shell--open': rightPanelOpen }"
-        data-testid="right-panel-drawer"
-      >
-        <button
-          type="button"
-          class="live-overlay-btn live-overlay-btn--attached"
-          :class="{ 'live-overlay-btn--open': rightPanelOpen }"
-          :title="rightPanelToggleTitle"
-          :aria-expanded="rightPanelOpen ? 'true' : 'false'"
-          data-testid="right-panel-toggle"
-          @click="toggleRightPanel"
+        <div
+          class="live-drawer-shell"
+          :class="{
+            'live-drawer-shell--open': rightPanelOpen,
+            'live-drawer-shell--dock-edge': sidePanelUsesEdgeDock,
+            'live-drawer-shell--dock-video': !sidePanelUsesEdgeDock,
+          }"
+          :style="sidePanelDockStyle"
+          data-testid="right-panel-drawer"
         >
-          <span class="live-overlay-btn__arrow-wrap">
-            <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
-          </span>
-        </button>
-        <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
-          <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-          <LibraryView v-else-if="currentTab === 'LIBRARY' || currentTab === 'EDITOR'" :app="appViewModel" />
-          <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
-          <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
-          <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
-          <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
-          <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+          <button
+            type="button"
+            class="live-overlay-btn live-overlay-btn--attached"
+            :class="{ 'live-overlay-btn--open': rightPanelOpen }"
+            :title="rightPanelToggleTitle"
+            :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+            data-testid="right-panel-toggle"
+            @click="toggleRightPanel"
+          >
+            <span class="live-overlay-btn__arrow-wrap">
+              <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
+            </span>
+          </button>
+          <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
+            <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+            <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+            <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
+            <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
+            <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
+            <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
+            <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+          </div>
         </div>
+
       </div>
     </div>
 
@@ -702,9 +765,14 @@ export default {
       deforumPanelOpen: false,
       liveDrawerOpen: true,
       rightPanelOpen: true,
+      sidePanelDock: 'auto', // auto | edge | video
+      sidePanelDockBounds: { top: 0, left: 0, height: 0 },
+      _sidePanelDockOnResize: null,
+      _sidePanelDockResizeObserver: null,
       videoStageSize: 'medium', // small | medium | full
       liveAnimationBoxOpen: true,
       libraryFullscreen: false,
+      libraryEditorOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -842,7 +910,6 @@ export default {
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
-        { id: "EDITOR", label: "EDITOR", hint: "Cut", icon: "film" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -1235,6 +1302,7 @@ export default {
       standbyPreviewVideoUrl: "",
       defaultAnimation: {
         preferDeforumVideo: false,
+        showStandbyClip: false,
         autoTransitionToDeforum: true,
         mode: 'instancing',
         instCount: 12000,
@@ -1309,6 +1377,7 @@ export default {
       sequencerSelectedTrackId: null,
       sequencerSelectedClipId: null,
       generateDockExpanded: false,
+      motionSequencerSideOpen: false,
       selectedFrameIndex: -1,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
@@ -1611,11 +1680,37 @@ export default {
     showRightPanel() {
       return this.rightPanelOpen;
     },
+    sidePanelUsesEdgeDock() {
+      const mode = this.sidePanelDock || 'auto';
+      if (mode === 'edge') return true;
+      if (mode === 'video') return false;
+      if (this.libraryEditorOpen && this.currentTab === 'LIBRARY') return true;
+      return this.currentTab === 'LIVE' && this.videoStageSize === 'full';
+    },
     rightPanelToggleIcon() {
-      return this.rightPanelOpen ? 'arrow-right' : 'arrow-left';
+      if (this.sidePanelUsesEdgeDock) {
+        return this.rightPanelOpen ? 'arrow-right' : 'arrow-left';
+      }
+      return this.rightPanelOpen ? 'arrow-left' : 'arrow-right';
     },
     rightPanelToggleTitle() {
-      return this.rightPanelOpen ? 'Collapse sidebar' : 'Expand sidebar';
+      if (this.sidePanelUsesEdgeDock) {
+        return this.rightPanelOpen ? 'Collapse panel' : 'Expand panel';
+      }
+      return this.rightPanelOpen ? 'Collapse controls' : 'Show controls';
+    },
+    sidePanelDockStyle() {
+      if (this.sidePanelUsesEdgeDock) return null;
+      const b = this.sidePanelDockBounds || {};
+      const top = Number(b.top);
+      const left = Number(b.left);
+      const height = Number(b.height);
+      if (!Number.isFinite(height) || height < 8) return null;
+      return {
+        top: `${Number.isFinite(top) ? top : 0}px`,
+        left: `${Number.isFinite(left) ? left : 0}px`,
+        height: `${height}px`,
+      };
     },
     canStartHlsWatch() {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
@@ -1632,7 +1727,9 @@ export default {
     },
     showStandbyPreviewVideo() {
       if (!this.standbyPreviewVideoUrl) return false;
-      if (this.currentTab === "EDITOR") return false;
+      const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
+      if (!showClip && !this.showMainStageHls) return false;
+      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -2718,12 +2815,38 @@ export default {
     'currentSubTab.LIVE'(sub) {
       if (sub === 'DEFORUM_JOB') void this.ensureForgeSamplerSchedulerLists();
     },
+    sidePanelUsesEdgeDock() {
+      this.updateSidePanelDockBounds();
+      this.$nextTick(() => this.bindSidePanelDockTracking());
+    },
+    videoStageSize() {
+      this.updateSidePanelDockBounds();
+    },
+    libraryEditorOpen() {
+      this.updateSidePanelDockBounds();
+    },
+    currentTab() {
+      this.updateSidePanelDockBounds();
+    },
+    rightPanelOpen() {
+      this.updateSidePanelDockBounds();
+    },
   },
   mounted() {
     // Restore prompt: if we have saved UI state and current state differs, ask before applying.
     if (!this.checkAndPromptSessionRestore()) {
       this.loadSessionState();
     }
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const savedTab = window.localStorage.getItem('defora_tab');
+        if (savedTab === 'EDITOR') {
+          this.currentTab = 'LIBRARY';
+          this.libraryEditorOpen = true;
+          window.localStorage.setItem('defora_tab', 'LIBRARY');
+        }
+      }
+    } catch (_e) {}
     this.initVideoLayers();
     this.applyStartupVideoPreview();
     this.ensureStandbyAnimationAtStartup();
@@ -2779,12 +2902,14 @@ export default {
       this.refreshSequencerList();
       setTimeout(() => this.drawTimeline(), 200);
       this.kickstandbyAnimation();
+      this.bindSidePanelDockTracking();
     });
     this.initPromptHistory();
     this.refreshServiceHealth();
     this.syncRunsMonitorPolling();
   },
   beforeUnmount() {
+    this.unbindSidePanelDockTracking();
     this.disposeLiveAudioAnalyser();
     this.stopSequencerPlayback();
     if (this.framesTimer) clearTimeout(this.framesTimer);
@@ -3261,8 +3386,7 @@ export default {
     this.editorFreecutRoute = "projects";
     this.editorStatus = "Ready to import run video";
     this.editorStatusLive = true;
-    this.currentTab = "EDITOR";
-    this.saveSessionState();
+    this.openLibraryVideoEditor();
   },
   canKillQueuedRun(run) {
     return !!(run && run._isBatch && run.status === "queued");
@@ -3548,16 +3672,61 @@ export default {
    this.liveDrawerOpen = this.rightPanelOpen;
    this.saveSessionState();
  },
+ updateSidePanelDockBounds() {
+   this.$nextTick(() => {
+     if (this.sidePanelUsesEdgeDock) return;
+     const el = this.$refs.videoStageRef;
+     if (!el || typeof el.getBoundingClientRect !== 'function') return;
+     const rect = el.getBoundingClientRect();
+     if (rect.height < 8) return;
+     this.sidePanelDockBounds = { top: rect.top, left: rect.left, height: rect.height };
+   });
+ },
+ bindSidePanelDockTracking() {
+   if (typeof window === 'undefined') return;
+   const run = () => this.updateSidePanelDockBounds();
+   if (!this._sidePanelDockOnResize) {
+     window.addEventListener('resize', run, { passive: true });
+     this._sidePanelDockOnResize = run;
+   }
+   if (this._sidePanelDockResizeObserver) {
+     this._sidePanelDockResizeObserver.disconnect();
+     this._sidePanelDockResizeObserver = null;
+   }
+   if (typeof ResizeObserver === 'function') {
+     const el = this.$refs.videoStageRef;
+     if (el) {
+       this._sidePanelDockResizeObserver = new ResizeObserver(run);
+       this._sidePanelDockResizeObserver.observe(el);
+     }
+   }
+   run();
+ },
+ unbindSidePanelDockTracking() {
+   if (this._sidePanelDockOnResize) {
+     window.removeEventListener('resize', this._sidePanelDockOnResize);
+     this._sidePanelDockOnResize = null;
+   }
+   if (this._sidePanelDockResizeObserver) {
+     this._sidePanelDockResizeObserver.disconnect();
+     this._sidePanelDockResizeObserver = null;
+   }
+ },
  switchTab(id) {
+   if (id === 'EDITOR') {
+     id = 'LIBRARY';
+   }
    if (id === 'GENERATE') {
      this.currentTab = 'MOTION';
-     this.currentSubTab.MOTION = 'SEQUENCER';
+     this.currentSubTab.MOTION = 'PERFORMANCE';
+     this.motionSequencerSideOpen = true;
      try {
        if (typeof window !== 'undefined' && window.localStorage) {
          window.localStorage.setItem('defora_tab', 'MOTION');
-         window.localStorage.setItem('defora_subtab_MOTION', 'SEQUENCER');
+         window.localStorage.setItem('defora_subtab_MOTION', 'PERFORMANCE');
        }
      } catch (_e) {}
+     this.saveSessionState();
      return;
    }
    if (id === 'AUDIO') {
@@ -3575,6 +3744,9 @@ export default {
      this.openRunsDrawerSystem();
      return;
    }
+   if (id !== 'LIBRARY') {
+     this.libraryEditorOpen = false;
+   }
    this.currentTab = id;
    if (id === 'MOTION') {
      this.$nextTick(() => {
@@ -3585,10 +3757,6 @@ export default {
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
   if (id === 'LIBRARY') {
     void this.initSystemFilesBrowser();
-  }
-  if (id === 'EDITOR') {
-    void this.initSystemFilesBrowser();
-    if (!this.editorStatus) this.editorStatus = 'Pick media from the library sidebar or open a FreeCut project';
   }
   if (id === 'STREAM') {
     void this.refreshStreamStatus();
@@ -3607,8 +3775,11 @@ export default {
    return allowed.includes(sub) ? sub : 'MONITOR';
  },
  normalizeMotionSubTab(sub) {
-   const allowed = ['PERFORMANCE', 'SEQUENCER'];
-   return allowed.includes(sub) ? sub : 'PERFORMANCE';
+  if (sub === 'SEQUENCER') {
+    this.motionSequencerSideOpen = true;
+    return 'PERFORMANCE';
+  }
+  return sub === 'PERFORMANCE' ? sub : 'PERFORMANCE';
  },
  switchSubTab(tab, sub) {
   if (tab === 'SETTINGS' && sub === 'RUNS') {
@@ -3941,6 +4112,7 @@ normalizeDefaultAnimationSettings(input = {}) {
   const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'instancing';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
+    showStandbyClip: !!next.showStandbyClip,
     autoTransitionToDeforum: next.autoTransitionToDeforum !== false,
     mode,
     instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
@@ -4461,11 +4633,26 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
+openLibraryVideoEditor() {
+  this.currentTab = 'LIBRARY';
+  this.libraryEditorOpen = true;
+  this.rightPanelOpen = true;
+  this.liveDrawerOpen = true;
+  void this.initSystemFilesBrowser();
+  this.saveSessionState();
+},
+closeLibraryEditor() {
+  this.libraryEditorOpen = false;
+  this.saveSessionState();
+},
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
-    this.currentTab = 'EDITOR';
+    this.editorStatusLive = false;
+    this.currentTab = 'LIBRARY';
+    this.libraryEditorOpen = false;
+    this.saveSessionState();
     return;
   }
   this.editorPendingImportPath = entry.path;
@@ -4474,8 +4661,7 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.currentTab = 'EDITOR';
-  this.saveSessionState();
+  this.openLibraryVideoEditor();
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -9675,6 +9861,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        this.rightPanelOpen = s.liveDrawerOpen;
        this.liveDrawerOpen = s.liveDrawerOpen;
      }
+     if (s.sidePanelDock === 'auto' || s.sidePanelDock === 'edge' || s.sidePanelDock === 'video') {
+       this.sidePanelDock = s.sidePanelDock;
+     }
      if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
      if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
        this.liveBottomDrawerTab = s.liveBottomDrawerTab;
@@ -9734,6 +9923,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       }
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
+    if (typeof s.libraryEditorOpen === 'boolean') {
+      this.libraryEditorOpen = s.libraryEditorOpen;
+      if (this.libraryEditorOpen) this.currentTab = 'LIBRARY';
+    }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
     }
@@ -9749,6 +9942,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
     if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
+    if (typeof s.motionSequencerSideOpen === 'boolean') this.motionSequencerSideOpen = s.motionSequencerSideOpen;
     if (s.deforumFieldEnabled && typeof s.deforumFieldEnabled === 'object') {
       this.deforumFieldEnabled = createDeforumFieldEnabledMap(s.deforumFieldEnabled);
     } else {
@@ -9823,6 +10017,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        slots: this.performance.slots,
       showFrames: this.showFrames,
       rightPanelOpen: this.rightPanelOpen,
+      sidePanelDock: this.sidePanelDock,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
       currentSubTab: { ...this.currentSubTab },
@@ -9844,6 +10039,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -9856,6 +10052,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumActiveTab: this.deforumActiveTab,
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
+      motionSequencerSideOpen: this.motionSequencerSideOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -9898,6 +10095,7 @@ getCurrentSessionSnapshotRaw() {
       slots: this.performance.slots,
       showFrames: this.showFrames,
       rightPanelOpen: this.rightPanelOpen,
+      sidePanelDock: this.sidePanelDock,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
       currentSubTab: { ...this.currentSubTab },
@@ -9919,6 +10117,7 @@ getCurrentSessionSnapshotRaw() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -9929,6 +10128,7 @@ getCurrentSessionSnapshotRaw() {
       deforumActiveTab: this.deforumActiveTab,
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
+      motionSequencerSideOpen: this.motionSequencerSideOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {

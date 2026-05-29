@@ -37,7 +37,7 @@
       </div>
 
       <p class="generate-sequencer__live-hint">
-        Timeline and transport live below the video. Switch to the <strong>Sequencer</strong> tab under Motion.
+        Timeline and transport live below the video. Open the <strong>Edit</strong> side panel on the sequencer dock for tracks, clips, and markers.
       </p>
     </div>
   </div>
