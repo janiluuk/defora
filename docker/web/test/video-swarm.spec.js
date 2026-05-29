@@ -1,9 +1,9 @@
-import { describe, it, before, after } from "node:test";
-import assert from "node:assert/strict";
-import fs from "fs";
-import os from "os";
-import path from "path";
-import { start } from "../server.js";
+const { describe, it, before, after } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { start } = require("../server.js");
 
 describe("video-swarm storage API", () => {
   let svc;
