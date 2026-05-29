@@ -4,7 +4,6 @@ const fs = require("node:fs");
 const path = require("node:path");
 const os = require("node:os");
 const { loadEsm } = require("./load-esm");
-const { morphStyleModifiers } = require("../src/morph-utils.js");
 const promptStylesStore = require("../modules/prompt-styles-store.js");
 
 describe("prompt styles", () => {
@@ -34,7 +33,8 @@ describe("prompt styles", () => {
     assert.equal(styles[1].id, "cubism_2");
   });
 
-  it("morphs style modifiers across the crossfader", () => {
+  it("morphs style modifiers across the crossfader", async () => {
+    const { morphStyleModifiers } = await loadEsm("..", "src", "morph-utils.js");
     const a = { positive: "cubist", negative: "photo" };
     const b = { positive: "anime", negative: "realistic" };
     const atA = morphStyleModifiers(a, b, 0);

@@ -180,6 +180,15 @@ describe("Deforumation Web UI", () => {
     appDef.mounted = () => {};
     appVm = mountQuietApp(appDef);
     appVm.refreshStreamStatus = async () => {};
+    appVm.restoreSessionPromptOpen = false;
+    try {
+      const storage = dom.window.localStorage;
+      if (storage && typeof appVm.sessionStorageKey === "function") {
+        storage.removeItem(appVm.sessionStorageKey());
+        storage.removeItem(appVm.sessionStorageTouchedKey());
+        storage.removeItem(appVm.sessionRestoreDeclinedKey());
+      }
+    } catch (_e) {}
     document = dom.window.document;
   });
 
@@ -427,6 +436,7 @@ describe("Deforumation Web UI", () => {
     appVm.selectVideoLayer("webgl");
     appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
+    appVm.liveEngineDrawerOpen = true;
     appVm.liveAnimationBoxOpen = true;
     await nextTick();
     expect(document.body.textContent).to.include("Instance count");
@@ -528,6 +538,7 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("LIVE");
     appVm.switchSubTab("LIVE", "MONITOR");
+    appVm.liveEngineDrawerOpen = true;
     await nextTick();
     expect(document.querySelector("[data-testid='lcm-engine-badge']")).to.exist;
 
@@ -549,7 +560,8 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("LIVE");
     appVm.switchSubTab("LIVE", "MONITOR");
-    appVm.liveAnimationBoxOpen = true;
+    appVm.liveEngineDrawerOpen = true;
+    appVm.enginePanelDetailsOpen = true;
     await nextTick();
     expect(document.querySelector("[data-testid='animation-engine-wan']")).to.exist;
     expect(document.querySelector("[data-testid='wan-engine-controls']")).to.exist;
@@ -558,6 +570,7 @@ describe("Deforumation Web UI", () => {
 
   it("shows 2D/3D mode toggle and locks 3D-only deforum fields in 2D", async () => {
     appVm.switchTab("LIVE");
+    appVm.liveEngineDrawerOpen = true;
     appVm.switchSubTab("LIVE", "DEFORUM_JOB");
     appVm.deforumAdvancedOpen = false;
     await nextTick();
@@ -587,10 +600,15 @@ describe("Deforumation Web UI", () => {
     appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
     await nextTick();
-    const liveTabs = [...document.querySelectorAll("[data-testid='live-view'] .sub-pill")].map((el) => el.textContent.trim());
-    expect(liveTabs).to.include.members(["Controls", "Deforum"]);
+    appVm.liveEngineDrawerOpen = true;
+    appVm.enginePanelDetailsOpen = true;
+    await nextTick();
+    const engineTabs = [...document.querySelectorAll("[data-testid='animation-engine-details'] .sub-pill")].map((el) => el.textContent.trim());
+    expect(engineTabs).to.include.members(["Controls", "Deforum"]);
 
     appVm.switchSubTab("LIVE", "DEFORUM_JOB");
+    expect(appVm.enginePanelDetailsOpen).to.equal(true);
+    expect(appVm.enginePanelDetailsTab).to.equal("JOB");
     await nextTick();
     expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
     expect(document.body.textContent).to.include("Deforum");
@@ -606,8 +624,10 @@ describe("Deforumation Web UI", () => {
     expect(appVm.deforumSettings.use_init).to.equal(false);
 
     appVm.switchSubTab("LIVE", "MONITOR");
+    appVm.liveEngineDrawerOpen = true;
     await nextTick();
-    expect(document.body.textContent).to.include("Animation Engine");
+    expect(document.querySelector("[data-testid='animation-engine-layer-list']")).to.exist;
+    expect(document.querySelector("[data-testid='engine-drawer']")).to.exist;
   });
 
   it("crossfades prompt styles in performance slots", () => {
@@ -1137,6 +1157,8 @@ describe("Deforumation Web UI", () => {
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
+    appVm.liveBottomDrawerOpen = false;
+    appVm.rightPanelOpen = true;
     appVm.runsAll = [
       { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: true, latest_frame: "frame_0002.png", frames_done: 2, frames_total: 2, frames_progress_pct: 100, frame_count: 2, model: "xl-a", tag: "defora" },
       { run_id: "run-a-001", status: "completed", started_at: "2026-05-26T11:00:00Z", has_thumbnail: true, latest_frame: "frame_0003.png", frames_done: 3, frames_total: 3, frames_progress_pct: 100, frame_count: 3, model: "xl-a", tag: "defora" },
@@ -1176,12 +1198,11 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    const runsBrowser = document.querySelector(".runs-browser");
-    expect(runsBrowser).to.exist;
+    const settingsRuns = document.querySelector('[data-testid="settings-system-runs"]');
+    expect(settingsRuns).to.exist;
     expect(document.body.textContent).to.include("Runs Monitor");
-    expect(document.querySelector('[data-testid="settings-system-runs"]')).to.exist;
 
-    const rows = [...document.querySelectorAll(".runs-browser__table tbody tr")].filter(
+    const rows = [...settingsRuns.querySelectorAll(".runs-browser__table tbody tr")].filter(
       (row) => !row.querySelector(".runs-browser__empty")
     );
     expect(rows.length).to.equal(2);
@@ -1211,6 +1232,9 @@ describe("Deforumation Web UI", () => {
   });
 
   it("shows active GPU jobs and kill button for queued batches", async () => {
+    appVm.liveBottomDrawerOpen = false;
+    appVm.rightPanelOpen = true;
+    appVm.runsBrowserTab = "active";
     appVm.gpuPool.nodes = [
       { id: "gpu-a", name: "GPU A", url: "http://gpu-a:7860", enabled: true, backend: "sd-forge", status: "healthy", activeJobs: 1, queueRunning: 1, queuePending: 0 },
       { id: "gpu-b", name: "GPU B", url: "http://gpu-b:7860", enabled: true, backend: "sd-forge", status: "healthy", activeJobs: 0, queueRunning: 0, queuePending: 1 },
@@ -1233,12 +1257,13 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("SETTINGS", "SYSTEM");
     await nextTick();
 
-    expect(document.querySelector('[data-testid="runs-active-jobs"]')).to.exist;
+    const settingsRuns = document.querySelector('[data-testid="settings-system-runs"]');
+    expect(settingsRuns?.querySelector('[data-testid="runs-active-jobs"]')).to.exist;
     expect(document.body.textContent).to.match(/running/i);
     expect(document.body.textContent).to.include("batch-q1");
     expect(document.body.textContent).to.include("batch-r1");
 
-    const killBtn = [...document.querySelectorAll(".runs-browser__action--danger")].find((btn) => btn.textContent.includes("Kill"));
+    const killBtn = [...settingsRuns.querySelectorAll(".runs-browser__action--danger")].find((btn) => btn.textContent.includes("Kill"));
     expect(killBtn).to.exist;
 
     global.fetch = async (url, opts = {}) => {
@@ -1279,6 +1304,7 @@ describe("Deforumation Web UI", () => {
   });
 
   it("Library tab does not show the legacy runs frame rail", async () => {
+    appVm.liveBottomDrawerOpen = false;
     appVm.switchTab("LIBRARY");
     await nextTick();
     expect(document.querySelector('[data-testid="library-frame-rail"]')).to.equal(null);
@@ -1286,6 +1312,7 @@ describe("Deforumation Web UI", () => {
   });
 
   it("Library browser exposes new folder, videos-only, and cloud connect", async () => {
+    appVm.liveBottomDrawerOpen = false;
     global.fetch = async (url) => {
       const path = String(url);
       if (path.includes("/api/video-swarm/roots")) {
@@ -1332,6 +1359,9 @@ describe("Deforumation Web UI", () => {
   });
 
   it("launchTestRun logs job and refreshes runs", async () => {
+    appVm.liveBottomDrawerOpen = false;
+    appVm.rightPanelOpen = true;
+    appVm.runsBrowserTab = "active";
     const fetchCalls = [];
     global.fetch = async (url, opts = {}) => {
       const path = String(url);

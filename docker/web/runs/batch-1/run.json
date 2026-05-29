@@ -1,8 +1,8 @@
 {
   "run_id": "batch-1",
   "status": "completed",
-  "completed_at": "2026-05-29T04:41:52.826Z",
-  "preview_path": "/frames/frame_0001.png?v=1780029712638.4768",
+  "completed_at": "2026-05-29T07:38:26.711Z",
+  "preview_path": "/frames/frame_0001.png?v=1780040306196.161",
   "started_at": "2026-05-29T01:35:44.385Z",
   "tag": "defora",
   "kind": "txt2img_fallback",
@@ -18,7 +18,7 @@
   "fps": null,
   "job": {
     "run_id": "batch-1",
-    "captured_at": "2026-05-29T04:41:52.826Z",
+    "captured_at": "2026-05-29T07:34:35.631Z",
     "snapshot": {
       "kind": "txt2img_fallback",
       "settings": {
@@ -39,5 +39,5 @@
       }
     }
   },
-  "updated_at": "2026-05-29T04:41:52.827Z"
+  "updated_at": "2026-05-29T07:34:35.655Z"
 }

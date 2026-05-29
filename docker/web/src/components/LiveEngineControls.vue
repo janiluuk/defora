@@ -102,6 +102,32 @@
     </div>
 
     <div
+      v-if="!forcePerformance && showForgeOverWebgl"
+      class="live-engine-controls__section live-engine-controls__section--composite"
+      data-testid="forge-overlay-controls"
+    >
+      <div class="live-engine-controls__section-head">
+        <span class="framesync-subtitle live-engine-controls__section-title">Layer over WebGL</span>
+      </div>
+      <div class="slider-row">
+        <span class="framesync-subtitle" style="margin:0;">Forge opacity</span>
+        <input
+          class="framesync-input"
+          type="range"
+          min="0"
+          max="1"
+          step="0.01"
+          v-model.number="defaultAnimation.forgeLayerOpacity"
+          data-testid="forge-layer-opacity"
+          @input="onDefaultAnimationInput"
+        >
+      </div>
+      <p class="framesync-subtitle live-engine-controls__hint">
+        Set to 0 to hide Deforum/WAN preview frames over the WebGL stage. Blend mode uses screen compositing.
+      </p>
+    </div>
+
+    <div
       v-if="forcePerformance || (!forceWebgl && (isDeforumLayerActive || isBlendLayerActive))"
       class="live-engine-controls__section live-engine-controls__section--performance"
       data-testid="live-performance-params"

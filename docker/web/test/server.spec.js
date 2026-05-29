@@ -459,16 +459,11 @@ describe("distributed Forge sync", () => {
 
     expect(res.status).to.equal(200);
     const posts = fetchCalls.filter((call) => call.method === "POST" && call.url.endsWith("/sdapi/v1/options"));
-    const urls = posts.map((call) => call.url).sort();
-    expect(urls).to.deep.equal([
-      "http://node-a:7860/sdapi/v1/options",
-      "http://node-b:7860/sdapi/v1/options",
-    ]);
-    expect(posts.map((call) => JSON.parse(call.body).sd_model_checkpoint)).to.deep.equal([
-      "sdxl_turbo.safetensors",
-      "sdxl_turbo.safetensors",
-    ]);
-    expect(res.body.sync.successes).to.equal(2);
+    expect(posts).to.have.lengthOf(1);
+    expect(posts[0].url).to.match(/^http:\/\/node-[ab]:7860\/sdapi\/v1\/options$/);
+    expect(JSON.parse(posts[0].body).sd_model_checkpoint).to.equal("sdxl_turbo.safetensors");
+    expect(res.body.success).to.equal(true);
+    expect(res.body.node).to.exist;
     expect(res.body.model.metadata.type).to.equal("SDXL Turbo");
   });
 

@@ -308,7 +308,7 @@
       v-if="systemFiles.fullscreenIndex >= 0 && fullscreenVideo"
       class="video-swarm-browser__modal"
       data-testid="video-swarm-fullscreen"
-      @click.self="closeSystemFileFullscreen"
+      @click="onFullscreenBackdropClick"
     >
       <div class="video-swarm-browser__modal-inner">
         <div class="video-swarm-browser__modal-head">
@@ -573,6 +573,9 @@ export default {
     deleteContextVideo() {
       if (this.contextMenu.video) void this.deleteSystemFile(this.contextMenu.video.path)
       this.closeContextMenu()
+    },
+    onFullscreenBackdropClick(event) {
+      if (event.target === event.currentTarget) this.closeSystemFileFullscreen()
     },
     onFullscreenKey(event) {
       if (this.systemFiles.fullscreenIndex < 0) return

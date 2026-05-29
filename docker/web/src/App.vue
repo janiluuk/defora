@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <div v-if="restoreSessionPromptOpen" class="restore-session-modal" @click.self="dismissSessionRestore(false)">
+    <div v-if="restoreSessionPromptOpen" class="restore-session-modal" @click="onRestoreSessionBackdropClick">
       <div class="restore-session-modal__dialog framesync-panel">
         <div class="framesync-header">
           <div class="framesync-title">Restore <span class="framesync-accent">last UI state</span>?</div>
@@ -59,6 +59,8 @@
       <div class="preview" :class="{
         'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',
         'preview--motion-dock': currentTab === 'MOTION',
+        'preview--bottom-dock': liveBottomDrawerOpen && !(libraryEditorOpen && currentTab === 'LIBRARY'),
+        'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,
       }">
         <div
           v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
@@ -82,6 +84,12 @@
         </div>
         <div
           v-else
+          class="preview-stage-row"
+          :class="{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }"
+          data-testid="preview-stage-row"
+        >
+          <div class="preview-stage-main">
+        <div
           class="video-wrap video-wrap--anchored"
           :class="{
             'video-wrap--frame-processing': showFrameProcessingOnStage,
@@ -125,10 +133,13 @@
               :src="displayedPreviewStillPath"
               alt="Generated preview"
               class="video-still-preview"
+              :class="{ 'video-still-preview--over-webgl': showForgeOverWebgl }"
+              :style="forgeOverlayStyle"
               data-testid="preview-still-frame"
             />
             <video
               :class="['video-feed', 'video-feed--hls', { 'video-feed--visible': showDeforumVideo, 'video-feed--blended': isBlendLayerActive && showDeforumVideo }]"
+              :style="showDeforumVideo && isBlendLayerActive ? forgeOverlayStyle : null"
               id="player"
               ref="videoEl"
               muted
@@ -286,6 +297,34 @@
               </div>
             </div>
           </div>
+          <button
+            v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+            type="button"
+            class="bottom-drawer-fab bottom-drawer-fab--stage"
+            :class="{ 'bottom-drawer-fab--active': liveBottomDrawerOpen }"
+            :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
+            :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'"
+            data-testid="bottom-drawer-toggle"
+            @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
+          >
+            <span class="bottom-drawer-fab__icon-wrap" aria-hidden="true">
+              <UiIcon class="bottom-drawer-fab__icon" :name="liveBottomDrawerOpen ? 'chevron-down' : 'chevron-up'" />
+            </span>
+          </button>
+          <button
+            v-if="showEngineDrawerShell"
+            type="button"
+            class="engine-drawer-fab engine-drawer-fab--stage"
+            :class="{ 'engine-drawer-fab--active': liveEngineDrawerOpen }"
+            :aria-expanded="liveEngineDrawerOpen ? 'true' : 'false'"
+            :title="liveEngineDrawerOpen ? 'Hide animation engine controls' : 'Show animation engine controls'"
+            data-testid="engine-drawer-toggle"
+            @click="toggleEngineDrawer"
+          >
+            <span class="engine-drawer-fab__icon-wrap" aria-hidden="true">
+              <UiIcon class="engine-drawer-fab__icon" :name="liveEngineDrawerOpen ? 'chevron-right' : 'chevron-left'" />
+            </span>
+          </button>
           </div>
 
           <div class="video-layer-tabs video-layer-tabs--preview" data-testid="video-layer-tabs">
@@ -478,32 +517,19 @@
           </div>
         </div>
 
-      </div>
-    </div>
-
-    <div
-      class="bottom-drawer-shell"
-      :class="{ 'bottom-drawer-shell--open': liveBottomDrawerOpen }"
-      data-testid="bottom-drawer"
-    >
-      <button
-        type="button"
-        class="bottom-drawer-fab"
-        :class="{ 'bottom-drawer-fab--active': liveBottomDrawerOpen }"
-        :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
-        :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'"
-        @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
-      >
-        <UiIcon class="bottom-drawer-fab__icon" name="panel-bottom" />
-      </button>
-
-      <div
-        class="bottom-drawer-panel"
-        :class="{
-          'bottom-drawer-panel--open': liveBottomDrawerOpen,
-          'bottom-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
-        }"
-      >
+        <div
+          v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+          class="bottom-drawer-shell"
+          :class="{ 'bottom-drawer-shell--open': liveBottomDrawerOpen }"
+          data-testid="bottom-drawer"
+        >
+          <div
+            class="bottom-drawer-panel"
+            :class="{
+              'bottom-drawer-panel--open': liveBottomDrawerOpen,
+              'bottom-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
+            }"
+          >
         <div class="live-bottom-drawer__tabs">
           <button
             type="button"
@@ -623,6 +649,22 @@
         >
           <RunsBrowserPanel :app="appViewModel" />
         </div>
+          </div>
+        </div>
+
+          <aside
+            v-if="showEngineDrawerShell"
+            class="engine-drawer-shell"
+            :class="{ 'engine-drawer-shell--open': liveEngineDrawerOpen }"
+            data-testid="engine-drawer"
+          >
+            <div v-show="liveEngineDrawerOpen" class="engine-drawer-panel">
+              <AnimationEnginePanel :app="appViewModel" />
+            </div>
+          </aside>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -727,6 +769,7 @@ import ThreeBackground from './components/ThreeBackground.vue'
 import LoraCrossfaderPanel from './components/LoraCrossfaderPanel.vue'
 import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
+import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
 import LibraryView from './components/views/LibraryView.vue'
 import EditorView from './components/views/EditorView.vue'
 import StreamView from './components/views/StreamView.vue'
@@ -740,7 +783,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, LoraCrossfaderPanel, VideoSwarmBrowser, LiveView, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, LoraCrossfaderPanel, VideoSwarmBrowser, LiveView, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -772,7 +815,11 @@ export default {
       _sidePanelDockOnResize: null,
       _sidePanelDockResizeObserver: null,
       videoStageSize: 'medium', // small | medium | full
-      liveAnimationBoxOpen: true,
+      liveAnimationBoxOpen: false,
+      enginePanelDetailsOpen: false,
+      enginePanelDetailsTab: 'ENGINE',
+      deforumPreloadStatus: '',
+      _preloadDeforumStarted: false,
       libraryFullscreen: false,
       libraryEditorOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
@@ -972,6 +1019,7 @@ export default {
       librarySubTab: 'BROWSER',
       liveBottomDrawerOpen: false,
       liveBottomDrawerTab: 'MODULATION',
+      liveEngineDrawerOpen: true,
       restoreSessionPromptOpen: false,
       pendingSessionStateRaw: '',
       promptHistoryOpen: false,
@@ -1340,6 +1388,7 @@ export default {
         ocCloudCoverage: 0.4,
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
+        forgeLayerOpacity: 0.88,
       },
       thumbs: [],
       framesTimer: null,
@@ -1655,12 +1704,14 @@ export default {
     },
     showFrameProcessing() {
       if (this.previewGenerating) return true;
+      if (this.isWebglSoloPreview) return false;
       if (this.deforumPlaying && !this.showDeforumVideo && !!this.displayedPreviewStillPath) return true;
       return false;
     },
     /** Full-screen overlay only on still frames — never on WebGL / standby video. */
     showFrameProcessingOnStage() {
       if (!this.showFrameProcessing) return false;
+      if (this.isWebglSoloPreview) return false;
       if (this.showPreviewStill) return true;
       if (this.deforumPlaying && !this.showDeforumVideo && !!this.displayedPreviewStillPath) return true;
       return false;
@@ -1688,6 +1739,9 @@ export default {
     },
     showRightPanel() {
       return this.rightPanelOpen;
+    },
+    showEngineDrawerShell() {
+      return !(this.libraryEditorOpen && this.currentTab === 'LIBRARY');
     },
     sidePanelUsesEdgeDock() {
       const mode = this.sidePanelDock || 'auto';
@@ -1774,9 +1828,12 @@ export default {
           || String(style.negative || "").toLowerCase().includes(q),
       );
     },
+    builtinEngineLayers() {
+      return (Array.isArray(this.videoLayers) ? this.videoLayers : []).filter((layer) => layer && layer.builtin);
+    },
     runningPreviewVideoLayers() {
       const layers = Array.isArray(this.videoLayers) ? this.videoLayers : [];
-      const builtin = layers.filter((layer) => layer && layer.builtin);
+      const builtin = layers.filter((layer) => layer && layer.builtin && this.isVideoLayerPreviewVisible(layer));
       const running = builtin.filter((layer) => this.isVideoLayerRunning(layer));
       const activeId = this.activeVideoLayerId;
       if (activeId && !running.some((layer) => layer.id === activeId)) {
@@ -1787,6 +1844,26 @@ export default {
     },
     isWebglLayerActive() {
       return this.activeVideoLayer?.kind === 'webgl';
+    },
+    /** WebGL selected alone — no Deforum/WAN still or dim overlay on the stage. */
+    isWebglSoloPreview() {
+      return this.isWebglLayerActive && !this.isBlendLayerActive;
+    },
+    showForgeOverWebgl() {
+      if (this.isWebglSoloPreview) return false;
+      return this.isBlendLayerActive || this.isForgeAnimationLayerActive;
+    },
+    effectiveForgeLayerOpacity() {
+      if (this.isWebglSoloPreview) return 0;
+      const raw = Number(this.defaultAnimation?.forgeLayerOpacity);
+      return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0.88;
+    },
+    forgeOverlayStyle() {
+      const opacity = this.effectiveForgeLayerOpacity;
+      if (opacity <= 0) {
+        return { opacity: '0', visibility: 'hidden', pointerEvents: 'none' };
+      }
+      return { opacity: String(opacity), visibility: 'visible', pointerEvents: 'none' };
     },
     isDeforumLayerActive() {
       return this.activeVideoLayer?.kind === 'deforum';
@@ -1854,7 +1931,8 @@ export default {
       return layer.label || 'Layer';
     },
     showPreviewStill() {
-      if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
+      if (this.isWebglSoloPreview) return false;
+      if (this.effectiveForgeLayerOpacity <= 0) return false;
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
         || this.isForgeAnimationLayerActive
         || this.isBlendLayerActive;
@@ -2804,6 +2882,16 @@ export default {
     liveBottomDrawerOpen() {
       this.syncRunsMonitorPolling();
     },
+    liveEngineDrawerOpen(open) {
+      this.$nextTick(() => this.updateSidePanelDockBounds());
+      if (open) void this.preloadDeforumPipeline();
+    },
+    liveAnimationBoxOpen(open) {
+      if (this.enginePanelDetailsOpen !== open) this.enginePanelDetailsOpen = open;
+    },
+    enginePanelDetailsOpen(open) {
+      if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
+    },
     liveBottomDrawerTab(tab) {
       if (tab === 'SYSTEM') void this.refreshRuns();
       this.syncRunsMonitorPolling();
@@ -2874,10 +2962,12 @@ export default {
     const forgeRefreshPromise = this.refreshForgeAll();
     deforumSettingsPromise.finally(() => {
       if (!this.deforumPlaying) this.schedulePreviewFrame();
+      void this.preloadDeforumPipeline();
     });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
       this.restoreLastModel();
       void this.ensureDefaultForgeModelPreloaded();
+      void this.preloadDeforumPipeline();
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -3009,8 +3099,12 @@ export default {
       }
       const j = await res.json();
       if (j && j.sdForge) {
+        const wasAvailable = !!(this.apiHealth?.sdForge?.available || this.forge?.available);
         this.apiHealth = { sdForge: { ...j.sdForge } };
         this.forge.available = !!j.sdForge.available;
+        if (!wasAvailable && this.forge.available) {
+          void this.preloadDeforumPipeline();
+        }
       }
       this.apiHealthBackoffMs = 15000;
     } catch (_e) {
@@ -3276,6 +3370,7 @@ export default {
   openRunsSettings() {
     this.switchTab('SETTINGS');
     this.switchSubTab('SETTINGS', 'SYSTEM');
+    this.runsBrowserTab = 'active';
     void this.refreshRuns();
     this.syncRunsMonitorPolling();
   },
@@ -3681,6 +3776,11 @@ export default {
    this.liveDrawerOpen = this.rightPanelOpen;
    this.saveSessionState();
  },
+ toggleEngineDrawer() {
+   this.liveEngineDrawerOpen = !this.liveEngineDrawerOpen;
+   this.saveSessionState();
+   this.$nextTick(() => this.updateSidePanelDockBounds());
+ },
  updateSidePanelDockBounds() {
    this.$nextTick(() => {
      if (this.sidePanelUsesEdgeDock) return;
@@ -3801,6 +3901,15 @@ export default {
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
   if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
   if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
+  if (tab === 'LIVE') {
+    if (sub === 'DEFORUM_JOB') {
+      this.enginePanelDetailsOpen = true;
+      this.enginePanelDetailsTab = 'JOB';
+      void this.ensureForgeSamplerSchedulerLists();
+    } else {
+      this.enginePanelDetailsTab = 'ENGINE';
+    }
+  }
    this.currentSubTab[tab] = sub;
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_subtab_' + tab, sub); } catch(_e) {}
   if (tab === 'PROMPTS' && sub !== 'LORA') {
@@ -4159,6 +4268,7 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudCoverage: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudCoverage)) ? Number(next.ocCloudCoverage) : 0.4)),
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
+    forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
   };
 },
 onDefaultAnimationInput() {
@@ -4362,6 +4472,11 @@ detachHlsPlayer() {
   this.markVideoReady(false);
 },
 rebuildVideoLayers() {
+  const prev = Array.isArray(this.videoLayers) ? this.videoLayers : [];
+  const prevVisible = (id) => {
+    const layer = prev.find((row) => row && row.id === id);
+    return layer ? layer.previewVisible !== false : true;
+  };
   const custom = (this.liveSources || []).map((source) => ({
     id: source.id,
     kind: source.type === 'cloud' ? 'cloud' : 'library',
@@ -4369,21 +4484,88 @@ rebuildVideoLayers() {
     playbackUrl: source.playbackUrl || null,
     url: source.url || null,
     builtin: false,
+    previewVisible: true,
   }));
   this.videoLayers = [
-    { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
-    { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
-    { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
-    { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
+    { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl') },
+    { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum') },
+    { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan') },
+    { id: 'blend', kind: 'blend', label: 'Both', builtin: true, previewVisible: prevVisible('blend') },
     {
       id: 'input',
       kind: 'input',
       label: this.inputLayerLabel || 'Input',
       playbackUrl: this.inputLayerPlaybackUrl || null,
       builtin: true,
+      previewVisible: prevVisible('input'),
     },
     ...custom,
   ];
+},
+isVideoLayerPreviewVisible(layer) {
+  return !!(layer && layer.previewVisible !== false);
+},
+toggleVideoLayerPreview(layerId) {
+  const layer = (this.videoLayers || []).find((row) => row && row.id === layerId);
+  if (!layer || !layer.builtin) return;
+  layer.previewVisible = layer.previewVisible === false;
+  if (layer.previewVisible === false && this.activeVideoLayerId === layerId) {
+    const fallback = (this.videoLayers || []).find(
+      (row) => row && row.builtin && row.id !== layerId && row.previewVisible !== false,
+    );
+    if (fallback) this.selectVideoLayer(fallback.id);
+  }
+  this.saveSessionState();
+},
+videoLayerStatusShort(layer) {
+  const tone = this.layerStatus(layer);
+  if (tone === 'green') return 'Ready';
+  if (tone === 'yellow') return 'Loading';
+  return 'Offline';
+},
+toggleEnginePanelDetails(open) {
+  const next = typeof open === 'boolean' ? open : !this.enginePanelDetailsOpen;
+  this.enginePanelDetailsOpen = next;
+  this.liveAnimationBoxOpen = next;
+  if (next && this.enginePanelDetailsTab === 'JOB') {
+    void this.ensureForgeSamplerSchedulerLists();
+  }
+  this.saveSessionState();
+},
+setEnginePanelDetailsTab(tab) {
+  if (tab !== 'ENGINE' && tab !== 'JOB') return;
+  this.enginePanelDetailsTab = tab;
+  this.currentSubTab.LIVE = tab === 'JOB' ? 'DEFORUM_JOB' : 'MONITOR';
+  if (tab === 'JOB') void this.ensureForgeSamplerSchedulerLists();
+  this.saveSessionState();
+},
+async probeHlsPreviewStream() {
+  if (typeof fetch !== 'function') return;
+  try {
+    const base = String(this.streamSrc || '/hls/live/deforum.m3u8');
+    const url = base.includes('?') ? `${base}&probe=${Date.now()}` : `${base}?probe=${Date.now()}`;
+    const res = await fetch(url, { method: 'GET', cache: 'no-store' });
+    if (res.ok) this.setHlsPreviewStreamValid(true);
+  } catch (_e) {
+    /* stream may not be up yet */
+  }
+},
+async preloadDeforumPipeline({ force = false } = {}) {
+  if (this._preloadDeforumStarted && !force) return;
+  this._preloadDeforumStarted = true;
+  this.deforumPreloadStatus = 'Preparing Deforum…';
+  void this.ensureForgeSamplerSchedulerLists();
+  void this.probeHlsPreviewStream();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+  const forgeUp = !!(this.apiHealth?.sdForge?.available || this.forge?.available);
+  if (forgeUp) {
+    await this.runStartupWarmup();
+    this.deforumPreloadStatus = this.deforumGeneratedFrameCount > 0
+      ? 'Deforum ready'
+      : 'Deforum warming up in background';
+  } else {
+    this.deforumPreloadStatus = 'Waiting for Forge…';
+  }
 },
 initVideoLayers() {
   this.rebuildVideoLayers();
@@ -4455,6 +4637,7 @@ selectVideoLayer(id, opts = {}) {
   const layer = this.activeVideoLayer;
   if (layer?.kind === 'webgl') {
     this.setPreferDeforumVideo(false);
+    this.clearHeldPreviewFrame();
     this.kickstandbyAnimation();
     return;
   }
@@ -4471,6 +4654,10 @@ selectVideoLayer(id, opts = {}) {
   }
   if (layer?.kind === 'deforum') {
     this.setPreferDeforumVideo(true);
+    if (!this.deforumPlaying) {
+      this.scheduleDeforumPreview();
+      void this.preloadDeforumPipeline();
+    }
     return;
   }
   if (layer?.kind === 'wan') {
@@ -4481,6 +4668,7 @@ selectVideoLayer(id, opts = {}) {
     this.videoReady = false;
     if (this.hlsWatchEnabled) this.attachPlayer();
     this.queueDeforumSettingsSave();
+    if (!this.deforumPlaying) this.scheduleDeforumPreview();
     this.saveSessionState();
     return;
   }
@@ -9874,6 +10062,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        this.sidePanelDock = s.sidePanelDock;
      }
      if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
+     if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
      if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
        this.liveBottomDrawerTab = s.liveBottomDrawerTab;
      } else if (s.liveBottomDrawerTab === 'RUNS') {
@@ -9894,7 +10083,25 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.videoStageSize === 'small' || s.videoStageSize === 'medium' || s.videoStageSize === 'full') {
       this.videoStageSize = s.videoStageSize;
     }
-    if (typeof s.liveAnimationBoxOpen === 'boolean') this.liveAnimationBoxOpen = s.liveAnimationBoxOpen;
+     if (typeof s.liveAnimationBoxOpen === 'boolean') {
+       this.liveAnimationBoxOpen = s.liveAnimationBoxOpen;
+       this.enginePanelDetailsOpen = s.liveAnimationBoxOpen;
+     }
+     if (typeof s.enginePanelDetailsOpen === 'boolean') {
+       this.enginePanelDetailsOpen = s.enginePanelDetailsOpen;
+       this.liveAnimationBoxOpen = s.enginePanelDetailsOpen;
+     }
+     if (s.enginePanelDetailsTab === 'ENGINE' || s.enginePanelDetailsTab === 'JOB') {
+       this.enginePanelDetailsTab = s.enginePanelDetailsTab;
+     }
+     if (s.videoLayerPreviewVisible && typeof s.videoLayerPreviewVisible === 'object') {
+       const map = s.videoLayerPreviewVisible;
+       (this.videoLayers || []).forEach((layer) => {
+         if (layer && Object.prototype.hasOwnProperty.call(map, layer.id)) {
+           layer.previewVisible = map[layer.id] !== false;
+         }
+       });
+     }
     if (s.cloudDriveDraft && typeof s.cloudDriveDraft === 'object') {
       this.cloudDriveDraft = {
         url: String(s.cloudDriveDraft.url || ''),
@@ -10029,6 +10236,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       sidePanelDock: this.sidePanelDock,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
+      liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
       liveSourcePanel: this.liveSourcePanel,
@@ -10038,6 +10246,13 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       inputLayerLabel: this.inputLayerLabel,
       videoStageSize: this.videoStageSize,
       liveAnimationBoxOpen: this.liveAnimationBoxOpen,
+      enginePanelDetailsOpen: this.enginePanelDetailsOpen,
+      enginePanelDetailsTab: this.enginePanelDetailsTab,
+      videoLayerPreviewVisible: Object.fromEntries(
+        (this.videoLayers || [])
+          .filter((layer) => layer && layer.builtin)
+          .map((layer) => [layer.id, layer.previewVisible !== false]),
+      ),
       cloudDriveDraft: { ...this.cloudDriveDraft },
       systemFiles: {
         rootId: this.systemFiles.rootId,
@@ -10107,6 +10322,7 @@ getCurrentSessionSnapshotRaw() {
       sidePanelDock: this.sidePanelDock,
       liveBottomDrawerOpen: this.liveBottomDrawerOpen,
       liveBottomDrawerTab: this.liveBottomDrawerTab,
+      liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
       liveSourcePanel: this.liveSourcePanel,
@@ -10116,6 +10332,13 @@ getCurrentSessionSnapshotRaw() {
       inputLayerLabel: this.inputLayerLabel,
       videoStageSize: this.videoStageSize,
       liveAnimationBoxOpen: this.liveAnimationBoxOpen,
+      enginePanelDetailsOpen: this.enginePanelDetailsOpen,
+      enginePanelDetailsTab: this.enginePanelDetailsTab,
+      videoLayerPreviewVisible: Object.fromEntries(
+        (this.videoLayers || [])
+          .filter((layer) => layer && layer.builtin)
+          .map((layer) => [layer.id, layer.previewVisible !== false]),
+      ),
       cloudDriveDraft: { ...this.cloudDriveDraft },
       systemFiles: {
         rootId: this.systemFiles.rootId,
@@ -10202,6 +10425,11 @@ checkAndPromptSessionRestore() {
     return false;
   } catch (_e) {
     return false;
+  }
+},
+onRestoreSessionBackdropClick(event) {
+  if (event && event.target === event.currentTarget) {
+    this.dismissSessionRestore(false);
   }
 },
 dismissSessionRestore(shouldRestore) {
