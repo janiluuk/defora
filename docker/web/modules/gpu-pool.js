@@ -361,34 +361,6 @@ function createGpuPool(options = {}) {
     return selectNode({ preferredModel: modelName, sdApiOnly: true });
   }
 
-  async function setForgeModelOnNode(node, modelName) {
-    if (!node || node.backend !== "sd-forge") return { ok: false, error: "not an sd-forge node" };
-    const name = String(modelName || "").trim();
-    if (!name) return { ok: false, error: "model required" };
-    const t0 = Date.now();
-    const res = await fetchJson(
-      `${node.url}/sdapi/v1/options`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ sd_model_checkpoint: name }),
-      },
-      20000
-    );
-    pushNodeLog(node, {
-      type: "options",
-      path: "/sdapi/v1/options [default model]",
-      statusCode: res.status,
-      durationMs: Date.now() - t0,
-      ok: res.ok,
-    });
-    if (!res.ok) {
-      return { ok: false, status: res.status, error: res.data?.error || `HTTP ${res.status}` };
-    }
-    node.currentModel = name;
-    return { ok: true, model: name };
-  }
-
   async function ensureDefaultModelPreloaded() {
     if (shouldSkipBackgroundProbes(env)) {
       return { ok: false, skipped: true, reason: "ci_offline" };
