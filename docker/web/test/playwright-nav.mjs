@@ -119,6 +119,7 @@ export async function openRunsMonitor(page, { tab = 'active' } = {}) {
     await openLiveSystemDrawer(page);
   }
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
+  await Promise.resolve();
   if (tab === 'past') {
     await page.locator('[data-testid="runs-browser-tab-past"]').click();
     await page.waitForSelector(
