@@ -1159,14 +1159,20 @@ describe("Deforumation Web UI", () => {
   it("shows the runs monitor under Settings → System with table and details", async () => {
     appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
-    appVm.runsAll = [
+    const testRuns = [
       { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: true, latest_frame: "frame_0002.png", frames_done: 2, frames_total: 2, frames_progress_pct: 100, frame_count: 2, model: "xl-a", tag: "defora" },
       { run_id: "run-a-001", status: "completed", started_at: "2026-05-26T11:00:00Z", has_thumbnail: true, latest_frame: "frame_0003.png", frames_done: 3, frames_total: 3, frames_progress_pct: 100, frame_count: 3, model: "xl-a", tag: "defora" },
       { run_id: "run-b-001", status: "running", started_at: "2026-05-26T10:00:00Z", has_thumbnail: true, latest_frame: "frame_0001.png", frames_done: 1, frames_total: 4, frames_progress_pct: 25, frame_count: 4, model: "xl-b", tag: "preview" },
     ];
-    appVm.applyRunsFilters();
+    appVm.runsAll = testRuns;
     global.fetch = async (url) => {
       const path = String(url);
+      if (path.includes("/api/runs") && !path.match(/\/api\/runs\/[^/]+/)) {
+        return { ok: true, json: async () => ({ runs: testRuns }) };
+      }
+      if (path.includes("/api/deforum/batches")) {
+        return { ok: true, json: async () => ({ batches: [], nodes: [], errors: [] }) };
+      }
       if (path.includes("run-b-001")) {
         return { ok: true, json: async () => ({ run_id: "run-b-001", status: "queued", frames: ["frame_0001.png"], model: "xl-b", has_frames: true, outputs: [{ kind: "frames", count: 1 }] }) };
       }
@@ -1196,6 +1202,7 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("SETTINGS", "SYSTEM");
     appVm.runsBrowserTab = "past";
     await nextTick();
+    await Promise.resolve();
     await nextTick();
 
     const settingsRuns = document.querySelector('[data-testid="settings-system-runs"]');
@@ -1247,14 +1254,36 @@ describe("Deforumation Web UI", () => {
       { id: "gpu-a", name: "GPU A" },
       { id: "gpu-b", name: "GPU B" },
     ];
-    appVm.runsAll = [
+    const batchRuns = [
       { run_id: "batch:batch-q1", status: "queued", _isBatch: true, _batchNode: { id: "gpu-b", name: "GPU B" }, _gpu: "GPU B", tag: "deforum-batch", frame_count: 24, model: "xl-a" },
       { run_id: "batch:batch-r1", status: "running", _isBatch: true, _batchNode: { id: "gpu-a", name: "GPU A" }, _gpu: "GPU A", tag: "deforum-batch", frame_count: 12, model: "xl-b" },
     ];
+    appVm.runsAll = [...batchRuns];
     appVm.applyRunsFilters();
+
+    global.fetch = async (url, opts = {}) => {
+      const path = String(url);
+      if (path.includes("/api/runs") && !path.match(/\/api\/runs\/[^/]+/)) {
+        return { ok: true, json: async () => ({ runs: batchRuns }) };
+      }
+      if (path.includes("/api/deforum/batches/batch-q1/cancel")) {
+        expect(opts.method).to.equal("POST");
+        return { ok: true, json: async () => ({ ok: true }) };
+      }
+      if (path.includes("/api/deforum/batches")) {
+        return { ok: true, json: async () => ({ batches: appVm.deforumBatches, nodes: appVm.deforumBatchNodes, errors: [] }) };
+      }
+      if (path.includes("/api/gpu-pool")) {
+        return { ok: true, json: async () => ({ enabled: true, nodes: appVm.gpuPool.nodes, healthyNodes: 2 }) };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    global.confirm = () => true;
 
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "SYSTEM");
+    await nextTick();
+    await Promise.resolve();
     await nextTick();
 
     const settingsRuns = document.querySelector('[data-testid="settings-system-runs"]');
@@ -1265,24 +1294,6 @@ describe("Deforumation Web UI", () => {
 
     const killBtn = [...settingsRuns.querySelectorAll(".runs-browser__action--danger")].find((btn) => btn.textContent.includes("Kill"));
     expect(killBtn).to.exist;
-
-    global.fetch = async (url, opts = {}) => {
-      if (String(url).includes("/api/deforum/batches/batch-q1/cancel")) {
-        expect(opts.method).to.equal("POST");
-        return { ok: true, json: async () => ({ ok: true }) };
-      }
-      if (String(url).includes("/api/runs")) {
-        return { ok: true, json: async () => ({ runs: appVm.runsAll.filter((run) => !String(run.run_id).startsWith("batch:")) }) };
-      }
-      if (String(url).includes("/api/deforum/batches")) {
-        return { ok: true, json: async () => ({ batches: [], nodes: [], errors: [] }) };
-      }
-      if (String(url).includes("/api/gpu-pool")) {
-        return { ok: true, json: async () => ({ enabled: true, nodes: appVm.gpuPool.nodes, healthyNodes: 2 }) };
-      }
-      return { ok: true, json: async () => ({}) };
-    };
-    global.confirm = () => true;
 
     killBtn.click();
     await nextTick();
@@ -1372,7 +1383,7 @@ describe("Deforumation Web UI", () => {
       if (path.includes("/api/runs/launch-demo")) {
         return { ok: true, json: async () => ({ ok: true, run_id: "demo-test-1", status: "running" }) };
       }
-      if (path.includes("/api/runs")) {
+      if (path.includes("/api/runs") && !path.match(/\/api\/runs\/[^/]+/)) {
         return {
           ok: true,
           json: async () => ({
@@ -1390,6 +1401,8 @@ describe("Deforumation Web UI", () => {
     };
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "SYSTEM");
+    await nextTick();
+    await Promise.resolve();
     await nextTick();
     await appVm.launchTestRun();
     await nextTick();

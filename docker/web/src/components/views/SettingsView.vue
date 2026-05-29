@@ -177,7 +177,7 @@
         </div>
       </div>
 
-      <div v-if="engineModelPickerOpen" class="engine-model-picker" @click.self="closeEngineModelPicker()">
+      <div v-if="engineModelPickerOpen" class="engine-model-picker" @click="onEngineModelPickerBackdropClick">
         <div class="engine-model-picker__dialog" role="dialog" aria-modal="true" aria-label="Checkpoint selector">
           <div class="engine-model-picker__header">
             <div>
@@ -677,7 +677,7 @@
           <div v-if="gpuPool.status" class="framesync-subtitle" style="margin-top:10px;">{{ gpuPool.status }}</div>
         </div>
       </div>
-      <div v-if="gpuPool.forgeModal.open" class="gpu-forge-modal" @click.self="closeGpuForgeModal()">
+      <div v-if="gpuPool.forgeModal.open" class="gpu-forge-modal" @click="onGpuForgeModalBackdropClick">
         <div class="gpu-forge-modal__dialog">
           <div class="gpu-forge-modal__header">
             <div>

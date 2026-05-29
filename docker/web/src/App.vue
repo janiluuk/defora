@@ -6310,6 +6310,9 @@ normalizeGpuForgeSettings(raw = {}, fallback = {}) {
 gpuForgePreferredQuery(nodeId) {
   return nodeId ? `?preferredNode=${encodeURIComponent(nodeId)}` : '';
 },
+onGpuForgeModalBackdropClick(event) {
+  if (event?.target === event?.currentTarget) this.closeGpuForgeModal();
+},
 closeGpuForgeModal() {
   this.gpuPool.forgeModal = {
     open: false,
@@ -10791,6 +10794,9 @@ openEngineModelPicker() {
 },
 closeEngineModelPicker() {
   this.engineModelPickerOpen = false;
+},
+onEngineModelPickerBackdropClick(event) {
+  if (event?.target === event?.currentTarget) this.closeEngineModelPicker();
 },
 setEngineModelPickerTab(tab) {
   const allowed = ['sd15', 'sdxl', 'flux', 'zimage', 'other'];
