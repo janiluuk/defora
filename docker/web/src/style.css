@@ -362,19 +362,31 @@
     .btn.playing { background: var(--live); box-shadow: 0 0 10px rgba(29, 158, 117, 0.35); }
     .btn.recording { background: var(--error); animation: btn-rec-pulse 1.5s ease-in-out infinite; }
     @keyframes btn-rec-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
-    .layout { flex: 1; display: grid; grid-template-columns: 1fr; gap: 10px; padding: 10px; }
+    .layout { flex: 1; display: grid; grid-template-columns: 1fr; gap: 10px; padding: 10px; min-height: 0; }
+    .layout--sidebar {
+      min-height: calc(100vh - 54px - 20px);
+      align-content: stretch;
+    }
     .layout--sidebar .preview {
       position: relative;
       width: 100%;
       max-width: min(1200px, calc(100vw - 16px));
       margin: 0 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
     .preview {
       display: grid;
-      grid-template-rows: auto minmax(196px, 196px);
-      align-content: start;
+      grid-template-rows: 1fr;
+      align-content: stretch;
       gap: 4px;
       width: 100%;
+      min-height: 0;
+      flex: 1;
+    }
+    .preview--motion-dock {
+      grid-template-rows: 1fr minmax(196px, 196px);
     }
     .preview-bottom-dock {
       min-height: 196px;
@@ -392,11 +404,7 @@
     .preview-bottom-dock__pane--sequencer .stage-sequencer-shell {
       margin-top: 0;
     }
-    .preview-bottom-dock__pane--frames .frame-rail {
-      height: 100%;
-      box-sizing: border-box;
-    }
-    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: radial-gradient(circle at 50% 35%, rgba(127, 119, 221, 0.18), transparent 40%), var(--media-bg); width: 100%; }
+    .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: var(--media-bg); width: 100%; }
     .video-wrap__stage {
       position: relative;
       width: 100%;
@@ -541,7 +549,7 @@
       filter: none;
       transform: none;
     }
-    video { width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: contain; }
+    video { width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: cover; }
     .video-feed {
       position: absolute;
       inset: 0;
@@ -564,12 +572,12 @@
     }
     .video-feed--standby-preview {
       z-index: 2;
-      object-fit: contain;
+      object-fit: cover;
       background: var(--media-bg);
     }
     .video-feed--hls {
       z-index: 3;
-      object-fit: contain;
+      object-fit: cover;
       background: var(--media-bg);
     }
     .video-wrap--hls-and-preview .video-feed--standby-preview {
@@ -582,7 +590,7 @@
       left: 50%;
       right: 0;
     }
-    .video-still-preview { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: contain; }
+    .video-still-preview { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: cover; }
     .overlay { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; padding: 10px 12px; background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent); font-size: 13px; font-weight: 600; color: var(--media-text); }
     .video-feed-frames {
       margin-top: 4px;
@@ -5089,7 +5097,6 @@
     .layout--stage,
     .layout--studio { grid-template-columns: 1fr; }
     .layout--sidebar .video-wrap--anchored {
-      aspect-ratio: auto;
       width: 100%;
       max-width: none;
       margin: 0;
@@ -5106,19 +5113,22 @@
     .video-wrap--anchored .video-wrap__stage {
       position: relative;
       width: 100%;
-      max-width: min(1200px, 100%);
-      margin: 0 auto;
-      aspect-ratio: 16 / 9;
+      max-width: 100%;
+      margin: 0;
+      flex: 1 1 auto;
+      min-height: min(52vh, 720px);
       overflow: hidden;
-      border-radius: 10px;
+      border-radius: 10px 10px 0 0;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      background: radial-gradient(circle at 50% 35%, rgba(127, 119, 221, 0.18), transparent 40%), var(--media-bg);
+      border-bottom: none;
+      background: var(--media-bg);
     }
     .video-wrap--anchored .video-wrap__stage--preview {
-      max-width: min(960px, 100%);
+      max-width: 100%;
     }
     .video-wrap--anchored .video-wrap__stage--full {
       max-width: 100%;
+      min-height: min(68vh, 900px);
       border-radius: 0;
       border-left: none;
       border-right: none;
@@ -5129,9 +5139,11 @@
     }
     .layout--sidebar .preview.preview--stage-full .video-wrap--anchored .video-wrap__stage {
       max-width: 100%;
+      min-height: min(72vh, 960px);
     }
     .video-wrap--anchored .video-wrap__stage video,
-    .video-wrap--anchored .video-wrap__stage .video-still-preview {
+    .video-wrap--anchored .video-wrap__stage .video-still-preview,
+    .video-wrap--anchored .video-wrap__stage .video-feed {
       object-fit: cover;
     }
   .video-wrap--anchored .video-wrap__stage > .overlay {
@@ -7043,6 +7055,29 @@
       display: grid;
       gap: 10px;
       min-height: min(78vh, 900px);
+      grid-template-rows: auto 1fr;
+    }
+    .editor-workspace-shell__toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 0 2px 4px;
+    }
+    .editor-workspace-shell__status {
+      font-size: 11px;
+      color: var(--text-dim);
+      max-width: min(520px, 100%);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .editor-workspace-shell__status--live {
+      color: var(--live-text);
+    }
+    .editor-workspace-shell .editor-view {
+      min-height: 0;
     }
     .editor-view {
       display: grid;
