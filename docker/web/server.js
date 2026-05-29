@@ -10,10 +10,22 @@ const { EventEmitter } = require("events");
 const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
+const {
+  isCiOffline,
+  skipBackgroundProbes,
+  isQuietMode,
+  blockExternalFetches,
+  installCiFetchGuard,
+} = require("./modules/ci-offline");
 const { resolveStoragePaths } = require("./modules/storage-paths");
 const promptStylesStore = require("./modules/prompt-styles-store");
 
 async function start(opts = {}) {
+  const runtimeEnv = opts.env || process.env;
+  installCiFetchGuard(runtimeEnv);
+  if (blockExternalFetches(runtimeEnv)) {
+    console.log("[web] CI quiet mode — external Forge/LLM connections disabled");
+  }
   const port = opts.port ?? process.env.PORT ?? 3000;
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
@@ -575,6 +587,9 @@ async function start(opts = {}) {
   }
 
   async function renderDeforumPreview(settings, target, optionsOverrides = {}) {
+    if (blockExternalFetches(process.env)) {
+      return { ok: false, skipped: true, reason: "ci_offline" };
+    }
     const forgeUrl = target.url;
     const baselineFrame = await latestFrameInfo();
     const previewSettings = {
@@ -808,6 +823,7 @@ async function start(opts = {}) {
 
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
   async function probeSdForge() {
+    if (skipBackgroundProbes(process.env)) return;
     if (typeof fetch === "undefined") return;
     const target = forgeTarget({});
     const forgeUrl = target.url;
@@ -840,6 +856,21 @@ async function start(opts = {}) {
   
   // Serve static files from public directory
   const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
+  const quietBoot = isQuietMode(runtimeEnv);
+  const indexHtmlPath = path.join(publicDir, "index.html");
+  if (quietBoot && fs.existsSync(indexHtmlPath)) {
+    app.get(["/", "/index.html"], (_req, res) => {
+      try {
+        const html = fs.readFileSync(indexHtmlPath, "utf8");
+        const injected = html.includes("__DEFORA_QUIET__")
+          ? html
+          : html.replace("<head>", '<head>\n  <script>window.__DEFORA_QUIET__=1</script>');
+        res.type("html").send(injected);
+      } catch (err) {
+        res.sendFile(indexHtmlPath);
+      }
+    });
+  }
   app.use(express.static(publicDir));
 
   const freecutDir =
@@ -1007,9 +1038,12 @@ async function start(opts = {}) {
   // API status endpoint for model availability
   app.get("/api/status", (_req, res) => {
     const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
+    const quiet = isQuietMode(process.env);
     res.json({
+      quiet,
+      externalServicesDisabled: blockExternalFetches(process.env),
       sdForge: {
-        available: apiStatus.sdForgeAvailable,
+        available: quiet ? false : apiStatus.sdForgeAvailable,
         lastChecked: apiStatus.lastChecked,
         pollIntervalMs: Number.isFinite(sdForgePollMs) && sdForgePollMs > 0 ? sdForgePollMs : 0,
       },
@@ -2194,6 +2228,9 @@ async function start(opts = {}) {
     const target = previewForgeTarget(req);
     try {
       const result = await renderDeforumPreview(settings, target, body.options_overrides || {});
+      if (result && result.skipped) {
+        return res.json(result);
+      }
       if (result && result.batchId) {
         persistRunJobSnapshot(result.batchId, {
           kind: "deforum_preview",
@@ -2231,6 +2268,9 @@ async function start(opts = {}) {
   app.post("/api/deforum/warmup", async (req, res) => {
     if (warmupRunning) {
       return res.json({ ok: true, batchId: warmupBatchId, status: "already_running" });
+    }
+    if (isCiOffline()) {
+      return res.json({ ok: false, status: "ci_offline", error: "External services disabled in CI" });
     }
     const body = req.body || {};
     const maxFrames = Math.max(1, Math.min(480, parseInt(body.maxFrames, 10) || 48));

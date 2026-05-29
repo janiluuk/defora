@@ -453,7 +453,7 @@ describe("distributed Forge sync", () => {
   });
 
   it("switches models across all enabled Forge nodes", async () => {
-    // Reset call log so pool-startup health checks don't interfere.
+    await request.post("/api/gpu-pool/refresh");
     fetchCalls.length = 0;
     const res = await request.post("/api/sd-models/switch").send({ model_name: "sdxl_turbo.safetensors" });
 
@@ -468,6 +468,8 @@ describe("distributed Forge sync", () => {
   });
 
   it("updates forge options across all enabled Forge nodes", async () => {
+    await request.post("/api/gpu-pool/refresh");
+    fetchCalls.length = 0;
     const res = await request.post("/api/forge/options").send({
       sampler_name: "Euler a",
       cfg_scale: 1,

@@ -31,6 +31,16 @@ export async function clickTab(page, label) {
   await tab.click();
 }
 
+export async function ensureRightPanelClosed(page) {
+  const toggle = page.locator('[data-testid="right-panel-toggle"]').first();
+  if ((await toggle.count()) === 0) return;
+  const expanded = await toggle.getAttribute('aria-expanded');
+  if (expanded === 'true') {
+    await toggle.click();
+    await page.waitForTimeout(400);
+  }
+}
+
 export async function ensureRightPanelOpen(page) {
   const toggle = page.locator('[data-testid="right-panel-toggle"]').first();
   if ((await toggle.count()) === 0) return;

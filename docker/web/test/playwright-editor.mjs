@@ -5,8 +5,8 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { chromium } from 'playwright';
-import { start } from '../server.js';
-import { clickTab, ensureRightPanelOpen, openLibraryBrowser, waitForNavTabs } from './playwright-nav.mjs';
+import { clickTab, ensureRightPanelClosed, ensureRightPanelOpen, openLibraryBrowser, waitForNavTabs } from './playwright-nav.mjs';
+import { startE2eServer } from './playwright-server.mjs';
 
 async function dismissSessionModalIfOpen(page) {
   const modal = page.locator('.restore-session-modal');
@@ -27,13 +27,13 @@ fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(sequencersDir, { recursive: true });
 fs.writeFileSync(path.join(uploadsDir, 'editor-handoff.mp4'), Buffer.from('defora-editor-mp4'));
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   sequencersDir,
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 
@@ -80,6 +80,7 @@ try {
   await clickTab(page, 'MOTION');
   await ensureRightPanelOpen(page);
   await page.waitForSelector('[data-testid="motion-controls-panel"]', { timeout: 15000 });
+  await ensureRightPanelClosed(page);
   await page.locator('[data-testid="motion-sequencer-side-toggle"]').click();
   await page.waitForSelector('[data-testid="motion-sequencer-side-drawer"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="sequencer-controls-panel"]', { timeout: 15000 });

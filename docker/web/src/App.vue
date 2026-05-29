@@ -2982,21 +2982,26 @@ export default {
     this.loadBindings();
     this.refreshPresets();
     this.refreshSharedPresets();
-    this.refreshGpuPool(false);
-    this.loadControlNetModels();
+    const quiet = this.isQuietStartup();
+    if (!quiet) {
+      this.refreshGpuPool(false);
+      this.loadControlNetModels();
+    }
     this.refreshPlugins();
     void this.loadPromptStyles();
     this.syncDeforumSettingsJson();
     const deforumSettingsPromise = this.loadDeforumSettings({ syncServerModel: false });
-    const forgeRefreshPromise = this.refreshForgeAll();
+    const forgeRefreshPromise = quiet ? Promise.resolve() : this.refreshForgeAll();
     deforumSettingsPromise.finally(() => {
-      if (!this.deforumPlaying) this.schedulePreviewFrame();
-      void this.preloadDeforumPipeline();
+      if (!quiet && !this.deforumPlaying) this.schedulePreviewFrame();
+      if (!quiet) void this.preloadDeforumPipeline();
     });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
-      this.restoreLastModel();
-      void this.ensureDefaultForgeModelPreloaded();
-      void this.preloadDeforumPipeline();
+      if (!quiet) {
+        this.restoreLastModel();
+        void this.ensureDefaultForgeModelPreloaded();
+        void this.preloadDeforumPipeline();
+      }
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -3013,12 +3018,14 @@ export default {
         });
       };
       scheduleFramesPoll();
-      const scheduleHealthPoll = () => {
-        this.refreshApiHealth().finally(() => {
-          this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
-        });
-      };
-      scheduleHealthPoll();
+      if (!quiet) {
+        const scheduleHealthPoll = () => {
+          this.refreshApiHealth().finally(() => {
+            this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
+          });
+        };
+        scheduleHealthPoll();
+      }
     }
     this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
     this.lfoTimer = setInterval(() => this.runLfos(), 120);
@@ -3033,7 +3040,7 @@ export default {
       this.bindSidePanelDockTracking();
     });
     this.initPromptHistory();
-    this.refreshServiceHealth();
+    if (!quiet) this.refreshServiceHealth();
     this.syncRunsMonitorPolling();
   },
   beforeUnmount() {
@@ -3063,6 +3070,10 @@ export default {
     }
   },
   methods: {
+
+  isQuietStartup() {
+    return typeof window !== 'undefined' && window.__DEFORA_QUIET__ === 1;
+  },
 
   cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -11795,6 +11806,7 @@ flushQueuedPreview() {
   }, 0);
 },
  schedulePreviewFrame() {
+  if (this.isQuietStartup()) return;
   this.queuePreviewRequest('auto', 180);
  },
  scheduleDeforumPreview() {

@@ -55,6 +55,7 @@ class NodeWebServer:
         self.port = free_port()
         env = os.environ.copy()
         env["DISABLE_MQ"] = "1"
+        env["DEFORA_CI_OFFLINE"] = "1"
         env["PORT"] = str(self.port)
         env["FRAMES_DIR"] = self.frames_dir
         env["HLS_DIR"] = self.hls_dir

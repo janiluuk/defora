@@ -32,7 +32,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
 import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -73,7 +73,7 @@ const uploadsDir   = path.join(tmpRoot, "uploads");
 const sequencersDir = path.join(tmpRoot, "sequencers");
 for (const d of [runsDir, framesDir, uploadsDir, sequencersDir]) fs.mkdirSync(d, { recursive: true });
 
-const svc  = await start({ port: 0, runsDir, framesDir, uploadsDir, sequencersDir, enableMq: false });
+const svc = await startE2eServer({ port: 0, root: tmpRoot, runsDir, framesDir, uploadsDir, sequencersDir });
 const base = `http://127.0.0.1:${svc.port}`;
 const browser = await chromium.launch({ headless: true });
 

@@ -9,7 +9,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
 import { openRunsMonitor, waitForNavTabs, waitForPastRunRow } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
@@ -70,13 +70,13 @@ fs.writeFileSync(path.join(runPath, "thumb.png"), tinyPngBuffer());
 // Also drop at least one frame so the thumb fallback path is valid.
 fs.writeFileSync(path.join(runPath, "frame_0001.png"), tinyPngBuffer());
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   sequencersDir,
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 

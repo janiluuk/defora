@@ -56,9 +56,10 @@ jobs:
         env:
           FRAMES_DIR: /tmp/defora-frames
           HLS_DIR: /tmp/defora-hls
+          DEFORA_CI_OFFLINE: "1"
         run: |
           mkdir -p /tmp/defora-frames /tmp/defora-hls
-          PORT=3999 DISABLE_MQ=1 node server.js &
+          PORT=3999 DISABLE_MQ=1 DEFORA_CI_OFFLINE=1 GITHUB_ACTIONS=true node server.js &
           echo $! > /tmp/defora-web.pid
           sleep 2
           for i in 1 2 3 4 5 6 7 8 9 10; do

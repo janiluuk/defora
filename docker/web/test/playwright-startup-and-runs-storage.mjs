@@ -8,7 +8,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
 import { clickTab, openRunsMonitor, waitForNavTabs, waitForPastRunRow } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
@@ -50,13 +50,13 @@ fs.writeFileSync(
 );
 fs.writeFileSync(path.join(runPath, "thumb.png"), tinyPngBuffer());
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   sequencersDir,
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 
