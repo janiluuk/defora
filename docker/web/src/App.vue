@@ -646,8 +646,8 @@ import {
   buildLinearScheduleRamp,
   normalizeDeforumMode2d3d,
   isDeforum3dOnlyFieldKey,
-} from './deforum-settings-schema.js'
-import { verifyDeforumSettings } from './deforum-settings-verify.js'
+} from './deforum-settings-schema.mjs'
+import { verifyDeforumSettings } from './deforum-settings-verify.mjs'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
 import {
   buildRunDetailCurrentContext,
