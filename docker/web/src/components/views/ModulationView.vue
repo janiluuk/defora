@@ -62,11 +62,11 @@
               </label>
             </div>
             <div class="modulation-lfo-card__footer">
-              <span v-if="lfo.targets.length" class="modulation-route-pill" v-for="targetKey in lfo.targets" :key="'lfo-route-' + lfo.id + '-' + targetKey">
+              <span v-if="(lfo.targets || []).length" class="modulation-route-pill" v-for="targetKey in (lfo.targets || [])" :key="'lfo-route-' + lfo.id + '-' + targetKey">
                 {{ sequencerParamMetaMap[targetKey]?.label || targetKey }}
               </span>
               <span v-else class="modulation-route-pill modulation-route-pill--idle">off</span>
-              <button class="framesync-button modulation-lfo-card__route-button" @click.stop="modulationSelectedLfoId = lfo.id">+ route</button>
+              <button type="button" class="framesync-button modulation-lfo-card__route-button" @click="onLfoRouteButtonClick(lfo.id)">+ route</button>
             </div>
           </div>
         </div>
@@ -113,8 +113,8 @@
             class="modulation-audio-dropzone"
             :class="{ 'modulation-audio-dropzone--filled': audio.objectUrl }"
             data-testid="audio-dropzone"
-            @dragover.prevent
-            @drop.prevent="onAudioFileDrop"
+            @dragover="onModulationAudioDragover"
+            @drop="onModulationAudioDrop"
             @click="$refs.audioFileInput && $refs.audioFileInput.click()"
           >
             <input
@@ -127,7 +127,7 @@
             <template v-if="audio.uploadedFile">
               <span class="modulation-audio-dropzone__title">{{ audio.uploadedFile }}</span>
               <span class="modulation-audio-dropzone__hint">{{ audioStatus || 'Ready' }}</span>
-              <button type="button" class="framesync-button framesync-button--compact" @click.stop="clearAudioFile">Remove</button>
+              <button type="button" class="framesync-button framesync-button--compact" @click="clearAudioFile">Remove</button>
             </template>
             <template v-else>
               <span class="modulation-audio-dropzone__title">Drop audio here</span>

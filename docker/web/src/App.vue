@@ -947,6 +947,8 @@ export default {
         newFolderName: '',
         _rootsLoaded: false,
       },
+      videoSwarmVisibleStart: 0,
+      videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
       liveBottomDrawerOpen: false,
       liveBottomDrawerTab: 'MODULATION',
@@ -2213,6 +2215,47 @@ export default {
       }
       return groups;
     },
+    mappingsActiveGroupLabel() {
+      const groups = this.modulationMappingsVisibleGroups || [];
+      const tab = this.mappingsGroupTab || this.animationModeGroupLabel;
+      if (groups.some((g) => g.label === tab)) return tab;
+      return groups[0]?.label || '';
+    },
+    mappingsActiveGroup() {
+      const groups = this.modulationMappingsVisibleGroups || [];
+      const label = this.mappingsActiveGroupLabel;
+      return groups.find((g) => g.label === label) || groups[0] || null;
+    },
+    modulationMapPickerParamLabel() {
+      const key = this.modulationMapPicker?.paramKey;
+      if (!key) return '';
+      const t = this.modulationTargetByKey(key);
+      return t?.label || key;
+    },
+    videoSwarmIsCloudRoot() {
+      return this.isCloudStorageRoot(this.systemFiles.rootId);
+    },
+    videoSwarmIsVideosOnly() {
+      return this.systemFiles.viewMode === 'videos-only';
+    },
+    videoSwarmCloudPathLabel() {
+      const src = this.systemFiles.cloudSource;
+      if (!src) return 'Cloud storage';
+      return `${this.cloudProviderLabel(src.provider)} — ${src.label}`;
+    },
+    videoSwarmDisplayFolders() {
+      if (this.videoSwarmIsVideosOnly || this.videoSwarmIsCloudRoot) return [];
+      return Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : [];
+    },
+    videoSwarmDisplayVideos() {
+      const list = Array.isArray(this.systemFiles.videos) ? this.systemFiles.videos : [];
+      return list.slice(this.videoSwarmVisibleStart, this.videoSwarmVisibleEnd);
+    },
+    videoSwarmFullscreenVideo() {
+      const list = this.systemFiles.videos || [];
+      const idx = this.systemFiles.fullscreenIndex;
+      return idx >= 0 && idx < list.length ? list[idx] : null;
+    },
     liveModSlotPickerOptions() {
       return [
         { index: 0, label: 'Slider 1' },
@@ -3371,6 +3414,7 @@ export default {
   },
   onRunRowClick(run, event) {
     if (!run) return;
+    if (event?.target?.closest?.('button, a, input, select, textarea, label')) return;
     if (event && (event.metaKey || event.ctrlKey)) {
       this.toggleRunSelect(run.run_id);
       return;
@@ -5172,6 +5216,12 @@ systemFilePlaybackUrl(video) {
   if (video.rootId) q.set('rootId', video.rootId);
   return `/api/video-swarm/file?${q.toString()}`;
 },
+formatVideoSwarmFileSize(bytes) {
+  const n = Number(bytes) || 0;
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+},
 systemFileMediaUrl(filePath) {
   const raw = String(filePath || '');
   if (/^https?:\/\//i.test(raw)) return raw;
@@ -6680,6 +6730,14 @@ syncMotionPadFromPayload(payload) {
  closeModulationMapPicker() {
    this.modulationMapPicker = null;
  },
+ onModulationMapPickerBackdropClick(event) {
+   if (event.target === event.currentTarget) this.closeModulationMapPicker();
+ },
+ formatMappingParamValue(key) {
+   const v = Number(this.paramControlMeta(key).value);
+   if (!Number.isFinite(v)) return '—';
+   return Math.abs(v) >= 10 ? v.toFixed(1) : v.toFixed(2);
+ },
  assignModulationMapToSlot(slotIndex) {
    const key = this.modulationMapPicker && this.modulationMapPicker.paramKey;
    if (!key) return;
@@ -6701,6 +6759,16 @@ syncMotionPadFromPayload(payload) {
    if (!file) return;
    if (file.type && !String(file.type).startsWith('audio/')) return;
    this.handleAudioUpload({ target: { files: [file], value: '' } });
+ },
+ onModulationAudioDragover(event) {
+   event?.preventDefault();
+ },
+ onModulationAudioDrop(event) {
+   event?.preventDefault();
+   this.onAudioFileDrop(event);
+ },
+ onLfoRouteButtonClick(id) {
+   this.modulationSelectedLfoId = id;
  },
  clearParamMapping(paramKey) {
    if (!paramKey) return;

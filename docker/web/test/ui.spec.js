@@ -143,6 +143,13 @@ function mountQuietApp(appDef) {
   const app = createApp(appDef);
   // CI logs become unusable when Vue dumps the full proxied app object.
   app.config.warnHandler = () => {};
+  // Render Teleport children in-place (JSDOM has no document.body target parity).
+  app.component("Teleport", {
+    name: "Teleport",
+    setup(_, { slots }) {
+      return () => (slots.default ? slots.default() : null);
+    },
+  });
   return app.mount("#app");
 }
 
@@ -1270,8 +1277,14 @@ describe("Deforumation Web UI", () => {
       if (path.includes("/api/deforum/batches")) {
         return { ok: true, json: async () => ({ batches: appVm.deforumBatches, nodes: appVm.deforumBatchNodes, errors: [] }) };
       }
+      if (path.includes("/api/gpu-pool/refresh")) {
+        return { ok: true, json: async () => ({ ok: true }) };
+      }
       if (path.includes("/api/gpu-pool")) {
-        return { ok: true, json: async () => ({ enabled: true, nodes: appVm.gpuPool.nodes, healthyNodes: 2 }) };
+        return { ok: true, json: async () => ({ enabled: true, nodes: appVm.gpuPool.nodes, healthyNodes: 2, strategy: "round_robin" }) };
+      }
+      if (path.includes("/api/infrastructure")) {
+        return { ok: true, json: async () => ({ mediator: null, transcoders: [] }) };
       }
       return { ok: true, json: async () => ({}) };
     };

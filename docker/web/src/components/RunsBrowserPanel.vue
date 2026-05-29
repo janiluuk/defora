@@ -139,7 +139,7 @@
                   <button
                     v-if="canKillQueuedRun(run)"
                     class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action runs-browser__action--danger"
-                    @click.stop="killQueuedRun(run)"
+                    @click="killQueuedRun(run)"
                     title="Cancel queued batch"
                   >Kill</button>
                 </div>
@@ -237,11 +237,11 @@
                   <button
                     v-if="canKillQueuedRun(run)"
                     class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action runs-browser__action--danger"
-                    @click.stop="killQueuedRun(run)"
+                    @click="killQueuedRun(run)"
                     title="Cancel queued batch"
                   >Kill</button>
-                  <button v-if="!run._isBatch" class="framesync-button runs-browser__action" @click.stop="rerunRun(run)" title="Rerun">↻</button>
-                  <button v-if="!run._isBatch" class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click.stop="deleteRun(run)" title="Delete">✕</button>
+                  <button v-if="!run._isBatch" class="framesync-button runs-browser__action" @click="rerunRun(run)" title="Rerun">↻</button>
+                  <button v-if="!run._isBatch" class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click="deleteRun(run)" title="Delete">✕</button>
                 </div>
               </td>
             </tr>
