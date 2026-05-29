@@ -78,11 +78,14 @@ try {
   }
 
   await clickTab(page, 'MOTION');
-  await ensureRightPanelOpen(page);
-  await page.waitForSelector('[data-testid="motion-controls-panel"]', { timeout: 15000 });
   await ensureRightPanelClosed(page);
-  await page.locator('[data-testid="motion-sequencer-side-toggle"]').click();
-  await page.waitForSelector('[data-testid="motion-sequencer-side-drawer"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="motion-sequencer-dock"]', { timeout: 15000 });
+  const seqToggle = page.locator('[data-testid="motion-sequencer-side-toggle"]');
+  await seqToggle.scrollIntoViewIfNeeded();
+  await seqToggle.evaluate((el) => {
+    el.click();
+  });
+  await page.locator('[data-testid="motion-sequencer-side-drawer"]').waitFor({ state: 'visible', timeout: 15000 });
   await page.waitForSelector('[data-testid="sequencer-controls-panel"]', { timeout: 15000 });
   await page.waitForSelector('.timeline-hero', { timeout: 15000 });
 

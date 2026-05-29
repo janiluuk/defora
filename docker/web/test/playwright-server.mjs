@@ -23,27 +23,28 @@ export function writeEmptyGpuPool(dir) {
   return gpuPoolPath;
 }
 
+function e2eEnv(extra = {}) {
+  return {
+    ...process.env,
+    DEFORA_CI_OFFLINE: "1",
+    GITHUB_ACTIONS: process.env.GITHUB_ACTIONS || "true",
+    SD_FORGE_HOST: "127.0.0.1",
+    SD_FORGE_PORT: "9",
+    OLLAMA_BASE_URL: "http://127.0.0.1:9",
+    ...extra,
+  };
+}
+
 /** Start server.js for Playwright with CI-safe defaults (no outbound Forge/Ollama). */
 export async function startE2eServer(opts = {}) {
   const root = opts.root || opts.tmpRoot;
   const gpuPoolPath =
     opts.gpuPoolPath || (root ? writeEmptyGpuPool(root) : path.join(process.cwd(), "gpu-pool-e2e.json"));
-  const prev = {
-    DEFORA_CI_OFFLINE: process.env.DEFORA_CI_OFFLINE,
-    GITHUB_ACTIONS: process.env.GITHUB_ACTIONS,
-  };
-  process.env.DEFORA_CI_OFFLINE = "1";
-  if (!process.env.GITHUB_ACTIONS) process.env.GITHUB_ACTIONS = "true";
-  try {
-    return await start({
-      enableMq: false,
-      gpuPoolPath,
-      ...opts,
-    });
-  } finally {
-    if (prev.DEFORA_CI_OFFLINE === undefined) delete process.env.DEFORA_CI_OFFLINE;
-    else process.env.DEFORA_CI_OFFLINE = prev.DEFORA_CI_OFFLINE;
-    if (prev.GITHUB_ACTIONS === undefined) delete process.env.GITHUB_ACTIONS;
-    else process.env.GITHUB_ACTIONS = prev.GITHUB_ACTIONS;
-  }
+  const env = e2eEnv(opts.env);
+  return start({
+    enableMq: false,
+    gpuPoolPath,
+    ...opts,
+    env,
+  });
 }

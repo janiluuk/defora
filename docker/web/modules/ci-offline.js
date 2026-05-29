@@ -2,7 +2,7 @@
  * Guard external Forge / Ollama / GPU-pool probes in GitHub Actions and other CI.
  *
  * - skipBackgroundProbes / isQuietMode: startup probes + client quiet boot (GITHUB_ACTIONS or DEFORA_CI_OFFLINE)
- * - blockExternalFetches: block outbound Forge/LLM HTTP from the server (same condition)
+ * - blockExternalFetches: block outbound Forge/LLM HTTP (DEFORA_CI_OFFLINE only, or via opts.env in e2e)
  */
 
 function truthyEnv(value) {
@@ -22,7 +22,7 @@ function isQuietMode(env = process.env) {
 }
 
 function blockExternalFetches(env = process.env) {
-  return skipBackgroundProbes(env);
+  return isCiOffline(env);
 }
 
 function isPrivateHost(host) {

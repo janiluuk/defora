@@ -32,11 +32,23 @@ export async function clickTab(page, label) {
 }
 
 export async function ensureRightPanelClosed(page) {
+  const drawer = page.locator('[data-testid="right-panel-drawer"]').first();
   const toggle = page.locator('[data-testid="right-panel-toggle"]').first();
   if ((await toggle.count()) === 0) return;
   const expanded = await toggle.getAttribute('aria-expanded');
   if (expanded === 'true') {
     await toggle.click();
+  }
+  if ((await drawer.count()) > 0) {
+    await drawer.waitFor({
+      state: 'attached',
+      timeout: 5000,
+    });
+    await page.waitForFunction(() => {
+      const el = document.querySelector('[data-testid="right-panel-drawer"]');
+      return el && !el.classList.contains('live-drawer-shell--open');
+    }, { timeout: 5000 }).catch(() => null);
+  } else {
     await page.waitForTimeout(400);
   }
 }

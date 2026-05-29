@@ -3,6 +3,7 @@ const assert = require("node:assert/strict");
 const {
   isCiOffline,
   skipBackgroundProbes,
+  blockExternalFetches,
   isBlockedExternalUrl,
   installCiFetchGuard,
 } = require("../modules/ci-offline");
@@ -24,21 +25,8 @@ describe("ci-offline", () => {
     assert.equal(isBlockedExternalUrl("http://ollama-a:11434/api/tags"), true);
   });
 
-  it("installCiFetchGuard rejects blocked URLs under GITHUB_ACTIONS", async () => {
-    const prevFetch = global.fetch;
-    global.fetch = async () => ({ ok: true, status: 200, text: async () => "{}" });
-    try {
-      installCiFetchGuard({ GITHUB_ACTIONS: "true" });
-      await assert.rejects(
-        () => global.fetch("http://192.168.2.101:7860/sdapi/v1/options"),
-        /External services disabled in CI/
-      );
-      const res = await global.fetch("http://127.0.0.1:9/health");
-      assert.equal(res.ok, true);
-    } finally {
-      global.fetch = prevFetch;
-      delete global.fetch.__deforaCiGuard;
-    }
+  it("does not block external fetches with GITHUB_ACTIONS alone", () => {
+    assert.equal(blockExternalFetches({ GITHUB_ACTIONS: "true" }), false);
   });
 
   it("installCiFetchGuard rejects blocked URLs under DEFORA_CI_OFFLINE", async () => {
