@@ -273,14 +273,12 @@
 
 <script>
 import UiIcon from '../UiIcon.vue'
-import EditorShell from '../EditorShell.vue'
-import SequencerControlsPanel from '../SequencerControlsPanel.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, EditorShell, SequencerControlsPanel, MotionPathPreview },
+  components: { UiIcon, MotionPathPreview },
   props: {
     app: { type: Object, required: true },
   },
