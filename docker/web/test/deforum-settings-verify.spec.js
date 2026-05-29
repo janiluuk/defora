@@ -4,8 +4,8 @@ const { loadEsm } = require('./load-esm');
 
 describe('deforum-settings-verify', () => {
   it('flags missing prompt as error', async () => {
-    const { verifyDeforumSettings } = await loadEsm('..', 'src', 'deforum-settings-verify.js');
-    const { DEFORUM_DEFAULT_SETTINGS } = await loadEsm('..', 'src', 'deforum-settings-schema.js');
+    const { verifyDeforumSettings } = await loadEsm('..', 'src', 'deforum-settings-verify.mjs');
+    const { DEFORUM_DEFAULT_SETTINGS } = await loadEsm('..', 'src', 'deforum-settings-schema.mjs');
     const settings = { ...DEFORUM_DEFAULT_SETTINGS, prompts: { '0': '' }, positive_prompts: '' };
     const result = verifyDeforumSettings(settings);
     assert.equal(result.ok, false);
@@ -13,7 +13,7 @@ describe('deforum-settings-verify', () => {
   });
 
   it('warns when 2D mode has 3D rotation schedules', async () => {
-    const { verifyDeforumSettings } = await loadEsm('..', 'src', 'deforum-settings-verify.js');
+    const { verifyDeforumSettings } = await loadEsm('..', 'src', 'deforum-settings-verify.mjs');
     const settings = {
       W: 768,
       H: 432,
