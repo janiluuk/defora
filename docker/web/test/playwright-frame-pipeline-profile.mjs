@@ -33,7 +33,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -48,17 +48,6 @@ function rpad(s, n) { return String(s).padEnd(n); }
 function fmt(ms) {
   if (ms == null) return "—";
   return `${ms}ms`;
-}
-
-async function openFramesPanel(page) {
-  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]');
-  if ((await drawerToggle.count()) > 0) {
-    const expanded = await drawerToggle.getAttribute("aria-expanded");
-    if (expanded !== "true") await drawerToggle.click();
-  }
-  await page.locator(".live-top-drawer__tabs .sub-pill").filter({ hasText: /^SYSTEM$/ }).click();
-  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
-  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────────
@@ -150,7 +139,7 @@ try {
   // Go to LIVE tab and open frames in System → Runs → Frames
   await clickTab(page, "LIVE");
 
-  await openFramesPanel(page);
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(200);
 
   // Capture performance.timeOrigin so we can convert WS performance.now() to epoch ms

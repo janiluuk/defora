@@ -17,27 +17,16 @@
     <div class="animation-engine-panel__head">
       <div class="framesync-title">
         <UiIcon class="framesync-title-icon" name="film" />
-        <span class="framesync-accent">Engines</span>
-        <span
-          v-if="lcmEngineEnabled"
-          class="lcm-engine-badge"
-          data-testid="lcm-engine-badge"
-          title="LCM Engine mode — fast steps with LCM LoRA"
-        >
-          <UiIcon class="lcm-engine-badge__icon" name="lightning" />
-          LCM
-        </span>
+        <span class="framesync-accent">Layers</span>
       </div>
       <button
+        v-if="!rightPanelOpen"
         type="button"
         class="framesync-button framesync-button--compact"
-        :class="{ active: enginePanelDetailsOpen }"
-        :aria-expanded="enginePanelDetailsOpen ? 'true' : 'false'"
-        data-testid="animation-engine-details-toggle"
-        @click="toggleEnginePanelDetails()"
+        data-testid="animation-engine-open-controls"
+        @click="openEngineControlsInRightPanel"
       >
-        <UiIcon :name="enginePanelDetailsOpen ? 'chevron-up' : 'chevron-down'" />
-        Details
+        Controls →
       </button>
     </div>
 
@@ -81,185 +70,54 @@
       </li>
     </ul>
 
-    <div v-if="enginePanelDetailsOpen" class="animation-engine-panel__details" data-testid="animation-engine-details">
-      <div class="sub-pills animation-engine-panel__tabs">
-        <button
-          type="button"
-          class="sub-pill"
-          :class="{ active: enginePanelDetailsTab === 'ENGINE' }"
-          @click="setEnginePanelDetailsTab('ENGINE')"
-        >
-          Controls
-        </button>
-        <button
-          type="button"
-          class="sub-pill"
-          :class="{ active: enginePanelDetailsTab === 'JOB' }"
-          @click="setEnginePanelDetailsTab('JOB')"
-        >
-          Deforum
-        </button>
+    <div class="animation-engine-panel__sources">
+      <button
+        type="button"
+        class="framesync-button framesync-button--compact"
+        :class="{ active: videoLayerAddOpen }"
+        data-testid="video-layer-add-toggle"
+        @click="toggleVideoLayerAdd()"
+      >
+        + Add source
+      </button>
+      <div
+        v-if="currentTab === 'LIVE' && videoLayerAddOpen"
+        class="video-layer-add"
+        data-testid="video-layer-add"
+      >
+        <div class="chips video-layer-add__mode">
+          <button type="button" class="chip" :class="{ active: liveSourcePanel === 'library' }" @click="liveSourcePanel = 'library'; saveSessionState()">Video library</button>
+          <button type="button" class="chip" :class="{ active: liveSourcePanel === 'cloud' }" @click="liveSourcePanel = 'cloud'; saveSessionState()">Cloud drive</button>
+        </div>
+        <div v-if="liveSourcePanel === 'library'" style="margin-top:8px;">
+          <VideoSwarmBrowser :app="app" />
+        </div>
+        <div v-else style="margin-top:8px;">
+          <div class="framesync-row" style="grid-template-columns: 1fr 0.8fr; gap:10px;">
+            <input class="framesync-input" v-model.trim="cloudDriveDraft.url" placeholder="https://drive.google.com/...">
+            <select class="framesync-select" v-model="cloudDriveDraft.provider">
+              <option value="google_drive">Google Drive</option>
+              <option value="dropbox">Dropbox</option>
+              <option value="onedrive">OneDrive</option>
+            </select>
+          </div>
+          <div class="framesync-footer" style="margin-top:8px;">
+            <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
+          </div>
+        </div>
       </div>
-
-      <template v-if="enginePanelDetailsTab === 'ENGINE'">
-        <div class="animation-engine-picker__toolbar">
-          <div class="framesync-subtitle" style="margin:0;">Preview source</div>
-          <button
-            type="button"
-            class="framesync-button framesync-button--compact animation-engine-picker__size"
-            :title="videoStageSize === 'small' ? 'Small stage' : videoStageSize === 'medium' ? 'Medium stage' : 'Full stage'"
-            @click="toggleVideoStageSize()"
-          >
-            <UiIcon
-              :name="videoStageSize === 'small' ? 'size-small' : videoStageSize === 'medium' ? 'size-medium' : 'size-full'"
-              aria-hidden="true"
-            />
-            Stage size
-          </button>
-        </div>
-
-        <div class="animation-engine-picker" data-testid="animation-engine-picker">
-          <button
-            v-for="layer in videoLayers"
-            :key="'animation-engine-picker-' + layer.id"
-            type="button"
-            class="animation-engine-card animation-engine-card--compact"
-            :class="{
-              'animation-engine-card--active': activeVideoLayerId === layer.id,
-              'animation-engine-card--builtin': layer.builtin,
-              'animation-engine-card--wan': layer.kind === 'wan',
-            }"
-            :aria-pressed="activeVideoLayerId === layer.id ? 'true' : 'false'"
-            @click="selectVideoLayer(layer.id)"
-          >
-            <span
-              class="animation-engine-card__dot"
-              :class="'animation-engine-card__dot--' + layerStatus(layer)"
-              aria-hidden="true"
-            ></span>
-            <span class="animation-engine-card__label">{{ layer.label }}</span>
-          </button>
-          <button
-            type="button"
-            class="animation-engine-card animation-engine-card--add animation-engine-card--compact"
-            :class="{ 'animation-engine-card--active': videoLayerAddOpen }"
-            data-testid="video-layer-add-toggle"
-            @click="toggleVideoLayerAdd()"
-          >
-            <span class="animation-engine-card__label">+ Add</span>
-          </button>
-        </div>
-
-        <div
-          v-if="currentTab === 'LIVE' && videoLayerAddOpen"
-          class="video-layer-add framesync-panel"
-          data-testid="video-layer-add"
-        >
-          <div class="framesync-header">
-            <div class="framesync-title">
-              <UiIcon class="framesync-title-icon" name="plus" />
-              <span class="framesync-accent">Add source</span>
-            </div>
-            <button type="button" class="framesync-button framesync-button--compact" @click="toggleVideoLayerAdd(false)">Close</button>
-          </div>
-          <p class="framesync-subtitle video-layer-add__hint">
-            New sources open as preview tabs. Built-in layers: WebGL, Deforum, WAN Video, and Input.
-          </p>
-          <div class="chips video-layer-add__mode">
-            <button type="button" class="chip" :class="{ active: liveSourcePanel === 'library' }" @click="liveSourcePanel = 'library'; saveSessionState()">Video library</button>
-            <button type="button" class="chip" :class="{ active: liveSourcePanel === 'cloud' }" @click="liveSourcePanel = 'cloud'; saveSessionState()">Cloud drive</button>
-          </div>
-          <div v-if="liveSourcePanel === 'library'" style="margin-top:10px;">
-            <VideoSwarmBrowser :app="app" />
-          </div>
-          <div v-else style="margin-top:10px;">
-            <div class="framesync-row" style="grid-template-columns: 1fr 0.8fr; gap:10px;">
-              <input class="framesync-input" v-model.trim="cloudDriveDraft.url" placeholder="https://drive.google.com/...">
-              <select class="framesync-select" v-model="cloudDriveDraft.provider">
-                <option value="google_drive">Google Drive</option>
-                <option value="dropbox">Dropbox</option>
-                <option value="onedrive">OneDrive</option>
-              </select>
-            </div>
-            <div class="framesync-footer" style="margin-top:8px;">
-              <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
-            </div>
-          </div>
-        </div>
-
-        <div v-if="isWanLayerActive" class="wan-engine-controls" data-testid="wan-engine-controls">
-          <div class="framesync-subtitle" style="margin-top:10px;">WAN Video · steer generation</div>
-          <p class="framesync-subtitle wan-engine-controls__hint">
-            Uses Deforum <code>animation_mode: Wan Video</code> on the Forge node (vimage5+). Prompts come from the Prompts tab / keyframe schedule.
-          </p>
-          <div class="wan-engine-controls__grid">
-            <template v-for="field in wanEngineControlFields" :key="'wan-field-' + field.key">
-              <div v-if="field.type === 'boolean'" class="wan-engine-controls__toggle">
-                <label>
-                  <input
-                    type="checkbox"
-                    :checked="!!wanEngine[field.key]"
-                    :data-testid="'wan-field-' + field.key"
-                    @change="onWanEngineFieldChange(field.key, $event.target.checked, 'boolean')"
-                  >
-                  <span>{{ field.label }}</span>
-                </label>
-              </div>
-              <div v-else class="framesync-stack wan-engine-controls__field">
-                <div class="framesync-subtitle">{{ field.label }}</div>
-                <select
-                  v-if="field.type === 'select'"
-                  class="framesync-select"
-                  :data-testid="'wan-field-' + field.key"
-                  :value="wanEngine[field.key]"
-                  @change="onWanEngineFieldChange(field.key, $event.target.value, 'select')"
-                >
-                  <option v-for="opt in field.options" :key="field.key + '-' + opt" :value="opt">{{ opt }}</option>
-                </select>
-                <input
-                  v-else-if="field.type === 'number'"
-                  type="number"
-                  class="framesync-input"
-                  :data-testid="'wan-field-' + field.key"
-                  :min="field.min"
-                  :max="field.max"
-                  :step="field.step"
-                  :value="wanEngine[field.key]"
-                  @input="onWanEngineFieldChange(field.key, $event.target.value, 'number')"
-                >
-                <input
-                  v-else
-                  type="text"
-                  class="framesync-input"
-                  :data-testid="'wan-field-' + field.key"
-                  :value="wanEngine[field.key]"
-                  @input="onWanEngineFieldChange(field.key, $event.target.value, 'text')"
-                >
-              </div>
-            </template>
-          </div>
-        </div>
-
-        <LiveEngineControls :app="app" />
-      </template>
-
-      <DeforumJobPanel v-else :app="app" />
     </div>
-
-    <p v-if="deforumPreloadStatus" class="animation-engine-panel__preload-hint framesync-subtitle">{{ deforumPreloadStatus }}</p>
   </div>
 </template>
 
 <script>
 import UiIcon from './UiIcon.vue'
-import LiveEngineControls from './LiveEngineControls.vue'
 import VideoSwarmBrowser from './VideoSwarmBrowser.vue'
-import DeforumJobPanel from './DeforumJobPanel.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'AnimationEnginePanel',
-  components: { UiIcon, LiveEngineControls, VideoSwarmBrowser, DeforumJobPanel },
+  components: { UiIcon, VideoSwarmBrowser },
   props: { app: { type: Object, required: true } },
   setup(props) { return proxyAppView(props) },
 }

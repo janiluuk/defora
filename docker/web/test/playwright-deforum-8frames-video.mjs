@@ -26,7 +26,7 @@ import path from "path";
 import { execSync } from "child_process";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,17 +41,6 @@ function generateFramePng(outPath, frameIndex) {
     `ffmpeg -y -f lavfi -i color=c=${color}:size=64x64:d=1 -frames:v 1 "${outPath}"`,
     { stdio: "pipe" },
   );
-}
-
-async function openFramesPanel(page) {
-  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]');
-  if ((await drawerToggle.count()) > 0) {
-    const expanded = await drawerToggle.getAttribute("aria-expanded");
-    if (expanded !== "true") await drawerToggle.click();
-  }
-  await page.locator(".live-top-drawer__tabs .sub-pill").filter({ hasText: /^SYSTEM$/ }).click();
-  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
-  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
 }
 
 async function clickSubPill(page, label) {
@@ -122,7 +111,7 @@ try {
 
   // ── 2. Go to LIVE tab and open frames in System → Runs → Frames ─────────
   await clickTab(page, "LIVE");
-  await openFramesPanel(page);
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(150);
 
   // ── 3. Drop 8 frames into framesDir one at a time ───────────────────────

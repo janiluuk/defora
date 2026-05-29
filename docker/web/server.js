@@ -1159,45 +1159,6 @@ async function start(opts = {}) {
     }
   });
 
-  async function resolveStandbyPreviewPath() {
-    const candidates = [
-      process.env.STANDBY_PREVIEW_VIDEO,
-      path.join(uploadsDir, "vid_preview.mp4"),
-    ].filter(Boolean);
-    for (const candidate of candidates) {
-      try {
-        const st = await fsp.stat(candidate);
-        if (st.isFile()) return path.resolve(candidate);
-      } catch (_e) {
-        /* try next */
-      }
-    }
-    return null;
-  }
-
-  app.head("/api/preview/standby-video", async (_req, res) => {
-    try {
-      const filePath = await resolveStandbyPreviewPath();
-      if (!filePath) return res.status(404).end();
-      res.set("Accept-Ranges", "bytes");
-      res.set("Content-Type", "video/mp4");
-      return res.status(200).end();
-    } catch (err) {
-      res.status(500).end();
-    }
-  });
-
-  app.get("/api/preview/standby-video", async (_req, res) => {
-    try {
-      const filePath = await resolveStandbyPreviewPath();
-      if (!filePath) return res.status(404).json({ error: "standby preview not configured" });
-      res.type("video/mp4");
-      return res.sendFile(filePath);
-    } catch (err) {
-      res.status(500).json({ error: err.message || "standby preview unavailable" });
-    }
-  });
-
   const VIDEO_EXT = new Set([".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"]);
 
   function videoSwarmRoots() {

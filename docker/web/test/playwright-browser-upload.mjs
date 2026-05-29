@@ -2,15 +2,37 @@
  * E2E: unified uploads dir + API/UI browser upload using repo vid_preview.mp4
  */
 import fs from "fs";
+import os from "os";
 import path from "path";
+import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../..");
-const sampleVideo = path.join(repoRoot, "vid_preview.mp4");
+
+function resolveSampleVideo() {
+  const repoSample = path.join(repoRoot, "vid_preview.mp4");
+  if (fs.existsSync(repoSample)) return repoSample;
+  const fixture = path.join(__dirname, "fixtures", "minimal-upload.mp4");
+  if (fs.existsSync(fixture)) return fixture;
+  fs.mkdirSync(path.dirname(fixture), { recursive: true });
+  const tmp = path.join(os.tmpdir(), `defora-minimal-${process.pid}.mp4`);
+  try {
+    execSync(
+      `ffmpeg -y -f lavfi -i color=c=blue:size=64x64:d=0.5 -c:v libx264 -pix_fmt yuv420p "${tmp}"`,
+      { stdio: "pipe" },
+    );
+    return tmp;
+  } catch (_e) {
+    fs.writeFileSync(fixture, Buffer.from("defora-e2e-mp4"));
+    return fixture;
+  }
+}
+
+const sampleVideo = resolveSampleVideo();
 
 async function dismissSessionModalIfOpen(page) {
   const modal = page.locator(".restore-session-modal");
@@ -18,10 +40,6 @@ async function dismissSessionModalIfOpen(page) {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10000 });
   }
-}
-
-if (!fs.existsSync(sampleVideo)) {
-  throw new Error(`Sample video missing: ${sampleVideo}`);
 }
 
 const tmpRoot = fs.mkdtempSync(path.join(repoRoot, ".defora-e2e-upload-"));
@@ -93,9 +111,7 @@ try {
   await dismissSessionModalIfOpen(page);
   await waitForNavTabs(page);
 
-  await clickTab(page, "LIBRARY");
-  const browserRoot = page.locator('[data-testid="video-swarm-browser"]').first();
-  await browserRoot.waitFor({ state: "visible", timeout: 30000 });
+  const browserRoot = await openLibraryBrowser(page);
 
   const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();
   await rootSelect.selectOption({ value: "uploads" });

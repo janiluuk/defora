@@ -11,7 +11,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { clickTab, openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   // Not a valid playable MP4, but enough for listing + download endpoints.
@@ -85,17 +85,14 @@ try {
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
   await waitForNavTabs(page);
 
-  // User action: start recording from LIVE.
+  // User action: start recording from header transport (always in chrome).
   await clickTab(page, "LIVE");
-  const recordBtn = page.locator('[data-testid="stream-record"]').first();
-  if ((await recordBtn.count()) === 0) throw new Error("Record button not found on LIVE");
+  const recordBtn = page.locator('[data-testid="header-record"]').first();
+  if ((await recordBtn.count()) === 0) throw new Error("Record button not found in header transport");
   await recordBtn.click();
 
   // Go to Library (VideoSwarm browser).
-  await clickTab(page, "LIBRARY");
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
-  const browserRoot = page.locator(".video-swarm-browser[data-testid=\"video-swarm-browser\"]").first();
-  await browserRoot.waitFor({ state: "visible", timeout: 30000 });
+  const browserRoot = await openLibraryBrowser(page);
 
   // Choose Uploads root (record output is processed into uploadsDir).
   const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();
