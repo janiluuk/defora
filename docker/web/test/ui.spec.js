@@ -136,6 +136,7 @@ function instantiate(appDef, overrides = {}) {
       Object.defineProperty(instance, k, { get: fn.bind(instance) });
     });
   }
+  instance.$nextTick = (fn) => Promise.resolve().then(fn);
   return instance;
 }
 

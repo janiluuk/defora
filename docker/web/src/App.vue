@@ -1324,6 +1324,7 @@ export default {
         forgeLayerOpacity: 0.88,
       },
       thumbs: [],
+      frameThumbLoadingKeys: {},
       framesTimer: null,
       playerEl: null,
       timeHandler: null,
@@ -4638,8 +4639,9 @@ clearFrameThumbLoadingState() {
 markFrameThumbLoading(srcKey) {
   const key = this.frameSrcKey(srcKey);
   if (!key) return;
-  if (this.frameThumbLoadingKeys[key]) return;
-  this.frameThumbLoadingKeys = { ...this.frameThumbLoadingKeys, [key]: true };
+  const loading = this.frameThumbLoadingKeys || {};
+  if (loading[key]) return;
+  this.frameThumbLoadingKeys = { ...loading, [key]: true };
 },
 markFrameThumbLoaded(srcKey) {
   const key = this.frameSrcKey(srcKey);
@@ -4674,6 +4676,10 @@ applyNewGeneratedFrames(previousCount) {
   }
   if (this.deforumPlaying && this.frameRailFollowLatest) {
     this.followLatestGeneratedFrame();
+    return;
+  }
+  if (!Number.isFinite(Number(this.selectedFrameIndex)) || this.selectedFrameIndex < 0) {
+    this.selectFrame(thumbs.length - 1, { scroll: false });
   }
 },
 followLatestGeneratedFrame() {
