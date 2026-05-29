@@ -5746,6 +5746,17 @@ selectVideoLayer(id, opts = {}) {
     this.saveSessionState();
     return;
   }
+  if (layer?.kind === 'wan') {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+      ...this.defaultAnimation,
+      preferDeforumVideo: true,
+    });
+    this.videoReady = false;
+    if (this.hlsWatchEnabled) this.attachPlayer();
+    this.queueDeforumSettingsSave();
+    this.saveSessionState();
+    return;
+  }
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
     preferDeforumVideo: false,

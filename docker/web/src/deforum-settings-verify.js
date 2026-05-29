@@ -155,11 +155,20 @@ export function verifyDeforumSettings(settings, opts = {}) {
   }
 
   const mode = String(settings.animation_mode || '2D').trim().toUpperCase();
-  if (!['2D', '3D'].includes(mode)) {
-    pushIssue(warnings, 'animation_mode', `Unknown animation mode "${settings.animation_mode}"`, 'Use 2D or 3D');
+  const isWanMode = mode === 'WAN VIDEO' || mode === 'WAN';
+  if (!['2D', '3D', 'WAN VIDEO', 'WAN'].includes(mode)) {
+    pushIssue(warnings, 'animation_mode', `Unknown animation mode "${settings.animation_mode}"`, 'Use 2D, 3D, or Wan Video');
   }
 
-  if (mode === '2D') {
+  if (isWanMode) {
+    const steps = Number(settings.wan_inference_steps ?? settings.steps);
+    if (!Number.isFinite(steps) || steps < 1) {
+      pushIssue(warnings, 'wan_inference_steps', 'Wan inference steps should be at least 1', 'Typical range is 5–30');
+    }
+    if (!String(settings.animation_prompts || settings.prompts?.['0'] || settings.prompts?.[0] || '').trim()) {
+      pushIssue(warnings, 'animation_prompts', 'Wan Video needs at least one prompt', 'Set prompts in the Prompts tab or animation_prompts schedule');
+    }
+  } else if (mode === '2D') {
     if (scheduleHasNonZero(settings.translation_z)) {
       pushIssue(warnings, 'translation_z', '3D zoom schedule is non-zero while mode is 2D', 'Ignored in 2D — use zoom / angle instead');
     }
