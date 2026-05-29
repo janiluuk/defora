@@ -1579,6 +1579,9 @@
     .bottom-drawer-panel--open.bottom-drawer-panel--system {
       max-height: min(72vh, calc(100vh - 96px));
     }
+    .bottom-drawer-panel--open.bottom-drawer-panel--system {
+      max-height: min(72vh, calc(100vh - 96px));
+    }
     .crossfader-panel {
       padding: 0 10px 12px;
       display: flex;
