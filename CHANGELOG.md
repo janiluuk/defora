@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.35] - 2026-05-29
+
+## What's Changed
+
+- Fresh screenshots, rewritten UI annotations, design system doc, CI ESM fixes (#75) (8aee9cc)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.34...v0.6.35
+
+
 ## [0.6.34] - 2026-05-29
 
 ## What's Changed
