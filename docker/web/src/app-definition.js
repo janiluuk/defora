@@ -5205,6 +5205,12 @@ module.exports = {
     this.setRunsBrowserTab('frames');
     this.syncRunsMonitorPolling();
   },
+  openFramesInRunsPanel() {
+    this.liveBottomDrawerOpen = true;
+    this.liveBottomDrawerTab = 'SYSTEM';
+    this.setRunsBrowserTab('frames');
+    this.syncRunsMonitorPolling();
+  },
   applyRunsFilters() {
     let filtered = (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued');
     const { search, status, tag, model } = this.runsFilter;
