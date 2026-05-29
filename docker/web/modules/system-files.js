@@ -9,9 +9,11 @@ const path = require("path");
 const VIDEO_EXT = new Set([".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi", ".gif"]);
 
 function parseRoots(env = process.env, opts = {}) {
-  const recordingsDir = opts.recordingsDir || path.join(__dirname, "..", "recordings");
-  const framesDir = opts.framesDir || path.join(__dirname, "..", "frames");
-  const runsDir = opts.runsDir || "/data/runs";
+  const webRoot = path.join(__dirname, "..");
+  const runsDir = opts.runsDir || env.RUNS_DIR || path.join(webRoot, "runs");
+  const recordingsDir = opts.recordingsDir || env.RECORDINGS_DIR || path.join(webRoot, "recordings");
+  const framesDir = opts.framesDir || env.FRAMES_DIR || path.join(webRoot, "frames");
+  const uploadsDir = opts.uploadsDir || env.UPLOADS_DIR || path.join(runsDir, "uploads");
   const raw = String(env.SYSTEM_FILES_ROOTS || "").trim();
   const roots = [];
   const push = (id, label, rootPath) => {
@@ -39,6 +41,7 @@ function parseRoots(env = process.env, opts = {}) {
   push("recordings", "Recordings", recordingsDir);
   push("frames", "Frames", framesDir);
   push("runs", "Runs", runsDir);
+  push("uploads", "Uploads", uploadsDir);
   return roots;
 }
 

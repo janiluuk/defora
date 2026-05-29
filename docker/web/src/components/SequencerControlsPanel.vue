@@ -8,14 +8,14 @@
       <div class="stage-sequencer-bar__left">
         <button
           type="button"
-          class="stage-sequencer-bar__btn"
-          :class="{ 'stage-sequencer-bar__btn--live': sequencerPlaying }"
+          class="framesync-button framesync-button--compact control-btn"
+          :class="{ 'framesync-button--live': sequencerPlaying, playing: sequencerPlaying }"
           :title="sequencerPlaying ? 'Stop' : 'Play'"
           @click="toggleSequencerPlayback"
         >
           <UiIcon :name="sequencerPlaying ? 'stop' : 'play'" />
         </button>
-        <button type="button" class="stage-sequencer-bar__btn" title="Preview frame" @click="previewSequencerFrame">
+        <button type="button" class="framesync-button framesync-button--compact" title="Preview frame" @click="previewSequencerFrame">
           <UiIcon name="sparkles" />
         </button>
         <span

@@ -36,6 +36,30 @@
       >
         <UiIcon class="header-transport__icon" :name="recording ? 'stop' : 'record'" />
       </button>
+      <button
+        type="button"
+        class="header-transport__btn header-transport__btn--stream"
+        :class="{ 'header-transport__btn--active': hlsWatchEnabled }"
+        :disabled="!canStartHlsWatch"
+        title="Show HLS feed on main stage (Stream tab)"
+        aria-label="Start HLS on main stage"
+        data-testid="header-stream-start"
+        @click="$emit('start-hls-watch')"
+      >
+        <UiIcon class="header-transport__icon" name="broadcast" />
+        <span class="header-transport__preview-label">Stream</span>
+      </button>
+      <button
+        type="button"
+        class="header-transport__btn header-transport__btn--stream-stop"
+        :disabled="!hlsWatchEnabled"
+        title="Stop HLS on main stage"
+        aria-label="Stop HLS on main stage"
+        data-testid="header-stream-stop"
+        @click="$emit('stop-hls-watch')"
+      >
+        <UiIcon class="header-transport__icon" name="stop" />
+      </button>
       <span class="header-transport__divider" aria-hidden="true"></span>
       <button
         type="button"
@@ -244,10 +268,12 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus', 'select-session', 'new-session', 'purge-session', 'restore-session'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'start-hls-watch', 'stop-hls-watch', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus', 'select-session', 'new-session', 'purge-session', 'restore-session'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
+    hlsWatchEnabled: { type: Boolean, default: false },
+    hlsPreviewValid: { type: Boolean, default: false },
     previewGenerating: { type: Boolean, default: false },
     previewDisabled:   { type: Boolean, default: false },
     apiHealth:     { type: Object,  default: () => ({}) },
@@ -267,6 +293,9 @@ export default {
     }
   },
   computed: {
+    canStartHlsWatch() {
+      return this.hlsPreviewValid && !this.hlsWatchEnabled;
+    },
     healthHasIssues() {
       const gpuOff = this.gpuTotalCount > 0 && this.gpuActiveCount === 0;
       const gpuMissing = this.gpuTotalCount === 0;
@@ -422,11 +451,22 @@ export default {
   height: 36px;
 }
 
-.ss-transport .header-transport__btn--preview {
+.ss-transport .header-transport__btn--preview,
+.ss-transport .header-transport__btn--stream {
   width: auto;
   min-width: 36px;
   padding: 0 10px;
   gap: 5px;
+}
+
+.ss-transport .header-transport__btn--stream.header-transport__btn--active {
+  color: var(--live-text);
+  border-color: rgba(29, 158, 117, 0.55);
+  box-shadow: 0 0 10px rgba(29, 158, 117, 0.2);
+}
+
+.ss-transport .header-transport__btn--stream-stop {
+  width: 36px;
 }
 
 .header-transport__preview-label {

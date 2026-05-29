@@ -765,11 +765,11 @@
                   <select
                     v-else-if="field.type === 'select'"
                     class="framesync-select"
+                    :data-testid="'deforum-field-' + field.key"
                     :value="getDeforumField(field.key) ?? ''"
                     :disabled="!isDeforumFieldEnabled(field.key)"
-                    @change="onDeforumFieldInput(field.key, $event.target.value, 'text')"
+                    @change="onDeforumSelectInput(field, $event.target.value)"
                   >
-                    <option v-if="isDeforumDynamicSelect(field) && !deforumFieldOptions(field).length" value="">—</option>
                     <option
                       v-for="opt in deforumFieldOptions(field)"
                       :key="field.key + '-opt-' + opt"

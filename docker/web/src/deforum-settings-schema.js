@@ -235,6 +235,38 @@ export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
   group.fields.map((field) => field.key)
 );
 
+/** Engine fields that should stay editable without schedule on/off toggles. */
+export const DEFORUM_NON_TOGGLEABLE_KEYS = new Set([
+  'sampler',
+  'scheduler',
+  'sd_model_name',
+  'seed',
+  'steps',
+  'W',
+  'H',
+  'fps',
+  'max_frames',
+  'batch_name',
+]);
+
+export const FALLBACK_FORGE_SAMPLERS = [
+  'Euler',
+  'Euler a',
+  'DPM++ 2M',
+  'DPM++ SDE',
+  'DDIM',
+  'Heun',
+];
+
+export const FALLBACK_FORGE_SCHEDULERS = [
+  'automatic',
+  'uniform',
+  'sgm_uniform',
+  'karras',
+  'normal',
+  'exponential',
+];
+
 export function createDeforumFieldEnabledMap(overrides = {}) {
   const map = {};
   DEFORUM_FIELD_KEYS.forEach((key) => {
@@ -285,6 +317,78 @@ export function removeNestedValue(obj, keyPath) {
     if (Object.keys(value).length) break;
     delete parent[key];
   }
+}
+
+export function parseScheduleKeyframes(raw) {
+  if (raw == null || raw === '') return [{ frame: 0, value: 0 }];
+  const text = String(raw).trim();
+  const keyframes = [];
+  const regex = /(\d+)\s*:\s*\(?\s*([-\d.eE+]+)\s*\)?/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    keyframes.push({ frame: Number(match[1]), value: Number(match[2]) });
+  }
+  if (!keyframes.length) {
+    const plain = Number(text.replace(/[()]/g, '').trim());
+    if (Number.isFinite(plain)) return [{ frame: 0, value: plain }];
+    return [{ frame: 0, value: 0 }];
+  }
+  keyframes.sort((a, b) => a.frame - b.frame);
+  return keyframes;
+}
+
+function formatScheduleNumber(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+  const rounded = Math.round(num * 1000) / 1000;
+  return String(rounded);
+}
+
+export function formatScheduleKeyframes(keyframes) {
+  return (keyframes || [])
+    .map((kf) => `${Math.max(0, Math.round(Number(kf.frame) || 0))}: (${formatScheduleNumber(kf.value)})`)
+    .join(', ');
+}
+
+export function readScheduleValueAtFrame(raw, frame) {
+  const kfs = parseScheduleKeyframes(raw);
+  const f = Math.max(0, Math.round(Number(frame) || 0));
+  let value = kfs[0]?.value ?? 0;
+  for (const kf of kfs) {
+    if (kf.frame <= f) value = kf.value;
+    else break;
+  }
+  return value;
+}
+
+/**
+ * Linear ramp over `frameCount` frames starting at `startFrame`.
+ * Example: start 0, end 1, count 10 → frames 0..9 with 0, 0.111…, …, 1.
+ */
+export function buildLinearScheduleRamp(startFrame, frameCount, startValue, endValue, existingRaw = '') {
+  const start = Math.max(0, Math.round(Number(startFrame) || 0));
+  const count = Math.max(1, Math.round(Number(frameCount) || 1));
+  const from = Number(startValue);
+  const to = Number(endValue);
+  const begin = Number.isFinite(from) ? from : 0;
+  const finish = Number.isFinite(to) ? to : begin;
+  const end = start + count - 1;
+
+  const ramp = [];
+  if (count === 1) {
+    ramp.push({ frame: start, value: finish });
+  } else {
+    for (let i = 0; i < count; i += 1) {
+      const t = i / (count - 1);
+      ramp.push({ frame: start + i, value: begin + (finish - begin) * t });
+    }
+  }
+
+  const kept = parseScheduleKeyframes(existingRaw).filter(
+    (kf) => kf.frame < start || kf.frame > end
+  );
+  const merged = [...kept, ...ramp].sort((a, b) => a.frame - b.frame);
+  return formatScheduleKeyframes(merged);
 }
 
 export function patchFromKeyPath(keyPath, value) {

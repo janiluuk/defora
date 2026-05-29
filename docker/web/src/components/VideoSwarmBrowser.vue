@@ -7,6 +7,7 @@
             class="framesync-select"
             :value="systemFiles.rootId"
             :disabled="systemFiles.loading"
+            data-testid="video-swarm-root-select"
             @change="onRootChange($event.target.value)"
           >
             <option v-for="root in systemFiles.roots" :key="'vfs-root-' + root.id" :value="root.id">
@@ -16,19 +17,68 @@
           <button
             type="button"
             class="framesync-button framesync-button--compact"
-            :disabled="!systemFiles.parent || systemFiles.loading"
+            :disabled="!systemFiles.parent || systemFiles.loading || isCloudRoot || isVideosOnly"
             title="Parent folder"
             @click="browseSystemFiles(systemFiles.parent)"
           >
             ↑ Up
           </button>
+          <button
+            type="button"
+            class="framesync-button framesync-button--compact"
+            :disabled="systemFiles.loading || isCloudRoot"
+            data-testid="video-swarm-new-folder"
+            title="New folder"
+            @click="openNewFolderDialog()"
+          >
+            + Folder
+          </button>
+          <button
+            type="button"
+            class="framesync-button framesync-button--compact framesync-button--live"
+            :disabled="systemFiles.loading || isCloudRoot"
+            data-testid="video-swarm-upload-video"
+            title="Upload video file"
+            @click="openUploadPicker()"
+          >
+            + Video
+          </button>
+          <input
+            ref="uploadInputEl"
+            type="file"
+            accept="video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-m4v,video/*,.mp4,.webm,.mov,.mkv,.m4v,.avi"
+            multiple
+            class="video-swarm-browser__upload-input"
+            data-testid="video-swarm-upload-input"
+            @change="onUploadInputChange"
+          >
         </div>
         <div class="video-swarm-browser__chips chips">
           <button
             type="button"
             class="chip"
-            :class="{ active: systemFiles.recursive }"
+            :class="{ active: !isVideosOnly }"
             :disabled="systemFiles.loading"
+            data-testid="video-swarm-view-browse"
+            @click="setViewMode('browse')"
+          >
+            Browse
+          </button>
+          <button
+            type="button"
+            class="chip"
+            :class="{ active: isVideosOnly }"
+            :disabled="systemFiles.loading || isCloudRoot"
+            data-testid="video-swarm-view-videos-only"
+            @click="setViewMode('videos-only')"
+          >
+            Videos only
+          </button>
+          <button
+            type="button"
+            class="chip"
+            :class="{ active: systemFiles.recursive }"
+            :disabled="systemFiles.loading || isVideosOnly || isCloudRoot"
             @click="toggleSystemFilesRecursive"
           >
             Subfolders
@@ -70,6 +120,15 @@
         </label>
         <button
           type="button"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: systemFiles.cloudConnectOpen }"
+          data-testid="video-swarm-connect-cloud"
+          @click="systemFiles.cloudConnectOpen = !systemFiles.cloudConnectOpen"
+        >
+          Connect cloud
+        </button>
+        <button
+          type="button"
           class="framesync-button"
           :disabled="systemFiles.loading"
           @click="refreshSystemFilesBrowse(true)"
@@ -77,9 +136,63 @@
           Refresh
         </button>
       </div>
+
+      <div v-if="systemFiles.cloudConnectOpen" class="video-swarm-browser__cloud-connect" data-testid="video-swarm-cloud-connect">
+        <div class="video-swarm-browser__cloud-connect-title">Connect cloud storage</div>
+        <div class="video-swarm-browser__cloud-connect-row">
+          <select v-model="cloudDriveDraft.provider" class="framesync-select">
+            <option value="google_drive">Google Drive</option>
+            <option value="dropbox">Dropbox</option>
+            <option value="onedrive">OneDrive</option>
+            <option value="other">Other</option>
+          </select>
+          <input
+            v-model.trim="cloudDriveDraft.url"
+            type="url"
+            class="framesync-input"
+            placeholder="https://drive.google.com/… folder or file share link"
+            data-testid="video-swarm-cloud-url"
+            @keyup.enter="connectCloudStorage()"
+          >
+          <button type="button" class="framesync-button framesync-button--live" @click="connectCloudStorage()">Connect</button>
+        </div>
+        <div class="framesync-subtitle video-swarm-browser__cloud-hint">
+          Saves the share link in the browser. Open the drive in a new tab, then add direct video URLs below for playback.
+        </div>
+        <div v-if="systemFiles.cloudSources.length" class="video-swarm-browser__cloud-list">
+          <div
+            v-for="source in systemFiles.cloudSources"
+            :key="'cloud-src-' + source.id"
+            class="video-swarm-browser__cloud-item"
+          >
+            <button type="button" class="video-swarm-browser__cloud-item-main" @click="selectCloudRoot(source)">
+              <strong>{{ cloudProviderLabel(source.provider) }}</strong>
+              <span>{{ source.label }}</span>
+            </button>
+            <button type="button" class="framesync-button framesync-button--compact" @click="openCloudStorageLink(source)">Open</button>
+            <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="disconnectCloudStorage(source.id)">Remove</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="systemFiles.newFolderOpen" class="video-swarm-browser__newfolder" data-testid="video-swarm-new-folder-dialog">
+        <input
+          v-model.trim="systemFiles.newFolderName"
+          type="text"
+          class="framesync-input"
+          placeholder="New folder name"
+          data-testid="video-swarm-new-folder-name"
+          @keyup.enter="createSystemFolder()"
+        >
+        <button type="button" class="framesync-button framesync-button--live" @click="createSystemFolder()">Create</button>
+        <button type="button" class="framesync-button" @click="cancelNewFolderDialog()">Cancel</button>
+      </div>
+
       <div class="video-swarm-browser__path">
-        <code>{{ systemFiles.currentPath || '—' }}</code>
-        <span v-if="systemFiles.folderCount != null && systemFiles.folderCount > 0" class="video-swarm-browser__count">
+        <code v-if="!isCloudRoot">{{ systemFiles.currentPath || '—' }}</code>
+        <code v-else>{{ cloudPathLabel }}</code>
+        <span v-if="isVideosOnly" class="video-swarm-browser__count">Videos only · all subfolders</span>
+        <span v-else-if="systemFiles.folderCount != null && systemFiles.folderCount > 0" class="video-swarm-browser__count">
           {{ systemFiles.folderCount }} folders
         </span>
         <span v-if="systemFiles.videoCount != null" class="video-swarm-browser__count">
@@ -89,8 +202,53 @@
       <div v-if="systemFiles.status" class="framesync-subtitle video-swarm-browser__status">{{ systemFiles.status }}</div>
     </div>
 
+    <div v-if="isCloudRoot && systemFiles.cloudSource" class="video-swarm-browser__cloud-panel framesync-panel" data-testid="video-swarm-cloud-panel">
+      <div class="framesync-header">
+        <div class="framesync-title">
+          <span class="framesync-accent">{{ cloudProviderLabel(systemFiles.cloudSource.provider) }}</span>
+        </div>
+        <div class="video-swarm-browser__cloud-panel-actions">
+          <button type="button" class="framesync-button framesync-button--compact" @click="openCloudStorageLink(systemFiles.cloudSource)">Open in browser</button>
+          <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="disconnectCloudStorage(systemFiles.cloudSource.id)">Disconnect</button>
+        </div>
+      </div>
+      <div class="framesync-subtitle">{{ systemFiles.cloudSource.url }}</div>
+      <div class="video-swarm-browser__cloud-video-form">
+        <input
+          v-model.trim="systemFiles.cloudVideoDraft.name"
+          type="text"
+          class="framesync-input"
+          placeholder="Label (optional)"
+        >
+        <input
+          v-model.trim="systemFiles.cloudVideoDraft.url"
+          type="url"
+          class="framesync-input"
+          placeholder="Direct video URL (https://…mp4)"
+          data-testid="video-swarm-cloud-video-url"
+          @keyup.enter="addCloudStorageVideo(systemFiles.cloudSource.id)"
+        >
+        <button type="button" class="framesync-button" @click="addCloudStorageVideo(systemFiles.cloudSource.id)">Add video</button>
+      </div>
+    </div>
+
+    <div
+      class="video-swarm-browser__dropzone"
+      :class="{ 'video-swarm-browser__dropzone--active': dropzoneActive, 'video-swarm-browser__dropzone--disabled': isCloudRoot }"
+      data-testid="video-swarm-dropzone"
+      @dragenter.prevent="onDropEnter"
+      @dragover.prevent="onDropOver"
+      @dragleave.prevent="onDropLeave"
+      @drop.prevent="onDropFiles"
+    >
+      <div v-if="dropzoneActive && !isCloudRoot" class="video-swarm-browser__dropzone-hint">
+        Drop video files to upload
+      </div>
+
     <div v-if="systemFiles.loading" class="video-swarm-browser__empty">Scanning folder…</div>
-    <div v-else-if="!displayFolders.length && !displayVideos.length" class="video-swarm-browser__empty">No folders or videos in this location.</div>
+    <div v-else-if="!displayFolders.length && !displayVideos.length" class="video-swarm-browser__empty">
+      {{ isCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}
+    </div>
     <div
       v-else
       ref="gridEl"
@@ -143,6 +301,7 @@
         <div class="video-swarm-browser__meta">{{ formatFileSize(video.size) }}</div>
       </button>
     </div>
+    </div>
 
   <teleport to="body">
     <div
@@ -158,6 +317,7 @@
             <button type="button" class="framesync-button framesync-button--compact" @click="stepSystemFileFullscreen(-1)">← Prev</button>
             <button type="button" class="framesync-button framesync-button--compact" @click="stepSystemFileFullscreen(1)">Next →</button>
             <button type="button" class="framesync-button framesync-button--compact" @click="copySystemFilePath(fullscreenVideo.path)">Copy path</button>
+            <button type="button" class="framesync-button framesync-button--compact" @click="openInVideoEditor(fullscreenVideo)">Open in editor</button>
             <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteSystemFile(fullscreenVideo.path)">Delete</button>
             <button type="button" class="framesync-button framesync-button--compact" @click="closeSystemFileFullscreen">Close</button>
           </div>
@@ -181,6 +341,7 @@
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
     >
       <button type="button" class="framesync-button framesync-button--compact" @click="openContextFullscreen">Open</button>
+      <button type="button" class="framesync-button framesync-button--compact" @click="openInVideoEditor(contextMenu.video)">Open in editor</button>
       <button type="button" class="framesync-button framesync-button--compact" @click="copySystemFilePath(contextMenu.video?.path)">Copy path</button>
       <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteContextVideo">Delete</button>
     </div>
@@ -209,10 +370,24 @@ export default {
       contextMenu: { open: false, x: 0, y: 0, video: null, index: -1 },
       tileVideos: {},
       modalVideoEl: null,
+      dropzoneActive: false,
+      dropzoneDepth: 0,
     }
   },
   computed: {
+    isCloudRoot() {
+      return this.isCloudStorageRoot(this.systemFiles.rootId)
+    },
+    isVideosOnly() {
+      return this.systemFiles.viewMode === 'videos-only'
+    },
+    cloudPathLabel() {
+      const src = this.systemFiles.cloudSource
+      if (!src) return 'Cloud storage'
+      return `${this.cloudProviderLabel(src.provider)} — ${src.label}`
+    },
     displayFolders() {
+      if (this.isVideosOnly || this.isCloudRoot) return []
       const list = Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : []
       return list
     },
@@ -258,9 +433,57 @@ export default {
       if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
       return `${(n / (1024 * 1024)).toFixed(1)} MB`
     },
+    setViewMode(mode) {
+      if (mode === 'videos-only' && this.isCloudRoot) return
+      if (this.systemFiles.viewMode === mode) return
+      this.systemFiles.viewMode = mode
+      void this.browseSystemFiles(this.systemFiles.currentPath)
+      this.saveSessionState()
+    },
+    openUploadPicker() {
+      if (this.isCloudRoot) return
+      const input = this.$refs.uploadInputEl
+      if (input) input.click()
+    },
+    onUploadInputChange(event) {
+      const files = event.target?.files
+      void this.uploadSystemVideoFiles(files)
+      if (event.target) event.target.value = ''
+    },
+    onDropEnter() {
+      if (this.isCloudRoot) return
+      this.dropzoneDepth += 1
+      this.dropzoneActive = true
+    },
+    onDropOver() {
+      if (this.isCloudRoot) return
+      this.dropzoneActive = true
+    },
+    onDropLeave() {
+      if (this.isCloudRoot) return
+      this.dropzoneDepth = Math.max(0, this.dropzoneDepth - 1)
+      if (this.dropzoneDepth === 0) this.dropzoneActive = false
+    },
+    onDropFiles(event) {
+      this.dropzoneDepth = 0
+      this.dropzoneActive = false
+      if (this.isCloudRoot) return
+      const files = event.dataTransfer?.files
+      void this.uploadSystemVideoFiles(files)
+    },
     onRootChange(rootId) {
       const root = (this.systemFiles.roots || []).find((r) => r.id === rootId)
-      if (root) void this.browseSystemFiles(root.path, { rootId })
+      if (!root) return
+      if (root.kind === 'cloud') {
+        void this.browseSystemFiles('', { rootId: root.id })
+        return
+      }
+      void this.browseSystemFiles(root.path, { rootId: root.id })
+    },
+    selectCloudRoot(source) {
+      if (!source || !source.id) return
+      this.systemFiles.cloudConnectOpen = false
+      void this.browseSystemFiles('', { rootId: `cloud:${source.id}` })
     },
     openSystemFolder(folder) {
       if (!folder || !folder.path) return

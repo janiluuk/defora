@@ -10,22 +10,20 @@ const { EventEmitter } = require("events");
 const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
+const { resolveStoragePaths } = require("./modules/storage-paths");
 
 async function start(opts = {}) {
   const port = opts.port ?? process.env.PORT ?? 3000;
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
-  const framesDir =
-    opts.framesDir ||
-    process.env.FRAMES_DIR ||
-    path.join(__dirname, "frames");
-  const runsDir = opts.runsDir || process.env.RUNS_DIR || "/data/runs";
+  const storage = resolveStoragePaths(opts);
+  const framesDir = storage.framesDir;
+  const runsDir = storage.runsDir;
+  const uploadsDir = storage.uploadsDir;
+  const videoswarmDir = storage.videoswarmDir;
   const hlsStream = opts.hlsStream || process.env.HLS_STREAM || "/hls/live/deforum.m3u8";
-  const hlsDir =
-    opts.hlsDir ||
-    process.env.HLS_DIR ||
-    path.join(__dirname, "hls");
+  const hlsDir = storage.hlsDir;
   const enableMq = opts.enableMq ?? (process.env.DISABLE_MQ ? false : true);
    const spawner = opts.spawner || spawn;
 
@@ -842,6 +840,23 @@ async function start(opts = {}) {
   const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
   app.use(express.static(publicDir));
 
+  const freecutDir =
+    opts.freecutDir ||
+    process.env.FREECUT_DIR ||
+    path.join(publicDir, "freecut");
+  if (fs.existsSync(freecutDir)) {
+    app.use("/freecut", express.static(freecutDir, { maxAge: "300s" }));
+    app.use("/freecut", (_req, res) => {
+      res.sendFile(path.join(freecutDir, "index.html"));
+    });
+    const landingDir = path.join(freecutDir, "assets", "landing");
+    if (fs.existsSync(landingDir)) {
+      app.use("/assets/landing", express.static(landingDir, { maxAge: "3600s" }));
+    }
+  } else {
+    console.warn("[web] freecut dir missing — video editor static bundle unavailable:", freecutDir);
+  }
+
   // Simple health check endpoint for Docker healthcheck
   app.get("/health", (_req, res) => {
     res.status(200).send("OK");
@@ -905,11 +920,29 @@ async function start(opts = {}) {
 
   app.get("/api/stream/status", async (_req, res) => {
     try {
-      execPythonModule(["-m", "defora_cli.stream_helper", "status"], (error, stdout) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "status", "--json"], (error, stdout, stderr) => {
+        let metrics = null;
+        const raw = String(stdout || "").trim();
+        if (raw) {
+          try {
+            metrics = JSON.parse(raw.split("\n").filter(Boolean).pop());
+          } catch (_e) {
+            metrics = null;
+          }
+        }
+        const running = !!(metrics && metrics.running);
         res.json({
-          status: error ? "stopped" : "running",
-          output: stdout,
+          status: running ? "running" : "stopped",
+          output: raw || String(stderr || "").trim(),
           python: PYTHON_BIN,
+          metrics: metrics || {
+            running: false,
+            status: "stopped",
+            health: error ? "offline" : "offline",
+            kbps: null,
+            fps: null,
+            target: null,
+          },
         });
       });
     } catch (err) {
@@ -1059,9 +1092,6 @@ async function start(opts = {}) {
   const presetsDir = opts.presetsDir || process.env.PRESETS_DIR || path.join(__dirname, "presets");
   const sequencersDir =
     opts.sequencersDir || process.env.SEQUENCER_DIR || path.join(__dirname, "sequencers");
-  const uploadsDir = opts.uploadsDir || process.env.UPLOADS_DIR || path.join(__dirname, "uploads");
-  const videoswarmDir =
-    opts.videoswarmDir || process.env.VIDEOSWARM_DIR || path.join(__dirname, "videoswarm");
   const pluginsDir = opts.pluginsDir || process.env.PLUGINS_DIR || path.join(__dirname, "plugins");
   const uploadRetentionHours = parseInt(process.env.UPLOAD_RETENTION_HOURS || "24", 10);
   
@@ -1082,6 +1112,45 @@ async function start(opts = {}) {
   } catch (_e) {}
 
   app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
+
+  async function resolveStandbyPreviewPath() {
+    const candidates = [
+      process.env.STANDBY_PREVIEW_VIDEO,
+      path.join(uploadsDir, "vid_preview.mp4"),
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        const st = await fsp.stat(candidate);
+        if (st.isFile()) return path.resolve(candidate);
+      } catch (_e) {
+        /* try next */
+      }
+    }
+    return null;
+  }
+
+  app.head("/api/preview/standby-video", async (_req, res) => {
+    try {
+      const filePath = await resolveStandbyPreviewPath();
+      if (!filePath) return res.status(404).end();
+      res.set("Accept-Ranges", "bytes");
+      res.set("Content-Type", "video/mp4");
+      return res.status(200).end();
+    } catch (err) {
+      res.status(500).end();
+    }
+  });
+
+  app.get("/api/preview/standby-video", async (_req, res) => {
+    try {
+      const filePath = await resolveStandbyPreviewPath();
+      if (!filePath) return res.status(404).json({ error: "standby preview not configured" });
+      res.type("video/mp4");
+      return res.sendFile(filePath);
+    } catch (err) {
+      res.status(500).json({ error: err.message || "standby preview unavailable" });
+    }
+  });
 
   const VIDEO_EXT = new Set([".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"]);
 
@@ -1131,13 +1200,74 @@ async function start(opts = {}) {
     return "name";
   }
 
-  async function browseVideoSwarm(targetPath, { recursive = false, sortKey = "name" } = {}) {
+  const cloudSourcesPath = path.join(videoswarmDir, "cloud-sources.json");
+
+  function sanitizeFolderName(name) {
+    const s = String(name || "").trim().replace(/[\\/]+/g, "");
+    if (!s || s === "." || s === "..") return null;
+    return s.slice(0, 120);
+  }
+
+  function cloudProviderLabel(provider) {
+    const map = {
+      google_drive: "Google Drive",
+      dropbox: "Dropbox",
+      onedrive: "OneDrive",
+      other: "Cloud",
+    };
+    return map[String(provider || "").toLowerCase()] || "Cloud";
+  }
+
+  async function loadCloudSources() {
+    try {
+      const raw = await fsp.readFile(cloudSourcesPath, "utf8");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed.sources) ? parsed.sources : [];
+    } catch (err) {
+      if (err.code === "ENOENT") return [];
+      throw err;
+    }
+  }
+
+  async function saveCloudSources(sources) {
+    const list = Array.isArray(sources) ? sources : [];
+    await fsp.mkdir(path.dirname(cloudSourcesPath), { recursive: true });
+    await fsp.writeFile(cloudSourcesPath, JSON.stringify({ sources: list }, null, 2), "utf8");
+    return list;
+  }
+
+  function cloudRootEntries(sources) {
+    return sources.map((source) => ({
+      id: `cloud:${source.id}`,
+      label: `${cloudProviderLabel(source.provider)} — ${source.label}`,
+      kind: "cloud",
+      provider: source.provider,
+      url: source.url,
+      path: "",
+    }));
+  }
+
+  function cloudVideosForSource(source) {
+    const rootId = `cloud:${source.id}`;
+    return (Array.isArray(source.videos) ? source.videos : []).map((video) => ({
+      name: video.name || "Video",
+      path: video.path || video.url,
+      url: video.url,
+      rootId,
+      size: Number(video.size) || 0,
+      mtimeMs: Number(video.mtimeMs) || Date.parse(video.addedAt) || 0,
+      kind: "cloud",
+    }));
+  }
+
+  async function browseVideoSwarm(targetPath, { recursive = false, sortKey = "name", videosOnly = false } = {}) {
     const st = await fsp.stat(targetPath);
     if (!st.isDirectory()) {
       const err = new Error("not a directory");
       err.code = "ENOTDIR";
       throw err;
     }
+    if (videosOnly) recursive = true;
     const entries = await fsp.readdir(targetPath, { withFileTypes: true });
     const parent = path.dirname(targetPath);
     const roots = videoSwarmRoots();
@@ -1169,7 +1299,7 @@ async function start(opts = {}) {
     };
     if (recursive) {
       await walk(targetPath);
-    } else {
+    } else if (!videosOnly) {
       for (const ent of entries) {
         if (ent.name.startsWith(".")) continue;
         const full = path.join(targetPath, ent.name);
@@ -1204,27 +1334,229 @@ async function start(opts = {}) {
     folders.sort((a, b) => a.name.localeCompare(b.name));
     videos.sort(sortFn);
     return {
+      kind: "local",
       path: targetPath,
       parent: atRoot ? "" : parent,
-      folders,
-      folderCount: folders.length,
+      folders: videosOnly ? [] : folders,
+      folderCount: videosOnly ? 0 : folders.length,
       videos,
       videoCount: videos.length,
+      videosOnly: !!videosOnly,
     };
   }
 
-  app.get("/api/video-swarm/roots", (_req, res) => {
-    res.json({ roots: videoSwarmRoots().map(({ id, label, path: p }) => ({ id, label, path: p })) });
+  app.get("/api/storage/layout", (_req, res) => {
+    res.json({
+      framesDir,
+      runsDir,
+      uploadsDir,
+      videoswarmDir,
+      hlsDir,
+      shared: {
+        framesVolume: framesDir,
+        runsVolume: runsDir,
+        uploadsUnderRuns: uploadsDir.startsWith(runsDir + path.sep) || uploadsDir === runsDir,
+        videoswarmUnderRuns:
+          videoswarmDir.startsWith(runsDir + path.sep) || videoswarmDir === runsDir,
+      },
+      browserRoots: videoSwarmRoots().map(({ id, label, path: p }) => ({ id, label, path: p })),
+    });
+  });
+
+  function sanitizeUploadFileName(name) {
+    const base = path.basename(String(name || "upload.mp4"));
+    const safe = base.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 180);
+    return safe || "upload.mp4";
+  }
+
+  app.post("/api/video-swarm/upload", express.raw({ limit: "250mb", type: () => true }), async (req, res) => {
+    try {
+      if (!Buffer.isBuffer(req.body) || !req.body.length) {
+        return res.status(400).json({ error: "empty body" });
+      }
+      const ext = path.extname(String(req.query.name || req.headers["x-filename"] || "")).toLowerCase();
+      if (ext && !VIDEO_EXT.has(ext)) {
+        return res.status(400).json({ error: "unsupported video type" });
+      }
+      const maxBytes = 200 * 1024 * 1024;
+      if (req.body.length > maxBytes) {
+        return res.status(400).json({ error: "file too large (max 200MB)" });
+      }
+      const safeName = sanitizeUploadFileName(req.query.name || req.headers["x-filename"]);
+      const extOk = path.extname(safeName).toLowerCase();
+      const finalName = VIDEO_EXT.has(extOk) ? safeName : `${safeName.replace(/\.[^.]+$/, "")}.mp4`;
+      const targetDir = String(req.query.dir || "uploads").trim() === "videoswarm" ? videoswarmDir : uploadsDir;
+      await fsp.mkdir(targetDir, { recursive: true });
+      const targetPath = path.join(targetDir, `${Date.now()}-${finalName}`);
+      await fsp.writeFile(targetPath, req.body);
+      const root = rootForResolvedPath(targetPath, videoSwarmRoots());
+      res.status(201).json({
+        ok: true,
+        name: path.basename(targetPath),
+        path: targetPath,
+        rootId: root ? root.id : "uploads",
+        size: req.body.length,
+        url: `/api/video-swarm/file?path=${encodeURIComponent(targetPath)}${root ? `&rootId=${encodeURIComponent(root.id)}` : ""}`,
+      });
+    } catch (err) {
+      console.error("[api] video-swarm upload", err);
+      res.status(500).json({ error: err.message || "upload failed" });
+    }
+  });
+
+  app.get("/api/video-swarm/roots", async (_req, res) => {
+    try {
+      const cloudSources = await loadCloudSources();
+      const localRoots = videoSwarmRoots().map(({ id, label, path: p }) => ({
+        id,
+        label,
+        path: p,
+        kind: "local",
+      }));
+      res.json({
+        roots: [...localRoots, ...cloudRootEntries(cloudSources)],
+        cloudSources,
+      });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "roots unavailable" });
+    }
+  });
+
+  app.get("/api/video-swarm/cloud-sources", async (_req, res) => {
+    try {
+      const sources = await loadCloudSources();
+      res.json({ sources });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "cloud sources unavailable" });
+    }
+  });
+
+  app.post("/api/video-swarm/cloud-sources", express.json(), async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === "object" ? req.body : {};
+      const label = String(body.label || "").trim() || cloudProviderLabel(body.provider);
+      const provider = String(body.provider || "other").trim().toLowerCase() || "other";
+      let url = String(body.url || "").trim();
+      if (!url) return res.status(400).json({ error: "url required" });
+      if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+      try {
+        // eslint-disable-next-line no-new
+        new URL(url);
+      } catch (_e) {
+        return res.status(400).json({ error: "invalid url" });
+      }
+      const sources = await loadCloudSources();
+      const entry = {
+        id: `cs-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        label,
+        provider,
+        url,
+        videos: [],
+        createdAt: new Date().toISOString(),
+      };
+      sources.push(entry);
+      await saveCloudSources(sources);
+      res.status(201).json({ source: entry, sources });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "could not save cloud source" });
+    }
+  });
+
+  app.post("/api/video-swarm/cloud-sources/:id/videos", express.json(), async (req, res) => {
+    try {
+      const sourceId = String(req.params.id || "").trim();
+      const body = req.body && typeof req.body === "object" ? req.body : {};
+      let url = String(body.url || "").trim();
+      if (!url) return res.status(400).json({ error: "url required" });
+      if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
+      try {
+        // eslint-disable-next-line no-new
+        new URL(url);
+      } catch (_e) {
+        return res.status(400).json({ error: "invalid url" });
+      }
+      const name = String(body.name || "").trim() || path.basename(new URL(url).pathname) || "Video";
+      const sources = await loadCloudSources();
+      const idx = sources.findIndex((s) => s.id === sourceId);
+      if (idx < 0) return res.status(404).json({ error: "cloud source not found" });
+      const video = {
+        name,
+        url,
+        path: url,
+        addedAt: new Date().toISOString(),
+      };
+      const list = Array.isArray(sources[idx].videos) ? sources[idx].videos : [];
+      list.push(video);
+      sources[idx].videos = list;
+      await saveCloudSources(sources);
+      res.status(201).json({ source: sources[idx], video });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "could not add cloud video" });
+    }
+  });
+
+  app.delete("/api/video-swarm/cloud-sources/:id", async (req, res) => {
+    try {
+      const sourceId = String(req.params.id || "").trim();
+      const sources = await loadCloudSources();
+      const next = sources.filter((s) => s.id !== sourceId);
+      if (next.length === sources.length) return res.status(404).json({ error: "cloud source not found" });
+      await saveCloudSources(next);
+      res.json({ ok: true, sources: next });
+    } catch (err) {
+      res.status(500).json({ error: err.message || "could not remove cloud source" });
+    }
+  });
+
+  app.post("/api/video-swarm/mkdir", express.json(), async (req, res) => {
+    try {
+      const body = req.body && typeof req.body === "object" ? req.body : {};
+      const folderName = sanitizeFolderName(body.name);
+      if (!folderName) return res.status(400).json({ error: "invalid folder name" });
+      const rootId = String(body.rootId || "").trim();
+      if (rootId.startsWith("cloud:")) {
+        return res.status(400).json({ error: "cannot create folders on cloud storage" });
+      }
+      const parentPath = resolveVideoSwarmPath(String(body.path || ""), rootId || "frames");
+      if (!parentPath) return res.status(400).json({ error: "invalid path" });
+      const parentStat = await fsp.stat(parentPath);
+      if (!parentStat.isDirectory()) return res.status(400).json({ error: "parent is not a directory" });
+      const newPath = path.join(parentPath, folderName);
+      await fsp.mkdir(newPath, { recursive: false });
+      res.status(201).json({ ok: true, path: newPath, name: folderName });
+    } catch (err) {
+      if (err.code === "EEXIST") return res.status(409).json({ error: "folder already exists" });
+      if (err.code === "ENOENT") return res.status(404).json({ error: "path not found" });
+      res.status(500).json({ error: err.message || "mkdir failed" });
+    }
   });
 
   app.get("/api/video-swarm/browse", async (req, res) => {
     try {
       const rootId = String(req.query.rootId || "").trim();
+      if (rootId.startsWith("cloud:")) {
+        const sourceId = rootId.slice("cloud:".length);
+        const sources = await loadCloudSources();
+        const source = sources.find((s) => s.id === sourceId);
+        if (!source) return res.status(404).json({ error: "cloud source not found" });
+        const videos = cloudVideosForSource(source);
+        return res.json({
+          kind: "cloud",
+          path: "",
+          parent: "",
+          cloudSource: source,
+          folders: [],
+          folderCount: 0,
+          videos,
+          videoCount: videos.length,
+        });
+      }
       const browsePath = resolveVideoSwarmPath(String(req.query.path || ""), rootId || "frames");
       if (!browsePath) return res.status(400).json({ error: "invalid path" });
       const recursive = String(req.query.recursive || "") === "1" || req.query.recursive === "true";
+      const videosOnly = String(req.query.videosOnly || "") === "1" || req.query.videosOnly === "true";
       const sortKey = parseVideoSwarmSortKey(req.query.sort);
-      const data = await browseVideoSwarm(browsePath, { recursive, sortKey });
+      const data = await browseVideoSwarm(browsePath, { recursive, sortKey, videosOnly });
       res.json(data);
     } catch (err) {
       if (err.code === "ENOENT") return res.status(404).json({ error: "path not found" });
@@ -1235,7 +1567,11 @@ async function start(opts = {}) {
 
   app.get("/api/video-swarm/file", async (req, res) => {
     try {
-      const filePath = resolveVideoSwarmPath(String(req.query.path || ""), String(req.query.rootId || "").trim() || null);
+      const rawPath = String(req.query.path || "").trim();
+      if (/^https?:\/\//i.test(rawPath)) {
+        return res.redirect(302, rawPath);
+      }
+      const filePath = resolveVideoSwarmPath(rawPath, String(req.query.rootId || "").trim() || null);
       if (!filePath) return res.status(400).json({ error: "invalid path" });
       const st = await fsp.stat(filePath);
       if (!st.isFile()) return res.status(404).json({ error: "not a file" });
@@ -3541,12 +3877,86 @@ async function start(opts = {}) {
     }
   }
 
+  function parseRunFrameIndex(name) {
+    const m = /^frame_(\d+)\.png$/i.exec(String(name || ""));
+    return m ? parseInt(m[1], 10) : NaN;
+  }
+
+  function listRunFrameFiles(runPath) {
+    try {
+      if (!fs.existsSync(runPath)) return [];
+      return fs
+        .readdirSync(runPath)
+        .filter((entry) => /^frame_\d+\.png$/i.test(entry))
+        .sort((a, b) => {
+          const ai = parseRunFrameIndex(a);
+          const bi = parseRunFrameIndex(b);
+          if (Number.isFinite(ai) && Number.isFinite(bi)) return ai - bi;
+          return String(a).localeCompare(String(b));
+        });
+    } catch {
+      return [];
+    }
+  }
+
+  function resolveRunFramesTotal(manifest) {
+    const snap = manifest?.job?.snapshot || manifest?.snapshot || {};
+    const settings = snap.settings || {};
+    for (const value of [
+      manifest.frames_total,
+      manifest.frame_count,
+      manifest.length_frames,
+      manifest.max_frames,
+      settings.max_frames,
+      snap.maxFrames,
+    ]) {
+      const n = parseInt(value, 10);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    return null;
+  }
+
+  function computeRunFrameProgress(manifest, runPath) {
+    const frameFiles = listRunFrameFiles(runPath);
+    const framesDone = frameFiles.length;
+    const latestFrame = framesDone ? frameFiles[frameFiles.length - 1] : null;
+    let framesTotal = resolveRunFramesTotal(manifest);
+    if (!framesTotal && latestFrame) {
+      const idx = parseRunFrameIndex(latestFrame);
+      if (Number.isFinite(idx) && idx > 0) framesTotal = idx;
+    }
+    let framesProgressPct = null;
+    if (framesTotal && framesTotal > 0) {
+      framesProgressPct = Math.min(100, Math.round((framesDone / framesTotal) * 100));
+    } else if (framesDone > 0 && String(manifest.status || "").toLowerCase() === "completed") {
+      framesTotal = framesDone;
+      framesProgressPct = 100;
+    }
+    return {
+      frameFiles,
+      framesDone,
+      framesTotal,
+      latestFrame,
+      framesProgressPct,
+    };
+  }
+
   async function enrichRunManifest(manifest, runPath) {
     const thumbPath = path.join(runPath, "thumb.png");
+    let hasThumbFile = false;
     try {
       await fsp.access(thumbPath);
-      manifest.has_thumbnail = true;
+      hasThumbFile = true;
     } catch { /* no thumb */ }
+
+    const progress = computeRunFrameProgress(manifest, runPath);
+    manifest.frames_done = progress.framesDone;
+    manifest.frames_total = progress.framesTotal;
+    manifest.frames_progress_pct = progress.framesProgressPct;
+    manifest.latest_frame = progress.latestFrame;
+    manifest.has_thumbnail = !!(progress.latestFrame || hasThumbFile);
+    manifest.thumb_rev = progress.latestFrame || (hasThumbFile ? "thumb.png" : null);
+
     if (manifest.last_frame) {
       try {
         await fsp.access(manifest.last_frame);
@@ -4237,49 +4647,174 @@ async function start(opts = {}) {
     res.json({ runs: filtered, total: runs.length, filtered: filtered.length });
   });
 
+  function safeRunArtifactPath(runPath, fileName) {
+    const base = path.basename(String(fileName || ""));
+    if (!base || base.includes("..")) return null;
+    const resolved = path.resolve(runPath, base);
+    const runResolved = path.resolve(runPath);
+    if (resolved !== runResolved && !resolved.startsWith(runResolved + path.sep)) return null;
+    return resolved;
+  }
+
+  function collectRunOutputs(runPath, runId, manifest = {}) {
+    const progress = computeRunFrameProgress(manifest, runPath);
+    const frames = progress.frameFiles;
+    const videos = [];
+    try {
+      if (fs.existsSync(runPath)) {
+        for (const entry of fs.readdirSync(runPath)) {
+          const ext = path.extname(entry).toLowerCase();
+          if (VIDEO_EXT.has(ext)) videos.push(entry);
+        }
+      }
+    } catch (_e) {
+      /* ignore unreadable run dir */
+    }
+    videos.sort();
+
+    const outputs = [];
+    const runKey = encodeURIComponent(runId);
+    for (const name of videos) {
+      const artifactPath = safeRunArtifactPath(runPath, name);
+      outputs.push({
+        kind: "video",
+        name,
+        url: `/api/runs/${runKey}/video/${encodeURIComponent(name)}`,
+        browse_path: artifactPath || path.join(runPath, name),
+        rootId: "runs",
+      });
+    }
+
+    const runResolved = path.resolve(runPath);
+    const runRoot = rootForResolvedPath(runResolved, videoSwarmRoots());
+    if (frames.length || fs.existsSync(runPath)) {
+      outputs.push({
+        kind: "frames",
+        count: frames.length,
+        browse_path: runResolved,
+        rootId: runRoot?.id || "runs",
+        browse_url: `/api/video-swarm/browse?path=${encodeURIComponent(runResolved)}&rootId=${encodeURIComponent(runRoot?.id || "runs")}`,
+      });
+    }
+
+    for (const field of ["output_video", "video_path", "output_path", "output", "preview_path"]) {
+      const raw = manifest[field];
+      if (!raw || typeof raw !== "string") continue;
+      const trimmed = raw.trim();
+      if (!trimmed) continue;
+      if (trimmed.startsWith("/frames/")) {
+        outputs.push({
+          kind: "preview_frame",
+          name: path.basename(trimmed),
+          url: trimmed,
+          source: field,
+        });
+        continue;
+      }
+      const resolved = resolveVideoSwarmPath(trimmed, null);
+      if (!resolved) continue;
+      try {
+        if (!fs.existsSync(resolved)) continue;
+      } catch (_e) {
+        continue;
+      }
+      const ext = path.extname(resolved).toLowerCase();
+      const root = rootForResolvedPath(resolved, videoSwarmRoots());
+      if (VIDEO_EXT.has(ext)) {
+        const exists = outputs.some((o) => o.kind === "video" && o.url.includes(encodeURIComponent(path.basename(resolved))));
+        if (!exists) {
+          outputs.push({
+            kind: "video",
+            name: path.basename(resolved),
+            url: `/api/video-swarm/file?path=${encodeURIComponent(resolved)}${root ? `&rootId=${encodeURIComponent(root.id)}` : ""}`,
+            browse_path: resolved,
+            rootId: root?.id || null,
+            source: field,
+          });
+        }
+      }
+    }
+
+    const primaryVideo = outputs.find((o) => o.kind === "video") || null;
+    const framesOutput = outputs.find((o) => o.kind === "frames") || null;
+    return {
+      frames,
+      frame_count: frames.length,
+      frames_done: progress.framesDone,
+      frames_total: progress.framesTotal,
+      frames_progress_pct: progress.framesProgressPct,
+      latest_frame: progress.latestFrame,
+      videos,
+      outputs,
+      primary_video: primaryVideo,
+      has_frames: frames.length > 0,
+      has_video: outputs.some((o) => o.kind === "video"),
+      has_thumbnail: !!(progress.latestFrame || fs.existsSync(path.join(runPath, "thumb.png"))),
+      thumb_rev: progress.latestFrame || null,
+      frames_browse_url: framesOutput?.browse_url || null,
+    };
+  }
+
   app.get("/api/runs/:runId", (req, res) => {
     const runPath = path.join(runsDir, req.params.runId);
     const manifest = loadRunManifest(runPath);
     if (!manifest) {
       return res.status(404).json({ error: "Run not found" });
     }
-    
-    // Get frame list
-    const frames = [];
-    if (fs.existsSync(runPath)) {
-      const entries = fs.readdirSync(runPath);
-      for (const entry of entries) {
-        if (entry.match(/^frame_\d+\.png$/)) {
-          frames.push(entry);
+
+    if (!manifest.job) {
+      const jobPath = path.join(runPath, "defora-job.json");
+      if (fs.existsSync(jobPath)) {
+        try {
+          manifest.job = JSON.parse(fs.readFileSync(jobPath, "utf-8"));
+        } catch (_e) {
+          /* ignore invalid job file */
         }
       }
     }
-    
-    manifest.frames = frames.sort();
-    res.json(manifest);
+
+    const artifacts = collectRunOutputs(runPath, manifest.run_id, manifest);
+    res.json({ ...manifest, ...artifacts });
   });
 
   app.get("/api/runs/:runId/thumb", (req, res) => {
     const runPath = path.join(runsDir, req.params.runId);
-    const thumbPath = path.join(runPath, "thumb.png");
-    if (!fs.existsSync(thumbPath)) {
-      // Try to find any frame
-      const entries = fs.readdirSync(runPath).filter(e => e.match(/^frame_\d+\.png$/)).sort();
-      if (entries.length > 0) {
-        const framePath = path.join(runPath, entries[0]);
-        return res.sendFile(framePath);
-      }
-      return res.status(404).json({ error: "No thumbnail found" });
+    const frameFiles = listRunFrameFiles(runPath);
+    if (frameFiles.length > 0) {
+      return res.sendFile(path.join(runPath, frameFiles[frameFiles.length - 1]));
     }
-    res.sendFile(thumbPath);
+    const thumbPath = path.join(runPath, "thumb.png");
+    if (fs.existsSync(thumbPath)) {
+      return res.sendFile(thumbPath);
+    }
+    return res.status(404).json({ error: "No thumbnail found" });
   });
 
   app.get("/api/runs/:runId/frames/:frameName", (req, res) => {
-    const framePath = path.join(runsDir, req.params.runId, req.params.frameName);
-    if (!fs.existsSync(framePath) || !framePath.startsWith(runsDir)) {
+    const runPath = path.join(runsDir, req.params.runId);
+    const framePath = safeRunArtifactPath(runPath, req.params.frameName);
+    if (!framePath || !fs.existsSync(framePath)) {
       return res.status(404).json({ error: "Frame not found" });
     }
     res.sendFile(framePath);
+  });
+
+  app.get("/api/runs/:runId/video/:fileName", (req, res) => {
+    const runPath = path.join(runsDir, req.params.runId);
+    const videoPath = safeRunArtifactPath(runPath, req.params.fileName);
+    if (!videoPath || !fs.existsSync(videoPath)) {
+      return res.status(404).json({ error: "Video not found" });
+    }
+    const ext = path.extname(videoPath).toLowerCase();
+    if (!VIDEO_EXT.has(ext)) {
+      return res.status(404).json({ error: "Not a video file" });
+    }
+    const type =
+      ext === ".webm" ? "video/webm"
+        : ext === ".mov" ? "video/quicktime"
+          : "video/mp4";
+    res.type(type);
+    res.sendFile(videoPath);
   });
 
   app.put("/api/runs/:runId", (req, res) => {

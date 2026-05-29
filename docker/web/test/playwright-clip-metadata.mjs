@@ -123,8 +123,8 @@ try {
   }
   await runRow.waitFor({ state: "visible", timeout: 10000 });
 
-  await runRow.locator("button").filter({ hasText: /^Details$/ }).first().click();
-  const details = page.locator(".runs-detail-card");
+  await runRow.click();
+  const details = page.locator('[data-testid="runs-detail-card"]');
   await details.waitFor({ state: "visible", timeout: 10000 });
 
   const text = (await details.innerText()).replace(/\s+/g, " ").trim();
