@@ -265,7 +265,7 @@
         <div
           class="video-wrap video-wrap--anchored"
           :class="{
-            'video-wrap--frame-processing': showFrameProcessing,
+            'video-wrap--frame-processing': showFrameProcessingOnStage,
             'video-wrap--hls-and-preview': showMainStageHls && showStandbyPreviewVideo,
           }"
         >
@@ -343,7 +343,7 @@
               <button type="button" class="framesync-button" @click="openCloudLayer(activeVideoLayer)">Open link</button>
             </div>
           <div
-            v-if="showFrameProcessing"
+            v-if="showFrameProcessingOnStage"
             class="preview-loading-overlay"
             data-testid="frame-processing-overlay"
             aria-live="polite"
@@ -661,6 +661,8 @@ import {
   mergeDeforumSettings,
   readScheduleValueAtFrame,
   buildLinearScheduleRamp,
+  normalizeDeforumMode2d3d,
+  isDeforum3dOnlyFieldKey,
 } from './deforum-settings-schema.js'
 import { verifyDeforumSettings } from './deforum-settings-verify.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
@@ -669,6 +671,21 @@ import {
   buildRunDetailJsonRows,
   runDetailJsonPretty,
 } from './shared/run-detail-json.mjs'
+import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
+import {
+  DEFAULT_FORGE_MODEL,
+  DEFAULT_LCM_ENGINE,
+  DEFAULT_LCM_LORA_TAG,
+  mergeLoraIntoPrompt,
+} from './shared/engine-config.mjs'
+import {
+  DEFAULT_WAN_ENGINE,
+  mergeWanEngineIntoDeforumSettings,
+  normalizeWanEngine,
+  parseWanResolution,
+  visibleWanControlFields,
+  WAN_ANIMATION_MODE,
+} from './shared/wan-engine-config.mjs'
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -1844,7 +1861,7 @@ export default {
       if (this.isWebglSoloPreview) return false;
       if (this.effectiveForgeLayerOpacity <= 0) return false;
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
-        || this.isDeforumLayerActive
+        || this.isForgeAnimationLayerActive
         || this.isBlendLayerActive;
       return !!(!this.showDeforumVideo && this.displayedPreviewStillPath && shouldSurfaceStill);
     },
@@ -4405,7 +4422,7 @@ setPreferDeforumVideo(prefer) {
     }
     this.videoReady = false;
     if (this.hlsWatchEnabled) this.attachPlayer();
-  } else if (this.activeVideoLayerId === 'deforum') {
+  } else if (this.isForgeAnimationLayerActive) {
     this.activeVideoLayerId = 'webgl';
   }
   this.saveSessionState();
@@ -10333,10 +10350,30 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        }
      }
      if (s.prompts) Object.assign(this.prompts, s.prompts);
+    if (typeof s.activePromptStyleId === 'string' || s.activePromptStyleId === null) {
+      this.activePromptStyleId = s.activePromptStyleId;
+    }
+    if (typeof s.promptStyleAutoExample === 'boolean') {
+      this.promptStyleAutoExample = s.promptStyleAutoExample;
+    }
+    if (s.lcmEngine && typeof s.lcmEngine === 'object') {
+      this.lcmEngine = {
+        enabled: !!s.lcmEngine.enabled,
+        steps: Math.max(1, Math.round(Number(s.lcmEngine.steps) || DEFAULT_LCM_ENGINE.steps)),
+        loraTag: String(s.lcmEngine.loraTag || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
+      };
+      if (this.lcmEngine.enabled) this.applyLcmEngineToDeforum({ saveSession: false });
+    }
+    if (s.wanEngine && typeof s.wanEngine === 'object') {
+      this.wanEngine = normalizeWanEngine(s.wanEngine);
+    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
       this.motionSmoothness.frames = Number.isFinite(frames) ? Math.max(1, Math.min(999, frames)) : 1;
+    }
+    if (Number.isFinite(Number(s.seedFixedBackup)) && Number(s.seedFixedBackup) >= 0) {
+      this.seedFixedBackup = Number(s.seedFixedBackup);
     }
    } catch (_e) { /* ignore */ }
  },
@@ -10404,10 +10441,21 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumSettings: this.normalizedDeforumSettings(),
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
        prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+      activePromptStyleId: this.activePromptStyleId,
+      promptStyleAutoExample: this.promptStyleAutoExample,
+      lcmEngine: {
+        enabled: !!(this.lcmEngine && this.lcmEngine.enabled),
+        steps: Math.max(1, Math.round(Number(this.lcmEngine && this.lcmEngine.steps) || 1)),
+        loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
+      },
+      wanEngine: normalizeWanEngine(this.wanEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
       },
+      seedFixedBackup: Number.isFinite(Number(this.seedFixedBackup)) && this.seedFixedBackup >= 0
+        ? this.seedFixedBackup
+        : null,
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
     window.localStorage.setItem(this.sessionStorageTouchedKey(), String(Date.now()));
@@ -10477,6 +10525,14 @@ getCurrentSessionSnapshotRaw() {
       deforumSettings: this.normalizedDeforumSettings(),
       lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
+      activePromptStyleId: this.activePromptStyleId,
+      promptStyleAutoExample: this.promptStyleAutoExample,
+      lcmEngine: {
+        enabled: !!(this.lcmEngine && this.lcmEngine.enabled),
+        steps: Math.max(1, Math.round(Number(this.lcmEngine && this.lcmEngine.steps) || 1)),
+        loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
+      },
+      wanEngine: normalizeWanEngine(this.wanEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
