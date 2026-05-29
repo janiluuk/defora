@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.47] - 2026-05-29
+
+## What's Changed
+
+- Use sane Deforum defaults for max_frames and CFG schedules. (26024ee)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.46...v0.6.47
+
+
 ## [0.6.46] - 2026-05-29
 
 ## What's Changed
