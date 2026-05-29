@@ -1,6 +1,6 @@
 {
   "name": "defora-web",
-  "version": "0.6.50",
+  "version": "0.6.51",
   "private": true,
   "scripts": {
     "dev": "vite",

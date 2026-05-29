@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.51] - 2026-05-29
+
+## What's Changed
+
+- feat(ui): 4-panel overlay menu system with tabs at top (#84) (ff833be)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.50...v0.6.51
+
+
 ## [0.6.50] - 2026-05-29
 
 ## What's Changed
