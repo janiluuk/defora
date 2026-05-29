@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.49] - 2026-05-29
+
+## What's Changed
+
+- Fix web UI test harness for library browser and CI parity. (#82) (9629ee6)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.48...v0.6.49
+
+
 ## [0.6.48] - 2026-05-29
 
 ## What's Changed
