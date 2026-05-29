@@ -89,6 +89,7 @@
           data-testid="preview-stage-row"
         >
           <div class="preview-stage-main">
+        <div class="preview-stage-video-stack">
         <div
           class="video-wrap video-wrap--anchored"
           :class="{
@@ -311,6 +312,7 @@
               <UiIcon class="bottom-drawer-fab__icon" :name="liveBottomDrawerOpen ? 'chevron-down' : 'chevron-up'" />
             </span>
           </button>
+          </div>
           <button
             v-if="showEngineDrawerShell"
             type="button"
@@ -325,7 +327,8 @@
               <UiIcon class="engine-drawer-fab__icon" :name="liveEngineDrawerOpen ? 'chevron-right' : 'chevron-left'" />
             </span>
           </button>
-          </div>
+        </div>
+        </div>
 
           <div class="video-layer-tabs video-layer-tabs--preview" data-testid="video-layer-tabs">
             <button
@@ -422,7 +425,6 @@
               <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
             </div>
           </div>
-        </div>
 
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
@@ -528,6 +530,7 @@
             :class="{
               'bottom-drawer-panel--open': liveBottomDrawerOpen,
               'bottom-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
+              'bottom-drawer-panel--crossfader': liveBottomDrawerOpen && liveBottomDrawerTab === 'CROSSFADER',
             }"
           >
         <div class="live-bottom-drawer__tabs">
@@ -640,7 +643,7 @@
             </div>
         </div>
 
-        <LoraCrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
+        <CrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
 
         <div
           v-else-if="liveBottomDrawerTab === 'SYSTEM'"
@@ -651,18 +654,19 @@
         </div>
           </div>
         </div>
+          </div>
 
           <aside
             v-if="showEngineDrawerShell"
             class="engine-drawer-shell"
             :class="{ 'engine-drawer-shell--open': liveEngineDrawerOpen }"
+            :aria-hidden="liveEngineDrawerOpen ? 'false' : 'true'"
             data-testid="engine-drawer"
           >
-            <div v-show="liveEngineDrawerOpen" class="engine-drawer-panel">
+            <div class="engine-drawer-panel">
               <AnimationEnginePanel :app="appViewModel" />
             </div>
           </aside>
-          </div>
         </div>
 
       </div>
@@ -766,9 +770,10 @@ import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
 import SequencerControlsPanel from './components/SequencerControlsPanel.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
-import LoraCrossfaderPanel from './components/LoraCrossfaderPanel.vue'
+import CrossfaderPanel from './components/CrossfaderPanel.vue'
 import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
+import LiveEngineControlsDock from './components/LiveEngineControlsDock.vue'
 import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
 import LibraryView from './components/views/LibraryView.vue'
 import EditorView from './components/views/EditorView.vue'
@@ -783,7 +788,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, LoraCrossfaderPanel, VideoSwarmBrowser, LiveView, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -3903,8 +3908,11 @@ export default {
   if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
   if (tab === 'LIVE') {
     if (sub === 'DEFORUM_JOB') {
-      this.enginePanelDetailsOpen = true;
       this.enginePanelDetailsTab = 'JOB';
+      if (!this.rightPanelOpen) {
+        this.rightPanelOpen = true;
+        this.liveDrawerOpen = true;
+      }
       void this.ensureForgeSamplerSchedulerLists();
     } else {
       this.enginePanelDetailsTab = 'ENGINE';
@@ -4536,8 +4544,15 @@ setEnginePanelDetailsTab(tab) {
   if (tab !== 'ENGINE' && tab !== 'JOB') return;
   this.enginePanelDetailsTab = tab;
   this.currentSubTab.LIVE = tab === 'JOB' ? 'DEFORUM_JOB' : 'MONITOR';
+  if (this.currentTab === 'LIVE' && !this.rightPanelOpen) {
+    this.rightPanelOpen = true;
+    this.liveDrawerOpen = true;
+  }
   if (tab === 'JOB') void this.ensureForgeSamplerSchedulerLists();
   this.saveSessionState();
+},
+openEngineControlsInRightPanel() {
+  this.setEnginePanelDetailsTab('ENGINE');
 },
 async probeHlsPreviewStream() {
   if (typeof fetch !== 'function') return;
@@ -11124,6 +11139,10 @@ reapplyEngineModelDefaults() {
      });
    }
    this.prompts.crossfaderValue = t;
+ },
+ onCrossfaderSlider(value) {
+   this.performance.crossfader = this.clampVal(Number(value) || 0, 0, 1);
+   this.onCrossfaderInput();
  },
  onCrossfaderInput() {
    this.applyCrossfadeMorph();

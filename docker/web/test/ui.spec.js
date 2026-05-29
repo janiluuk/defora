@@ -436,8 +436,6 @@ describe("Deforumation Web UI", () => {
     appVm.selectVideoLayer("webgl");
     appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
-    appVm.liveEngineDrawerOpen = true;
-    appVm.liveAnimationBoxOpen = true;
     await nextTick();
     expect(document.body.textContent).to.include("Instance count");
 
@@ -494,7 +492,6 @@ describe("Deforumation Web UI", () => {
 
     appVm.selectVideoLayer("webgl");
     await nextTick();
-    appVm.liveAnimationBoxOpen = true;
     expect(document.body.textContent).to.include("Instance count");
 
     appVm.setDefaultAnimationMode("invalid-mode");
@@ -560,17 +557,17 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("LIVE");
     appVm.switchSubTab("LIVE", "MONITOR");
-    appVm.liveEngineDrawerOpen = true;
-    appVm.enginePanelDetailsOpen = true;
+    appVm.rightPanelOpen = true;
+    appVm.liveDrawerOpen = true;
     await nextTick();
-    expect(document.querySelector("[data-testid='animation-engine-wan']")).to.exist;
     expect(document.querySelector("[data-testid='wan-engine-controls']")).to.exist;
     expect(document.querySelector("[data-testid='wan-field-wan_inference_steps']")).to.exist;
   });
 
   it("shows 2D/3D mode toggle and locks 3D-only deforum fields in 2D", async () => {
     appVm.switchTab("LIVE");
-    appVm.liveEngineDrawerOpen = true;
+    appVm.rightPanelOpen = true;
+    appVm.liveDrawerOpen = true;
     appVm.switchSubTab("LIVE", "DEFORUM_JOB");
     appVm.deforumAdvancedOpen = false;
     await nextTick();
@@ -600,14 +597,11 @@ describe("Deforumation Web UI", () => {
     appVm.rightPanelOpen = true;
     appVm.liveDrawerOpen = true;
     await nextTick();
-    appVm.liveEngineDrawerOpen = true;
-    appVm.enginePanelDetailsOpen = true;
     await nextTick();
-    const engineTabs = [...document.querySelectorAll("[data-testid='animation-engine-details'] .sub-pill")].map((el) => el.textContent.trim());
-    expect(engineTabs).to.include.members(["Controls", "Deforum"]);
+    const engineTabs = [...document.querySelectorAll("[data-testid='live-engine-dock-tabs'] .sub-pill")].map((el) => el.textContent.trim());
+    expect(engineTabs).to.include.members(["Visual", "Deforum"]);
 
     appVm.switchSubTab("LIVE", "DEFORUM_JOB");
-    expect(appVm.enginePanelDetailsOpen).to.equal(true);
     expect(appVm.enginePanelDetailsTab).to.equal("JOB");
     await nextTick();
     expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
@@ -1054,7 +1048,7 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos[0].targets).to.not.include("translation_x");
   });
 
-  it("shows the LoRA crossfader in the bottom drawer with group pickers", async () => {
+  it("shows the crossfader in the bottom drawer with morph slots and group pickers", async () => {
     appVm.liveBottomDrawerOpen = true;
     appVm.liveBottomDrawerTab = "CROSSFADER";
     await nextTick();
@@ -1066,7 +1060,10 @@ describe("Deforumation Web UI", () => {
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
-    expect(titles.join(" ")).to.include("LoRA Crossfader");
+    expect(titles.join(" ")).to.include("Crossfader");
+    expect(document.querySelector("[data-testid='crossfader-panel']")).to.exist;
+    expect(document.querySelector("[data-testid='crossfader-generic-prompt']")).to.exist;
+    expect(document.querySelector("[data-testid='crossfader-morph-slots']")).to.exist;
     expect(document.querySelector(".lora-crossfader-panel__deck")).to.exist;
 
     const groupPickers = [...document.querySelectorAll(".lora-crossfader-panel .lora-picker-trigger")];
