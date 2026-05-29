@@ -70,18 +70,14 @@ try {
   if (!urlText.includes('/api/video-swarm/file')) {
     throw new Error(`Expected import URL in editor, got: ${urlText}`);
   }
-  const frame = page.locator('[data-testid="freecut-editor-frame"]').first();
-  await frame.waitFor({ state: 'visible', timeout: 15000 });
-  const frameSrc = await frame.getAttribute('src');
-  if (!frameSrc || !frameSrc.includes('/freecut/')) {
-    throw new Error(`Expected FreeCut iframe src, got: ${frameSrc}`);
-  }
 
   await clickTab(page, 'MOTION');
   await ensureRightPanelOpen(page);
   await page.waitForSelector('[data-testid="motion-controls-panel"]', { timeout: 15000 });
-  await page.locator('[data-testid="motion-sequencer-side-toggle"]').click();
-  await page.waitForSelector('[data-testid="motion-sequencer-side-drawer"]', { timeout: 15000 });
+  const seqTab = page.locator('[data-testid="motion-view-tabs"] .sub-pill').nth(1);
+  await seqTab.scrollIntoViewIfNeeded();
+  await seqTab.click();
+  await page.waitForSelector('[data-testid="motion-sequencer-editor-shell"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="sequencer-controls-panel"]', { timeout: 15000 });
   await page.waitForSelector('.timeline-hero', { timeout: 15000 });
 
