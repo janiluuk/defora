@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.39] - 2026-05-29
+
+## What's Changed
+
+- Fixes (8748714)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.38...v0.6.39
+
+
 ## [0.6.38] - 2026-05-29
 
 ## What's Changed
