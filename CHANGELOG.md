@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.38] - 2026-05-29
+
+## What's Changed
+
+- feat(ui): bottom navigation bar — fixed, centered, enlarged tabs (#77) (1a714aa)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.37...v0.6.38
+
+
 ## [0.6.37] - 2026-05-29
 
 ## What's Changed
