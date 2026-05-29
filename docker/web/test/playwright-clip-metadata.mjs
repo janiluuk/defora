@@ -10,6 +10,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
   // 1x1 transparent PNG
@@ -24,14 +25,6 @@ function mustInclude(haystack, needle, label, { ignoreCase = false } = {}) {
   const n = String(needle || "");
   const ok = ignoreCase ? h.toLowerCase().includes(n.toLowerCase()) : h.includes(n);
   if (!ok) throw new Error(`Missing ${label || "text"}: expected "${needle}"`);
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-e2e-clip-"));
@@ -93,7 +86,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 try {
   // UI continuously polls/streams, so don't use "networkidle".
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   // Ensure backend serving the clip assets.
   const thumbRes = await page.request.get(`${base}/api/runs/${runId}/thumb`);

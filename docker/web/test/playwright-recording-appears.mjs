@@ -11,18 +11,11 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   // Not a valid playable MP4, but enough for listing + download endpoints.
   return Buffer.from("defora-e2e-mp4");
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function clickSubPill(page, label) {
@@ -90,7 +83,7 @@ try {
   });
 
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   // User action: start recording from LIVE.
   await clickTab(page, "LIVE");

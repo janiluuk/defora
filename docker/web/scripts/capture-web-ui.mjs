@@ -6,6 +6,7 @@
  *   BASE_URL=http://127.0.0.1:3999 npm run capture-ui-shots
  */
 import { chromium } from 'playwright';
+import { escapeRegex, waitForNavTabs } from '../test/playwright-nav.mjs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
@@ -41,15 +42,16 @@ const page = await browser.newPage({ viewport: { width: 1600, height: 1040 } });
 // "networkidle" can be blocked by the live HLS/WS polling.
 // "domcontentloaded" is enough because we later wait for the tab selector.
 await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 90000 });
-await page.waitForSelector('.tab', { timeout: 30000 });
+await waitForNavTabs(page);
 await page.waitForTimeout(800);
 
 async function clickTopTab(name) {
-  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const button = page.locator('header .tab').filter({ hasText: new RegExp(`^${escaped}`) }).first();
-  const className = (await button.getAttribute('class')) || '';
+  const tab = page.locator('[data-testid="top-nav"] .tab, nav.bottom-nav .tab, header .tab').filter({
+    has: page.locator('.tab__label').filter({ hasText: new RegExp(`^${escapeRegex(name)}$`) }),
+  }).first();
+  const className = (await tab.getAttribute('class')) || '';
   if (!className.includes('active')) {
-    await button.click({ force: true });
+    await tab.click({ force: true });
   }
   await page.waitForTimeout(600);
 }
