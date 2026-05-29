@@ -7,6 +7,7 @@ import os from 'os';
 import { execSync } from 'child_process';
 import { chromium } from 'playwright';
 import { start } from '/home/jani/workspace/defora/docker/web/server.js';
+import { clickTab as clickNavTab, openLiveFramesPanel, waitForNavTabs } from './playwright-nav.mjs';
 
 const SHOTS_DIR = `/home/jani/workspace/defora/screenshots/run-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${Date.now()}`;
 fs.mkdirSync(SHOTS_DIR, { recursive: true });
@@ -58,10 +59,7 @@ async function shot(page, name) {
 }
 
 async function clickTab(page, label) {
-  const tab = page.locator('header .tab').filter({
-    has: page.locator('.tab__label').filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  await tab.click();
+  await clickNavTab(page, label);
   await page.waitForTimeout(300);
 }
 
@@ -79,7 +77,7 @@ try {
     await page.locator('.restore-session-modal button').filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: 'hidden', timeout: 10_000 });
   }
-  await page.waitForSelector('header .tab', { timeout: 30_000 });
+  await waitForNavTabs(page);
 
   // ── LIVE tab: inject the demo video into the player via JS, then screenshot
   await clickTab(page, 'LIVE');
@@ -101,11 +99,7 @@ try {
 
   await page.waitForTimeout(1200);
 
-  // Expand frame rail
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(400);
   await shot(page, 'live-tab.png');
 
@@ -159,7 +153,7 @@ try {
 
   // ── Main overview (default landing state)
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await page.waitForSelector('header .tab', { timeout: 20_000 });
+  await waitForNavTabs(page, 20_000);
   const modal2 = page.locator('.restore-session-modal');
   if ((await modal2.count()) > 0) {
     await page.locator('.restore-session-modal button').filter({ hasText: /^Discard$/ }).first().click();

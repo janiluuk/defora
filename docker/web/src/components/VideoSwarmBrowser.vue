@@ -17,7 +17,7 @@
           <button
             type="button"
             class="framesync-button framesync-button--compact"
-            :disabled="!systemFiles.parent || systemFiles.loading || isCloudRoot || isVideosOnly"
+            :disabled="!systemFiles.parent || systemFiles.loading || videoSwarmIsCloudRoot || videoSwarmIsVideosOnly"
             title="Parent folder"
             @click="browseSystemFiles(systemFiles.parent)"
           >
@@ -26,7 +26,7 @@
           <button
             type="button"
             class="framesync-button framesync-button--compact"
-            :disabled="systemFiles.loading || isCloudRoot"
+            :disabled="systemFiles.loading || videoSwarmIsCloudRoot"
             data-testid="video-swarm-new-folder"
             title="New folder"
             @click="openNewFolderDialog()"
@@ -36,7 +36,7 @@
           <button
             type="button"
             class="framesync-button framesync-button--compact framesync-button--live"
-            :disabled="systemFiles.loading || isCloudRoot"
+            :disabled="systemFiles.loading || videoSwarmIsCloudRoot"
             data-testid="video-swarm-upload-video"
             title="Upload video file"
             @click="openUploadPicker()"
@@ -57,7 +57,7 @@
           <button
             type="button"
             class="chip"
-            :class="{ active: !isVideosOnly }"
+            :class="{ active: !videoSwarmIsVideosOnly }"
             :disabled="systemFiles.loading"
             data-testid="video-swarm-view-browse"
             @click="setViewMode('browse')"
@@ -67,8 +67,8 @@
           <button
             type="button"
             class="chip"
-            :class="{ active: isVideosOnly }"
-            :disabled="systemFiles.loading || isCloudRoot"
+            :class="{ active: videoSwarmIsVideosOnly }"
+            :disabled="systemFiles.loading || videoSwarmIsCloudRoot"
             data-testid="video-swarm-view-videos-only"
             @click="setViewMode('videos-only')"
           >
@@ -78,7 +78,7 @@
             type="button"
             class="chip"
             :class="{ active: systemFiles.recursive }"
-            :disabled="systemFiles.loading || isVideosOnly || isCloudRoot"
+            :disabled="systemFiles.loading || videoSwarmIsVideosOnly || videoSwarmIsCloudRoot"
             @click="toggleSystemFilesRecursive"
           >
             Subfolders
@@ -159,7 +159,7 @@
         <div class="framesync-subtitle video-swarm-browser__cloud-hint">
           Saves the share link in the browser. Open the drive in a new tab, then add direct video URLs below for playback.
         </div>
-        <div v-if="systemFiles.cloudSources.length" class="video-swarm-browser__cloud-list">
+        <div v-if="(systemFiles.cloudSources || []).length" class="video-swarm-browser__cloud-list">
           <div
             v-for="source in systemFiles.cloudSources"
             :key="'cloud-src-' + source.id"
@@ -189,9 +189,9 @@
       </div>
 
       <div class="video-swarm-browser__path">
-        <code v-if="!isCloudRoot">{{ systemFiles.currentPath || '—' }}</code>
-        <code v-else>{{ cloudPathLabel }}</code>
-        <span v-if="isVideosOnly" class="video-swarm-browser__count">Videos only · all subfolders</span>
+        <code v-if="!videoSwarmIsCloudRoot">{{ systemFiles.currentPath || '—' }}</code>
+        <code v-else>{{ videoSwarmCloudPathLabel }}</code>
+        <span v-if="videoSwarmIsVideosOnly" class="video-swarm-browser__count">Videos only · all subfolders</span>
         <span v-else-if="systemFiles.folderCount != null && systemFiles.folderCount > 0" class="video-swarm-browser__count">
           {{ systemFiles.folderCount }} folders
         </span>
@@ -202,7 +202,7 @@
       <div v-if="systemFiles.status" class="framesync-subtitle video-swarm-browser__status">{{ systemFiles.status }}</div>
     </div>
 
-    <div v-if="isCloudRoot && systemFiles.cloudSource" class="video-swarm-browser__cloud-panel framesync-panel" data-testid="video-swarm-cloud-panel">
+    <div v-if="videoSwarmIsCloudRoot && systemFiles.cloudSource" class="video-swarm-browser__cloud-panel framesync-panel" data-testid="video-swarm-cloud-panel">
       <div class="framesync-header">
         <div class="framesync-title">
           <span class="framesync-accent">{{ cloudProviderLabel(systemFiles.cloudSource.provider) }}</span>
@@ -234,30 +234,30 @@
 
     <div
       class="video-swarm-browser__dropzone"
-      :class="{ 'video-swarm-browser__dropzone--active': dropzoneActive, 'video-swarm-browser__dropzone--disabled': isCloudRoot }"
+      :class="{ 'video-swarm-browser__dropzone--active': dropzoneActive, 'video-swarm-browser__dropzone--disabled': videoSwarmIsCloudRoot }"
       data-testid="video-swarm-dropzone"
-      @dragenter.prevent="onDropEnter"
-      @dragover.prevent="onDropOver"
-      @dragleave.prevent="onDropLeave"
-      @drop.prevent="onDropFiles"
+      @dragenter="onDropEnter"
+      @dragover="onDropOver"
+      @dragleave="onDropLeave"
+      @drop="onDropFiles"
     >
-      <div v-if="dropzoneActive && !isCloudRoot" class="video-swarm-browser__dropzone-hint">
+      <div v-if="dropzoneActive && !videoSwarmIsCloudRoot" class="video-swarm-browser__dropzone-hint">
         Drop video files to upload
       </div>
 
     <div v-if="systemFiles.loading" class="video-swarm-browser__empty">Scanning folder…</div>
-    <div v-else-if="!displayFolders.length && !displayVideos.length" class="video-swarm-browser__empty">
-      {{ isCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}
+    <div v-else-if="!videoSwarmDisplayFolders.length && !videoSwarmDisplayVideos.length" class="video-swarm-browser__empty">
+      {{ videoSwarmIsCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}
     </div>
     <div
       v-else
       ref="gridEl"
       class="video-swarm-browser__grid"
       :class="'video-swarm-browser__grid--zoom-' + systemFiles.zoomLevel"
-      @scroll.passive="onGridScroll"
+      @scroll="onGridScroll"
     >
       <button
-        v-for="folder in displayFolders"
+        v-for="folder in videoSwarmDisplayFolders"
         :key="'folder-' + folder.path"
         type="button"
         class="video-swarm-browser__tile video-swarm-browser__tile--folder"
@@ -270,7 +270,7 @@
         <div v-if="systemFiles.showFilenames" class="video-swarm-browser__label">{{ folder.name }}</div>
       </button>
       <button
-        v-for="(video, index) in displayVideos"
+        v-for="(video, index) in videoSwarmDisplayVideos"
         :key="video.path"
         type="button"
         class="video-swarm-browser__tile"
@@ -280,8 +280,8 @@
         }"
         :data-video-path="video.path"
         @click="onTileClick($event, video, index)"
-        @dblclick.prevent="openSystemFileFullscreen(index)"
-        @contextmenu.prevent="openTileMenu($event, video)"
+        @dblclick="onTileDblClick($event, index)"
+        @contextmenu="onTileContextMenu($event, video)"
         @mouseenter="onTileEnter(video)"
         @mouseleave="onTileLeave(video)"
       >
@@ -298,27 +298,26 @@
         />
         <div v-else class="video-swarm-browser__placeholder">▶</div>
         <div v-if="systemFiles.showFilenames" class="video-swarm-browser__label">{{ video.name }}</div>
-        <div class="video-swarm-browser__meta">{{ formatFileSize(video.size) }}</div>
+        <div class="video-swarm-browser__meta">{{ formatVideoSwarmFileSize(video.size) }}</div>
       </button>
     </div>
     </div>
 
-  <teleport to="body">
     <div
-      v-if="systemFiles.fullscreenIndex >= 0 && fullscreenVideo"
+      v-if="systemFiles.fullscreenIndex >= 0 && videoSwarmFullscreenVideo"
       class="video-swarm-browser__modal"
       data-testid="video-swarm-fullscreen"
       @click="onFullscreenBackdropClick"
     >
       <div class="video-swarm-browser__modal-inner">
         <div class="video-swarm-browser__modal-head">
-          <strong>{{ fullscreenVideo.name }}</strong>
+          <strong>{{ videoSwarmFullscreenVideo.name }}</strong>
           <div class="video-swarm-browser__modal-actions">
             <button type="button" class="framesync-button framesync-button--compact" @click="stepSystemFileFullscreen(-1)">← Prev</button>
             <button type="button" class="framesync-button framesync-button--compact" @click="stepSystemFileFullscreen(1)">Next →</button>
-            <button type="button" class="framesync-button framesync-button--compact" @click="copySystemFilePath(fullscreenVideo.path)">Copy path</button>
-            <button type="button" class="framesync-button framesync-button--compact" @click="openInVideoEditor(fullscreenVideo)">Open in editor</button>
-            <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteSystemFile(fullscreenVideo.path)">Delete</button>
+            <button type="button" class="framesync-button framesync-button--compact" @click="copySystemFilePath(videoSwarmFullscreenVideo.path)">Copy path</button>
+            <button type="button" class="framesync-button framesync-button--compact" @click="openInVideoEditor(videoSwarmFullscreenVideo)">Open in editor</button>
+            <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteSystemFile(videoSwarmFullscreenVideo.path)">Delete</button>
             <button type="button" class="framesync-button framesync-button--compact" @click="closeSystemFileFullscreen">Close</button>
           </div>
         </div>
@@ -328,13 +327,11 @@
           controls
           autoplay
           playsinline
-          :src="systemFileMediaUrl(fullscreenVideo.path)"
+          :src="systemFileMediaUrl(videoSwarmFullscreenVideo.path)"
         />
       </div>
     </div>
-  </teleport>
 
-  <teleport to="body">
     <div
       v-if="contextMenu.open"
       class="video-swarm-browser__menu"
@@ -345,28 +342,91 @@
       <button type="button" class="framesync-button framesync-button--compact" @click="copySystemFilePath(contextMenu.video?.path)">Copy path</button>
       <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteContextVideo">Delete</button>
     </div>
-  </teleport>
   </div>
 </template>
 
 <script>
-import { proxyAppView } from './views/app-view-proxy.mjs'
-
 const RENDER_BUFFER = 24
+
+const APP_METHODS = [
+  'initSystemFilesBrowser',
+  'browseSystemFiles',
+  'refreshSystemFilesBrowse',
+  'openNewFolderDialog',
+  'createSystemFolder',
+  'cancelNewFolderDialog',
+  'uploadSystemVideoFiles',
+  'toggleSystemFilesRecursive',
+  'toggleSystemFilesShowNames',
+  'toggleSystemFilesVideosOnly',
+  'setSystemFilesSort',
+  'setSystemFilesZoom',
+  'connectCloudStorage',
+  'cloudProviderLabel',
+  'selectCloudRoot',
+  'openCloudStorageLink',
+  'disconnectCloudStorage',
+  'addCloudStorageVideo',
+  'openSystemFolder',
+  'openInVideoEditor',
+  'deleteSystemFile',
+  'copySystemFilePath',
+  'openSystemFileFullscreen',
+  'closeSystemFileFullscreen',
+  'stepSystemFileFullscreen',
+  'toggleSystemFileSelection',
+  'systemFileMediaUrl',
+  'formatVideoSwarmFileSize',
+  'saveSessionState',
+]
 
 export default {
   name: 'VideoSwarmBrowser',
   props: {
     app: { type: Object, required: true },
   },
-  setup(props) {
-    return proxyAppView(props)
+  computed: {
+    systemFiles() {
+      return this.app.systemFiles
+    },
+    videoSwarmIsCloudRoot() {
+      return this.app.videoSwarmIsCloudRoot
+    },
+    videoSwarmIsVideosOnly() {
+      return this.app.videoSwarmIsVideosOnly
+    },
+    videoSwarmCloudPathLabel() {
+      return this.app.videoSwarmCloudPathLabel
+    },
+    videoSwarmDisplayFolders() {
+      return this.app.videoSwarmDisplayFolders
+    },
+    videoSwarmDisplayVideos() {
+      return this.app.videoSwarmDisplayVideos
+    },
+    videoSwarmFullscreenVideo() {
+      return this.app.videoSwarmFullscreenVideo
+    },
+    videoSwarmVisibleStart: {
+      get() {
+        return this.app.videoSwarmVisibleStart
+      },
+      set(v) {
+        this.app.videoSwarmVisibleStart = v
+      },
+    },
+    videoSwarmVisibleEnd: {
+      get() {
+        return this.app.videoSwarmVisibleEnd
+      },
+      set(v) {
+        this.app.videoSwarmVisibleEnd = v
+      },
+    },
   },
   data() {
     return {
       hoveredPath: null,
-      visibleStart: 0,
-      visibleEnd: 48,
       contextMenu: { open: false, x: 0, y: 0, video: null, index: -1 },
       tileVideos: {},
       modalVideoEl: null,
@@ -374,37 +434,10 @@ export default {
       dropzoneDepth: 0,
     }
   },
-  computed: {
-    isCloudRoot() {
-      return this.isCloudStorageRoot(this.systemFiles.rootId)
-    },
-    isVideosOnly() {
-      return this.systemFiles.viewMode === 'videos-only'
-    },
-    cloudPathLabel() {
-      const src = this.systemFiles.cloudSource
-      if (!src) return 'Cloud storage'
-      return `${this.cloudProviderLabel(src.provider)} — ${src.label}`
-    },
-    displayFolders() {
-      if (this.isVideosOnly || this.isCloudRoot) return []
-      const list = Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : []
-      return list
-    },
-    displayVideos() {
-      const list = Array.isArray(this.systemFiles.videos) ? this.systemFiles.videos : []
-      return list.slice(this.visibleStart, this.visibleEnd)
-    },
-    fullscreenVideo() {
-      const list = this.systemFiles.videos || []
-      const idx = this.systemFiles.fullscreenIndex
-      return idx >= 0 && idx < list.length ? list[idx] : null
-    },
-  },
   watch: {
     'systemFiles.videos'() {
-      this.visibleStart = 0
-      this.visibleEnd = 48
+      this.videoSwarmVisibleStart = 0
+      this.videoSwarmVisibleEnd = 48
       this.$nextTick(() => this.updateVisibleWindow())
     },
     'systemFiles.fullscreenIndex'(idx) {
@@ -427,21 +460,42 @@ export default {
     this.pauseAllTileVideos()
   },
   methods: {
-    formatFileSize(bytes) {
-      const n = Number(bytes) || 0
-      if (n < 1024) return `${n} B`
-      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
-      return `${(n / (1024 * 1024)).toFixed(1)} MB`
-    },
+    initSystemFilesBrowser(...args) { return this.app.initSystemFilesBrowser(...args) },
+    browseSystemFiles(...args) { return this.app.browseSystemFiles(...args) },
+    refreshSystemFilesBrowse(...args) { return this.app.refreshSystemFilesBrowse(...args) },
+    openNewFolderDialog(...args) { return this.app.openNewFolderDialog(...args) },
+    createSystemFolder(...args) { return this.app.createSystemFolder(...args) },
+    cancelNewFolderDialog(...args) { return this.app.cancelNewFolderDialog(...args) },
+    uploadSystemVideoFiles(...args) { return this.app.uploadSystemVideoFiles(...args) },
+    toggleSystemFilesRecursive(...args) { return this.app.toggleSystemFilesRecursive(...args) },
+    toggleSystemFilesShowNames(...args) { return this.app.toggleSystemFilesShowNames(...args) },
+    toggleSystemFilesVideosOnly(...args) { return this.app.toggleSystemFilesVideosOnly(...args) },
+    setSystemFilesSort(...args) { return this.app.setSystemFilesSort(...args) },
+    setSystemFilesZoom(...args) { return this.app.setSystemFilesZoom(...args) },
+    connectCloudStorage(...args) { return this.app.connectCloudStorage(...args) },
+    cloudProviderLabel(...args) { return this.app.cloudProviderLabel(...args) },
+    openCloudStorageLink(...args) { return this.app.openCloudStorageLink(...args) },
+    disconnectCloudStorage(...args) { return this.app.disconnectCloudStorage(...args) },
+    addCloudStorageVideo(...args) { return this.app.addCloudStorageVideo(...args) },
+    openInVideoEditor(...args) { return this.app.openInVideoEditor(...args) },
+    deleteSystemFile(...args) { return this.app.deleteSystemFile(...args) },
+    copySystemFilePath(...args) { return this.app.copySystemFilePath(...args) },
+    openSystemFileFullscreen(...args) { return this.app.openSystemFileFullscreen(...args) },
+    closeSystemFileFullscreen(...args) { return this.app.closeSystemFileFullscreen(...args) },
+    stepSystemFileFullscreen(...args) { return this.app.stepSystemFileFullscreen(...args) },
+    toggleSystemFileSelection(...args) { return this.app.toggleSystemFileSelection(...args) },
+    systemFileMediaUrl(...args) { return this.app.systemFileMediaUrl(...args) },
+    formatVideoSwarmFileSize(...args) { return this.app.formatVideoSwarmFileSize(...args) },
+    saveSessionState(...args) { return this.app.saveSessionState(...args) },
     setViewMode(mode) {
-      if (mode === 'videos-only' && this.isCloudRoot) return
+      if (mode === 'videos-only' && this.videoSwarmIsCloudRoot) return
       if (this.systemFiles.viewMode === mode) return
       this.systemFiles.viewMode = mode
       void this.browseSystemFiles(this.systemFiles.currentPath)
       this.saveSessionState()
     },
     openUploadPicker() {
-      if (this.isCloudRoot) return
+      if (this.videoSwarmIsCloudRoot) return
       const input = this.$refs.uploadInputEl
       if (input) input.click()
     },
@@ -450,24 +504,28 @@ export default {
       void this.uploadSystemVideoFiles(files)
       if (event.target) event.target.value = ''
     },
-    onDropEnter() {
-      if (this.isCloudRoot) return
+    onDropEnter(event) {
+      event?.preventDefault?.()
+      if (this.videoSwarmIsCloudRoot) return
       this.dropzoneDepth += 1
       this.dropzoneActive = true
     },
-    onDropOver() {
-      if (this.isCloudRoot) return
+    onDropOver(event) {
+      event?.preventDefault?.()
+      if (this.videoSwarmIsCloudRoot) return
       this.dropzoneActive = true
     },
-    onDropLeave() {
-      if (this.isCloudRoot) return
+    onDropLeave(event) {
+      event?.preventDefault?.()
+      if (this.videoSwarmIsCloudRoot) return
       this.dropzoneDepth = Math.max(0, this.dropzoneDepth - 1)
       if (this.dropzoneDepth === 0) this.dropzoneActive = false
     },
     onDropFiles(event) {
+      event?.preventDefault?.()
       this.dropzoneDepth = 0
       this.dropzoneActive = false
-      if (this.isCloudRoot) return
+      if (this.videoSwarmIsCloudRoot) return
       const files = event.dataTransfer?.files
       void this.uploadSystemVideoFiles(files)
     },
@@ -496,8 +554,8 @@ export default {
       const grid = this.$refs.gridEl
       const total = (this.systemFiles.videos || []).length
       if (!grid || !total) {
-        this.visibleStart = 0
-        this.visibleEnd = 48
+        this.videoSwarmVisibleStart = 0
+        this.videoSwarmVisibleEnd = 48
         return
       }
       const tile = grid.querySelector('.video-swarm-browser__tile')
@@ -507,8 +565,8 @@ export default {
       const startRow = Math.max(0, Math.floor(grid.scrollTop / tileHeight) - 1)
       const start = Math.max(0, startRow * cols)
       const end = Math.min(total, start + rowsVisible * cols + RENDER_BUFFER)
-      this.visibleStart = start
-      this.visibleEnd = end
+      this.videoSwarmVisibleStart = start
+      this.videoSwarmVisibleEnd = end
     },
     shouldLoadVideo(video) {
       return Boolean(video && (this.hoveredPath === video.path || this.systemFiles.selectedPaths.includes(video.path)))
@@ -551,6 +609,14 @@ export default {
         return
       }
       this.systemFiles.selectedPaths = [video.path]
+    },
+    onTileDblClick(event, index) {
+      event?.preventDefault?.()
+      this.openSystemFileFullscreen(index)
+    },
+    onTileContextMenu(event, video) {
+      event?.preventDefault?.()
+      this.openTileMenu(event, video)
     },
     openTileMenu(event, video) {
       const list = this.systemFiles.videos || []

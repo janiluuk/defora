@@ -9,26 +9,13 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, openRunsMonitor, waitForNavTabs, waitForPastRunRow } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
   return Buffer.from(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMB/eeo8u8AAAAASUVORK5CYII=",
     "base64",
   );
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
-}
-
-async function openRunsMonitor(page) {
-  await clickTab(page, "SETTINGS");
-  await page.locator(".sub-pill").filter({ hasText: /^SYSTEM$/ }).first().click();
-  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
 }
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-e2e-startup-runs-"));
@@ -86,7 +73,7 @@ async function dismissSessionModalIfOpen(page) {
 async function assertWebglStartup(page) {
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
   await dismissSessionModalIfOpen(page);
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   const standby = page.locator('[data-testid="preview-standby-animation"]');
   await standby.waitFor({ state: "attached", timeout: 15000 });
@@ -117,20 +104,8 @@ async function assertWebglStartup(page) {
 
 async function assertRunInBrowser(page) {
   await dismissSessionModalIfOpen(page);
-  await openRunsMonitor(page);
-  await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
-
-  const row = page
-    .locator(".runs-browser__table tbody tr")
-    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
-    .first();
-
-  const deadline = Date.now() + 30000;
-  while ((await row.count()) === 0 && Date.now() < deadline) {
-    await page.locator("button.framesync-button").filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
-    await page.waitForTimeout(500);
-  }
-  await row.waitFor({ state: "visible", timeout: 10000 });
+  await openRunsMonitor(page, { tab: "past" });
+  await waitForPastRunRow(page, runId);
 }
 
 try {
@@ -139,7 +114,7 @@ try {
   await assertRunInBrowser(page);
 
   await page.reload({ waitUntil: "domcontentloaded" });
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
   await dismissSessionModalIfOpen(page);
   await assertRunInBrowser(page);
 

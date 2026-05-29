@@ -33,6 +33,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -133,19 +134,12 @@ try {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10_000 });
   }
-  await page.waitForSelector("header .tab", { timeout: 30_000 });
+  await waitForNavTabs(page);
 
-  // Go to LIVE tab so frame-rail renders
-  const liveTab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: /^LIVE$/ }),
-  }).first();
-  if ((await liveTab.count()) > 0) await liveTab.click();
+  // Go to LIVE tab and open frames in System → Runs → Frames
+  await clickTab(page, "LIVE");
 
-  // Expand frame rail via JS (live drawer overlay can intercept pointer events)
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(200);
 
   // Capture performance.timeOrigin so we can convert WS performance.now() to epoch ms

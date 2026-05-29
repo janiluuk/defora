@@ -3,30 +3,10 @@
  * Usage: BASE_URL=http://127.0.0.1:3999 node test/playwright-smoke.mjs
  */
 import { chromium } from 'playwright';
+import { clickTab, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
 const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
-
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-async function getTabLabels(page) {
-  const labels = await page.locator('header .tab .tab__label').allTextContents();
-  return labels.map((label) => label.trim()).filter(Boolean);
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator('header .tab').filter({
-    has: page.locator('.tab__label').filter({
-      hasText: new RegExp(`^${escapeRegex(label)}$`),
-    }),
-  }).first();
-  if ((await tab.count()) === 0) {
-    throw new Error(`Tab button "${label}" not found`);
-  }
-  await tab.click();
-}
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -34,7 +14,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 try {
   // "networkidle" can be blocked by live polling/streaming; DOM loaded is enough for these assertions.
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForSelector('header .tab', { timeout: 30000 });
+  await waitForNavTabs(page);
   const trimmed = await getTabLabels(page);
   for (const name of expected) {
     if (!trimmed.includes(name)) {
@@ -68,16 +48,13 @@ try {
   if ((await audioReactivePanel.count()) === 0) {
     throw new Error('Audio reactive panel not found under MODULATION -> Reactive');
   }
-  await clickTab(page, 'LIBRARY');
+  await openLibraryBrowser(page);
   await page.waitForTimeout(300);
   const storageBrowser = page.locator('.library-storage-browser');
   if ((await storageBrowser.count()) === 0) {
     throw new Error('Storage browser not found under LIBRARY');
   }
-  await clickTab(page, 'SETTINGS');
-  await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
-  await page.waitForTimeout(300);
+  await openRunsMonitor(page);
   const runsBrowser = page.locator('[data-testid="runs-browser"]');
   if ((await runsBrowser.count()) === 0) {
     throw new Error('Runs monitor not found under SETTINGS → SYSTEM');

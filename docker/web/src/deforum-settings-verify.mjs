@@ -22,7 +22,7 @@ const SCHEDULE_FIELD_KEYS = [
 
 const CN_WEIGHT_KEYS = ['cn_1_weight', 'cn_2_weight', 'cn_3_weight', 'cn_4_weight', 'cn_5_weight'];
 
-function parseScheduleKeyframes(raw) {
+function verifyParseScheduleKeyframes(raw) {
   if (raw == null || raw === '') return [{ frame: 0, value: 0 }];
   const text = String(raw).trim();
   const keyframes = [];
@@ -49,12 +49,12 @@ function scheduleLooksLikeDeforum(raw) {
 }
 
 function scheduleIsFlatZero(raw) {
-  const kfs = parseScheduleKeyframes(raw);
+  const kfs = verifyParseScheduleKeyframes(raw);
   return kfs.every((k) => Math.abs(k.value) < 1e-6);
 }
 
 function scheduleHasNonZero(raw) {
-  const kfs = parseScheduleKeyframes(raw);
+  const kfs = verifyParseScheduleKeyframes(raw);
   return kfs.some((k) => Math.abs(k.value) > 1e-6);
 }
 
@@ -211,7 +211,7 @@ export function verifyDeforumSettings(settings, opts = {}) {
 
   const stepsSched = String(settings.steps_schedule || '');
   if (stepsSched && scheduleLooksLikeDeforum(stepsSched)) {
-    const schedSteps = parseScheduleKeyframes(stepsSched)[0]?.value;
+    const schedSteps = verifyParseScheduleKeyframes(stepsSched)[0]?.value;
     if (Number.isFinite(steps) && Number.isFinite(schedSteps) && Math.round(steps) !== Math.round(schedSteps)) {
       pushIssue(warnings, 'steps', `UI steps (${steps}) differs from steps_schedule (${schedSteps})`, 'Align steps and steps_schedule');
     }

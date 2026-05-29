@@ -26,6 +26,7 @@ import path from "path";
 import { execSync } from "child_process";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,14 +41,6 @@ function generateFramePng(outPath, frameIndex) {
     `ffmpeg -y -f lavfi -i color=c=${color}:size=64x64:d=1 -frames:v 1 "${outPath}"`,
     { stdio: "pipe" },
   );
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function clickSubPill(page, label) {
@@ -114,15 +107,11 @@ try {
       .filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10_000 });
   }
-  await page.waitForSelector("header .tab", { timeout: 30_000 });
+  await waitForNavTabs(page);
 
-  // ── 2. Go to LIVE tab and expand frame rail ──────────────────────────────
+  // ── 2. Go to LIVE tab and open frames in System → Runs → Frames ─────────
   await clickTab(page, "LIVE");
-  // Expand via JS to avoid pointer-event intercept from the drawer overlay
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(150);
 
   // ── 3. Drop 8 frames into framesDir one at a time ───────────────────────

@@ -9,17 +9,10 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
+import { openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   return Buffer.from("defora-e2e-storage-mp4");
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function dismissSessionModalIfOpen(page) {
@@ -28,14 +21,6 @@ async function dismissSessionModalIfOpen(page) {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10000 });
   }
-}
-
-async function openLibraryBrowser(page) {
-  await clickTab(page, "LIBRARY");
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
-  const browserRoot = page.locator('.video-swarm-browser[data-testid="video-swarm-browser"]').first();
-  await browserRoot.waitFor({ state: "visible", timeout: 30000 });
-  return browserRoot;
 }
 
 async function selectRoot(browserRoot, rootId) {
@@ -124,7 +109,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
   await dismissSessionModalIfOpen(page);
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   const browserRoot = await openLibraryBrowser(page);
 

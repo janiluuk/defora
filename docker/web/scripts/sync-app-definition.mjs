@@ -13,7 +13,7 @@ const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
 // Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
-const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs'];
+const UTIL_MODULES = ['morph-utils.mjs', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -84,8 +84,8 @@ const emittedComponentStubs = new Set();
 const emittedComponentPaths = new Set();
 let needsAppViewProxyStub = false;
 
-function extractMethodsClause(scriptBody) {
-  const idx = scriptBody.indexOf('methods:');
+function extractObjectClause(scriptBody, key) {
+  const idx = scriptBody.indexOf(`${key}:`);
   if (idx < 0) return '';
   const start = scriptBody.indexOf('{', idx);
   if (start < 0) return '';
@@ -96,7 +96,36 @@ function extractMethodsClause(scriptBody) {
     else if (ch === '}') {
       depth -= 1;
       if (depth === 0) {
-        return `, methods: ${scriptBody.slice(start, i + 1)}`;
+        return `, ${key}: ${scriptBody.slice(start, i + 1)}`;
+      }
+    }
+  }
+  return '';
+}
+
+function extractMethodsClause(scriptBody) {
+  return extractObjectClause(scriptBody, 'methods');
+}
+
+function extractComputedClause(scriptBody) {
+  return extractObjectClause(scriptBody, 'computed');
+}
+
+function extractDataFunctionClause(scriptBody) {
+  const idx = scriptBody.indexOf('data()');
+  if (idx < 0) return '';
+  const returnIdx = scriptBody.indexOf('return', idx);
+  if (returnIdx < 0) return '';
+  const start = scriptBody.indexOf('{', returnIdx);
+  if (start < 0) return '';
+  let depth = 0;
+  for (let i = start; i < scriptBody.length; i++) {
+    const ch = scriptBody[i];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return `, data() { return ${scriptBody.slice(start, i + 1)} }`;
       }
     }
   }
@@ -111,8 +140,10 @@ function extractComponentDefinition(scriptBody) {
     propsClause = `props: {${propsMatch[1]}\n  }`;
   }
   const setupClause = usesProxy ? ', setup(props) { return __proxyAppView(props); }' : '';
+  const dataClause = extractDataFunctionClause(scriptBody);
   const methodsClause = extractMethodsClause(scriptBody);
-  return { propsClause, setupClause, methodsClause, usesProxy };
+  const computedClause = extractComputedClause(scriptBody);
+  return { propsClause, setupClause, dataClause, methodsClause, computedClause, usesProxy };
 }
 
 function motionPathPreviewStub(name) {
@@ -129,9 +160,9 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
   const componentSrc = readFileSync(componentPath, 'utf8');
   const componentTemplate = extractVueTemplate(componentSrc, relPath);
   const scriptMatch = componentSrc.match(/<script>([\s\S]*?)<\/script>/);
-  const { propsClause, setupClause, methodsClause, usesProxy } = scriptMatch
+  const { propsClause, setupClause, dataClause, methodsClause, computedClause, usesProxy } = scriptMatch
     ? extractComponentDefinition(scriptMatch[1])
-    : { propsClause: "props: ['app']", setupClause: ', setup(props) { return __proxyAppView(props); }', methodsClause: '', usesProxy: true };
+    : { propsClause: "props: ['app']", setupClause: ', setup(props) { return __proxyAppView(props); }', dataClause: '', methodsClause: '', computedClause: '', usesProxy: true };
   if (usesProxy) {
     needsAppViewProxyStub = true;
   }
@@ -143,7 +174,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'DeforumJobPanel.vue'].some((p) => nestedRel.endsWith(p))) {
+      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => nestedRel.endsWith(p))) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -167,7 +198,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     ? `, components: { ${childComponents.join(', ')} }`
     : '';
   lines.push(
-    `const ${name} = { ${propsClause}${setupClause}${methodsClause}${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
+    `const ${name} = { ${propsClause}${setupClause}${dataClause}${computedClause}${methodsClause}${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
   );
   emittedComponentStubs.add(name);
 }
@@ -176,7 +207,7 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'DeforumJobPanel.vue'].some((p) => relPath.endsWith(p))) {
+    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => relPath.endsWith(p))) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }
@@ -210,7 +241,7 @@ function __proxyAppView(props) {
     },
     has(_target, key) {
       if (__hasOwnProp(props, 'app') && key === 'app') return true;
-      return (__hasOwnProp(props, key) && key !== 'app') || (props.app != null && key in props.app);
+      return (__hasOwnProp(props, key) && key !== 'app') || (props.app != null && Reflect.has(props.app, key));
     },
     getOwnPropertyDescriptor(_target, key) {
       if (__hasOwnProp(props, 'app') && key === 'app') {
