@@ -3,7 +3,7 @@
     <div class="framesync-panel library-storage-browser">
       <div class="framesync-header library-storage-browser__header">
         <div class="framesync-title"><span class="framesync-accent">Browser</span></div>
-        <span class="framesync-subtitle" style="margin:0;">Local folders, cloud links, and all videos</span>
+        <span class="framesync-subtitle" style="margin:0;">Browse videos, then open a file in the editor to cut and export</span>
       </div>
       <div class="library-storage-browser__actions">
         <button
