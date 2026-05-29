@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.37] - 2026-05-29
+
+## What's Changed
+
+- chore: rebuild assets for bottom nav (eabd779)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.36...v0.6.37
+
+
 ## [0.6.36] - 2026-05-29
 
 ## What's Changed
