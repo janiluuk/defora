@@ -25,7 +25,7 @@ fs.mkdirSync(outDir, { recursive: true });
 const shots = [
   { file: 'live-tab.png', tab: 'LIVE' },
   { file: 'stream-tab.png', tab: 'STREAM' },
-  { file: 'library-tab.png', tab: 'LIBRARY' },
+  { file: 'library-tab.png', library: true },
   { file: 'prompts-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'PROMPTS' } },
   { file: 'lora-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'LORA' } },
   { file: 'cn-tab.png', tab: 'PROMPTS', subTab: { group: 'PROMPTS', id: 'CONTROLNET' } },
@@ -70,8 +70,21 @@ async function clickSubPill(group, id) {
   }
 }
 
+async function openLibraryWorkspace(page) {
+  const btn = page.locator('[data-testid="top-nav-library"]').first();
+  if ((await btn.getAttribute('aria-expanded')) !== 'true') {
+    await btn.click({ force: true });
+  }
+  await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 30000 });
+  await page.waitForTimeout(600);
+}
+
 for (const shot of shots) {
-  await clickTopTab(shot.tab);
+  if (shot.library) {
+    await openLibraryWorkspace(page);
+  } else {
+    await clickTopTab(shot.tab);
+  }
   if (shot.subTab) {
     await clickSubPill(shot.subTab.group, shot.subTab.id);
   }

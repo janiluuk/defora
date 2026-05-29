@@ -1,7 +1,13 @@
 <template>
-  <div class="library-shell" :class="{ 'library-shell--fullscreen': libraryFullscreen }">
+  <div
+    class="library-shell"
+    :class="{
+      'library-shell--fullscreen': libraryFullscreen && !workspace,
+      'library-shell--workspace': workspace,
+    }"
+  >
     <div class="framesync-panel library-storage-browser">
-      <div class="framesync-header library-storage-browser__header">
+      <div v-if="!workspace" class="framesync-header library-storage-browser__header">
         <div class="framesync-title"><span class="framesync-accent">Browser</span></div>
         <span class="framesync-subtitle" style="margin:0;">Browse videos, then open a file in the editor to cut and export</span>
       </div>
@@ -29,6 +35,7 @@ export default {
   components: { VideoSwarmBrowser },
   props: {
     app: { type: Object, required: true },
+    workspace: { type: Boolean, default: false },
   },
   setup(props) {
     return proxyAppView(props)
@@ -52,6 +59,20 @@ export default {
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 14px;
   overflow: auto;
+}
+.library-shell--workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  gap: 8px;
+}
+.library-shell--workspace .library-storage-browser {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 .library-storage-browser {
   display: grid;

@@ -63,6 +63,7 @@ try {
   await tile.waitFor({ state: 'visible', timeout: 15000 });
   await tile.click();
   await page.locator('[data-testid="open-in-video-editor"]').first().click();
+  await page.waitForSelector('[data-testid="library-workspace-tab-editor"][aria-selected="true"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="editor-workspace"]', { timeout: 15000 });
   const importUrl = page.locator('.editor-view__import-url');
   await importUrl.waitFor({ state: 'visible', timeout: 10000 });
@@ -77,9 +78,12 @@ try {
     throw new Error(`Expected FreeCut iframe src, got: ${frameSrc}`);
   }
 
+  await page.locator('[data-testid="close-library-workspace"]').click();
+  await page.locator('[data-testid="library-workspace"]').waitFor({ state: 'hidden', timeout: 10000 }).catch(() => null);
+
   await clickTab(page, 'MOTION');
   await ensureRightPanelClosed(page);
-  await page.waitForSelector('[data-testid="motion-sequencer-dock"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="motion-sequencer-dock"]', { state: 'visible', timeout: 15000 });
   const seqToggle = page.locator('[data-testid="motion-sequencer-side-toggle"]');
   await seqToggle.scrollIntoViewIfNeeded();
   await seqToggle.evaluate((el) => {
@@ -90,7 +94,7 @@ try {
   await page.waitForSelector('.timeline-hero', { timeout: 15000 });
 
   await clickTab(page, 'MOTION');
-  await page.waitForSelector('[data-testid="motion-sequencer-dock"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="motion-sequencer-dock"]', { state: 'visible', timeout: 15000 });
   await page.waitForSelector('.stage-sequencer-bar', { timeout: 15000 });
 
   console.log('OK: FreeCut editor + library handoff + motion sequencer editor');

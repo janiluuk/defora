@@ -34,15 +34,15 @@
       <div class="top-nav__actions">
         <button
           type="button"
-          class="top-nav__perf-btn"
-          :class="{ 'top-nav__perf-btn--active': liveBottomDrawerOpen }"
-          :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
-          :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel (Crossfader, Runs, Modulation)'"
-          data-testid="bottom-drawer-toggle"
-          @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
+          class="top-nav__icon-btn"
+          :class="{ 'top-nav__icon-btn--active': libraryWorkspaceOpen }"
+          :aria-expanded="libraryWorkspaceOpen ? 'true' : 'false'"
+          title="Library — browse videos and open the editor"
+          data-testid="top-nav-library"
+          @click="toggleLibraryWorkspace()"
         >
-          <UiIcon :name="liveBottomDrawerOpen ? 'chevron-up' : 'sliders'" style="width:14px;height:14px;" />
-          <span>Perf</span>
+          <UiIcon name="folder" />
+          <span class="sr-only">Library</span>
         </button>
       </div>
     </nav>
@@ -83,7 +83,7 @@
     </header>
 
     <div
-      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+      v-if="!libraryWorkspaceOpen"
       class="live-drawer-shell live-drawer-shell--dock-top live-drawer-shell--video-anchored"
       :class="{ 'live-drawer-shell--open': rightPanelOpen }"
       data-testid="right-panel-drawer"
@@ -102,146 +102,18 @@
         </span>
         <span class="live-overlay-btn__top-label">{{ currentTab }}</span>
       </button>
-      <div class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
+      <div class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
         <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-        <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
         <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
         <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
         <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
-        <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
+        <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
+        <ModulationView v-else-if="currentTab === 'MODULATION' || currentTab === 'AUDIO'" :app="appViewModel" />
         <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+        <RunsBrowserPanel v-else-if="currentTab === 'RUNS'" :app="appViewModel" />
       </div>
     </div>
 
-    <div
-      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
-      class="top-drawer-shell top-drawer-shell--video-anchored"
-      :class="{ 'top-drawer-shell--open': liveBottomDrawerOpen }"
-      data-testid="bottom-drawer"
-    >
-      <div class="live-top-drawer__tabs">
-        <button
-          type="button"
-          class="sub-pill"
-          :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
-          @click="setLiveBottomDrawerTab('MODULATION')"
-        >
-          MODULATION
-        </button>
-        <button
-          type="button"
-          class="sub-pill"
-          :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
-          @click="setLiveBottomDrawerTab('CROSSFADER')"
-        >
-          CROSSFADER
-        </button>
-        <button
-          type="button"
-          class="sub-pill"
-          :class="{ active: liveBottomDrawerTab === 'SYSTEM' }"
-          @click="setLiveBottomDrawerTab('SYSTEM')"
-        >
-          SYSTEM
-        </button>
-      </div>
-      <div
-        class="top-drawer-panel"
-        :class="{
-          'top-drawer-panel--open': liveBottomDrawerOpen,
-          'top-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
-          'top-drawer-panel--crossfader': liveBottomDrawerOpen && liveBottomDrawerTab === 'CROSSFADER',
-        }"
-      >
-        <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
-          <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-top-' + idx" class="live-mod-slot">
-            <div class="live-mod-slot__head">
-              <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
-              <span v-if="slot.mappingLabel" class="live-mod-slot__map">
-                <UiIcon name="arrow-left" />
-                <span>{{ slot.mappingLabel }}</span>
-              </span>
-              <div class="live-mod-slot__actions">
-                <button
-                  v-if="slot.paramKey"
-                  type="button"
-                  class="framesync-button framesync-button--compact"
-                  title="Remove mapping"
-                  @click="clearParamMapping(slot.paramKey)"
-                >
-                  <UiIcon name="close" />
-                </button>
-                <button
-                  v-if="slot.paramKey"
-                  type="button"
-                  class="framesync-button framesync-button--compact"
-                  title="Add mapping"
-                  @click="openModulationMapping(slot.paramKey)"
-                >
-                  <UiIcon name="sliders" />
-                </button>
-              </div>
-            </div>
-            <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
-              <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
-                <input
-                  type="range"
-                  class="framesync-input live-mod-slider__input"
-                  :min="slot.min"
-                  :max="slot.max"
-                  :step="slot.step"
-                  :value="slot.value"
-                  @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
-                />
-                <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
-              </div>
-            </div>
-            <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
-              <div
-                class="live-mod-pad"
-                @mousedown="livePadDown($event, slot)"
-                @mousemove="livePadMove($event, slot)"
-                @mouseup="livePadUp"
-                @mouseleave="livePadUp"
-                @touchstart.prevent="livePadDown($event, slot)"
-                @touchmove.prevent="livePadMove($event, slot)"
-                @touchend.prevent="livePadUp"
-              >
-                <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
-                <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
-                <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
-              </div>
-              <div class="live-mod-pad__axes">
-                <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
-                <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
-              </div>
-            </div>
-            <div v-else class="live-mod-slot__body">
-              <div class="live-mod-knob">
-                <input
-                  type="range"
-                  class="framesync-input live-mod-knob__input"
-                  :min="slot.min"
-                  :max="slot.max"
-                  :step="slot.step"
-                  :value="slot.value"
-                  @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
-                />
-                <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <CrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
-        <div
-          v-else-if="liveBottomDrawerTab === 'SYSTEM'"
-          class="top-drawer-system system-runs-tab"
-          data-testid="bottom-drawer-system"
-        >
-          <RunsBrowserPanel :app="appViewModel" />
-        </div>
-      </div>
-    </div>
 
     <aside
       v-if="showEngineDrawerShell"
@@ -255,41 +127,21 @@
       </div>
     </aside>
 
+    <LibraryWorkspaceOverlay :app="appViewModel" />
+
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
-      'layout--stage': currentTab === 'MOTION',
+      'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
       'layout--studio': currentTab === 'MODULATION',
-      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',
+      'layout--library-workspace': libraryWorkspaceOpen,
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
         'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',
-        'preview--motion-dock': currentTab === 'MOTION',
-        'preview--top-dock': liveBottomDrawerOpen && !(libraryEditorOpen && currentTab === 'LIBRARY'),
+        'preview--motion-dock': currentTab === 'MOTION' || currentTab === 'GENERATE',
         'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,
       }">
         <div
-          v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
-          class="editor-workspace-shell"
-          data-testid="editor-workspace"
-        >
-          <div class="editor-workspace-shell__toolbar">
-            <button
-              type="button"
-              class="framesync-button framesync-button--compact"
-              data-testid="close-library-editor"
-              @click="closeLibraryEditor()"
-            >
-              ← Back to Library
-            </button>
-            <span v-if="editorStatus" class="editor-workspace-shell__status" :class="{ 'editor-workspace-shell__status--live': editorStatusLive }">
-              {{ editorStatus }}
-            </span>
-          </div>
-          <EditorView :app="appViewModel" />
-        </div>
-        <div
-          v-else
           class="preview-stage-row"
           :class="{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }"
           data-testid="preview-stage-row"
@@ -443,20 +295,6 @@
               />
             </GlassPanel>
           </div>
-          <button
-            v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
-            type="button"
-            class="top-drawer-fab top-drawer-fab--stage"
-            :class="{ 'top-drawer-fab--active': liveBottomDrawerOpen }"
-            :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
-            :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'"
-            data-testid="bottom-drawer-toggle"
-            @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
-          >
-            <span class="top-drawer-fab__icon-wrap" aria-hidden="true">
-              <UiIcon class="top-drawer-fab__icon" :name="liveBottomDrawerOpen ? 'chevron-up' : 'chevron-down'" />
-            </span>
-          </button>
           </div>
           <button
             v-if="showEngineDrawerShell"
@@ -575,7 +413,7 @@
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
         <div
-          v-if="currentTab === 'MOTION'"
+          v-if="currentTab === 'MOTION' || currentTab === 'GENERATE'"
           class="preview-bottom-dock"
           data-testid="preview-bottom-dock"
         >
@@ -660,6 +498,7 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
   readScheduleValueAtFrame,
+  formatScheduleKeyframes,
   buildLinearScheduleRamp,
   normalizeDeforumMode2d3d,
   isDeforum3dOnlyFieldKey,
@@ -671,7 +510,11 @@ import {
   buildRunDetailJsonRows,
   runDetailJsonPretty,
 } from './shared/run-detail-json.mjs'
-import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
+import {
+  applyPromptStyleToPrompts,
+  mergePromptParts,
+  stylePreviewPromptFor,
+} from './shared/prompt-styles.mjs'
 import { diffPromptLines } from './shared/prompt-diff.mjs'
 import {
   DEFAULT_FORGE_MODEL,
@@ -687,6 +530,26 @@ import {
   visibleWanControlFields,
   WAN_ANIMATION_MODE,
 } from './shared/wan-engine-config.mjs'
+import {
+  COMMON_VISUAL_PARAMS,
+  bindingFor,
+  isCommonVisualEnabled,
+  parseCommonVisualModKey,
+} from './animation-plugins/common-visual.mjs'
+import {
+  ANIMATELCM_MOTION_TYPES,
+  DEFAULT_ANIMATELCM_ENGINE,
+  ANIMATELCM_CONTROL_FIELDS,
+  normalizeAnimateLcmEngine,
+  mergeAnimateLcmIntoDeforumSettings,
+  ANIMATELCM_ANIMATION_MODE,
+} from './animation-plugins/animatelcm-engine-config.mjs'
+import {
+  ANIMATION_PLUGINS,
+  allPluginModulationTargets,
+  legacyModKeyAliases,
+  pluginByLayerKind,
+} from './animation-plugins/registry.mjs'
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -719,8 +582,7 @@ import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LiveEngineControlsDock from './components/LiveEngineControlsDock.vue'
 import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
-import LibraryView from './components/views/LibraryView.vue'
-import EditorView from './components/views/EditorView.vue'
+import LibraryWorkspaceOverlay from './components/LibraryWorkspaceOverlay.vue'
 import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
@@ -732,7 +594,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -771,7 +633,8 @@ export default {
       deforumPreloadStatus: '',
       _preloadDeforumStarted: false,
       libraryFullscreen: false,
-      libraryEditorOpen: false,
+      libraryWorkspaceOpen: false,
+      libraryWorkspacePane: 'browser',
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -908,7 +771,6 @@ export default {
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
-        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -929,10 +791,12 @@ export default {
         { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
+        { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true },
         { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
+      animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
@@ -1025,6 +889,7 @@ export default {
       promptStyleDraft: null,
       promptStyleSearch: "",
       promptStyleAutoExample: true,
+      promptStylePreviewGeneratingId: null,
       lcmEngine: { ...DEFAULT_LCM_ENGINE },
       prompts: {
         pos: "",
@@ -1719,13 +1584,26 @@ export default {
       return this.rightPanelOpen;
     },
     showEngineDrawerShell() {
-      return !(this.libraryEditorOpen && this.currentTab === 'LIBRARY');
+      return !this.libraryWorkspaceOpen;
+    },
+    libraryEditorOpen: {
+      get() {
+        return this.libraryWorkspaceOpen && this.libraryWorkspacePane === 'editor';
+      },
+      set(value) {
+        if (value) {
+          this.libraryWorkspaceOpen = true;
+          this.libraryWorkspacePane = 'editor';
+        } else if (this.libraryWorkspacePane === 'editor') {
+          this.libraryWorkspaceOpen = false;
+        }
+      },
     },
     sidePanelUsesEdgeDock() {
       const mode = this.sidePanelDock || 'auto';
       if (mode === 'edge') return true;
       if (mode === 'video') return false;
-      if (this.libraryEditorOpen && this.currentTab === 'LIBRARY') return true;
+      if (this.libraryWorkspaceOpen) return true;
       return this.currentTab === 'LIVE' && this.videoStageSize === 'full';
     },
     rightPanelToggleIcon() {
@@ -1826,7 +1704,7 @@ export default {
       if (!this.standbyPreviewVideoUrl) return false;
       const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
       if (!showClip && !this.showMainStageHls) return false;
-      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
+      if (this.libraryWorkspaceOpen) return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -1858,9 +1736,14 @@ export default {
       return list.filter(
         (style) =>
           String(style.name || "").toLowerCase().includes(q)
+          || String(style.description || "").toLowerCase().includes(q)
+          || String(style.previewPrompt || "").toLowerCase().includes(q)
           || String(style.positive || "").toLowerCase().includes(q)
           || String(style.negative || "").toLowerCase().includes(q),
       );
+    },
+    promptStyleDraftPreviewPrompt() {
+      return stylePreviewPromptFor(this.promptStyleDraft);
     },
     builtinEngineLayers() {
       return (Array.isArray(this.videoLayers) ? this.videoLayers : []).filter((layer) => layer && layer.builtin);
@@ -1905,9 +1788,33 @@ export default {
     isWanLayerActive() {
       return this.activeVideoLayer?.kind === 'wan';
     },
+    isAnimateLcmLayerActive() {
+      return this.activeVideoLayer?.kind === 'animatelcm';
+    },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
-      return kind === 'deforum' || kind === 'wan';
+      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm';
+    },
+    activeAnimationPlugin() {
+      return pluginByLayerKind(this.activeVideoLayer?.kind) || null;
+    },
+    activeAnimationPluginId() {
+      return this.activeAnimationPlugin?.id || null;
+    },
+    animationPluginList() {
+      return ANIMATION_PLUGINS;
+    },
+    animateLcmMotionTypes() {
+      return ANIMATELCM_MOTION_TYPES;
+    },
+    animateLcmControlFields() {
+      return ANIMATELCM_CONTROL_FIELDS;
+    },
+    commonVisualItems() {
+      return this.commonVisualItemsForPlugin(this.activeAnimationPluginId);
+    },
+    pluginModulationTargets() {
+      return allPluginModulationTargets();
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
@@ -1956,6 +1863,14 @@ export default {
         if (this.showDeforumVideo) return `WAN live · ${model}${frameSuffix}`;
         if (this.deforumPlaying) return `WAN generating · ${model}${frameSuffix}`;
         return `WAN Video · ${model}`;
+      }
+      if (layer.kind === 'animatelcm') {
+        const frames = this.deforumGeneratedFrameCount;
+        const frameSuffix = frames ? ` · ${frames} frame${frames === 1 ? '' : 's'}` : '';
+        const motion = String(this.animateLcmEngine?.motion_type || 'pan');
+        if (this.showDeforumVideo) return `AnimateLCM live · ${motion}${frameSuffix}`;
+        if (this.deforumPlaying) return `AnimateLCM generating · ${motion}${frameSuffix}`;
+        return `AnimateLCM · ${motion}`;
       }
       if (layer.kind === 'input') {
         return this.activeLayerPlaybackUrl ? `Input · ${this.inputLayerLabel || 'Video'}` : 'Input · no source';
@@ -2712,7 +2627,7 @@ export default {
       return 'Very strong';
     },
     modulationTargets() {
-      return [...this.lfoTargets, ...this.animationTargets];
+      return [...this.lfoTargets, ...this.animationTargets, ...this.pluginModulationTargets];
     },
     lfoTargetGroups() {
       const groups = {};
@@ -2969,9 +2884,6 @@ export default {
     showDeforumVideo(visible) {
       if (visible) this.clearHeldPreviewFrame();
     },
-    currentTab() {
-      this.syncRunsMonitorPolling();
-    },
     'currentSubTab.SETTINGS'(sub) {
       if (this.currentTab !== 'SETTINGS') return;
       this.syncRunsMonitorPolling();
@@ -3001,6 +2913,9 @@ export default {
       this.syncRunsMonitorPolling();
     },
     currentTab(tab, prev) {
+      this.syncRunsMonitorPolling();
+      this.updateVideoOverlayBounds();
+      this.updateSidePanelDockBounds();
       if (prev === "STREAM" && tab !== "STREAM") {
         this.disableHlsWatch();
       }
@@ -3024,13 +2939,17 @@ export default {
       this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
     },
-    libraryEditorOpen() {
+    libraryWorkspaceOpen() {
       this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
     },
-    currentTab() {
+    libraryWorkspacePane() {
       this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
+    },
+    runsMonitorActive(active) {
+      if (active) this.ensureRunsJobLogReady();
+      this.syncRunsMonitorPolling();
     },
     rightPanelOpen() {
       this.updateVideoOverlayBounds();
@@ -3049,9 +2968,9 @@ export default {
       if (typeof window !== 'undefined' && window.localStorage) {
         const savedTab = window.localStorage.getItem('defora_tab');
         if (savedTab === 'EDITOR') {
-          this.currentTab = 'LIBRARY';
-          this.libraryEditorOpen = true;
-          window.localStorage.setItem('defora_tab', 'LIBRARY');
+          this.openLibraryWorkspace('editor');
+        } else if (savedTab === 'LIBRARY') {
+          this.openLibraryWorkspace('browser');
         }
       }
     } catch (_e) {}
@@ -3358,7 +3277,7 @@ export default {
       let res = await fetch('/api/deforum/warmup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxFrames: 24, fps: 12 }),
+        body: JSON.stringify({ maxFrames: 24, fps: 24 }),
       });
       let data = res.ok ? await res.json() : null;
       if (res.ok && data && data.ok && data.batchId) {
@@ -3627,7 +3546,7 @@ export default {
     const browsePath = framesOut?.browse_path || null;
     const rootId = framesOut?.rootId || "runs";
     if (!browsePath) return;
-    this.currentTab = "LIBRARY";
+    this.openLibraryWorkspace('browser');
     this.librarySubTab = "BROWSER";
     await this.initSystemFilesBrowser();
     await this.browseSystemFiles(browsePath, { rootId });
@@ -3994,8 +3913,9 @@ export default {
    }
  },
  switchTab(id) {
-   if (id === 'EDITOR') {
-     id = 'LIBRARY';
+   if (id === 'EDITOR' || id === 'LIBRARY') {
+     this.openLibraryWorkspace(id === 'EDITOR' ? 'editor' : 'browser');
+     return;
    }
    if (id === 'GENERATE') {
      this.currentTab = 'MOTION';
@@ -4025,9 +3945,6 @@ export default {
      this.openRunsDrawerSystem();
      return;
    }
-   if (id !== 'LIBRARY') {
-     this.libraryEditorOpen = false;
-   }
    this.currentTab = id;
    if (id === 'MOTION') {
      this.$nextTick(() => {
@@ -4036,9 +3953,6 @@ export default {
      });
    }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
-  if (id === 'LIBRARY') {
-    void this.initSystemFilesBrowser();
-  }
   if (id === 'STREAM') {
     void this.refreshStreamStatus();
   }
@@ -4108,6 +4022,7 @@ export default {
  setRunsBrowserTab(tab) {
   if (tab !== 'active' && tab !== 'past' && tab !== 'frames') return;
   this.runsBrowserTab = tab;
+  if (tab === 'active') this.ensureRunsJobLogReady();
   if (tab === 'frames') {
     this.showFrames = true;
     void this.refreshFrames();
@@ -4120,6 +4035,7 @@ export default {
   if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
   this.liveBottomDrawerTab = tab;
   if (tab === 'SYSTEM') {
+    this.ensureRunsJobLogReady();
     void this.refreshRuns();
   } else if (tab !== 'CROSSFADER') {
     this.loraCrossfaderPickerGroup = null;
@@ -4564,10 +4480,133 @@ syncHudMotionFromParam(hudKey, value) {
 },
 modulationTargetByKey(key) {
   if (!key) return null;
+  const parsed = parseCommonVisualModKey(key);
+  if (parsed) {
+    const pluginTarget = this.pluginModulationTargets.find((t) => t.key === key);
+    if (pluginTarget) return pluginTarget;
+  }
+  if (String(key).includes('.')) {
+    const pluginTarget = this.pluginModulationTargets.find((t) => t.key === key);
+    if (pluginTarget) return pluginTarget;
+  }
+  const legacy = legacyModKeyAliases();
+  if (legacy[key]) {
+    const resolved = this.pluginModulationTargets.find((t) => t.key === legacy[key]);
+    if (resolved) return resolved;
+  }
   const canonical = this.liveParamCanonicalKey(key);
   return this.lfoTargets.find((t) => t.key === canonical || t.key === key)
     || this.animationTargets.find((t) => t.key === canonical || t.key === key)
     || null;
+},
+readCommonVisualValue(pluginId, paramId) {
+  const binding = bindingFor(pluginId, paramId);
+  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
+  const fallback = param?.default ?? 0;
+  if (binding.type === 'disabled') return fallback;
+  if (binding.type === 'animation') {
+    const v = Number(this.defaultAnimation?.[binding.field]);
+    return Number.isFinite(v) ? v : fallback;
+  }
+  if (binding.type === 'schedule') {
+    const frame = this.motionSmoothnessStartFrame();
+    return readScheduleValueAtFrame(this.deforumSettings?.[binding.key], frame);
+  }
+  if (binding.type === 'wan') {
+    const v = Number(this.wanEngine?.[binding.key]);
+    return Number.isFinite(v) ? v : fallback;
+  }
+  if (binding.type === 'animatelcm') {
+    const v = Number(this.animateLcmEngine?.[binding.key]);
+    return Number.isFinite(v) ? v : fallback;
+  }
+  return fallback;
+},
+writeCommonVisualValue(pluginId, paramId, rawValue) {
+  const binding = bindingFor(pluginId, paramId);
+  if (binding.type === 'disabled') return;
+  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
+  const num = this.clampVal(Number(rawValue), param?.min ?? 0, param?.max ?? 1);
+  if (!Number.isFinite(num)) return;
+  if (binding.type === 'animation') {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+      ...this.defaultAnimation,
+      [binding.field]: num,
+    });
+    this.saveSessionState();
+    return;
+  }
+  if (binding.type === 'schedule') {
+    const schedule = formatScheduleKeyframes([{ frame: 0, value: num }]);
+    this.onDeforumFieldInput(binding.key, schedule, 'text');
+    if (!this.deforumPlaying) this.schedulePreviewFrame();
+    return;
+  }
+  if (binding.type === 'wan') {
+    this.onWanEngineFieldChange(binding.key, num, 'number');
+    return;
+  }
+  if (binding.type === 'animatelcm') {
+    this.onAnimateLcmFieldChange(binding.key, num, 'number');
+  }
+},
+onCommonVisualInput(paramId, rawValue, pluginIdOverride) {
+  const pluginId = pluginIdOverride || this.activeAnimationPluginId;
+  if (!pluginId) return;
+  this.writeCommonVisualValue(pluginId, paramId, rawValue);
+},
+commonVisualItemsForPlugin(pluginId) {
+  if (!pluginId) return [];
+  return COMMON_VISUAL_PARAMS.map((p) => {
+    const disabled = !isCommonVisualEnabled(pluginId, p.id);
+    const value = disabled ? p.default : this.readCommonVisualValue(pluginId, p.id);
+    const readout = Number.isFinite(value)
+      ? (Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2))
+      : '—';
+    return { ...p, paramId: p.id, value, readout, disabled };
+  });
+},
+onAnimateLcmFieldChange(key, rawValue, type = 'text') {
+  if (!key || !this.animateLcmEngine) return;
+  let next = rawValue;
+  if (type === 'boolean') {
+    next = !!rawValue;
+  } else if (type === 'number') {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) return;
+    next = num;
+  } else {
+    next = String(rawValue ?? '');
+  }
+  this.animateLcmEngine = normalizeAnimateLcmEngine({ ...this.animateLcmEngine, [key]: next });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+setAnimateLcmMotionType(typeId) {
+  if (!this.animateLcmEngine) return;
+  this.animateLcmEngine = normalizeAnimateLcmEngine({
+    ...this.animateLcmEngine,
+    motion_type: String(typeId || 'pan'),
+  });
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+},
+applyAnimateLcmMotionPreset(name) {
+  if (!name || !this.motionPresets?.[name]) return;
+  const preset = this.motionPresets[name];
+  this.animateLcmEngine = normalizeAnimateLcmEngine({
+    ...this.animateLcmEngine,
+    motion_preset: name,
+    alcm_pan_x: Number(preset.translation_x) || 0,
+    alcm_pan_y: Number(preset.translation_y) || 0,
+    alcm_zoom: Number(preset.translation_z) ? 1 + Number(preset.translation_z) * 0.1 : 1,
+    alcm_motion_amount: name === 'Static' ? 0 : 1,
+  });
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
 isAnimationModKey(key) {
   return typeof key === 'string' && key.startsWith('anim_');
@@ -4580,6 +4619,21 @@ applyAnimationModulation(field, value) {
   });
 },
 routeModulationValue(key, value, payload, cnUpdates) {
+  const pluginParsed = parseCommonVisualModKey(key);
+  if (pluginParsed) {
+    this.writeCommonVisualValue(pluginParsed.pluginId, pluginParsed.paramId, value);
+    return;
+  }
+  if (String(key).startsWith('wan.')) {
+    const wanKey = String(key).slice(4);
+    this.onWanEngineFieldChange(wanKey, value, 'number');
+    return;
+  }
+  if (String(key).startsWith('animatelcm.')) {
+    const alcmKey = String(key).slice('animatelcm.'.length);
+    this.onAnimateLcmFieldChange(alcmKey, value, 'number');
+    return;
+  }
   const anim = this.animationTargets.find((t) => t.key === key);
   if (anim) {
     this.applyAnimationModulation(anim.field, value);
@@ -4699,6 +4753,7 @@ rebuildVideoLayers() {
     { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl') },
     { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum') },
     { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan') },
+    { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true, previewVisible: prevVisible('animatelcm') },
     { id: 'blend', kind: 'blend', label: 'Both', builtin: true, previewVisible: prevVisible('blend') },
     {
       id: 'input',
@@ -4988,7 +5043,7 @@ selectVideoLayer(id, opts = {}) {
     this.saveSessionState();
     return;
   }
-  if (layer?.kind === 'wan') {
+  if (layer?.kind === 'animatelcm') {
     this.defaultAnimation = this.normalizeDefaultAnimationSettings({
       ...this.defaultAnimation,
       preferDeforumVideo: true,
@@ -4996,6 +5051,7 @@ selectVideoLayer(id, opts = {}) {
     this.videoReady = false;
     if (this.hlsWatchEnabled) this.attachPlayer();
     this.queueDeforumSettingsSave();
+    if (!this.deforumPlaying) this.scheduleDeforumPreview();
     this.saveSessionState();
     return;
   }
@@ -5017,7 +5073,7 @@ toggleVideoLayerAdd(open) {
   this.saveSessionState();
 },
 closeVideoLayer(id) {
-  if (id === 'webgl' || id === 'deforum' || id === 'wan' || id === 'blend' || id === 'input') return;
+  if (id === 'webgl' || id === 'deforum' || id === 'wan' || id === 'animatelcm' || id === 'blend' || id === 'input') return;
   this.removeLiveSource(id);
   if (this.activeVideoLayerId === id) {
     this.selectVideoLayer('input');
@@ -5094,10 +5150,10 @@ layerStatus(layer) {
     if (this.deforumPlaying || this.videoReady) return 'yellow';
     return 'green';
   }
-  if (layer.kind === 'deforum' || layer.kind === 'wan') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm') {
     if (this.videoReady) return 'green';
     if (this.deforumPlaying || (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo)) return 'yellow';
-    if (layer.kind === 'wan') return 'yellow';
+    if (layer.kind === 'wan' || layer.kind === 'animatelcm') return 'yellow';
     return 'red';
   }
   if (layer.kind === 'input') {
@@ -5130,6 +5186,12 @@ animationLayerDescription(layer) {
     if (this.videoReady) return `WAN Video · ${model} · live`;
     return `WAN Video · ${model} · idle`;
   }
+  if (layer.kind === 'animatelcm') {
+    const motion = String(this.animateLcmEngine?.motion_type || 'pan');
+    if (this.deforumPlaying) return `AnimateLCM · ${motion} · generating`;
+    if (this.videoReady) return `AnimateLCM · ${motion} · live`;
+    return `AnimateLCM · ${motion} · idle`;
+  }
   if (layer.kind === 'blend') return 'Composite · WebGL under Deforum';
   if (layer.kind === 'input') {
     return this.inputLayerPlaybackUrl
@@ -5157,25 +5219,40 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
-openLibraryVideoEditor() {
-  this.currentTab = 'LIBRARY';
-  this.libraryEditorOpen = true;
-  this.rightPanelOpen = true;
-  this.liveDrawerOpen = true;
+toggleLibraryWorkspace() {
+  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
+  else this.openLibraryWorkspace('browser');
+},
+openLibraryWorkspace(pane = 'browser') {
+  this.libraryWorkspaceOpen = true;
+  this.libraryWorkspacePane = pane === 'editor' ? 'editor' : 'browser';
   void this.initSystemFilesBrowser();
   this.saveSessionState();
 },
-closeLibraryEditor() {
-  this.libraryEditorOpen = false;
+closeLibraryWorkspace() {
+  this.libraryWorkspaceOpen = false;
+  this.libraryWorkspacePane = 'browser';
   this.saveSessionState();
+},
+setLibraryWorkspacePane(pane) {
+  const next = pane === 'editor' ? 'editor' : 'browser';
+  if (this.libraryWorkspacePane === next) return;
+  this.libraryWorkspacePane = next;
+  if (next === 'browser') void this.initSystemFilesBrowser();
+  this.saveSessionState();
+},
+openLibraryVideoEditor() {
+  this.openLibraryWorkspace('editor');
+},
+closeLibraryEditor() {
+  this.setLibraryWorkspacePane('browser');
 },
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
     this.editorStatusLive = false;
-    this.currentTab = 'LIBRARY';
-    this.libraryEditorOpen = false;
+    this.openLibraryWorkspace('browser');
     this.saveSessionState();
     return;
   }
@@ -5185,7 +5262,12 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.openLibraryVideoEditor();
+  this.openLibraryWorkspace('editor');
+},
+ensureRunsJobLogReady() {
+  if (!this.runsMonitorActive) return;
+  if (this.runsJobLog.length) return;
+  this.appendRunsJobLog('Runs monitor ready — launch a test job or wait for activity.', 'info');
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -10562,9 +10644,14 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       }
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
-    if (typeof s.libraryEditorOpen === 'boolean') {
-      this.libraryEditorOpen = s.libraryEditorOpen;
-      if (this.libraryEditorOpen) this.currentTab = 'LIBRARY';
+    if (typeof s.libraryWorkspaceOpen === 'boolean') {
+      this.libraryWorkspaceOpen = s.libraryWorkspaceOpen;
+      if (s.libraryWorkspacePane === 'editor' || s.libraryWorkspacePane === 'browser') {
+        this.libraryWorkspacePane = s.libraryWorkspacePane;
+      }
+    } else if (typeof s.libraryEditorOpen === 'boolean' && s.libraryEditorOpen) {
+      this.libraryWorkspaceOpen = true;
+      this.libraryWorkspacePane = 'editor';
     }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
@@ -10637,6 +10724,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.wanEngine && typeof s.wanEngine === 'object') {
       this.wanEngine = normalizeWanEngine(s.wanEngine);
     }
+    if (s.animateLcmEngine && typeof s.animateLcmEngine === 'object') {
+      this.animateLcmEngine = normalizeAnimateLcmEngine(s.animateLcmEngine);
+    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
@@ -10687,7 +10777,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
-      libraryEditorOpen: this.libraryEditorOpen,
+      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
+      libraryWorkspacePane: this.libraryWorkspacePane,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -10720,6 +10811,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
+      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -10774,7 +10866,8 @@ getCurrentSessionSnapshotRaw() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
-      libraryEditorOpen: this.libraryEditorOpen,
+      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
+      libraryWorkspacePane: this.libraryWorkspacePane,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -10805,6 +10898,7 @@ getCurrentSessionSnapshotRaw() {
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
+      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -11612,6 +11706,9 @@ openPromptStyleEditor(id) {
   if (!style) return;
   this.promptStyleEditorId = id;
   this.promptStyleDraft = { ...style };
+  if (!style.exampleImage) {
+    void this.generatePromptStyleExample(id, { auto: true });
+  }
 },
 startNewPromptStyle() {
   const id = `custom_${Date.now()}`;
@@ -11619,6 +11716,8 @@ startNewPromptStyle() {
   this.promptStyleDraft = {
     id,
     name: "New style",
+    description: "",
+    previewPrompt: stylePreviewPromptFor(null),
     positive: "",
     negative: "",
     source: "custom",
@@ -11635,6 +11734,8 @@ async savePromptStyleDraft() {
   const payload = {
     id: draft.id,
     name: draft.name,
+    description: draft.description,
+    previewPrompt: draft.previewPrompt,
     positive: draft.positive,
     negative: draft.negative,
   };
@@ -11674,6 +11775,59 @@ async deletePromptStyle(id) {
     this.promptStylesStatus = "Style deleted";
   } catch (err) {
     this.promptStylesStatus = `Delete failed: ${err.message || err}`;
+  }
+},
+async generatePromptStyleExample(styleId, { auto = false } = {}) {
+  if (!styleId || this.promptStylePreviewGeneratingId) return;
+  const style = this.promptStyleById(styleId);
+  if (!style || style.exampleImage) return;
+
+  const styleForPreview =
+    this.promptStyleDraft?.id === styleId ? this.promptStyleDraft : style;
+  const basePrompt = stylePreviewPromptFor(styleForPreview);
+
+  this.promptStylePreviewGeneratingId = styleId;
+  if (!auto) {
+    this.promptStylesStatus = `Generating preview: "${basePrompt}"…`;
+  }
+
+  const { positive, negative } = applyPromptStyleToPrompts(
+    { positive: basePrompt, negative: '' },
+    styleForPreview,
+  );
+  const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
+  const steps = Math.min(24, Math.max(8, Number(this.deforumSettings?.steps) || 12));
+
+  try {
+    const res = await fetch('/api/txt2img', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: positive,
+        negative_prompt: negative,
+        steps,
+        cfg_scale: cfg ? cfg.val : 7,
+        width: 512,
+        height: 512,
+        seed: this.deforumSettings?.seed != null ? this.deforumSettings.seed : -1,
+        sampler_name: this.deforumSettings?.sampler || 'Euler a',
+        settings: this.deforumSettings,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok || !data.path) {
+      throw new Error(data.error || data.detail || 'txt2img failed');
+    }
+    await this.setPromptStyleExampleFromPath(styleId, data.path);
+    if (!auto) this.promptStylesStatus = 'Style preview saved';
+  } catch (err) {
+    if (!auto) {
+      this.promptStylesStatus = `Preview failed: ${err.message || err}`;
+    }
+  } finally {
+    if (this.promptStylePreviewGeneratingId === styleId) {
+      this.promptStylePreviewGeneratingId = null;
+    }
   }
 },
 async setPromptStyleExampleFromPreview(styleId) {
@@ -11763,7 +11917,7 @@ effectiveNegativePrompt(base) {
 },
 effectiveDeforumSettingsForRender() {
   const settings = JSON.parse(JSON.stringify(this.activeDeforumSettings()));
-  const basePositive = this.isWanLayerActive
+  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive)
     ? (this.buildMorphedPrompt() || String(this.prompts.pos || "").trim())
     : (
       getNestedValue(settings, "prompts.0")
@@ -11774,7 +11928,7 @@ effectiveDeforumSettingsForRender() {
   const positive = this.effectivePositivePrompt(basePositive);
   setNestedValue(settings, "prompts.0", positive);
   settings.negative_prompts = this.effectiveNegativePrompt(baseNegative);
-  if (this.lcmEngineEnabled && !this.isWanLayerActive) {
+  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive) {
     const steps = Math.max(1, Math.round(Number(this.lcmEngine.steps) || 1));
     settings.steps = steps;
     settings.steps_schedule = `0: (${steps})`;
@@ -11782,7 +11936,13 @@ effectiveDeforumSettingsForRender() {
   if (this.isWanLayerActive) {
     return mergeWanEngineIntoDeforumSettings(settings, this.wanEngine, { positivePrompt: positive });
   }
+  if (this.isAnimateLcmLayerActive) {
+    return mergeAnimateLcmIntoDeforumSettings(settings, this.animateLcmEngine, { positivePrompt: positive });
+  }
   if (settings.animation_mode === WAN_ANIMATION_MODE) {
+    settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
+  }
+  if (settings.animation_mode === ANIMATELCM_ANIMATION_MODE) {
     settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
   }
   return settings;
@@ -12000,6 +12160,36 @@ flushQueuedPreview() {
  getDeforumField(keyPath) {
    return getNestedValue(this.deforumSettings, keyPath);
  },
+deforumMacroKnobValue(knob) {
+  if (!knob || !knob.key) return 0;
+  if (knob.scalar) {
+    const raw = this.getDeforumField(knob.key);
+    const num = Number(raw);
+    return Number.isFinite(num) ? num : 0;
+  }
+  const frame = this.motionSmoothnessStartFrame();
+  return readScheduleValueAtFrame(this.getDeforumField(knob.key), frame);
+},
+formatDeforumMacroKnobValue(knob) {
+  const v = this.deforumMacroKnobValue(knob);
+  if (!Number.isFinite(v)) return '—';
+  const step = Number(knob?.step) || 0.01;
+  const decimals = (String(step).split('.')[1] || '').length;
+  return decimals > 0 ? v.toFixed(decimals) : String(Math.round(v));
+},
+onDeforumMacroKnobInput(knob, raw) {
+  if (!knob || !knob.key) return;
+  const num = Number(raw);
+  if (!Number.isFinite(num)) return;
+  const clamped = this.clampVal(num, Number(knob.min ?? 0), Number(knob.max ?? 1));
+  if (knob.scalar) {
+    this.onDeforumFieldInput(knob.key, clamped, 'number');
+    return;
+  }
+  const schedule = formatScheduleKeyframes([{ frame: 0, value: clamped }]);
+  this.onDeforumFieldInput(knob.key, schedule, 'text');
+  if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
 formatDeforumFieldValue(field, rawValue) {
   if (!field) return String(rawValue ?? '');
   const value = rawValue == null ? '' : rawValue;

@@ -230,6 +230,18 @@ export const DEFORUM_FIELD_GROUPS = [
   },
 ];
 
+/** Eight performance macros — flat schedule @ frame 0 (keep in sync with DeforumMacroKnobs.vue). */
+export const DEFORUM_MACRO_KNOBS = [
+  { key: 'strength_schedule', label: 'Strength', min: 0, max: 1.5, step: 0.01 },
+  { key: 'keyframe_strength_schedule', label: 'Keyframe', min: 0, max: 1.5, step: 0.01 },
+  { key: 'noise_schedule', label: 'Noise', min: 0, max: 0.5, step: 0.005 },
+  { key: 'contrast_schedule', label: 'Contrast', min: 0, max: 2, step: 0.01 },
+  { key: 'cfg_scale_schedule', label: 'CFG', min: 0, max: 30, step: 0.1 },
+  { key: 'distilled_cfg_scale_schedule', label: 'D-CFG', min: 0, max: 30, step: 0.1 },
+  { key: 'steps_schedule', label: 'Steps', min: 1, max: 50, step: 1 },
+  { key: 'strength', label: 'Init', min: 0, max: 1.5, step: 0.01, scalar: true },
+];
+
 export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
   group.fields.map((field) => field.key)
 );

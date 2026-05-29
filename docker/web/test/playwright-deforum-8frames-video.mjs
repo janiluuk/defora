@@ -201,8 +201,8 @@ try {
   console.log(`✓  HLS playlist written to ${liveDir}/deforum.m3u8`);
 
   // ── 7. Navigate to Library → VideoSwarm browser ───────────────
-  await clickTab(page, "LIBRARY");
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 20_000 });
+  const { openLibraryBrowser } = await import("./playwright-nav.mjs");
+  await openLibraryBrowser(page);
 
   const browserRoot = page
     .locator('.video-swarm-browser[data-testid="video-swarm-browser"]')

@@ -156,8 +156,9 @@ export function verifyDeforumSettings(settings, opts = {}) {
 
   const mode = String(settings.animation_mode || '2D').trim().toUpperCase();
   const isWanMode = mode === 'WAN VIDEO' || mode === 'WAN';
-  if (!['2D', '3D', 'WAN VIDEO', 'WAN'].includes(mode)) {
-    pushIssue(warnings, 'animation_mode', `Unknown animation mode "${settings.animation_mode}"`, 'Use 2D, 3D, or Wan Video');
+  const isAnimateLcmMode = mode === 'ANIMATELCM';
+  if (!['2D', '3D', 'WAN VIDEO', 'WAN', 'ANIMATELCM'].includes(mode)) {
+    pushIssue(warnings, 'animation_mode', `Unknown animation mode "${settings.animation_mode}"`, 'Use 2D, 3D, Wan Video, or AnimateLCM');
   }
 
   if (isWanMode) {
