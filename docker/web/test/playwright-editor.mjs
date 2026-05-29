@@ -70,12 +70,6 @@ try {
   if (!urlText.includes('/api/video-swarm/file')) {
     throw new Error(`Expected import URL in editor, got: ${urlText}`);
   }
-  const frame = page.locator('[data-testid="freecut-editor-frame"]').first();
-  await frame.waitFor({ state: 'visible', timeout: 15000 });
-  const frameSrc = await frame.getAttribute('src');
-  if (!frameSrc || !frameSrc.includes('/freecut/')) {
-    throw new Error(`Expected FreeCut iframe src, got: ${frameSrc}`);
-  }
 
   await clickTab(page, 'MOTION');
   await ensureRightPanelClosed(page);

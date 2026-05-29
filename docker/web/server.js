@@ -18,7 +18,6 @@ const {
   installCiFetchGuard,
 } = require("./modules/ci-offline");
 const { resolveStoragePaths } = require("./modules/storage-paths");
-const promptStylesStore = require("./modules/prompt-styles-store");
 
 async function start(opts = {}) {
   const runtimeEnv = opts.env || process.env;
@@ -33,7 +32,6 @@ async function start(opts = {}) {
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
   const storage = resolveStoragePaths(opts);
-  const webRoot = storage.webRoot;
   const framesDir = storage.framesDir;
   const runsDir = storage.runsDir;
   const uploadsDir = storage.uploadsDir;
@@ -955,11 +953,29 @@ async function start(opts = {}) {
 
   app.get("/api/stream/status", async (_req, res) => {
     try {
-      execPythonModule(["-m", "defora_cli.stream_helper", "status"], (error, stdout) => {
+      execPythonModule(["-m", "defora_cli.stream_helper", "status", "--json"], (error, stdout, stderr) => {
+        let metrics = null;
+        const raw = String(stdout || "").trim();
+        if (raw) {
+          try {
+            metrics = JSON.parse(raw.split("\n").filter(Boolean).pop());
+          } catch (_e) {
+            metrics = null;
+          }
+        }
+        const running = !!(metrics && metrics.running);
         res.json({
-          status: error ? "stopped" : "running",
-          output: stdout,
+          status: running ? "running" : "stopped",
+          output: raw || String(stderr || "").trim(),
           python: PYTHON_BIN,
+          metrics: metrics || {
+            running: false,
+            status: "stopped",
+            health: error ? "offline" : "offline",
+            kbps: null,
+            fps: null,
+            target: null,
+          },
         });
       });
     } catch (err) {
@@ -1264,7 +1280,67 @@ async function start(opts = {}) {
     return "name";
   }
 
-  async function browseVideoSwarm(targetPath, { recursive = false, sortKey = "name" } = {}) {
+  const cloudSourcesPath = path.join(videoswarmDir, "cloud-sources.json");
+
+  function sanitizeFolderName(name) {
+    const s = String(name || "").trim().replace(/[\\/]+/g, "");
+    if (!s || s === "." || s === "..") return null;
+    return s.slice(0, 120);
+  }
+
+  function cloudProviderLabel(provider) {
+    const map = {
+      google_drive: "Google Drive",
+      dropbox: "Dropbox",
+      onedrive: "OneDrive",
+      other: "Cloud",
+    };
+    return map[String(provider || "").toLowerCase()] || "Cloud";
+  }
+
+  async function loadCloudSources() {
+    try {
+      const raw = await fsp.readFile(cloudSourcesPath, "utf8");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed.sources) ? parsed.sources : [];
+    } catch (err) {
+      if (err.code === "ENOENT") return [];
+      throw err;
+    }
+  }
+
+  async function saveCloudSources(sources) {
+    const list = Array.isArray(sources) ? sources : [];
+    await fsp.mkdir(path.dirname(cloudSourcesPath), { recursive: true });
+    await fsp.writeFile(cloudSourcesPath, JSON.stringify({ sources: list }, null, 2), "utf8");
+    return list;
+  }
+
+  function cloudRootEntries(sources) {
+    return sources.map((source) => ({
+      id: `cloud:${source.id}`,
+      label: `${cloudProviderLabel(source.provider)} — ${source.label}`,
+      kind: "cloud",
+      provider: source.provider,
+      url: source.url,
+      path: "",
+    }));
+  }
+
+  function cloudVideosForSource(source) {
+    const rootId = `cloud:${source.id}`;
+    return (Array.isArray(source.videos) ? source.videos : []).map((video) => ({
+      name: video.name || "Video",
+      path: video.path || video.url,
+      url: video.url,
+      rootId,
+      size: Number(video.size) || 0,
+      mtimeMs: Number(video.mtimeMs) || Date.parse(video.addedAt) || 0,
+      kind: "cloud",
+    }));
+  }
+
+  async function browseVideoSwarm(targetPath, { recursive = false, sortKey = "name", videosOnly = false } = {}) {
     const st = await fsp.stat(targetPath);
     if (!st.isDirectory()) {
       const err = new Error("not a directory");
@@ -1341,8 +1417,8 @@ async function start(opts = {}) {
       kind: "local",
       path: targetPath,
       parent: atRoot ? "" : parent,
-      folders,
-      folderCount: folders.length,
+      folders: videosOnly ? [] : folders,
+      folderCount: videosOnly ? 0 : folders.length,
       videos,
       videoCount: videos.length,
       videosOnly: !!videosOnly,
@@ -1558,8 +1634,9 @@ async function start(opts = {}) {
       const browsePath = resolveVideoSwarmPath(String(req.query.path || ""), rootId || "frames");
       if (!browsePath) return res.status(400).json({ error: "invalid path" });
       const recursive = String(req.query.recursive || "") === "1" || req.query.recursive === "true";
+      const videosOnly = String(req.query.videosOnly || "") === "1" || req.query.videosOnly === "true";
       const sortKey = parseVideoSwarmSortKey(req.query.sort);
-      const data = await browseVideoSwarm(browsePath, { recursive, sortKey });
+      const data = await browseVideoSwarm(browsePath, { recursive, sortKey, videosOnly });
       res.json(data);
     } catch (err) {
       if (err.code === "ENOENT") return res.status(404).json({ error: "path not found" });
