@@ -15,15 +15,20 @@ wasInterrupted = False
 async def sendAsync(value):
     global connection_string
     if connection_string == None:
-        deforum_mediator_config_path = os.path.join(pathlib.Path(__file__).parent.absolute(), 'deforum_mediator.cfg')
-        if os.path.isfile(deforum_mediator_config_path):
-            with open(deforum_mediator_config_path, "r", encoding='utf-8') as def_med_conf:
-                connection_string = def_med_conf.readline()
-                print("Using connection string:>" + str(connection_string) + "<")
-                #connection_string = "ws://localhost:8765"
+        env_host = os.getenv("DEF_MEDIATOR_HOST") or os.getenv("MEDIATOR_HOST")
+        env_port = os.getenv("DEF_MEDIATOR_PORT") or os.getenv("MEDIATOR_PORT")
+        if env_host and env_port:
+            connection_string = f"ws://{env_host}:{env_port}"
+            print(f"Using connection string from env: {connection_string}")
         else:
-            print("Didn't find deforum_mediator.cfg config file. Using connection_string: ws://localhost:8765")
-            connection_string = "ws://127.0.0.1:8765"
+            deforum_mediator_config_path = os.path.join(pathlib.Path(__file__).parent.absolute(), 'deforum_mediator.cfg')
+            if os.path.isfile(deforum_mediator_config_path):
+                with open(deforum_mediator_config_path, "r", encoding='utf-8') as def_med_conf:
+                    connection_string = def_med_conf.readline()
+                    print("Using connection string:>" + str(connection_string) + "<")
+            else:
+                print("Didn't find deforum_mediator.cfg config file. Using connection_string: ws://localhost:8765")
+                connection_string = "ws://127.0.0.1:8765"
 
     async with websockets.connect(connection_string) as websocket: #"ws://192.168.1.126:8765") as websocket:
         # await websocket.send(pickle.dumps(value))
