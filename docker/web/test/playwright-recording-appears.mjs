@@ -10,7 +10,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
 import { clickTab, openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
@@ -34,13 +34,13 @@ fs.mkdirSync(framesDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(sequencersDir, { recursive: true });
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   sequencersDir,
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 

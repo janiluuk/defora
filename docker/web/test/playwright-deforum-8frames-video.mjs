@@ -25,7 +25,7 @@ import os from "os";
 import path from "path";
 import { execSync } from "child_process";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
 import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -81,14 +81,14 @@ console.log(`✓  ${TOTAL_FRAMES} frames pre-generated in staging dir`);
 
 // ── server ────────────────────────────────────────────────────────────────────
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   framesDir,
   runsDir,
   uploadsDir,
   hlsDir,
   sequencersDir,
-  enableMq: false,
   hlsStream: "/hls/live/deforum.m3u8",
 });
 const base = `http://127.0.0.1:${svc.port}`;

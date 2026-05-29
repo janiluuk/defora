@@ -7,7 +7,7 @@ import path from "path";
 import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
 import { openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,14 +49,14 @@ const framesDir = path.join(tmpRoot, "frames");
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(framesDir, { recursive: true });
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   videoswarmDir: path.join(runsDir, "videoswarm"),
   sequencersDir: path.join(tmpRoot, "sequencers"),
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 

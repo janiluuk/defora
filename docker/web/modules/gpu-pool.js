@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
+const { skipBackgroundProbes: shouldSkipBackgroundProbes } = require("./ci-offline");
 
 const BACKENDS = ["sd-forge", "comfyui", "ollama"];
 const STRATEGIES = ["round_robin", "least_busy", "random", "priority"];
@@ -389,6 +390,9 @@ function createGpuPool(options = {}) {
   }
 
   async function ensureDefaultModelPreloaded() {
+    if (shouldSkipBackgroundProbes(env)) {
+      return { ok: false, skipped: true, reason: "ci_offline" };
+    }
     const model = String(state.defaultForgeModel || "").trim();
     if (!model) return { ok: false, skipped: true, reason: "no default model" };
     if (findNodeWithModel(model)) {
@@ -679,6 +683,7 @@ function createGpuPool(options = {}) {
 
   function scheduleHealthChecks() {
     if (healthTimer) clearInterval(healthTimer);
+    if (shouldSkipBackgroundProbes(env)) return;
     if (!state.enabled || !state.nodes.length) return;
     healthTimer = setInterval(() => {
       performHealthCheck().catch((e) => console.error("[gpu-pool] health check", e));
@@ -1052,6 +1057,12 @@ function createGpuPool(options = {}) {
 
   async function init() {
     await loadConfig();
+    if (shouldSkipBackgroundProbes(env)) {
+      if (state.nodes.length) {
+        console.log("[gpu-pool] CI offline — skipping startup health probes");
+      }
+      return;
+    }
     scheduleHealthChecks();
     if (state.enabled && state.nodes.length) {
       performHealthCheck()

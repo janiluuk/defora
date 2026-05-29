@@ -10,10 +10,24 @@ const { EventEmitter } = require("events");
 const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
+const {
+  isCiOffline,
+  skipBackgroundProbes,
+  isQuietMode,
+  blockExternalFetches,
+  installCiFetchGuard,
+} = require("./modules/ci-offline");
 const { resolveStoragePaths } = require("./modules/storage-paths");
 const promptStylesStore = require("./modules/prompt-styles-store");
 
 async function start(opts = {}) {
+  const runtimeEnv = opts.env || process.env;
+  const externalBlocked = () => blockExternalFetches(runtimeEnv);
+  const quietMode = () => isQuietMode(runtimeEnv);
+  installCiFetchGuard(runtimeEnv);
+  if (externalBlocked()) {
+    console.log("[web] CI quiet mode — external Forge/LLM connections disabled");
+  }
   const port = opts.port ?? process.env.PORT ?? 3000;
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
@@ -403,12 +417,12 @@ async function start(opts = {}) {
 
   const gpuPool = createGpuPool({
     configPath: opts.gpuPoolPath || path.join(__dirname, "gpu-pool.json"),
-    env: process.env,
+    env: runtimeEnv,
   });
   await gpuPool.init();
 
   const infrastructure = createInfrastructureStatus({
-    env: process.env,
+    env: runtimeEnv,
     framesDir,
     fsp,
   });
@@ -575,6 +589,9 @@ async function start(opts = {}) {
   }
 
   async function renderDeforumPreview(settings, target, optionsOverrides = {}) {
+    if (externalBlocked()) {
+      return { ok: false, skipped: true, reason: "ci_offline" };
+    }
     const forgeUrl = target.url;
     const baselineFrame = await latestFrameInfo();
     const previewSettings = {
@@ -808,6 +825,7 @@ async function start(opts = {}) {
 
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
   async function probeSdForge() {
+    if (skipBackgroundProbes(runtimeEnv)) return;
     if (typeof fetch === "undefined") return;
     const target = forgeTarget({});
     const forgeUrl = target.url;
@@ -840,6 +858,21 @@ async function start(opts = {}) {
   
   // Serve static files from public directory
   const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
+  const quietBoot = quietMode();
+  const indexHtmlPath = path.join(publicDir, "index.html");
+  if (quietBoot && fs.existsSync(indexHtmlPath)) {
+    app.get(["/", "/index.html"], (_req, res) => {
+      try {
+        const html = fs.readFileSync(indexHtmlPath, "utf8");
+        const injected = html.includes("__DEFORA_QUIET__")
+          ? html
+          : html.replace("<head>", '<head>\n  <script>window.__DEFORA_QUIET__=1</script>');
+        res.type("html").send(injected);
+      } catch (err) {
+        res.sendFile(indexHtmlPath);
+      }
+    });
+  }
   app.use(express.static(publicDir));
 
   const freecutDir =
@@ -1007,9 +1040,12 @@ async function start(opts = {}) {
   // API status endpoint for model availability
   app.get("/api/status", (_req, res) => {
     const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
+    const quiet = quietMode();
     res.json({
+      quiet,
+      externalServicesDisabled: externalBlocked(),
       sdForge: {
-        available: apiStatus.sdForgeAvailable,
+        available: quiet ? false : apiStatus.sdForgeAvailable,
         lastChecked: apiStatus.lastChecked,
         pollIntervalMs: Number.isFinite(sdForgePollMs) && sdForgePollMs > 0 ? sdForgePollMs : 0,
       },
@@ -1119,6 +1155,45 @@ async function start(opts = {}) {
     "/style-examples",
     express.static(promptStylesStore.examplesDir(webRoot), { maxAge: "3600s" }),
   );
+
+  async function resolveStandbyPreviewPath() {
+    const candidates = [
+      process.env.STANDBY_PREVIEW_VIDEO,
+      path.join(uploadsDir, "vid_preview.mp4"),
+    ].filter(Boolean);
+    for (const candidate of candidates) {
+      try {
+        const st = await fsp.stat(candidate);
+        if (st.isFile()) return path.resolve(candidate);
+      } catch (_e) {
+        /* try next */
+      }
+    }
+    return null;
+  }
+
+  app.head("/api/preview/standby-video", async (_req, res) => {
+    try {
+      const filePath = await resolveStandbyPreviewPath();
+      if (!filePath) return res.status(404).end();
+      res.set("Accept-Ranges", "bytes");
+      res.set("Content-Type", "video/mp4");
+      return res.status(200).end();
+    } catch (err) {
+      res.status(500).end();
+    }
+  });
+
+  app.get("/api/preview/standby-video", async (_req, res) => {
+    try {
+      const filePath = await resolveStandbyPreviewPath();
+      if (!filePath) return res.status(404).json({ error: "standby preview not configured" });
+      res.type("video/mp4");
+      return res.sendFile(filePath);
+    } catch (err) {
+      res.status(500).json({ error: err.message || "standby preview unavailable" });
+    }
+  });
 
   async function resolveStandbyPreviewPath() {
     const candidates = [
@@ -2152,9 +2227,15 @@ async function start(opts = {}) {
     if (!settings) {
       return res.status(400).json({ error: "settings object required" });
     }
+    if (externalBlocked()) {
+      return res.json({ ok: false, skipped: true, reason: "ci_offline" });
+    }
     const target = previewForgeTarget(req);
     try {
       const result = await renderDeforumPreview(settings, target, body.options_overrides || {});
+      if (result && result.skipped) {
+        return res.json(result);
+      }
       if (result && result.batchId) {
         persistRunJobSnapshot(result.batchId, {
           kind: "deforum_preview",
@@ -2171,7 +2252,9 @@ async function start(opts = {}) {
       }
       res.json(result);
     } catch (err) {
-      console.error("[api] deforum preview error", err);
+      if (!externalBlocked()) {
+        console.error("[api] deforum preview error", err);
+      }
       res.status(502).json({
         error: String(err.message || err),
         status: err.status,
@@ -2192,6 +2275,9 @@ async function start(opts = {}) {
   app.post("/api/deforum/warmup", async (req, res) => {
     if (warmupRunning) {
       return res.json({ ok: true, batchId: warmupBatchId, status: "already_running" });
+    }
+    if (isCiOffline()) {
+      return res.json({ ok: false, status: "ci_offline", error: "External services disabled in CI" });
     }
     const body = req.body || {};
     const maxFrames = Math.max(1, Math.min(480, parseInt(body.maxFrames, 10) || 48));
@@ -2917,10 +3003,6 @@ async function start(opts = {}) {
 
   // ControlNet models API
   app.get("/api/controlnet/models", async (req, res) => {
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
-    
-    // Fallback placeholder models
     const placeholderModels = [
       { id: "canny", name: "Canny Edge", category: "edge" },
       { id: "depth", name: "Depth Map", category: "depth" },
@@ -2932,7 +3014,14 @@ async function start(opts = {}) {
       { id: "normal", name: "Normal Map", category: "depth" },
       { id: "seg", name: "Segmentation", category: "semantic" },
     ];
-    
+
+    if (externalBlocked()) {
+      return res.json({ models: placeholderModels, source: "placeholder", cached: false, ciOffline: true });
+    }
+
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+
     try {
       // Try to fetch ControlNet models from SD-Forge API
       // Use native fetch (Node.js 18+) or fallback gracefully
@@ -3068,10 +3157,6 @@ async function start(opts = {}) {
 
   // SD Models (Checkpoints) API endpoints
   app.get("/api/sd-models", async (req, res) => {
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
-    try {
-    // Fallback placeholder models
     const placeholderModels = [
       {
         title: "SDXL Base",
@@ -3102,7 +3187,13 @@ async function start(opts = {}) {
         }
       },
     ];
-    
+
+    if (externalBlocked()) {
+      return res.json({ models: placeholderModels, source: "placeholder", cached: false, ciOffline: true });
+    }
+
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
     try {
       // Try to fetch models from SD-Forge API
       if (typeof fetch === 'undefined') {
@@ -3136,6 +3227,7 @@ async function start(opts = {}) {
         console.log(`[sd-models] Fetched ${enrichedModels.length} models from SD-Forge`);
         return res.json({ models: enrichedModels, source: 'sd-forge', cached: false });
       }
+      return res.json({ models: placeholderModels, source: 'placeholder', cached: false });
     } catch (err) {
       apiStatus.sdForgeAvailable = false;
       apiStatus.lastChecked = new Date().toISOString();
@@ -3145,9 +3237,7 @@ async function start(opts = {}) {
         const cacheAge = Math.floor((apiStatus.forgeCacheValidUntil - Date.now()) / 1000);
         return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge });
       }
-    }
-    
-    res.json({ models: placeholderModels, source: 'placeholder', cached: false });
+      return res.json({ models: placeholderModels, source: 'placeholder', cached: false });
     } finally {
       target.release();
     }
@@ -3211,6 +3301,13 @@ async function start(opts = {}) {
 
   // Get current SD model
   app.get("/api/sd-models/current", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({
+        model: { model_name: "Unknown", title: "Unknown" },
+        source: "placeholder",
+        ciOffline: true,
+      });
+    }
     const target = forgeTarget(req, { allowDirectPreferred: true });
     const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
     if (preferredNode && !target.node) {
@@ -3261,6 +3358,14 @@ async function start(opts = {}) {
 
   // Switch SD model
   app.post("/api/sd-models/switch", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({
+        success: true,
+        skipped: true,
+        message: "External services disabled in CI",
+        ciOffline: true,
+      });
+    }
     const { model_name } = req.body;
     
     if (!model_name) {

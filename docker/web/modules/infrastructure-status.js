@@ -4,6 +4,7 @@
  */
 const net = require("net");
 const os = require("os");
+const { skipBackgroundProbes: shouldSkipBackgroundProbes } = require("./ci-offline");
 
 const DEFAULT_MEDIATOR_PORT = 8766;
 
@@ -204,6 +205,28 @@ function createInfrastructureStatus(options = {}) {
 
   async function buildSnapshot() {
     const mediatorConfig = resolveMediatorConfig(env);
+    const nodeDefs = parseTranscoderNodes(env);
+
+    if (shouldSkipBackgroundProbes(env)) {
+      const mediator = {
+        ...mediatorConfig,
+        status: "offline",
+        deforumStatus: "offline",
+      };
+      const transcoders = nodeDefs.map((node) => ({
+        ...node,
+        status: "offline",
+        cpu: "—",
+        activeJobs: "—",
+        frameActivity: false,
+      }));
+      return {
+        mediator,
+        transcoders,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+
     const [mediatorReachable, deforumReachable] = await Promise.all([
       probeTcp(mediatorConfig.host, mediatorConfig.port),
       probeTcp(mediatorConfig.host, mediatorConfig.deforumPort),
@@ -214,7 +237,6 @@ function createInfrastructureStatus(options = {}) {
       deforumStatus: deforumReachable ? "healthy" : "unreachable",
     };
 
-    const nodeDefs = parseTranscoderNodes(env);
     const frameActivity = await recentFrameActivity();
     const hostLoad = os.loadavg()[0];
     const hostCpus = os.cpus().length || 1;
