@@ -148,6 +148,698 @@ const CROSSFADE_SLOT_TYPES = [
   { id: "lora", label: "LoRA" },
   { id: "controlnet", label: "ControlNet" },
 ];
+// --- inlined from deforum-settings-schema.mjs (ESM source; do not edit) ---
+/**
+ * Deforum settings UI schema + defaults for the hidden LIVE panel.
+ * Full JSON is persisted; only grouped fields are shown in the minimal editor.
+ */
+
+const DEFORUM_DEFAULT_SETTINGS = {
+  W: 768,
+  H: 432,
+  show_info_on_ui: false,
+  tiling: false,
+  restore_faces: false,
+  seed_resize_from_w: 0,
+  seed_resize_from_h: 0,
+  seed: 1693,
+  sampler: 'Euler',
+  scheduler: 'sgm_uniform',
+  steps: 2,
+  batch_name: 'floral_neu',
+  seed_behavior: 'random',
+  seed_iter_N: 1,
+  use_init: false,
+  strength: 1.0,
+  strength_0_no_init: true,
+  init_image: null,
+  use_mask: false,
+  animation_mode: '2D',
+  max_frames: 9999,
+  border: 'replicate',
+  angle: '0: (0)',
+  zoom: '0: (1.0)',
+  translation_x: '0: (0)',
+  translation_y: '0: (0.0)',
+  translation_z: '0: (0.0)',
+  transform_center_x: '0: (0.5)',
+  transform_center_y: '0: (0.5)',
+  rotation_3d_x: '0: (0)',
+  rotation_3d_y: '0: (0)',
+  rotation_3d_z: '0: (0)',
+  noise_schedule: '0: (0.065)',
+  strength_schedule: '0: (0.60)',
+  keyframe_strength_schedule: '0: (0.50)',
+  contrast_schedule: '0: (1.0)',
+  cfg_scale_schedule: '0:(0)',
+  distilled_cfg_scale_schedule: '0: (0)',
+  enable_steps_scheduling: false,
+  steps_schedule: '0: (2)',
+  prompts: {
+    '0':
+      '<lora:floralv2:1.2>silhouette black big wild flowers and wild plants and berries, red background, many different flowers, layered silhouettes, folk art style floral graphics, flat folk art style illustration, layered composition, detailed composition, natural colors, medium high contrast',
+  },
+  positive_prompts: '',
+  negative_prompts:
+    'star, star shape, watermark, signature, dreamstime, logo, writing, text, poster element, year, number, date, label, vignette, glow, symbol, alphabet, number, freepik, blurry, low quality, ugly',
+  fps: 24,
+  sd_model_name: 'SDXL/sd_xl_turbo_1.0_fp16.safetensors',
+  skip_video_creation: true,
+  cn_1_enabled: false,
+  cn_1_weight: '0:(2)',
+  cn_1_guidance_start: '0:(0.0)',
+  cn_1_guidance_end: '0:(1.0)',
+  cn_1_module: 'None',
+  cn_1_model: 'temporalnetversion2 [b554c208]',
+  cn_1_overwrite_frames: true,
+  cn_1_vid_path: '',
+  cn_1_mask_vid_path: '',
+  cn_1_low_vram: false,
+  cn_1_pixel_perfect: false,
+  cn_1_processor_res: 64,
+  cn_1_threshold_a: 64,
+  cn_1_threshold_b: 64,
+  cn_1_resize_mode: 'Inner Fit (Scale to Fit)',
+  cn_1_control_mode: 'Balanced',
+  cn_1_loopback_mode: false,
+  cn_2_overwrite_frames: true,
+  cn_2_vid_path: '',
+  cn_2_mask_vid_path: '',
+  cn_2_enabled: false,
+  cn_2_low_vram: false,
+  cn_2_pixel_perfect: false,
+  cn_2_module: 'none',
+  cn_2_model: 'None',
+  cn_2_weight: '0:(1)',
+  cn_2_guidance_start: '0:(0.0)',
+  cn_2_guidance_end: '0:(1.0)',
+  cn_2_processor_res: 64,
+  cn_2_threshold_a: 64,
+  cn_2_threshold_b: 64,
+  cn_2_resize_mode: 'Inner Fit (Scale to Fit)',
+  cn_2_control_mode: 'Balanced',
+  cn_2_loopback_mode: false,
+  cn_3_overwrite_frames: true,
+  cn_3_vid_path: '',
+  cn_3_mask_vid_path: '',
+  cn_3_enabled: false,
+  cn_3_low_vram: false,
+  cn_3_pixel_perfect: false,
+  cn_3_module: 'none',
+  cn_3_model: 'None',
+  cn_3_weight: '0:(1)',
+  cn_3_guidance_start: '0:(0.0)',
+  cn_3_guidance_end: '0:(1.0)',
+  cn_3_processor_res: 64,
+  cn_3_threshold_a: 64,
+  cn_3_threshold_b: 64,
+  cn_3_resize_mode: 'Inner Fit (Scale to Fit)',
+  cn_3_control_mode: 'Balanced',
+  cn_3_loopback_mode: false,
+  cn_4_overwrite_frames: true,
+  cn_4_vid_path: '',
+  cn_4_mask_vid_path: '',
+  cn_4_enabled: false,
+  cn_4_low_vram: false,
+  cn_4_pixel_perfect: false,
+  cn_4_module: 'none',
+  cn_4_model: 'None',
+  cn_4_weight: '0:(1)',
+  cn_4_guidance_start: '0:(0.0)',
+  cn_4_guidance_end: '0:(1.0)',
+  cn_4_processor_res: 64,
+  cn_4_threshold_a: 64,
+  cn_4_threshold_b: 64,
+  cn_4_resize_mode: 'Inner Fit (Scale to Fit)',
+  cn_4_control_mode: 'Balanced',
+  cn_4_loopback_mode: false,
+  cn_5_overwrite_frames: true,
+  cn_5_vid_path: '',
+  cn_5_mask_vid_path: '',
+  cn_5_enabled: false,
+  cn_5_low_vram: false,
+  cn_5_pixel_perfect: false,
+  cn_5_module: 'none',
+  cn_5_model: 'None',
+  cn_5_weight: '0:(1)',
+  cn_5_guidance_start: '0:(0.0)',
+  cn_5_guidance_end: '0:(1.0)',
+  cn_5_processor_res: 64,
+  cn_5_threshold_a: 64,
+  cn_5_threshold_b: 64,
+  cn_5_resize_mode: 'Inner Fit (Scale to Fit)',
+  cn_5_control_mode: 'Balanced',
+  cn_5_loopback_mode: false,
+};
+
+/** @type {{ id: string, label: string, fields: Array<{ key: string, label: string, type?: string, min?: number, max?: number, step?: number, rows?: number, options?: string[] }> }>[]} */
+const DEFORUM_FIELD_GROUPS = [
+  {
+    id: 'canvas',
+    label: 'Canvas',
+    fields: [
+      { key: 'W', label: 'Width', type: 'number', min: 256, max: 4096, step: 64 },
+      { key: 'H', label: 'Height', type: 'number', min: 256, max: 4096, step: 64 },
+      { key: 'fps', label: 'FPS', type: 'select', options: ['8', '12', '24', '30'] },
+      { key: 'max_frames', label: 'Max frames', type: 'number', min: 1, max: 99999, step: 1 },
+      { key: 'batch_name', label: 'Batch name', type: 'text' },
+    ],
+  },
+  {
+    id: 'sampling',
+    label: 'Sampling',
+    fields: [
+      { key: 'seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
+      { key: 'sampler', label: 'Sampler', type: 'select' },
+      { key: 'scheduler', label: 'Scheduler', type: 'select' },
+      { key: 'steps', label: 'Steps', type: 'slider', min: 2, max: 150, step: 1 },
+      { key: 'sd_model_name', label: 'Checkpoint', type: 'text' },
+    ],
+  },
+  {
+    id: 'prompts',
+    label: 'Prompts',
+    fields: [
+      { key: 'prompts.0', label: 'Prompt @ 0', type: 'textarea', rows: 4 },
+      { key: 'negative_prompts', label: 'Negative', type: 'textarea', rows: 3 },
+      { key: 'positive_prompts', label: 'Positive (extra)', type: 'textarea', rows: 2 },
+    ],
+  },
+  {
+    id: 'init',
+    label: 'Init',
+    fields: [
+      { key: 'use_init', label: 'Use init image', type: 'bool' },
+      { key: 'strength', label: 'Strength', type: 'number', min: 0, max: 1.5, step: 0.01 },
+      { key: 'init_image', label: 'Init image URL/path', type: 'text' },
+    ],
+  },
+  {
+    id: 'motion',
+    label: 'Motion 2D',
+    fields: [
+      { key: 'zoom', label: 'Zoom schedule', type: 'text' },
+      { key: 'translation_x', label: 'Pan X schedule', type: 'text' },
+      { key: 'translation_y', label: 'Pan Y schedule', type: 'text' },
+      { key: 'angle', label: 'Angle schedule', type: 'text' },
+    ],
+  },
+  {
+    id: 'motion3d',
+    label: 'Motion 3D',
+    fields: [
+      { key: 'translation_z', label: 'Zoom Z schedule', type: 'text' },
+      { key: 'rotation_3d_x', label: 'Rotate X schedule', type: 'text' },
+      { key: 'rotation_3d_y', label: 'Rotate Y schedule', type: 'text' },
+      { key: 'rotation_3d_z', label: 'Rotate Z schedule', type: 'text' },
+    ],
+  },
+  {
+    id: 'schedules',
+    label: 'Schedules',
+    fields: [
+      { key: 'noise_schedule', label: 'Noise', type: 'text' },
+      { key: 'strength_schedule', label: 'Strength', type: 'text' },
+      { key: 'cfg_scale_schedule', label: 'CFG', type: 'text' },
+      { key: 'steps_schedule', label: 'Steps', type: 'text' },
+    ],
+  },
+  {
+    id: 'controlnet',
+    label: 'ControlNet 1',
+    fields: [
+      { key: 'cn_1_enabled', label: 'Enabled', type: 'bool' },
+      { key: 'cn_1_weight', label: 'Weight schedule', type: 'text' },
+      { key: 'cn_1_guidance_start', label: 'Guidance start', type: 'text' },
+      { key: 'cn_1_guidance_end', label: 'Guidance end', type: 'text' },
+      { key: 'cn_1_module', label: 'Module', type: 'text' },
+      { key: 'cn_1_model', label: 'Model', type: 'text' },
+      { key: 'cn_1_processor_res', label: 'Processor res', type: 'slider', min: 64, max: 2048, step: 1 },
+      { key: 'cn_1_threshold_a', label: 'Threshold A', type: 'slider', min: 0, max: 255, step: 1 },
+      { key: 'cn_1_threshold_b', label: 'Threshold B', type: 'slider', min: 0, max: 255, step: 1 },
+    ],
+  },
+];
+
+const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
+  group.fields.map((field) => field.key)
+);
+
+/** Engine fields that should stay editable without schedule on/off toggles. */
+/** Schedules ignored in 2D animation_mode (see deforum-settings-verify). */
+const DEFORUM_3D_ONLY_FIELD_KEYS = new Set([
+  'translation_z',
+  'rotation_3d_x',
+  'rotation_3d_y',
+  'rotation_3d_z',
+]);
+
+const DEFORUM_MOTION_3D_GROUP_ID = 'motion3d';
+
+function normalizeDeforumMode2d3d(animationMode) {
+  const mode = String(animationMode || '2D').trim().toUpperCase();
+  return mode === '3D' ? '3D' : '2D';
+}
+
+function isDeforum3dOnlyFieldKey(keyPath) {
+  return DEFORUM_3D_ONLY_FIELD_KEYS.has(keyPath);
+}
+
+const DEFORUM_NON_TOGGLEABLE_KEYS = new Set([
+  'sampler',
+  'scheduler',
+  'sd_model_name',
+  'seed',
+  'steps',
+  'W',
+  'H',
+  'fps',
+  'max_frames',
+  'batch_name',
+]);
+
+const FALLBACK_FORGE_SAMPLERS = [
+  'Euler',
+  'Euler a',
+  'DPM++ 2M',
+  'DPM++ SDE',
+  'DDIM',
+  'Heun',
+];
+
+const FALLBACK_FORGE_SCHEDULERS = [
+  'automatic',
+  'uniform',
+  'sgm_uniform',
+  'karras',
+  'normal',
+  'exponential',
+];
+
+function createDeforumFieldEnabledMap(overrides = {}) {
+  const map = {};
+  DEFORUM_FIELD_KEYS.forEach((key) => {
+    map[key] = overrides[key] !== false;
+  });
+  return map;
+}
+
+function getNestedValue(obj, keyPath) {
+  if (!keyPath || !obj) return undefined;
+  const parts = String(keyPath).split('.');
+  let cur = obj;
+  for (const p of parts) {
+    if (cur == null) return undefined;
+    cur = cur[p];
+  }
+  return cur;
+}
+
+function setNestedValue(obj, keyPath, value) {
+  const parts = String(keyPath).split('.');
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const p = parts[i];
+    if (cur[p] == null || typeof cur[p] !== 'object') cur[p] = {};
+    cur = cur[p];
+  }
+  cur[parts[parts.length - 1]] = value;
+}
+
+function removeNestedValue(obj, keyPath) {
+  if (!keyPath || !obj) return;
+  const parts = String(keyPath).split('.');
+  const stack = [];
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i += 1) {
+    const part = parts[i];
+    if (cur == null || typeof cur !== 'object' || !(part in cur)) return;
+    stack.push({ parent: cur, key: part });
+    cur = cur[part];
+  }
+  if (cur == null || typeof cur !== 'object') return;
+  delete cur[parts[parts.length - 1]];
+  for (let i = stack.length - 1; i >= 0; i -= 1) {
+    const { parent, key } = stack[i];
+    const value = parent[key];
+    if (!value || typeof value !== 'object' || Array.isArray(value)) break;
+    if (Object.keys(value).length) break;
+    delete parent[key];
+  }
+}
+
+function parseScheduleKeyframes(raw) {
+  if (raw == null || raw === '') return [{ frame: 0, value: 0 }];
+  const text = String(raw).trim();
+  const keyframes = [];
+  const regex = /(\d+)\s*:\s*\(?\s*([-\d.eE+]+)\s*\)?/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    keyframes.push({ frame: Number(match[1]), value: Number(match[2]) });
+  }
+  if (!keyframes.length) {
+    const plain = Number(text.replace(/[()]/g, '').trim());
+    if (Number.isFinite(plain)) return [{ frame: 0, value: plain }];
+    return [{ frame: 0, value: 0 }];
+  }
+  keyframes.sort((a, b) => a.frame - b.frame);
+  return keyframes;
+}
+
+function formatScheduleNumber(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return '0';
+  const rounded = Math.round(num * 1000) / 1000;
+  return String(rounded);
+}
+
+function formatScheduleKeyframes(keyframes) {
+  return (keyframes || [])
+    .map((kf) => `${Math.max(0, Math.round(Number(kf.frame) || 0))}: (${formatScheduleNumber(kf.value)})`)
+    .join(', ');
+}
+
+function readScheduleValueAtFrame(raw, frame) {
+  const kfs = parseScheduleKeyframes(raw);
+  const f = Math.max(0, Math.round(Number(frame) || 0));
+  let value = kfs[0]?.value ?? 0;
+  for (const kf of kfs) {
+    if (kf.frame <= f) value = kf.value;
+    else break;
+  }
+  return value;
+}
+
+/**
+ * Linear ramp over `frameCount` frames starting at `startFrame`.
+ * Example: start 0, end 1, count 10 → frames 0..9 with 0, 0.111…, …, 1.
+ */
+function buildLinearScheduleRamp(startFrame, frameCount, startValue, endValue, existingRaw = '') {
+  const start = Math.max(0, Math.round(Number(startFrame) || 0));
+  const count = Math.max(1, Math.round(Number(frameCount) || 1));
+  const from = Number(startValue);
+  const to = Number(endValue);
+  const begin = Number.isFinite(from) ? from : 0;
+  const finish = Number.isFinite(to) ? to : begin;
+  const end = start + count - 1;
+
+  const ramp = [];
+  if (count === 1) {
+    ramp.push({ frame: start, value: finish });
+  } else {
+    for (let i = 0; i < count; i += 1) {
+      const t = i / (count - 1);
+      ramp.push({ frame: start + i, value: begin + (finish - begin) * t });
+    }
+  }
+
+  const kept = parseScheduleKeyframes(existingRaw).filter(
+    (kf) => kf.frame < start || kf.frame > end
+  );
+  const merged = [...kept, ...ramp].sort((a, b) => a.frame - b.frame);
+  return formatScheduleKeyframes(merged);
+}
+
+function patchFromKeyPath(keyPath, value) {
+  const parts = String(keyPath).split('.');
+  if (parts.length === 1) return { [parts[0]]: value };
+  const root = parts[0];
+  const inner = {};
+  let cur = inner;
+  for (let i = 1; i < parts.length - 1; i++) {
+    cur[parts[i]] = {};
+    cur = cur[parts[i]];
+  }
+  cur[parts[parts.length - 1]] = value;
+  return { [root]: inner };
+}
+
+function mergeDeforumSettings(base, patch) {
+  const out = { ...base, ...patch };
+  if (patch.prompts && typeof patch.prompts === 'object') {
+    out.prompts = { ...(base.prompts || {}), ...patch.prompts };
+  }
+  for (let i = 1; i <= 5; i += 1) {
+    for (const suffix of ['weight', 'guidance_start', 'guidance_end']) {
+      const key = `cn_${i}_${suffix}`;
+      if (out[key] == null || out[key] === '') out[key] = base[key];
+    }
+  }
+  return out;
+}
+// --- inlined from deforum-settings-verify.mjs (ESM source; do not edit) ---
+/**
+ * Heuristic checks for Deforum settings before save / preview / play.
+ */
+
+const SCHEDULE_FIELD_KEYS = [
+  'zoom',
+  'angle',
+  'translation_x',
+  'translation_y',
+  'translation_z',
+  'rotation_3d_x',
+  'rotation_3d_y',
+  'rotation_3d_z',
+  'noise_schedule',
+  'strength_schedule',
+  'keyframe_strength_schedule',
+  'contrast_schedule',
+  'cfg_scale_schedule',
+  'distilled_cfg_scale_schedule',
+  'steps_schedule',
+];
+
+const CN_WEIGHT_KEYS = ['cn_1_weight', 'cn_2_weight', 'cn_3_weight', 'cn_4_weight', 'cn_5_weight'];
+
+function parseScheduleKeyframes(raw) {
+  if (raw == null || raw === '') return [{ frame: 0, value: 0 }];
+  const text = String(raw).trim();
+  const keyframes = [];
+  const regex = /(\d+)\s*:\s*\(?\s*([-\d.eE+]+)\s*\)?/g;
+  let match;
+  while ((match = regex.exec(text)) !== null) {
+    keyframes.push({ frame: Number(match[1]), value: Number(match[2]) });
+  }
+  if (!keyframes.length) {
+    const plain = Number(text.replace(/[()]/g, '').trim());
+    if (Number.isFinite(plain)) return [{ frame: 0, value: plain }];
+    return [{ frame: 0, value: 0 }];
+  }
+  keyframes.sort((a, b) => a.frame - b.frame);
+  return keyframes;
+}
+
+function scheduleLooksLikeDeforum(raw) {
+  if (raw == null || raw === '') return true;
+  const text = String(raw).trim();
+  if (/\d+\s*:\s*\(?/.test(text)) return true;
+  if (/^\([\d.eE+\-]+\)$/.test(text)) return true;
+  return false;
+}
+
+function scheduleIsFlatZero(raw) {
+  const kfs = parseScheduleKeyframes(raw);
+  return kfs.every((k) => Math.abs(k.value) < 1e-6);
+}
+
+function scheduleHasNonZero(raw) {
+  const kfs = parseScheduleKeyframes(raw);
+  return kfs.some((k) => Math.abs(k.value) > 1e-6);
+}
+
+function primaryPromptText(settings) {
+  const prompts = settings && settings.prompts;
+  if (prompts && typeof prompts === 'object') {
+    const from0 = prompts['0'] ?? prompts[0];
+    if (from0 != null && String(from0).trim()) return String(from0).trim();
+    const first = Object.values(prompts).find((v) => v != null && String(v).trim());
+    if (first) return String(first).trim();
+  }
+  const pos = settings && settings.positive_prompts;
+  if (pos != null && String(pos).trim()) return String(pos).trim();
+  return '';
+}
+
+function pushIssue(list, field, message, hint) {
+  const row = { field, message };
+  if (hint) row.hint = hint;
+  list.push(row);
+}
+
+/**
+ * @param {object} settings
+ * @param {{ onlyDefinedKeys?: boolean }} [opts] — when true, skip checks for keys omitted from payload (e.g. disabled UI fields)
+ * @returns {{ ok: boolean, errors: Array<{field:string,message:string,hint?:string}>, warnings: Array<{field:string,message:string,hint?:string}> }}
+ */
+function verifyDeforumSettings(settings, opts = {}) {
+  const onlyDefined = !!opts.onlyDefinedKeys;
+  const hasKey = (key) => !onlyDefined || (settings && Object.prototype.hasOwnProperty.call(settings, key));
+  const errors = [];
+  const warnings = [];
+
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+    pushIssue(errors, 'settings', 'Settings must be a JSON object');
+    return { ok: false, errors, warnings };
+  }
+
+  const w = Number(settings.W);
+  const h = Number(settings.H);
+  if (hasKey('W') && (!Number.isFinite(w) || w < 64)) {
+    pushIssue(errors, 'W', 'Width must be at least 64 pixels');
+  } else if (hasKey('W') && w % 8 !== 0) {
+    pushIssue(warnings, 'W', 'Width is not a multiple of 8 — SD/Deforum often works best with divisible-by-8 sizes', 'Try 768, 832, 1024…');
+  }
+  if (hasKey('H') && (!Number.isFinite(h) || h < 64)) {
+    pushIssue(errors, 'H', 'Height must be at least 64 pixels');
+  } else if (hasKey('H') && h % 8 !== 0) {
+    pushIssue(warnings, 'H', 'Height is not a multiple of 8', 'Try 432, 576, 768…');
+  }
+  if (Number.isFinite(w) && Number.isFinite(h) && w * h > 1920 * 1080) {
+    pushIssue(warnings, 'W×H', `Canvas ${w}×${h} is large — may be slow or OOM on consumer GPUs`, 'Consider 1280×720 or 1024×576 for iteration');
+  }
+
+  const maxFrames = Number(settings.max_frames);
+  if (hasKey('max_frames') && (!Number.isFinite(maxFrames) || maxFrames < 1)) {
+    pushIssue(errors, 'max_frames', 'max_frames must be at least 1');
+  } else if (maxFrames > 8000) {
+    pushIssue(warnings, 'max_frames', `${maxFrames} frames is very long`, 'Long runs are costly; confirm duration and disk space');
+  }
+
+  const fps = Number(settings.fps);
+  if (hasKey('fps') && (!Number.isFinite(fps) || fps < 1)) {
+    pushIssue(errors, 'fps', 'FPS must be at least 1');
+  } else if (fps > 60) {
+    pushIssue(warnings, 'fps', `${fps} FPS is unusually high for Deforum`, '24–30 FPS is typical');
+  }
+
+  const steps = Number(settings.steps);
+  const model = String(settings.sd_model_name || '').toLowerCase();
+  if (hasKey('steps') && (!Number.isFinite(steps) || steps < 1)) {
+    pushIssue(errors, 'steps', 'Steps must be at least 1');
+  } else if (steps < 2 && /lightning|turbo|lcm/.test(model)) {
+    pushIssue(warnings, 'steps', `Only ${steps} step(s) with a fast/lightning checkpoint`, 'Lightning models often expect 2–8 steps');
+  } else if (steps > 60) {
+    pushIssue(warnings, 'steps', `${steps} steps per frame is high`, 'Try 4–20 unless you need maximum quality');
+  }
+
+  const batch = String(settings.batch_name || '').trim();
+  if (!batch) {
+    pushIssue(warnings, 'batch_name', 'Batch name is empty', 'Outputs may be harder to find in the runs browser');
+  } else if (!/^[a-zA-Z0-9_.-]+$/.test(batch)) {
+    pushIssue(warnings, 'batch_name', 'Batch name has spaces or special characters', 'Use letters, numbers, underscore, hyphen');
+  }
+
+  if (!primaryPromptText(settings)) {
+    pushIssue(errors, 'prompts', 'No positive prompt — add text under Prompts or prompts["0"]');
+  }
+
+  if (settings.use_init && !String(settings.init_image || '').trim()) {
+    pushIssue(errors, 'init_image', 'use_init is enabled but init_image is missing');
+  }
+  if (settings.use_init) {
+    const strength = Number(settings.strength);
+    if (!Number.isFinite(strength) || strength < 0 || strength > 1.5) {
+      pushIssue(warnings, 'strength', 'Init strength is outside 0–1.5', 'Typical img2img strength is 0.3–0.85');
+    }
+  }
+
+  const mode = String(settings.animation_mode || '2D').trim().toUpperCase();
+  const isWanMode = mode === 'WAN VIDEO' || mode === 'WAN';
+  if (!['2D', '3D', 'WAN VIDEO', 'WAN'].includes(mode)) {
+    pushIssue(warnings, 'animation_mode', `Unknown animation mode "${settings.animation_mode}"`, 'Use 2D, 3D, or Wan Video');
+  }
+
+  if (isWanMode) {
+    const steps = Number(settings.wan_inference_steps ?? settings.steps);
+    if (!Number.isFinite(steps) || steps < 1) {
+      pushIssue(warnings, 'wan_inference_steps', 'Wan inference steps should be at least 1', 'Typical range is 5–30');
+    }
+    if (!String(settings.animation_prompts || settings.prompts?.['0'] || settings.prompts?.[0] || '').trim()) {
+      pushIssue(warnings, 'animation_prompts', 'Wan Video needs at least one prompt', 'Set prompts in the Prompts tab or animation_prompts schedule');
+    }
+  } else if (mode === '2D') {
+    if (scheduleHasNonZero(settings.translation_z)) {
+      pushIssue(warnings, 'translation_z', '3D zoom schedule is non-zero while mode is 2D', 'Ignored in 2D — use zoom / angle instead');
+    }
+    for (const key of ['rotation_3d_x', 'rotation_3d_y', 'rotation_3d_z']) {
+      if (scheduleHasNonZero(settings[key])) {
+        pushIssue(warnings, key, '3D rotation schedule is active in 2D mode', 'Switch to 3D mode or zero this schedule');
+      }
+    }
+  } else if (mode === '3D') {
+    const has3d =
+      scheduleHasNonZero(settings.translation_z)
+      || scheduleHasNonZero(settings.rotation_3d_x)
+      || scheduleHasNonZero(settings.rotation_3d_y)
+      || scheduleHasNonZero(settings.rotation_3d_z);
+    const has2d =
+      scheduleHasNonZero(settings.translation_x)
+      || scheduleHasNonZero(settings.translation_y)
+      || scheduleHasNonZero(settings.zoom)
+      || scheduleHasNonZero(settings.angle);
+    if (!has3d && !has2d) {
+      pushIssue(warnings, 'motion', 'No camera motion in schedules', 'Add translation, zoom, or 3D rotation keyframes');
+    }
+  }
+
+  for (const key of SCHEDULE_FIELD_KEYS) {
+    const raw = settings[key];
+    if (raw == null || raw === '') continue;
+    if (!scheduleLooksLikeDeforum(raw)) {
+      pushIssue(warnings, key, 'Value does not look like a Deforum schedule', 'Use frame:value pairs, e.g. 0:(1.0) or 0: (0), 24: (1.02)');
+    }
+  }
+
+  if (scheduleIsFlatZero(settings.cfg_scale_schedule) && scheduleIsFlatZero(settings.distilled_cfg_scale_schedule)) {
+    pushIssue(warnings, 'cfg_scale_schedule', 'CFG schedule is zero everywhere', 'Deforum may produce blank or weak results — try 0:(7) or similar');
+  }
+
+  if (scheduleIsFlatZero(settings.strength_schedule) && !settings.use_init) {
+    pushIssue(warnings, 'strength_schedule', 'Strength schedule is flat at 0', 'Usually keep strength > 0 for generation');
+  }
+
+  const stepsSched = String(settings.steps_schedule || '');
+  if (stepsSched && scheduleLooksLikeDeforum(stepsSched)) {
+    const schedSteps = parseScheduleKeyframes(stepsSched)[0]?.value;
+    if (Number.isFinite(steps) && Number.isFinite(schedSteps) && Math.round(steps) !== Math.round(schedSteps)) {
+      pushIssue(warnings, 'steps', `UI steps (${steps}) differs from steps_schedule (${schedSteps})`, 'Align steps and steps_schedule');
+    }
+  }
+
+  for (let i = 1; i <= 5; i += 1) {
+    const enabled = settings[`cn_${i}_enabled`];
+    if (!enabled) continue;
+    const mod = String(settings[`cn_${i}_module`] || '').toLowerCase();
+    const cnModel = String(settings[`cn_${i}_model`] || '').toLowerCase();
+    if (!mod || mod === 'none') {
+      pushIssue(warnings, `cn_${i}_module`, 'ControlNet enabled but module is None');
+    }
+    if (!cnModel || cnModel === 'none') {
+      pushIssue(warnings, `cn_${i}_model`, 'ControlNet enabled but model is None');
+    }
+    const vid = String(settings[`cn_${i}_vid_path`] || '').trim();
+    if (/video|temporal|animated/i.test(mod + cnModel) && !vid) {
+      pushIssue(warnings, `cn_${i}_vid_path`, 'Video/temporal ControlNet without cn_*_vid_path');
+    }
+  }
+
+  for (const key of CN_WEIGHT_KEYS) {
+    if (settings[key.replace('_weight', '_enabled')] && scheduleIsFlatZero(settings[key])) {
+      pushIssue(warnings, key, 'ControlNet weight schedule is zero while unit is enabled');
+    }
+  }
+
+  if (!String(settings.sd_model_name || '').trim()) {
+    pushIssue(warnings, 'sd_model_name', 'No checkpoint selected');
+  }
+
+  if (settings.skip_video_creation === false) {
+    pushIssue(warnings, 'skip_video_creation', 'Video export enabled', 'Encoding adds time; enable only when you need an MP4');
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}
 // --- inlined from api-utils.js (ESM source; do not edit) ---
 /**
  * Fetch helper with structured console errors (audit post-remediation polish).
@@ -872,7 +1564,170 @@ const Crossfader = { props: ['app'], template: '<div></div>' };
 const LoraCrossfaderPanel = { props: {
     app: { type: Object, required: true },
   }, setup(props) { return __proxyAppView(props); }, components: { Crossfader: Crossfader }, template: "<div\n    class=\"lora-crossfader-panel\"\n    :class=\"{ 'lora-crossfader-panel--off': !prompts.loraCrossfaderOn }\"\n    :style=\"crossfadeWeightStyle\"\n    data-testid=\"lora-crossfader-panel\"\n  >\n    <div class=\"framesync-header lora-crossfader-panel__header\">\n      <div class=\"framesync-title\">LoRA <span class=\"framesync-accent\">Crossfader</span></div>\n      <div class=\"prompt-toolbar\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ 'framesync-button--live': prompts.loraCrossfaderOn }\"\n          @click=\"setLoraCrossfaderOn(true)\"\n        >\n          Enabled\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderOn }\"\n          @click=\"setLoraCrossfaderOn(false)\"\n        >\n          Disabled\n        </button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"refreshLoras\">Refresh</button>\n      </div>\n    </div>\n\n    <div class=\"lora-crossfader-shell\">\n      <div class=\"framesync-subtitle lora-crossfader-summary__status\">{{ loraCrossfaderSummary }}</div>\n\n      <Crossfader\n        :model-value=\"prompts.crossfaderValue\"\n        :disabled=\"!prompts.loraCrossfaderOn\"\n        testid=\"lora-crossfader\"\n        @update:model-value=\"applyLoraCrossfader\"\n      />\n\n      <div class=\"lora-crossfader-links\" :class=\"{ 'lora-crossfader-links--disabled': !prompts.loraCrossfaderOn }\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderLfoLink }\"\n          @click=\"setLoraCrossfaderLfoLink(null)\"\n        >\n          Manual\n        </button>\n        <button\n          v-for=\"lfo in lfos.slice(0, 6)\"\n          :key=\"'lora-crossfader-lfo-' + lfo.id\"\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: prompts.loraCrossfaderLfoLink === lfo.id }\"\n          @click=\"setLoraCrossfaderLfoLink(lfo.id)\"\n        >\n          LFO {{ lfo.id }}\n        </button>\n      </div>\n      <div class=\"lora-crossfader-status\">{{ loraCrossfaderLinkStatus }}</div>\n\n      <div class=\"prompt-ab-summary lora-crossfader-panel__deck\">\n        <div\n          class=\"prompt-ab-column prompt-ab-column--a lora-crossfader-panel__side lora-crossfader-panel__side--a\"\n          :class=\"{ 'lora-crossfader-panel__side--dominant': crossfadeAWeight >= crossfadeBWeight }\"\n        >\n          <div class=\"prompt-ab-column__head\">\n            <div class=\"prompt-ab-column__title\">A Group</div>\n            <button\n              type=\"button\"\n              class=\"framesync-button lora-picker-trigger\"\n              :title=\"loraCrossfaderPickerGroup === 'A' ? 'Close LoRA picker' : 'Add LoRA to A group'\"\n              @click=\"toggleLoraCrossfaderPicker('A')\"\n            >\n              {{ loraCrossfaderPickerGroup === 'A' ? '×' : '+' }}\n            </button>\n          </div>\n          <div v-if=\"loraCrossfaderPickerGroup === 'A'\" class=\"lora-picker-panel lora-picker-panel--column\">\n            <div class=\"framesync-subtitle lora-browser-summary\">Add LoRAs to the A group for crossfading.</div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'xfpick-a-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"'xfpick-a-row-' + lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button\n                        type=\"button\"\n                        class=\"framesync-button prompt-group-button prompt-group-button--a\"\n                        :class=\"{ active: lora.group === 'A' }\"\n                        @click.stop=\"assignLoraToGroup(lora, 'A')\"\n                      >\n                        {{ lora.group === 'A' ? 'In A' : 'Add' }}\n                      </button>\n                      <button type=\"button\" class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              No LoRA models found. Refresh or check SD-Forge connection.\n            </div>\n          </div>\n          <div v-for=\"lora in loras.groupA.slice(0, 3)\" :key=\"'xfa-' + lora.id\" class=\"prompt-ab-card\">\n            <div class=\"prompt-ab-card__name\">{{ lora.name }}</div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength = parseFloat($event.target.value)\" class=\"framesync-input prompt-ab-card__slider\">\n            <div class=\"prompt-ab-card__value\">{{ lora.strength.toFixed(2) }}</div>\n          </div>\n          <div v-if=\"loras.groupA.length === 0\" class=\"prompt-ab-column__empty\">No LoRAs in A group</div>\n          <div v-else-if=\"loras.groupA.length > 3\" class=\"prompt-ab-column__more\">+{{ loras.groupA.length - 3 }} more</div>\n        </div>\n\n        <div\n          class=\"prompt-ab-column prompt-ab-column--b lora-crossfader-panel__side lora-crossfader-panel__side--b\"\n          :class=\"{ 'lora-crossfader-panel__side--dominant': crossfadeBWeight > crossfadeAWeight }\"\n        >\n          <div class=\"prompt-ab-column__head\">\n            <div class=\"prompt-ab-column__title\">B Group</div>\n            <button\n              type=\"button\"\n              class=\"framesync-button lora-picker-trigger\"\n              :title=\"loraCrossfaderPickerGroup === 'B' ? 'Close LoRA picker' : 'Add LoRA to B group'\"\n              @click=\"toggleLoraCrossfaderPicker('B')\"\n            >\n              {{ loraCrossfaderPickerGroup === 'B' ? '×' : '+' }}\n            </button>\n          </div>\n          <div v-if=\"loraCrossfaderPickerGroup === 'B'\" class=\"lora-picker-panel lora-picker-panel--column\">\n            <div class=\"framesync-subtitle lora-browser-summary\">Add LoRAs to the B group for crossfading.</div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'xfpick-b-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"'xfpick-b-row-' + lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button\n                        type=\"button\"\n                        class=\"framesync-button prompt-group-button prompt-group-button--b\"\n                        :class=\"{ active: lora.group === 'B' }\"\n                        @click.stop=\"assignLoraToGroup(lora, 'B')\"\n                      >\n                        {{ lora.group === 'B' ? 'In B' : 'Add' }}\n                      </button>\n                      <button type=\"button\" class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              No LoRA models found. Refresh or check SD-Forge connection.\n            </div>\n          </div>\n          <div v-for=\"lora in loras.groupB.slice(0, 3)\" :key=\"'xfb-' + lora.id\" class=\"prompt-ab-card\">\n            <div class=\"prompt-ab-card__name\">{{ lora.name }}</div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength = parseFloat($event.target.value)\" class=\"framesync-input prompt-ab-card__slider\">\n            <div class=\"prompt-ab-card__value\">{{ lora.strength.toFixed(2) }}</div>\n          </div>\n          <div v-if=\"loras.groupB.length === 0\" class=\"prompt-ab-column__empty\">No LoRAs in B group</div>\n          <div v-else-if=\"loras.groupB.length > 3\" class=\"prompt-ab-column__more\">+{{ loras.groupB.length - 3 }} more</div>\n        </div>\n      </div>\n\n      <div class=\"framesync-footer lora-crossfader-panel__footer\">\n        <button type=\"button\" class=\"framesync-button\" @click=\"applyLoras\">Apply LoRAs</button>\n      </div>\n    </div>\n  </div>" };
-const VideoSwarmBrowser = { props: ['app'], template: '<div></div>' };
+const VideoSwarmBrowser = { props: {
+    app: { type: Object, required: true },
+  }, setup(props) { return __proxyAppView(props); }, methods: {
+    formatFileSize(bytes) {
+      const n = Number(bytes) || 0
+      if (n < 1024) return `${n} B`
+      if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`
+      return `${(n / (1024 * 1024)).toFixed(1)} MB`
+    },
+    setViewMode(mode) {
+      if (mode === 'videos-only' && this.isCloudRoot) return
+      if (this.systemFiles.viewMode === mode) return
+      this.systemFiles.viewMode = mode
+      void this.browseSystemFiles(this.systemFiles.currentPath)
+      this.saveSessionState()
+    },
+    openUploadPicker() {
+      if (this.isCloudRoot) return
+      const input = this.$refs.uploadInputEl
+      if (input) input.click()
+    },
+    onUploadInputChange(event) {
+      const files = event.target?.files
+      void this.uploadSystemVideoFiles(files)
+      if (event.target) event.target.value = ''
+    },
+    onDropEnter() {
+      if (this.isCloudRoot) return
+      this.dropzoneDepth += 1
+      this.dropzoneActive = true
+    },
+    onDropOver() {
+      if (this.isCloudRoot) return
+      this.dropzoneActive = true
+    },
+    onDropLeave() {
+      if (this.isCloudRoot) return
+      this.dropzoneDepth = Math.max(0, this.dropzoneDepth - 1)
+      if (this.dropzoneDepth === 0) this.dropzoneActive = false
+    },
+    onDropFiles(event) {
+      this.dropzoneDepth = 0
+      this.dropzoneActive = false
+      if (this.isCloudRoot) return
+      const files = event.dataTransfer?.files
+      void this.uploadSystemVideoFiles(files)
+    },
+    onRootChange(rootId) {
+      const root = (this.systemFiles.roots || []).find((r) => r.id === rootId)
+      if (!root) return
+      if (root.kind === 'cloud') {
+        void this.browseSystemFiles('', { rootId: root.id })
+        return
+      }
+      void this.browseSystemFiles(root.path, { rootId: root.id })
+    },
+    selectCloudRoot(source) {
+      if (!source || !source.id) return
+      this.systemFiles.cloudConnectOpen = false
+      void this.browseSystemFiles('', { rootId: `cloud:${source.id}` })
+    },
+    openSystemFolder(folder) {
+      if (!folder || !folder.path) return
+      void this.browseSystemFiles(folder.path, { rootId: folder.rootId || this.systemFiles.rootId })
+    },
+    onGridScroll() {
+      this.updateVisibleWindow()
+    },
+    updateVisibleWindow() {
+      const grid = this.$refs.gridEl
+      const total = (this.systemFiles.videos || []).length
+      if (!grid || !total) {
+        this.visibleStart = 0
+        this.visibleEnd = 48
+        return
+      }
+      const tile = grid.querySelector('.video-swarm-browser__tile')
+      const tileHeight = tile ? tile.offsetHeight + 10 : 180
+      const cols = Math.max(1, Math.floor(grid.clientWidth / Math.max(tile?.offsetWidth || 200, 120)))
+      const rowsVisible = Math.ceil(grid.clientHeight / tileHeight) + 2
+      const startRow = Math.max(0, Math.floor(grid.scrollTop / tileHeight) - 1)
+      const start = Math.max(0, startRow * cols)
+      const end = Math.min(total, start + rowsVisible * cols + RENDER_BUFFER)
+      this.visibleStart = start
+      this.visibleEnd = end
+    },
+    shouldLoadVideo(video) {
+      return Boolean(video && (this.hoveredPath === video.path || this.systemFiles.selectedPaths.includes(video.path)))
+    },
+    registerTileVideo(path, el) {
+      if (el) this.tileVideos[path] = el
+      else delete this.tileVideos[path]
+    },
+    onTileEnter(video) {
+      this.hoveredPath = video.path
+      this.$nextTick(() => {
+        const el = this.tileVideos[video.path]
+        if (el) el.play?.().catch(() => {})
+      })
+    },
+    onTileLeave(video) {
+      if (this.hoveredPath === video.path) this.hoveredPath = null
+      const el = this.tileVideos[video.path]
+      if (el) {
+        el.pause()
+        el.currentTime = 0
+      }
+    },
+    pauseAllTileVideos() {
+      Object.values(this.tileVideos).forEach((el) => {
+        try {
+          el.pause()
+        } catch (_e) {}
+      })
+    },
+    onVideoLoaded(path) {
+      if (this.hoveredPath === path) {
+        const el = this.tileVideos[path]
+        el?.play?.().catch(() => {})
+      }
+    },
+    onTileClick(event, video) {
+      if (event.ctrlKey || event.metaKey) {
+        this.toggleSystemFileSelection(video.path)
+        return
+      }
+      this.systemFiles.selectedPaths = [video.path]
+    },
+    openTileMenu(event, video) {
+      const list = this.systemFiles.videos || []
+      const index = list.findIndex((v) => v.path === video.path)
+      this.contextMenu = {
+        open: true,
+        x: event.clientX,
+        y: event.clientY,
+        video,
+        index,
+      }
+    },
+    closeContextMenu() {
+      this.contextMenu.open = false
+    },
+    openContextFullscreen() {
+      if (this.contextMenu.index >= 0) this.openSystemFileFullscreen(this.contextMenu.index)
+      this.closeContextMenu()
+    },
+    deleteContextVideo() {
+      if (this.contextMenu.video) void this.deleteSystemFile(this.contextMenu.video.path)
+      this.closeContextMenu()
+    },
+    onFullscreenKey(event) {
+      if (this.systemFiles.fullscreenIndex < 0) return
+      if (event.key === 'Escape') this.closeSystemFileFullscreen()
+      if (event.key === 'ArrowLeft') this.stepSystemFileFullscreen(-1)
+      if (event.key === 'ArrowRight') this.stepSystemFileFullscreen(1)
+      if (event.key === ' ') {
+        event.preventDefault()
+        const el = this.$refs.modalVideoEl
+        if (!el) return
+        if (el.paused) el.play()
+        else el.pause()
+      }
+    },
+  }, template: "<div class=\"video-swarm-browser\" data-testid=\"video-swarm-browser\">\n    <div class=\"video-swarm-browser__toolbar framesync-panel\">\n      <div class=\"video-swarm-browser__toolbar-row\">\n        <div class=\"video-swarm-browser__roots\">\n          <select\n            class=\"framesync-select\"\n            :value=\"systemFiles.rootId\"\n            :disabled=\"systemFiles.loading\"\n            data-testid=\"video-swarm-root-select\"\n            @change=\"onRootChange($event.target.value)\"\n          >\n            <option v-for=\"root in systemFiles.roots\" :key=\"'vfs-root-' + root.id\" :value=\"root.id\">\n              {{ root.label }}\n            </option>\n          </select>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :disabled=\"!systemFiles.parent || systemFiles.loading || isCloudRoot || isVideosOnly\"\n            title=\"Parent folder\"\n            @click=\"browseSystemFiles(systemFiles.parent)\"\n          >\n            ↑ Up\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :disabled=\"systemFiles.loading || isCloudRoot\"\n            data-testid=\"video-swarm-new-folder\"\n            title=\"New folder\"\n            @click=\"openNewFolderDialog()\"\n          >\n            + Folder\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact framesync-button--live\"\n            :disabled=\"systemFiles.loading || isCloudRoot\"\n            data-testid=\"video-swarm-upload-video\"\n            title=\"Upload video file\"\n            @click=\"openUploadPicker()\"\n          >\n            + Video\n          </button>\n          <input\n            ref=\"uploadInputEl\"\n            type=\"file\"\n            accept=\"video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-m4v,video/*,.mp4,.webm,.mov,.mkv,.m4v,.avi\"\n            multiple\n            class=\"video-swarm-browser__upload-input\"\n            data-testid=\"video-swarm-upload-input\"\n            @change=\"onUploadInputChange\"\n          >\n        </div>\n        <div class=\"video-swarm-browser__chips chips\">\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: !isVideosOnly }\"\n            :disabled=\"systemFiles.loading\"\n            data-testid=\"video-swarm-view-browse\"\n            @click=\"setViewMode('browse')\"\n          >\n            Browse\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: isVideosOnly }\"\n            :disabled=\"systemFiles.loading || isCloudRoot\"\n            data-testid=\"video-swarm-view-videos-only\"\n            @click=\"setViewMode('videos-only')\"\n          >\n            Videos only\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: systemFiles.recursive }\"\n            :disabled=\"systemFiles.loading || isVideosOnly || isCloudRoot\"\n            @click=\"toggleSystemFilesRecursive\"\n          >\n            Subfolders\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: systemFiles.showFilenames }\"\n            :disabled=\"systemFiles.loading\"\n            @click=\"toggleSystemFilesShowNames\"\n          >\n            Names\n          </button>\n        </div>\n        <select\n          class=\"framesync-select video-swarm-browser__sort\"\n          :value=\"systemFiles.sortKey\"\n          :disabled=\"systemFiles.loading\"\n          @change=\"setSystemFilesSort($event.target.value)\"\n        >\n          <option value=\"name-asc\">Name ↑</option>\n          <option value=\"name-desc\">Name ↓</option>\n          <option value=\"mtime-desc\">Modified ↓</option>\n          <option value=\"mtime-asc\">Modified ↑</option>\n          <option value=\"size-desc\">Size ↓</option>\n          <option value=\"size-asc\">Size ↑</option>\n        </select>\n        <label class=\"video-swarm-browser__zoom\">\n          <span class=\"framesync-subtitle\">Zoom</span>\n          <input\n            type=\"range\"\n            min=\"0\"\n            max=\"4\"\n            step=\"1\"\n            :value=\"systemFiles.zoomLevel\"\n            :disabled=\"systemFiles.loading\"\n            @input=\"setSystemFilesZoom(Number($event.target.value))\"\n          >\n        </label>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :class=\"{ active: systemFiles.cloudConnectOpen }\"\n          data-testid=\"video-swarm-connect-cloud\"\n          @click=\"systemFiles.cloudConnectOpen = !systemFiles.cloudConnectOpen\"\n        >\n          Connect cloud\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :disabled=\"systemFiles.loading\"\n          @click=\"refreshSystemFilesBrowse(true)\"\n        >\n          Refresh\n        </button>\n      </div>\n\n      <div v-if=\"systemFiles.cloudConnectOpen\" class=\"video-swarm-browser__cloud-connect\" data-testid=\"video-swarm-cloud-connect\">\n        <div class=\"video-swarm-browser__cloud-connect-title\">Connect cloud storage</div>\n        <div class=\"video-swarm-browser__cloud-connect-row\">\n          <select v-model=\"cloudDriveDraft.provider\" class=\"framesync-select\">\n            <option value=\"google_drive\">Google Drive</option>\n            <option value=\"dropbox\">Dropbox</option>\n            <option value=\"onedrive\">OneDrive</option>\n            <option value=\"other\">Other</option>\n          </select>\n          <input\n            v-model.trim=\"cloudDriveDraft.url\"\n            type=\"url\"\n            class=\"framesync-input\"\n            placeholder=\"https://drive.google.com/… folder or file share link\"\n            data-testid=\"video-swarm-cloud-url\"\n            @keyup.enter=\"connectCloudStorage()\"\n          >\n          <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"connectCloudStorage()\">Connect</button>\n        </div>\n        <div class=\"framesync-subtitle video-swarm-browser__cloud-hint\">\n          Saves the share link in the browser. Open the drive in a new tab, then add direct video URLs below for playback.\n        </div>\n        <div v-if=\"systemFiles.cloudSources.length\" class=\"video-swarm-browser__cloud-list\">\n          <div\n            v-for=\"source in systemFiles.cloudSources\"\n            :key=\"'cloud-src-' + source.id\"\n            class=\"video-swarm-browser__cloud-item\"\n          >\n            <button type=\"button\" class=\"video-swarm-browser__cloud-item-main\" @click=\"selectCloudRoot(source)\">\n              <strong>{{ cloudProviderLabel(source.provider) }}</strong>\n              <span>{{ source.label }}</span>\n            </button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openCloudStorageLink(source)\">Open</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"disconnectCloudStorage(source.id)\">Remove</button>\n          </div>\n        </div>\n      </div>\n\n      <div v-if=\"systemFiles.newFolderOpen\" class=\"video-swarm-browser__newfolder\" data-testid=\"video-swarm-new-folder-dialog\">\n        <input\n          v-model.trim=\"systemFiles.newFolderName\"\n          type=\"text\"\n          class=\"framesync-input\"\n          placeholder=\"New folder name\"\n          data-testid=\"video-swarm-new-folder-name\"\n          @keyup.enter=\"createSystemFolder()\"\n        >\n        <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"createSystemFolder()\">Create</button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"cancelNewFolderDialog()\">Cancel</button>\n      </div>\n\n      <div class=\"video-swarm-browser__path\">\n        <code v-if=\"!isCloudRoot\">{{ systemFiles.currentPath || '—' }}</code>\n        <code v-else>{{ cloudPathLabel }}</code>\n        <span v-if=\"isVideosOnly\" class=\"video-swarm-browser__count\">Videos only · all subfolders</span>\n        <span v-else-if=\"systemFiles.folderCount != null && systemFiles.folderCount > 0\" class=\"video-swarm-browser__count\">\n          {{ systemFiles.folderCount }} folders\n        </span>\n        <span v-if=\"systemFiles.videoCount != null\" class=\"video-swarm-browser__count\">\n          {{ systemFiles.videoCount }} videos\n        </span>\n      </div>\n      <div v-if=\"systemFiles.status\" class=\"framesync-subtitle video-swarm-browser__status\">{{ systemFiles.status }}</div>\n    </div>\n\n    <div v-if=\"isCloudRoot && systemFiles.cloudSource\" class=\"video-swarm-browser__cloud-panel framesync-panel\" data-testid=\"video-swarm-cloud-panel\">\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">\n          <span class=\"framesync-accent\">{{ cloudProviderLabel(systemFiles.cloudSource.provider) }}</span>\n        </div>\n        <div class=\"video-swarm-browser__cloud-panel-actions\">\n          <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openCloudStorageLink(systemFiles.cloudSource)\">Open in browser</button>\n          <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"disconnectCloudStorage(systemFiles.cloudSource.id)\">Disconnect</button>\n        </div>\n      </div>\n      <div class=\"framesync-subtitle\">{{ systemFiles.cloudSource.url }}</div>\n      <div class=\"video-swarm-browser__cloud-video-form\">\n        <input\n          v-model.trim=\"systemFiles.cloudVideoDraft.name\"\n          type=\"text\"\n          class=\"framesync-input\"\n          placeholder=\"Label (optional)\"\n        >\n        <input\n          v-model.trim=\"systemFiles.cloudVideoDraft.url\"\n          type=\"url\"\n          class=\"framesync-input\"\n          placeholder=\"Direct video URL (https://…mp4)\"\n          data-testid=\"video-swarm-cloud-video-url\"\n          @keyup.enter=\"addCloudStorageVideo(systemFiles.cloudSource.id)\"\n        >\n        <button type=\"button\" class=\"framesync-button\" @click=\"addCloudStorageVideo(systemFiles.cloudSource.id)\">Add video</button>\n      </div>\n    </div>\n\n    <div\n      class=\"video-swarm-browser__dropzone\"\n      :class=\"{ 'video-swarm-browser__dropzone--active': dropzoneActive, 'video-swarm-browser__dropzone--disabled': isCloudRoot }\"\n      data-testid=\"video-swarm-dropzone\"\n      @dragenter.prevent=\"onDropEnter\"\n      @dragover.prevent=\"onDropOver\"\n      @dragleave.prevent=\"onDropLeave\"\n      @drop.prevent=\"onDropFiles\"\n    >\n      <div v-if=\"dropzoneActive && !isCloudRoot\" class=\"video-swarm-browser__dropzone-hint\">\n        Drop video files to upload\n      </div>\n\n    <div v-if=\"systemFiles.loading\" class=\"video-swarm-browser__empty\">Scanning folder…</div>\n    <div v-else-if=\"!displayFolders.length && !displayVideos.length\" class=\"video-swarm-browser__empty\">\n      {{ isCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}\n    </div>\n    <div\n      v-else\n      ref=\"gridEl\"\n      class=\"video-swarm-browser__grid\"\n      :class=\"'video-swarm-browser__grid--zoom-' + systemFiles.zoomLevel\"\n      @scroll.passive=\"onGridScroll\"\n    >\n      <button\n        v-for=\"folder in displayFolders\"\n        :key=\"'folder-' + folder.path\"\n        type=\"button\"\n        class=\"video-swarm-browser__tile video-swarm-browser__tile--folder\"\n        data-testid=\"video-swarm-folder\"\n        :data-folder-path=\"folder.path\"\n        :title=\"folder.name\"\n        @click=\"openSystemFolder(folder)\"\n      >\n        <div class=\"video-swarm-browser__folder-icon\" aria-hidden=\"true\">📁</div>\n        <div v-if=\"systemFiles.showFilenames\" class=\"video-swarm-browser__label\">{{ folder.name }}</div>\n      </button>\n      <button\n        v-for=\"(video, index) in displayVideos\"\n        :key=\"video.path\"\n        type=\"button\"\n        class=\"video-swarm-browser__tile\"\n        :class=\"{\n          'video-swarm-browser__tile--selected': systemFiles.selectedPaths.includes(video.path),\n          'video-swarm-browser__tile--hover': hoveredPath === video.path,\n        }\"\n        :data-video-path=\"video.path\"\n        @click=\"onTileClick($event, video, index)\"\n        @dblclick.prevent=\"openSystemFileFullscreen(index)\"\n        @contextmenu.prevent=\"openTileMenu($event, video)\"\n        @mouseenter=\"onTileEnter(video)\"\n        @mouseleave=\"onTileLeave(video)\"\n      >\n        <video\n          v-if=\"shouldLoadVideo(video)\"\n          :ref=\"(el) => registerTileVideo(video.path, el)\"\n          class=\"video-swarm-browser__video\"\n          muted\n          loop\n          playsinline\n          preload=\"metadata\"\n          :src=\"systemFileMediaUrl(video.path)\"\n          @loadeddata=\"onVideoLoaded(video.path)\"\n        />\n        <div v-else class=\"video-swarm-browser__placeholder\">▶</div>\n        <div v-if=\"systemFiles.showFilenames\" class=\"video-swarm-browser__label\">{{ video.name }}</div>\n        <div class=\"video-swarm-browser__meta\">{{ formatFileSize(video.size) }}</div>\n      </button>\n    </div>\n    </div>\n\n  <teleport to=\"body\">\n    <div\n      v-if=\"systemFiles.fullscreenIndex >= 0 && fullscreenVideo\"\n      class=\"video-swarm-browser__modal\"\n      data-testid=\"video-swarm-fullscreen\"\n      @click.self=\"closeSystemFileFullscreen\"\n    >\n      <div class=\"video-swarm-browser__modal-inner\">\n        <div class=\"video-swarm-browser__modal-head\">\n          <strong>{{ fullscreenVideo.name }}</strong>\n          <div class=\"video-swarm-browser__modal-actions\">\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"stepSystemFileFullscreen(-1)\">← Prev</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"stepSystemFileFullscreen(1)\">Next →</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"copySystemFilePath(fullscreenVideo.path)\">Copy path</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openInVideoEditor(fullscreenVideo)\">Open in editor</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteSystemFile(fullscreenVideo.path)\">Delete</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"closeSystemFileFullscreen\">Close</button>\n          </div>\n        </div>\n        <video\n          ref=\"modalVideoEl\"\n          class=\"video-swarm-browser__modal-video\"\n          controls\n          autoplay\n          playsinline\n          :src=\"systemFileMediaUrl(fullscreenVideo.path)\"\n        />\n      </div>\n    </div>\n  </teleport>\n\n  <teleport to=\"body\">\n    <div\n      v-if=\"contextMenu.open\"\n      class=\"video-swarm-browser__menu\"\n      :style=\"{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }\"\n    >\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openContextFullscreen\">Open</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openInVideoEditor(contextMenu.video)\">Open in editor</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"copySystemFilePath(contextMenu.video?.path)\">Copy path</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteContextVideo\">Delete</button>\n    </div>\n  </teleport>\n  </div>" };
 const MotionPathPreview = { props: ['deforumSettings', 'motionValues', 'preferLiveValues', 'playing'], template: '<div class="motion-path-preview" data-testid="motion-path-preview"><div class="motion-path-preview__header"><div class="framesync-subtitle motion-path-preview__title">3D motion preview</div></div><div class="motion-path-preview__stage"></div></div>' };
 const LiveView = { props: {
     app: { type: Object, required: true },
@@ -1686,6 +2541,13 @@ module.exports = {
     },
     gpuTotalCount() {
       return Array.isArray(this.gpuPool && this.gpuPool.nodes) ? this.gpuPool.nodes.length : 0;
+    },
+    recentRunsRail() {
+      const all = Array.isArray(this.runsAll) ? this.runsAll : [];
+      return all
+        .slice()
+        .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0))
+        .slice(0, 4);
     },
     runsActiveGpuJobs() {
       const batches = Array.isArray(this.deforumBatches) ? this.deforumBatches : [];

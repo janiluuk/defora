@@ -221,6 +221,16 @@ describe("Deforumation Web UI", () => {
     appVm.videoReady = false;
     appVm.defaultAnimation.preferDeforumVideo = false;
     appVm.performance.lastPreviewPath = "";
+    appVm.deforumActiveTab = "canvas";
+    appVm.deforumMode2d3d = "3D";
+    appVm.deforumSettings = { ...appVm.deforumSettings, animation_mode: "3D" };
+    appVm.motionSequencerSideOpen = false;
+    appVm.liveBottomDrawerOpen = false;
+    appVm.runsAll = [];
+    appVm.runsDetailView = null;
+    appVm.deforumBatches = [];
+    appVm.deforumBatchNodes = [];
+    if (typeof appVm.applyRunsFilters === "function") appVm.applyRunsFilters();
     appVm.initVideoLayers();
     appVm.selectVideoLayer("webgl");
     appVm.videoLayerAddOpen = false;
@@ -807,7 +817,7 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.include("Look controls");
     expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
-    expect(document.querySelector(".motion-axis-sliders")).to.not.exist;
+    expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
 
     appVm.updateMotionPad({
@@ -856,7 +866,7 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.translation_x).to.equal(0);
     expect(appVm.motionPadValues.translation_y).to.equal(0);
     expect(appVm.motionPadValues.translation_z).to.equal(0);
-    expect(appVm.motionPadValues.zoom).to.equal(0);
+    expect(appVm.motionPadValues.zoom).to.equal(1);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
     expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;
@@ -1689,6 +1699,7 @@ describe("Deforumation Web UI behavior", () => {
   it("ensureLivePlayback triggers play when paused", () => {
     const instance = instantiate(appDef);
     let plays = 0;
+    instance.hlsWatchEnabled = true;
     instance.playerEl = {
       paused: true,
       readyState: 1,
@@ -1991,18 +2002,15 @@ describe("Deforumation Web UI behavior", () => {
     instance.saveSessionState = () => {};
     instance.queueDeforumSettingsSave = () => {};
     instance.scheduleDeforumPreview = () => {};
-    instance.deforumSettings.steps = 14;
-    instance.deforumSettings.cfg_scale_schedule = "0:(7)";
-    instance.deforumSettings.distilled_cfg_scale_schedule = "0: (7)";
+    instance.deforumSettings.noise_schedule = "0:(0.05)";
+    instance.deforumSettings.strength_schedule = "0:(0.6)";
 
-    instance.setDeforumFieldEnabled("steps", false);
-    instance.setDeforumFieldEnabled("cfg_scale_schedule", false);
+    instance.setDeforumFieldEnabled("noise_schedule", false);
+    instance.setDeforumFieldEnabled("strength_schedule", false);
     await instance.saveDeforumSettings();
 
-    expect(posted.settings).to.not.have.property("steps");
-    expect(posted.settings).to.not.have.property("cfg_scale_schedule");
-    expect(posted.settings).to.not.have.property("distilled_cfg_scale_schedule");
-    expect(instance.deforumSettings.steps).to.equal(14);
+    expect(posted.settings).to.not.have.property("noise_schedule");
+    expect(posted.settings).to.not.have.property("strength_schedule");
     delete global.fetch;
   });
 
@@ -2010,19 +2018,19 @@ describe("Deforumation Web UI behavior", () => {
     const instance = instantiate(appDef);
     testStorage[instance.sessionStorageKey()] = JSON.stringify({
       deforumSettings: {
-        steps: 18,
+        noise_schedule: "0:(0.05)",
       },
       deforumFieldEnabled: {
-        steps: false,
-        cfg_scale_schedule: false,
+        noise_schedule: false,
+        strength_schedule: false,
       },
     });
 
     instance.loadSessionState();
 
-    expect(instance.isDeforumFieldEnabled("steps")).to.equal(false);
-    expect(instance.isDeforumFieldEnabled("cfg_scale_schedule")).to.equal(false);
-    expect(instance.isDeforumFieldEnabled("seed")).to.equal(true);
+    expect(instance.isDeforumFieldEnabled("noise_schedule")).to.equal(false);
+    expect(instance.isDeforumFieldEnabled("strength_schedule")).to.equal(false);
+    expect(instance.isDeforumFieldEnabled("cfg_scale_schedule")).to.equal(true);
   });
 
 

@@ -1442,6 +1442,13 @@ export default {
     gpuTotalCount() {
       return Array.isArray(this.gpuPool && this.gpuPool.nodes) ? this.gpuPool.nodes.length : 0;
     },
+    recentRunsRail() {
+      const all = Array.isArray(this.runsAll) ? this.runsAll : [];
+      return all
+        .slice()
+        .sort((a, b) => new Date(b.started_at || 0) - new Date(a.started_at || 0))
+        .slice(0, 4);
+    },
     runsActiveGpuJobs() {
       const batches = Array.isArray(this.deforumBatches) ? this.deforumBatches : [];
       return batches

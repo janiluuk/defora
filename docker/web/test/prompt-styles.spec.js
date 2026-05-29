@@ -1,19 +1,15 @@
-import { describe, it } from "node:test";
-import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
-import {
-  mergePromptParts,
-  applyPromptStyleToPrompts,
-  forgeStyleToRecord,
-  dedupeStyleIds,
-} from "../src/shared/prompt-styles.mjs";
-import { morphStyleModifiers } from "../src/morph-utils.js";
-import promptStylesStore from "../modules/prompt-styles-store.js";
+const { describe, it } = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+const os = require("node:os");
+const { loadEsm } = require("./load-esm");
+const { morphStyleModifiers } = require("../src/morph-utils.js");
+const promptStylesStore = require("../modules/prompt-styles-store.js");
 
 describe("prompt styles", () => {
-  it("merges positive and negative prompt parts", () => {
+  it("merges positive and negative prompt parts", async () => {
+    const { mergePromptParts, applyPromptStyleToPrompts } = await loadEsm("..", "src", "shared", "prompt-styles.mjs");
     assert.equal(mergePromptParts("cat", "oil painting"), "cat, oil painting");
     assert.equal(applyPromptStyleToPrompts({ positive: "cat", negative: "blur" }, {
       positive: "cubism",
@@ -28,7 +24,8 @@ describe("prompt styles", () => {
     );
   });
 
-  it("parses forge style rows and dedupes ids", () => {
+  it("parses forge style rows and dedupes ids", async () => {
+    const { forgeStyleToRecord, dedupeStyleIds } = await loadEsm("..", "src", "shared", "prompt-styles.mjs");
     const row = forgeStyleToRecord({ name: "Cubism", prompt: "cubist", negative_prompt: "photo" }, 0);
     assert.equal(row.name, "Cubism");
     assert.equal(row.id, "cubism");

@@ -143,7 +143,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (nestedRel.includes('/views/') || nestedRel.endsWith('RunsBrowserPanel.vue') || nestedRel.endsWith('SequencerControlsPanel.vue') || nestedRel.endsWith('LoraCrossfaderPanel.vue') || nestedRel.endsWith('StylesSettingsPanel.vue')) {
+      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue'].some((p) => nestedRel.endsWith(p))) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -176,7 +176,7 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (relPath.includes('/views/') || relPath.endsWith('RunsBrowserPanel.vue') || relPath.endsWith('SequencerControlsPanel.vue') || relPath.endsWith('LoraCrossfaderPanel.vue') || relPath.endsWith('StylesSettingsPanel.vue')) {
+    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue'].some((p) => relPath.endsWith(p))) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }

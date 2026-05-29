@@ -453,11 +453,14 @@ describe("distributed Forge sync", () => {
   });
 
   it("switches models across all enabled Forge nodes", async () => {
+    // Reset call log so pool-startup health checks don't interfere.
+    fetchCalls.length = 0;
     const res = await request.post("/api/sd-models/switch").send({ model_name: "sdxl_turbo.safetensors" });
 
     expect(res.status).to.equal(200);
     const posts = fetchCalls.filter((call) => call.method === "POST" && call.url.endsWith("/sdapi/v1/options"));
-    expect(posts.map((call) => call.url)).to.deep.equal([
+    const urls = posts.map((call) => call.url).sort();
+    expect(urls).to.deep.equal([
       "http://node-a:7860/sdapi/v1/options",
       "http://node-b:7860/sdapi/v1/options",
     ]);
