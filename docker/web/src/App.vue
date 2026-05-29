@@ -626,7 +626,7 @@ import {
   CROSSFADE_SLOT_TYPES,
   morphSlotValue,
   smoothstep,
-} from './morph-utils.js'
+} from './morph-utils.mjs'
 import {
   DEFORUM_DEFAULT_SETTINGS,
   DEFORUM_FIELD_GROUPS,

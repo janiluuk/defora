@@ -1,6 +1,6 @@
 // Auto-generated from App.vue — run: npm run sync-app-definition (audit A-01)
 
-// --- inlined from morph-utils.js (ESM source; do not edit) ---
+// --- inlined from morph-utils.mjs (ESM source; do not edit) ---
 /** Cross-type morph helpers for the performance crossfader (t: 0 = A, 1 = B). */
 
 function clamp01(t) {
