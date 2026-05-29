@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.44] - 2026-05-29
+
+## What's Changed
+
+- deforum (1ae55e1)
+- Fix (0ffea87)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.43...v0.6.44
+
+
 ## [0.6.43] - 2026-05-29
 
 ## What's Changed
