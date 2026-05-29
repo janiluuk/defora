@@ -33,12 +33,9 @@ describe('deforum-settings-verify', () => {
   it('passes sensible defaults', async () => {
     const { verifyDeforumSettings } = await loadEsm('..', 'src', 'deforum-settings-verify.mjs');
     const { DEFORUM_DEFAULT_SETTINGS } = await loadEsm('..', 'src', 'deforum-settings-schema.mjs');
-    const settings = {
-      ...DEFORUM_DEFAULT_SETTINGS,
-      cfg_scale_schedule: '0:(7)',
-      strength_schedule: '0:(0.6)',
-    };
-    const result = verifyDeforumSettings(settings);
+    const result = verifyDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS });
     assert.equal(result.errors.length, 0);
+    assert.ok(!result.warnings.some((w) => w.field === 'cfg_scale_schedule'));
+    assert.ok(!result.warnings.some((w) => w.field === 'max_frames'));
   });
 });
