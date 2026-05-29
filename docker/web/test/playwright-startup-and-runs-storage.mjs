@@ -1,7 +1,7 @@
 /**
  * Playwright E2E:
  * 1) Cold load shows WebGL standby animation (not blank / not hidden by empty Deforum).
- * 2) Saved run on disk appears in Library Runs Browser (storage connected via server runsDir).
+ * 2) Saved run on disk appears in Settings → System Runs Monitor (storage connected via server runsDir).
  * 3) After reload, the same run is still listed (persistence).
  */
 import fs from "fs";
@@ -23,6 +23,12 @@ async function clickTab(page, label) {
   }).first();
   if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
   await tab.click();
+}
+
+async function openRunsMonitor(page) {
+  await clickTab(page, "SETTINGS");
+  await page.locator(".sub-pill").filter({ hasText: /^SYSTEM$/ }).first().click();
+  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
 }
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-e2e-startup-runs-"));
@@ -111,7 +117,7 @@ async function assertWebglStartup(page) {
 
 async function assertRunInBrowser(page) {
   await dismissSessionModalIfOpen(page);
-  await clickTab(page, "LIBRARY");
+  await openRunsMonitor(page);
   await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
 
   const row = page

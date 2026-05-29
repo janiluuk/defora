@@ -177,6 +177,8 @@ def start_stream(source: Path, target: str, fps: int, resolution: Optional[str],
     # Save config for recording while streaming
     config = {
         "source": str(source),
+        "target": target,
+        "protocol": detected_protocol,
         "fps": fps,
         "resolution": resolution,
     }
@@ -351,13 +353,66 @@ def stop_stream() -> None:
         PROC_FILE.unlink(missing_ok=True)
 
 
+def estimate_kbps(source: Path, fps: int) -> Optional[float]:
+    """Rough outbound bitrate estimate from recent frame PNG sizes."""
+    try:
+        frames = sorted(source.glob("frame_*.png"))
+        if not frames:
+            return None
+        sample = frames[-min(8, len(frames)) :]
+        total_bytes = sum(item.stat().st_size for item in sample)
+        if not total_bytes:
+            return None
+        avg_bytes = total_bytes / len(sample)
+        # Heuristic: H.264 output is much smaller than raw PNG; tune for UI display.
+        return round((avg_bytes * max(1, int(fps or 24)) * 8) / 1000 * 0.1, 1)
+    except OSError:
+        return None
+
+
+def status_payload() -> Dict:
+    running = PROC_FILE.exists()
+    payload: Dict = {
+        "running": running,
+        "status": "running" if running else "stopped",
+        "health": "healthy" if running else "offline",
+        "pid": None,
+        "target": None,
+        "protocol": None,
+        "fps": None,
+        "kbps": None,
+        "resolution": None,
+    }
+    if running:
+        try:
+            payload["pid"] = int(PROC_FILE.read_text().strip())
+        except (TypeError, ValueError):
+            payload["pid"] = None
+    if CONFIG_FILE.exists():
+        try:
+            config = json.loads(CONFIG_FILE.read_text())
+            if isinstance(config, dict):
+                payload["target"] = config.get("target")
+                payload["protocol"] = config.get("protocol")
+                payload["fps"] = config.get("fps")
+                payload["resolution"] = config.get("resolution")
+                source = Path(str(config.get("source") or ""))
+                fps = int(config.get("fps") or 24)
+                if running and source.is_dir():
+                    payload["kbps"] = estimate_kbps(source, fps)
+        except (json.JSONDecodeError, OSError, TypeError, ValueError):
+            pass
+    if running and payload.get("kbps") is None:
+        payload["health"] = "degraded"
+    return payload
+
+
 def status() -> None:
-    if PROC_FILE.exists():
-        pid = PROC_FILE.read_text().strip()
-        print(f"Stream running (pid {pid})")
+    payload = status_payload()
+    if payload["running"]:
+        print(f"Stream running (pid {payload.get('pid')})")
     else:
         print("Stream not running")
-    
     record_status()
 
 
@@ -375,7 +430,8 @@ def main():
     start.add_argument("--transition", choices=["fade", "wipe", "dissolve"], help="Transition effect to apply")
 
     sub.add_parser("stop", help="Stop streaming")
-    sub.add_parser("status", help="Show streaming status")
+    status_parser = sub.add_parser("status", help="Show streaming status")
+    status_parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON")
     
     record = sub.add_parser("record", help="Start recording to file")
     record.add_argument("--source", required=True, help="Directory containing frames frame_%05d.png")
@@ -405,7 +461,10 @@ def main():
     elif args.command == "stop":
         stop_stream()
     elif args.command == "status":
-        status()
+        if getattr(args, "json", False):
+            print(json.dumps(status_payload()))
+        else:
+            status()
     elif args.command == "record":
         start_record(Path(args.source), Path(args.output), args.fps, args.resolution, 
                      args.codec, args.quality)

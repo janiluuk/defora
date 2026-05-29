@@ -9,6 +9,43 @@
     </div>
     <div v-if="currentSubTab.PROMPTS==='PROMPTS'">
       <div class="rack">
+        <div class="framesync-panel prompt-style-bar" data-testid="prompt-style-bar">
+          <div class="framesync-header">
+            <div class="framesync-title">Style <span class="framesync-accent">modifier</span></div>
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              @click="switchTab('SETTINGS'); switchSubTab('SETTINGS', 'STYLES')"
+            >
+              Manage styles
+            </button>
+          </div>
+          <div class="prompt-style-bar__row">
+            <select
+              class="framesync-select prompt-style-bar__select"
+              data-testid="prompt-style-select"
+              :value="activePromptStyleId || ''"
+              @change="selectActivePromptStyle($event.target.value || null)"
+            >
+              <option value="">No style (base prompts only)</option>
+              <option v-for="style in promptStyles" :key="'prompt-style-opt-' + style.id" :value="style.id">
+                {{ style.name }}
+              </option>
+            </select>
+            <label class="framesync-checkbox prompt-style-bar__auto">
+              <input v-model="promptStyleAutoExample" type="checkbox" @change="saveSessionState()" />
+              Save preview as style example
+            </label>
+          </div>
+          <p v-if="activePromptStyle" class="framesync-subtitle prompt-style-bar__hint">
+            Appends to prompts:
+            <span v-if="activePromptStyle.positive">+{{ activePromptStyle.positive.slice(0, 120) }}{{ activePromptStyle.positive.length > 120 ? '…' : '' }}</span>
+            <span v-if="activePromptStyle.negative"> · neg +{{ activePromptStyle.negative.slice(0, 80) }}{{ activePromptStyle.negative.length > 80 ? '…' : '' }}</span>
+          </p>
+        </div>
+      </div>
+
+      <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
             <div class="framesync-title">Prompt <span class="framesync-accent">Morphing</span></div>

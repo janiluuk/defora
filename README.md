@@ -9,172 +9,146 @@ https://defora.dudeisland.eu/
 
 ## Current Browser Tour
 
-These screenshots were recaptured from the current web UI after generating fresh material in the **MOTION → Animation Sequencer** view. The shared preview therefore shows a real recent render instead of placeholder content.
-
 <table>
 <tr>
 <td width="50%">
 <h4>LIVE</h4>
 <img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
-<p>The stage-first performance view keeps the latest render front and center, with floating morph and modulation HUDs for quick changes during playback.</p>
+<p>The stage fills the right half with the active render; the left panel switches between <b>Controls</b> (animation engine picker, layer selector, preview source) and <b>Deforum</b> (full settings editor). The layer bar at the bottom cycles between WebGL, Deforum, WAN Video, Both, Input, and any added sources.</p>
 </td>
 <td width="50%">
 <h4>PROMPTS</h4>
 <img src="screenshots/prompts-tab.png" alt="Web UI Prompts Tab" width="100%" />
-<p>Prompt morphing, img2img, and plugin surfaces stay grouped in one place so narrative control and prompt blending stay close to the live preview.</p>
+<p>Sub-tabs PROMPTS / IMAGE / LORA / CONTROLNET / STORY all live here. The main view shows <b>Style Modifier</b> (forge-compatible style presets with example preview toggle) and <b>Prompt Morphing</b> — enable it to expose the A/B morph crossfader and blend between two prompt states in real time.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>MOTION</h4>
 <img src="screenshots/motion-tab.png" alt="Web UI Motion Tab" width="100%" />
-<p>The motion view exposes the XY performance pad and camera presets for fast spatial moves. Use the <b>Animation Sequencer</b> sub-tab for timeline edits, story status, and sequencer controls.</p>
+<p>Dual XY performance pads — <b>Move Controls</b> (translation X/Y) and <b>Look Controls</b> (zoom/angle) — with camera presets (Static, Orbit, Tunnel, Handheld, Chaos) and a smoothness toggle. The <b>Animation Sequencer</b> timeline docks at the bottom; frame filmstrip appears as previews arrive.</p>
 </td>
 <td width="50%">
 <h4>MODULATION</h4>
 <img src="screenshots/modulation-tab.png" alt="Web UI Modulation Tab" width="100%" />
-<p>LFO cards, routed targets, and beat macros make modulation ownership visible at a glance so you can see what is driving each parameter.</p>
+<p>The <b>Modulation Patch Bay</b> holds six independent LFO slots (LFO / Audio / Reactive / Beat / Mappings tabs). Each LFO shows waveform shape, BPM sync, speed, depth, and the currently armed target. The Targets section at the bottom lists every routed parameter at a glance.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>LIBRARY</h4>
 <img src="screenshots/library-tab.png" alt="Web UI Library Tab" width="100%" />
-<p>Library focuses on runs + frame inspection, with an optional fullscreen expand mode for browsing and review.</p>
+<p>Video and frame browser across Frames, Runs, Uploads, HLS, and VideoSwarm roots. Toggle <b>Videos only</b>, create new folders, sort by name/date/size, and connect cloud sources. The <b>Open in editor</b> button sends the selected clip straight into the trim / export editor.</p>
 </td>
 <td width="50%">
-<h4>TOOLS</h4>
-<img src="screenshots/tools-tab.png" alt="Web UI Tools Tab" width="100%" />
-<p>VideoSwarm and shared source browsing live under Tools so the Library view stays focused.</p>
+<h4>PROMPTS — LoRA</h4>
+<img src="screenshots/lora-tab.png" alt="Web UI LoRA Tab" width="100%" />
+<p>Active LoRAs panel shows the current checkpoint family (SD-XL / Forge source). Common, A-Group, and B-Group slots let you pre-load two palettes; the <b>LoRA Crossfader</b> blends between them. Fader source can be Manual, or routed to any of the six LFOs for tempo-synced style morphing.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
-<h4>SETTINGS</h4>
+<h4>SETTINGS — Engine</h4>
 <img src="screenshots/settings-tab.png" alt="Web UI Settings Tab" width="100%" />
-<p>Engine, controller, and GPU pool controls are available without leaving the same performance shell as the rest of the instrument.</p>
+<p>ENGINE sub-tab shows the active checkpoint, CFG, steps, sampler, and scheduler in a single card. Inline controls for resolution, global FPS, model source, and seed (random or fixed). <b>LCM Engine</b> toggle switches to 1-step inference; <b>Optimize for model</b> auto-applies the right profile (SDXL fast, etc.).</p>
 </td>
 <td width="50%">
-<h4>MOTION — Animation Sequencer</h4>
-<img src="screenshots/motion-sequencer-tab.png" alt="Web UI Motion Animation Sequencer" width="100%" />
-<p>Timeline, playhead, and story-generation status live under MOTION so spatial performance and sequencer edits stay in one tab.</p>
+<h4>STREAM</h4>
+<img src="screenshots/stream-tab.png" alt="Web UI Stream Tab" width="100%" />
+<p><b>Stream Preview</b> monitors the live HLS feed; the status badge turns green once a valid segment arrives. HLS playlist and RTMP ingest addresses are shown for copy-paste. <b>Active streams</b> panel lists running output destinations — use <b>Add destination</b> to push to any RTMP/SRT/WHIP endpoint.</p>
 </td>
 </tr>
 </table>
-
-<p align="center">
-  <img src="screenshots/stream-tab.png" alt="Web UI Stream Tab" width="92%" />
-  <br />
-  <sub>STREAM: output routing, encoder destinations, and recording controls.</sub>
-</p>
 
 ## ✨ Feature Highlights
 
 ### 🎹 Live Performance Interface
-Control your AI video generation in real-time with multiple interface options:
+Browser-based stage with real-time layer switching:
 
 <table>
 <tr>
 <td width="50%">
-<h4>Web UI — Browser-based Performance Dashboard</h4>
+<h4>Web UI — Stage + Controls</h4>
 <img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
-<p>Neon-styled web interface with macro sliders, motion presets, and live parameter control</p>
+<p>Animation engine picker, video layer selector (WebGL / Deforum / WAN Video / Both / Input), and preview source toggle. Status bar shows health, session ID, and live frame rate.</p>
 </td>
 <td width="50%">
-<h4>TUI — Terminal-based Control Center</h4>
+<h4>TUI — Terminal Control Center</h4>
 <img src="screenshots/tui-live.png" alt="TUI Live Tab" width="100%" />
-<p>Full-featured ncurses interface for terminal enthusiasts with ASCII preview and parameter control</p>
+<p>Full ncurses interface with ASCII frame preview and parameter sliders. F1–F7 to switch tabs, ←/→ to adjust values.</p>
 </td>
 </tr>
 </table>
 
-### 🎨 Advanced Prompt Management
-Morph between multiple prompts and control narrative flow:
+### 🎨 Prompt Morphing & Style
+A/B prompt blending, style modifiers, and LoRA crossfader:
 
 <table>
 <tr>
 <td width="50%">
 <img src="screenshots/prompts-tab.png" alt="Web UI Prompts" width="100%" />
-<p><b>Web UI:</b> Visual prompt morphing with slots and blend control</p>
+<p><b>Prompts tab:</b> Forge-compatible style presets with preview toggle, and a Prompt Morphing section with enable/disable and an A→B crossfader slider.</p>
 </td>
 <td width="50%">
-<img src="screenshots/tui-prompts.png" alt="TUI Prompts" width="100%" />
-<p><b>TUI:</b> Text-based prompt management with morph ranges</p>
+<img src="screenshots/lora-tab.png" alt="Web UI LoRA" width="100%" />
+<p><b>LoRA sub-tab:</b> A-group / B-group palettes with a crossfader that can be driven manually or by any LFO slot for tempo-synced style morphing.</p>
 </td>
 </tr>
 </table>
 
-### 🎥 Camera Motion Control
-Gamepad-style camera controls and curve editing:
+### 🎥 Camera Motion & Sequencer
+XY performance pads, presets, and the animation timeline:
 
 <table>
 <tr>
 <td width="50%">
 <img src="screenshots/motion-tab.png" alt="Web UI Motion" width="100%" />
-<p><b>Web UI:</b> Visual motion curves with preset system</p>
+<p><b>Web UI:</b> Move and Look XY pads with Static / Orbit / Tunnel / Handheld / Chaos presets. Animation Sequencer timeline docks below the pads with loop, prompt, and LoRA controls.</p>
 </td>
 <td width="50%">
 <img src="screenshots/tui-motion.png" alt="TUI Motion" width="100%" />
-<p><b>TUI:</b> Multi-lane curve editor in your terminal</p>
+<p><b>TUI:</b> Multi-lane Deforum schedule editor. Edit zoom, translation, and rotation curves from your terminal.</p>
 </td>
 </tr>
 </table>
 
-### 🎨 LoRA Management
-Control and blend multiple LoRA models with crossfader:
-
-<table>
-<tr>
-<td width="50%">
-<img src="screenshots/lora-tab.png" alt="Web UI LoRA" width="100%" />
-<p><b>Web UI:</b> Dedicated LoRA browser tab with strength controls and A/B grouping</p>
-</td>
-<td width="50%">
-<img src="screenshots/tui-prompts.png" alt="TUI Prompts" width="100%" />
-<p><b>TUI:</b> LoRA controls integrated within the prompts tab (F2)</p>
-</td>
-</tr>
-</table>
-
-### 🎵 Audio-Reactive Modulation
-Sync your visuals to audio with beat-driven macros and LFOs:
+### 🎵 Modulation — LFO, Audio & Beat
+Six LFO slots routed to any parameter:
 
 <table>
 <tr>
 <td width="50%">
 <img src="screenshots/modulation-tab.png" alt="Web UI Modulation" width="100%" />
-<p><b>Web UI:</b> Audio waveform + upload spectrogram + live spectrum bars, LFO modulators, beat macros, and parameter mapping</p>
+<p><b>Modulation Patch Bay:</b> LFO / Audio / Reactive / Beat / Mappings tabs. Each slot shows waveform, BPM sync, speed, depth, and armed target. The Targets panel lists every active route.</p>
 </td>
 <td width="50%">
 <img src="screenshots/tui-audio.png" alt="TUI Audio" width="100%" />
-<p><b>TUI:</b> Beat-synced parameter automation</p>
+<p><b>TUI:</b> Beat-synced parameter automation and audio-reactive schedule generation.</p>
 </td>
 </tr>
 </table>
 
-### 🎛️ ControlNet Integration & Settings
-Fine-tune your generation with ControlNet and render settings:
+### 🎛️ Engine, ControlNet & Settings
+Checkpoint, sampler, and GPU pool configuration:
 
 <table>
 <tr>
 <td width="50%">
-<img src="screenshots/cn-tab.png" alt="Web UI ControlNet" width="100%" />
 <img src="screenshots/settings-tab.png" alt="Web UI Settings" width="100%" />
-<p><b>Web UI:</b> ControlNet slots and engine configuration</p>
+<p><b>ENGINE sub-tab:</b> Active checkpoint card, inline CFG / steps / sampler / scheduler controls, LCM Engine toggle, resolution, seed mode, and model-specific profile buttons. CONTROLLERS / MIDI and GPU POOL sub-tabs also live here.</p>
 </td>
 <td width="50%">
-<img src="screenshots/tui-controlnet.png" alt="TUI ControlNet" width="100%" />
-<img src="screenshots/tui-settings.png" alt="TUI Settings" width="100%" />
-<p><b>TUI:</b> Complete control from your terminal</p>
+<img src="screenshots/cn-tab.png" alt="Web UI ControlNet" width="100%" />
+<p><b>ControlNet sub-tab (under PROMPTS):</b> Per-slot model picker filtered to the active checkpoint family, weight slider with visual strength indicator, and enable/disable toggle per slot.</p>
 </td>
 </tr>
 </table>
 
 ### 🎼 MIDI Controller Support
 Map any MIDI controller to live parameters:
-- **Web UI**: Browser-based Web MIDI support
-- **TUI**: CC mapping with learn mode
-- Full parameter control via hardware knobs and faders
+- **Web UI**: Browser-based Web MIDI — bind knobs and faders in **Settings → Controllers / MIDI**
+- **TUI**: CC learn mode with per-parameter binding
+- Full parameter control via hardware controllers at performance time
 
 ## Requires
 - Moderately fast GPU (4070ti / 5060ti tested) with at least 12G VRAM

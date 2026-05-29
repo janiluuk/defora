@@ -1,0 +1,1924 @@
+{
+  "version": 1,
+  "importedFrom": "http://192.168.2.104:7860/sdapi/v1/prompt-styles",
+  "count": 213,
+  "styles": [
+    {
+      "id": "forge_kamph_default_negative_no",
+      "name": "Kamph_Default_Negative (NO)",
+      "positive": "",
+      "negative": "Watermark, Text, censored, deformed, bad anatomy, disfigured, poorly drawn face, mutated, extra limb, ugly, poorly drawn hands, missing limb, floating limbs, disconnected limbs, disconnected head, malformed hands, long neck, mutated hands and fingers, bad hands, missing fingers, cropped, worst quality, low quality, mutation, poorly drawn, huge calf, bad hands, fused hand, missing hand, disappearing arms, disappearing thigh, disappearing calf, disappearing legs, missing fingers, fused fingers, abnormal eye proportion, Abnormal hands, abnormal legs, abnormal feet,  abnormal fingers",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_default_negative_sfw_no",
+      "name": "Kamph_Default_Negative (sfw) (NO)",
+      "positive": "",
+      "negative": "NSFW, Cleavage, Pubic Hair, Nudity, Naked, Au naturel, Watermark, Text, censored, deformed, bad anatomy, disfigured, poorly drawn face, mutated, extra limb, ugly, poorly drawn hands, missing limb, floating limbs, disconnected limbs, disconnected head, malformed hands, long neck, mutated hands and fingers, bad hands, missing fingers, cropped, worst quality, low quality, mutation, poorly drawn, huge calf, bad hands, fused hand, missing hand, disappearing arms, disappearing thigh, disappearing calf, disappearing legs, missing fingers, fused fingers, abnormal eye proportion, Abnormal hands, abnormal legs, abnormal feet,  abnormal fingers",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_default_negative_low_token_no",
+      "name": "Kamph_Default_Negative (Low Token) (NO)",
+      "positive": "",
+      "negative": "lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_skin_enhancer_po",
+      "name": "Kamph_Skin Enhancer (PO)",
+      "positive": "detailed skin texture, (blush:0.5), (goosebumps:0.5), subsurface scattering",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_skin_enhancer_clean_po",
+      "name": "Kamph_Skin Enhancer (clean)(PO)",
+      "positive": "detailed skin texture, (blush:0.2), (goosebumps:0.3), subsurface scattering",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_ghibli_po",
+      "name": "Kamph_Ghibli (PO)",
+      "positive": "(Studio ghibli style, Art by Hayao Miyazaki:1.2), Anime Style, Manga Style, Hand drawn, cinematic, Sharp focus, humorous illustration, big depth of field, Masterpiece, concept art, trending on artstation, Vivid colors, Simplified style, trending on ArtStation, trending on CGSociety, Intricate, Vibrant colors, Soft Shading, Simplistic Features, Sharp Angles, Playful",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_vector_illustrations_po",
+      "name": "Kamph_Vector Illustrations (PO)",
+      "positive": "Vector art, Vivid colors, Clean lines, Sharp edges, Minimalist, Precise geometry, Simplistic, Smooth curves, Bold outlines, Crisp shapes, Flat colors, Illustration art piece, High contrast shadows, Technical illustration, Graphic design, Vector graphics, High contrast, Precision artwork, Linear compositions, Scalable artwork, Digital art",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_digital_painting_po",
+      "name": "Kamph_Digital Painting (PO)",
+      "positive": "glow effects, godrays, Hand drawn, render, 8k, octane render, cinema 4d, blender, dark, atmospheric 4k ultra detailed, cinematic, Sharp focus, big depth of field, Masterpiece, colors, 3d octane render, 4k, concept art, trending on artstation, hyperrealistic, Vivid colors, extremely detailed CG unity 8k wallpaper, trending on CGSociety, Intricate, High Detail, dramatic",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_indie_game_po",
+      "name": "Kamph_Indie Game (PO)",
+      "positive": "Indie game art, Vector Art, Borderlands style, Arcane style, Cartoon style, Line art, Disctinct features, Hand drawn, Technical illustration, Graphic design, Vector graphics, High contrast, Precision artwork, Linear compositions, Scalable artwork, Digital art, cinematic sensual, Sharp focus, humorous illustration, big depth of field, Masterpiece, trending on artstation, Vivid colors, trending on ArtStation, trending on CGSociety, Intricate, Low Detail, dramatic",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_original_photo_style_po",
+      "name": "Kamph_Original Photo Style (PO)",
+      "positive": "Photorealistic, Hyperrealistic, Hyperdetailed, analog style, soft lighting, subsurface scattering, realistic, heavy shadow, masterpiece, best quality, ultra realistic, 8k, golden ratio, Intricate, High Detail, film photography, soft focus",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_black_and_white_film_noir_po",
+      "name": "Kamph_Black and White Film Noir (PO)",
+      "positive": "(b&w, Monochromatic, Film Photography:1.3),  Photorealistic, Hyperrealistic, Hyperdetailed, film noir, analog style, soft lighting, subsurface scattering, realistic, heavy shadow, masterpiece, best quality, ultra realistic, 8k, golden ratio, Intricate, High Detail, film photography, soft focus",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_isometric_rooms_po",
+      "name": "Kamph_Isometric Rooms (PO)",
+      "positive": "Tiny cute isometric in a cutaway box, soft smooth lighting, soft colors, 100mm lens, 3d blender render",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_space_hologram_po",
+      "name": "Kamph_Space Hologram (PO)",
+      "positive": "hologram floating in space, a vibrant digital illustration, dribbble, quantum wavetracing, black background, behance hd",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_cute_creatures_po",
+      "name": "Kamph_Cute Creatures (PO)",
+      "positive": "3d fluffy, closeup cute and adorable, cute big circular reflective eyes, long fuzzy fur, Pixar render, unreal engine cinematic smooth, intricate detail, cinematic",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_realistic_photo_portraits_po",
+      "name": "Kamph_Realistic Photo Portraits (PO)",
+      "positive": "RAW candid cinema, 16mm, color graded portra 400 film, remarkable color, ultra realistic, textured skin, remarkable detailed pupils, realistic dull skin noise, visible skin detail, skin fuzz, dry skin, shot with cinematic camera",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_professional_scenic_photographs_po",
+      "name": "Kamph_Professional Scenic Photographs (PO)",
+      "positive": "long shot scenic professional photograph of {prompt}, perfect viewpoint, highly detailed, wide-angle lens, hyper realistic, with dramatic sky, polarizing filter, natural lighting, vivid colors, everything in sharp focus, HDR, UHD, 64K",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_cinematic_still",
+      "name": "cinematic_still",
+      "positive": "cinematic still {prompt} . emotional, harmonious, vignette, highly detailed, high budget, bokeh, cinemascope, moody, epic, gorgeous, film grain, grainy",
+      "negative": "anime, cartoon, graphic, text, painting, crayon, graphite, abstract, glitch, deformed, mutated, ugly, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_3d_model",
+      "name": "sai-3d-model",
+      "positive": "professional 3d model {prompt} . octane render, highly detailed, volumetric, dramatic lighting",
+      "negative": "ugly, deformed, noisy, low poly, blurry, painting",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_analog_film",
+      "name": "sai-analog film",
+      "positive": "analog film photo {prompt} . faded film, desaturated, 35mm photo, grainy, vignette, vintage, Kodachrome, Lomography, stained, highly detailed, found footage",
+      "negative": "painting, drawing, illustration, glitch, deformed, mutated, cross-eyed, ugly, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_anime",
+      "name": "sai-anime",
+      "positive": "anime artwork {prompt} . anime style, key visual, vibrant, studio anime,  highly detailed",
+      "negative": "photo, deformed, black and white, realism, disfigured, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_cinematic",
+      "name": "sai-cinematic",
+      "positive": "cinematic film still {prompt} . shallow depth of field, vignette, highly detailed, high budget, bokeh, cinemascope, moody, epic, gorgeous, film grain, grainy",
+      "negative": "anime, cartoon, graphic, text, painting, crayon, graphite, abstract, glitch, deformed, mutated, ugly, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_comic_book",
+      "name": "sai-comic book",
+      "positive": "comic {prompt} . graphic illustration, comic art, graphic novel art, vibrant, highly detailed",
+      "negative": "photograph, deformed, glitch, noisy, realistic, stock photo",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_craft_clay",
+      "name": "sai-craft clay",
+      "positive": "play-doh style {prompt} . sculpture, clay art, centered composition, Claymation",
+      "negative": "sloppy, messy, grainy, highly detailed, ultra textured, photo",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_digital_art",
+      "name": "sai-digital art",
+      "positive": "concept art {prompt} . digital artwork, illustrative, painterly, matte painting, highly detailed",
+      "negative": "photo, photorealistic, realism, ugly",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_enhance",
+      "name": "sai-enhance",
+      "positive": "breathtaking {prompt} . award-winning, professional, highly detailed",
+      "negative": "ugly, deformed, noisy, blurry, distorted, grainy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_fantasy_art",
+      "name": "sai-fantasy art",
+      "positive": "ethereal fantasy concept art of  {prompt} . magnificent, celestial, ethereal, painterly, epic, majestic, magical, fantasy art, cover art, dreamy",
+      "negative": "photographic, realistic, realism, 35mm film, dslr, cropped, frame, text, deformed, glitch, noise, noisy, off-center, deformed, cross-eyed, closed eyes, bad anatomy, ugly, disfigured, sloppy, duplicate, mutated, black and white",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_isometric",
+      "name": "sai-isometric",
+      "positive": "isometric style {prompt} . vibrant, beautiful, crisp, detailed, ultra detailed, intricate",
+      "negative": "deformed, mutated, ugly, disfigured, blur, blurry, noise, noisy, realistic, photographic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_line_art",
+      "name": "sai-line art",
+      "positive": "line art drawing {prompt} . professional, sleek, modern, minimalist, graphic, line art, vector graphics",
+      "negative": "anime, photorealistic, 35mm film, deformed, glitch, blurry, noisy, off-center, deformed, cross-eyed, closed eyes, bad anatomy, ugly, disfigured, mutated, realism, realistic, impressionism, expressionism, oil, acrylic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_lowpoly",
+      "name": "sai-lowpoly",
+      "positive": "low-poly style {prompt} . low-poly game art, polygon mesh, jagged, blocky, wireframe edges, centered composition",
+      "negative": "noisy, sloppy, messy, grainy, highly detailed, ultra textured, photo",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_neonpunk",
+      "name": "sai-neonpunk",
+      "positive": "neonpunk style {prompt} . cyberpunk, vaporwave, neon, vibes, vibrant, stunningly beautiful, crisp, detailed, sleek, ultramodern, magenta highlights, dark purple shadows, high contrast, cinematic, ultra detailed, intricate, professional",
+      "negative": "painting, drawing, illustration, glitch, deformed, mutated, cross-eyed, ugly, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_origami",
+      "name": "sai-origami",
+      "positive": "origami style {prompt} . paper art, pleated paper, folded, origami art, pleats, cut and fold, centered composition",
+      "negative": "noisy, sloppy, messy, grainy, highly detailed, ultra textured, photo",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_photographic",
+      "name": "sai-photographic",
+      "positive": "cinematic photo {prompt} . 35mm photograph, film, bokeh, professional, 4k, highly detailed",
+      "negative": "drawing, painting, crayon, sketch, graphite, impressionist, noisy, blurry, soft, deformed, ugly",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_pixel_art",
+      "name": "sai-pixel art",
+      "positive": "pixel-art {prompt} . low-res, blocky, pixel art style, 8-bit graphics",
+      "negative": "sloppy, messy, blurry, noisy, highly detailed, ultra textured, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sai_texture",
+      "name": "sai-texture",
+      "positive": "texture {prompt} top down close-up",
+      "negative": "ugly, deformed, noisy, blurry",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_advertising",
+      "name": "ads-advertising",
+      "positive": "Advertising poster style {prompt} . Professional, modern, product-focused, commercial, eye-catching, highly detailed",
+      "negative": "noisy, blurry, amateurish, sloppy, unattractive",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_automotive",
+      "name": "ads-automotive",
+      "positive": "Automotive advertisement style {prompt} . Sleek, dynamic, professional, commercial, vehicle-focused, high-resolution, highly detailed",
+      "negative": "noisy, blurry, unattractive, sloppy, unprofessional",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_corporate",
+      "name": "ads-corporate",
+      "positive": "Corporate branding style {prompt} . Professional, clean, modern, sleek, minimalist, business-oriented, highly detailed",
+      "negative": "noisy, blurry, grungy, sloppy, cluttered, disorganized",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_fashion_editorial",
+      "name": "ads-fashion editorial",
+      "positive": "Fashion editorial style {prompt} . High fashion, trendy, stylish, editorial, magazine style, professional, highly detailed",
+      "negative": "outdated, blurry, noisy, unattractive, sloppy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_food_photography",
+      "name": "ads-food photography",
+      "positive": "Food photography style {prompt} . Appetizing, professional, culinary, high-resolution, commercial, highly detailed",
+      "negative": "unappetizing, sloppy, unprofessional, noisy, blurry",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_luxury",
+      "name": "ads-luxury",
+      "positive": "Luxury product style {prompt} . Elegant, sophisticated, high-end, luxurious, professional, highly detailed",
+      "negative": "cheap, noisy, blurry, unattractive, amateurish",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_real_estate",
+      "name": "ads-real estate",
+      "positive": "Real estate photography style {prompt} . Professional, inviting, well-lit, high-resolution, property-focused, commercial, highly detailed",
+      "negative": "dark, blurry, unappealing, noisy, unprofessional",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ads_retail",
+      "name": "ads-retail",
+      "positive": "Retail packaging style {prompt} . Vibrant, enticing, commercial, product-focused, eye-catching, professional, highly detailed",
+      "negative": "noisy, blurry, amateurish, sloppy, unattractive",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_abstract",
+      "name": "artstyle-abstract",
+      "positive": "abstract style {prompt} . non-representational, colors and shapes, expression of feelings, imaginative, highly detailed",
+      "negative": "realistic, photographic, figurative, concrete",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_abstract_expressionism",
+      "name": "artstyle-abstract expressionism",
+      "positive": "abstract expressionist painting {prompt} . energetic brushwork, bold colors, abstract forms, expressive, emotional",
+      "negative": "realistic, photorealistic, low contrast, plain, simple, monochrome",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_art_deco",
+      "name": "artstyle-art deco",
+      "positive": "Art Deco style {prompt} . geometric shapes, bold colors, luxurious, elegant, decorative, symmetrical, ornate, detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, modernist, minimalist",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_art_nouveau",
+      "name": "artstyle-art nouveau",
+      "positive": "Art Nouveau style {prompt} . elegant, decorative, curvilinear forms, nature-inspired, ornate, detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, modernist, minimalist",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_constructivist",
+      "name": "artstyle-constructivist",
+      "positive": "constructivist style {prompt} . geometric shapes, bold colors, dynamic composition, propaganda art style",
+      "negative": "realistic, photorealistic, low contrast, plain, simple, abstract expressionism",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_cubist",
+      "name": "artstyle-cubist",
+      "positive": "cubist artwork {prompt} . geometric shapes, abstract, innovative, revolutionary",
+      "negative": "anime, photorealistic, 35mm film, deformed, glitch, low contrast, noisy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_expressionist",
+      "name": "artstyle-expressionist",
+      "positive": "expressionist {prompt} . raw, emotional, dynamic, distortion for emotional effect, vibrant, use of unusual colors, detailed",
+      "negative": "realism, symmetry, quiet, calm, photo",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_graffiti",
+      "name": "artstyle-graffiti",
+      "positive": "graffiti style {prompt} . street art, vibrant, urban, detailed, tag, mural",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_hyperrealism",
+      "name": "artstyle-hyperrealism",
+      "positive": "hyperrealistic art {prompt} . extremely high-resolution details, photographic, realism pushed to extreme, fine texture, incredibly lifelike",
+      "negative": "simplified, abstract, unrealistic, impressionistic, low resolution",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_impressionist",
+      "name": "artstyle-impressionist",
+      "positive": "impressionist painting {prompt} . loose brushwork, vibrant color, light and shadow play, captures feeling over form",
+      "negative": "anime, photorealistic, 35mm film, deformed, glitch, low contrast, noisy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_pointillism",
+      "name": "artstyle-pointillism",
+      "positive": "pointillism style {prompt} . composed entirely of small, distinct dots of color, vibrant, highly detailed",
+      "negative": "line drawing, smooth shading, large color fields, simplistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_pop_art",
+      "name": "artstyle-pop art",
+      "positive": "Pop Art style {prompt} . bright colors, bold outlines, popular culture themes, ironic or kitsch",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, minimalist",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_psychedelic",
+      "name": "artstyle-psychedelic",
+      "positive": "psychedelic style {prompt} . vibrant colors, swirling patterns, abstract forms, surreal, trippy",
+      "negative": "monochrome, black and white, low contrast, realistic, photorealistic, plain, simple",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_renaissance",
+      "name": "artstyle-renaissance",
+      "positive": "Renaissance style {prompt} . realistic, perspective, light and shadow, religious or mythological themes, highly detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, modernist, minimalist, abstract",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_steampunk",
+      "name": "artstyle-steampunk",
+      "positive": "steampunk style {prompt} . antique, mechanical, brass and copper tones, gears, intricate, detailed",
+      "negative": "deformed, glitch, noisy, low contrast, anime, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_surrealist",
+      "name": "artstyle-surrealist",
+      "positive": "surrealist art {prompt} . dreamlike, mysterious, provocative, symbolic, intricate, detailed",
+      "negative": "anime, photorealistic, realistic, deformed, glitch, noisy, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_typography",
+      "name": "artstyle-typography",
+      "positive": "typographic art {prompt} . stylized, intricate, detailed, artistic, text-based",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_artstyle_watercolor",
+      "name": "artstyle-watercolor",
+      "positive": "watercolor painting {prompt} . vibrant, beautiful, painterly, detailed, textural, artistic",
+      "negative": "anime, photorealistic, 35mm film, deformed, glitch, low contrast, noisy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_biomechanical",
+      "name": "futuristic-biomechanical",
+      "positive": "biomechanical style {prompt} . blend of organic and mechanical elements, futuristic, cybernetic, detailed, intricate",
+      "negative": "natural, rustic, primitive, organic, simplistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_biomechanical_cyberpunk",
+      "name": "futuristic-biomechanical cyberpunk",
+      "positive": "biomechanical cyberpunk {prompt} . cybernetics, human-machine fusion, dystopian, organic meets artificial, dark, intricate, highly detailed",
+      "negative": "natural, colorful, deformed, sketch, low contrast, watercolor",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_cybernetic",
+      "name": "futuristic-cybernetic",
+      "positive": "cybernetic style {prompt} . futuristic, technological, cybernetic enhancements, robotics, artificial intelligence themes",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, historical, medieval",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_cybernetic_robot",
+      "name": "futuristic-cybernetic robot",
+      "positive": "cybernetic robot {prompt} . android, AI, machine, metal, wires, tech, futuristic, highly detailed",
+      "negative": "organic, natural, human, sketch, watercolor, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_cyberpunk_cityscape",
+      "name": "futuristic-cyberpunk cityscape",
+      "positive": "cyberpunk cityscape {prompt} . neon lights, dark alleys, skyscrapers, futuristic, vibrant colors, high contrast, highly detailed",
+      "negative": "natural, rural, deformed, low contrast, black and white, sketch, watercolor",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_futuristic",
+      "name": "futuristic-futuristic",
+      "positive": "futuristic style {prompt} . sleek, modern, ultramodern, high tech, detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, vintage, antique",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_retro_cyberpunk",
+      "name": "futuristic-retro cyberpunk",
+      "positive": "retro cyberpunk {prompt} . 80's inspired, synthwave, neon, vibrant, detailed, retro futurism",
+      "negative": "modern, desaturated, black and white, realism, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_retro_futurism",
+      "name": "futuristic-retro futurism",
+      "positive": "retro-futuristic {prompt} . vintage sci-fi, 50s and 60s style, atomic age, vibrant, highly detailed",
+      "negative": "contemporary, realistic, rustic, primitive",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_sci_fi",
+      "name": "futuristic-sci-fi",
+      "positive": "sci-fi style {prompt} . futuristic, technological, alien worlds, space themes, advanced civilizations",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, historical, medieval",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futuristic_vaporwave",
+      "name": "futuristic-vaporwave",
+      "positive": "vaporwave style {prompt} . retro aesthetic, cyberpunk, vibrant, neon colors, vintage 80s and 90s style, highly detailed",
+      "negative": "monochrome, muted colors, realism, rustic, minimalist, dark",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_bubble_bobble",
+      "name": "game-bubble bobble",
+      "positive": "Bubble Bobble style {prompt} . 8-bit, cute, pixelated, fantasy, vibrant, reminiscent of Bubble Bobble game",
+      "negative": "realistic, modern, photorealistic, violent, horror",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_cyberpunk_game",
+      "name": "game-cyberpunk game",
+      "positive": "cyberpunk game style {prompt} . neon, dystopian, futuristic, digital, vibrant, detailed, high contrast, reminiscent of cyberpunk genre video games",
+      "negative": "historical, natural, rustic, low detailed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_fighting_game",
+      "name": "game-fighting game",
+      "positive": "fighting game style {prompt} . dynamic, vibrant, action-packed, detailed character design, reminiscent of fighting video games",
+      "negative": "peaceful, calm, minimalist, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_gta",
+      "name": "game-gta",
+      "positive": "GTA-style artwork {prompt} . satirical, exaggerated, pop art style, vibrant colors, iconic characters, action-packed",
+      "negative": "realistic, black and white, low contrast, impressionist, cubist, noisy, blurry, deformed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_mario",
+      "name": "game-mario",
+      "positive": "Super Mario style {prompt} . vibrant, cute, cartoony, fantasy, playful, reminiscent of Super Mario series",
+      "negative": "realistic, modern, horror, dystopian, violent",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_minecraft",
+      "name": "game-minecraft",
+      "positive": "Minecraft style {prompt} . blocky, pixelated, vibrant colors, recognizable characters and objects, game assets",
+      "negative": "smooth, realistic, detailed, photorealistic, noise, blurry, deformed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_pokemon",
+      "name": "game-pokemon",
+      "positive": "Pokémon style {prompt} . vibrant, cute, anime, fantasy, reminiscent of Pokémon series",
+      "negative": "realistic, modern, horror, dystopian, violent",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_retro_arcade",
+      "name": "game-retro arcade",
+      "positive": "retro arcade style {prompt} . 8-bit, pixelated, vibrant, classic video game, old school gaming, reminiscent of 80s and 90s arcade games",
+      "negative": "modern, ultra-high resolution, photorealistic, 3D",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_retro_game",
+      "name": "game-retro game",
+      "positive": "retro game art {prompt} . 16-bit, vibrant colors, pixelated, nostalgic, charming, fun",
+      "negative": "realistic, photorealistic, 35mm film, deformed, glitch, low contrast, noisy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_rpg_fantasy_game",
+      "name": "game-rpg fantasy game",
+      "positive": "role-playing game (RPG) style fantasy {prompt} . detailed, vibrant, immersive, reminiscent of high fantasy RPG games",
+      "negative": "sci-fi, modern, urban, futuristic, low detailed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_strategy_game",
+      "name": "game-strategy game",
+      "positive": "strategy game style {prompt} . overhead view, detailed map, units, reminiscent of real-time strategy video games",
+      "negative": "first-person view, modern, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_streetfighter",
+      "name": "game-streetfighter",
+      "positive": "Street Fighter style {prompt} . vibrant, dynamic, arcade, 2D fighting game, highly detailed, reminiscent of Street Fighter series",
+      "negative": "3D, realistic, modern, photorealistic, turn-based strategy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_game_zelda",
+      "name": "game-zelda",
+      "positive": "Legend of Zelda style {prompt} . vibrant, fantasy, detailed, epic, heroic, reminiscent of The Legend of Zelda series",
+      "negative": "sci-fi, modern, realistic, horror",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_architectural",
+      "name": "misc-architectural",
+      "positive": "architectural style {prompt} . clean lines, geometric shapes, minimalist, modern, architectural drawing, highly detailed",
+      "negative": "curved lines, ornate, baroque, abstract, grunge",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_disco",
+      "name": "misc-disco",
+      "positive": "disco-themed {prompt} . vibrant, groovy, retro 70s style, shiny disco balls, neon lights, dance floor, highly detailed",
+      "negative": "minimalist, rustic, monochrome, contemporary, simplistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_dreamscape",
+      "name": "misc-dreamscape",
+      "positive": "dreamscape {prompt} . surreal, ethereal, dreamy, mysterious, fantasy, highly detailed",
+      "negative": "realistic, concrete, ordinary, mundane",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_dystopian",
+      "name": "misc-dystopian",
+      "positive": "dystopian style {prompt} . bleak, post-apocalyptic, somber, dramatic, highly detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, cheerful, optimistic, vibrant, colorful",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_fairy_tale",
+      "name": "misc-fairy tale",
+      "positive": "fairy tale {prompt} . magical, fantastical, enchanting, storybook style, highly detailed",
+      "negative": "realistic, modern, ordinary, mundane",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_gothic",
+      "name": "misc-gothic",
+      "positive": "gothic style {prompt} . dark, mysterious, haunting, dramatic, ornate, detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, cheerful, optimistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_grunge",
+      "name": "misc-grunge",
+      "positive": "grunge style {prompt} . textured, distressed, vintage, edgy, punk rock vibe, dirty, noisy",
+      "negative": "smooth, clean, minimalist, sleek, modern, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_horror",
+      "name": "misc-horror",
+      "positive": "horror-themed {prompt} . eerie, unsettling, dark, spooky, suspenseful, grim, highly detailed",
+      "negative": "cheerful, bright, vibrant, light-hearted, cute",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_kawaii",
+      "name": "misc-kawaii",
+      "positive": "kawaii style {prompt} . cute, adorable, brightly colored, cheerful, anime influence, highly detailed",
+      "negative": "dark, scary, realistic, monochrome, abstract",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_lovecraftian",
+      "name": "misc-lovecraftian",
+      "positive": "lovecraftian horror {prompt} . eldritch, cosmic horror, unknown, mysterious, surreal, highly detailed",
+      "negative": "light-hearted, mundane, familiar, simplistic, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_macabre",
+      "name": "misc-macabre",
+      "positive": "macabre style {prompt} . dark, gothic, grim, haunting, highly detailed",
+      "negative": "bright, cheerful, light-hearted, cartoonish, cute",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_manga",
+      "name": "misc-manga",
+      "positive": "manga style {prompt} . vibrant, high-energy, detailed, iconic, Japanese comic style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, Western comic style",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_metropolis",
+      "name": "misc-metropolis",
+      "positive": "metropolis-themed {prompt} . urban, cityscape, skyscrapers, modern, futuristic, highly detailed",
+      "negative": "rural, natural, rustic, historical, simple",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_minimalist",
+      "name": "misc-minimalist",
+      "positive": "minimalist style {prompt} . simple, clean, uncluttered, modern, elegant",
+      "negative": "ornate, complicated, highly detailed, cluttered, disordered, messy, noisy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_monochrome",
+      "name": "misc-monochrome",
+      "positive": "monochrome {prompt} . black and white, contrast, tone, texture, detailed",
+      "negative": "colorful, vibrant, noisy, blurry, deformed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_nautical",
+      "name": "misc-nautical",
+      "positive": "nautical-themed {prompt} . sea, ocean, ships, maritime, beach, marine life, highly detailed",
+      "negative": "landlocked, desert, mountains, urban, rustic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_space",
+      "name": "misc-space",
+      "positive": "space-themed {prompt} . cosmic, celestial, stars, galaxies, nebulas, planets, science fiction, highly detailed",
+      "negative": "earthly, mundane, ground-based, realism",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_stained_glass",
+      "name": "misc-stained glass",
+      "positive": "stained glass style {prompt} . vibrant, beautiful, translucent, intricate, detailed",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_techwear_fashion",
+      "name": "misc-techwear fashion",
+      "positive": "techwear fashion {prompt} . futuristic, cyberpunk, urban, tactical, sleek, dark, highly detailed",
+      "negative": "vintage, rural, colorful, low contrast, realism, sketch, watercolor",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_tribal",
+      "name": "misc-tribal",
+      "positive": "tribal style {prompt} . indigenous, ethnic, traditional patterns, bold, natural colors, highly detailed",
+      "negative": "modern, futuristic, minimalist, pastel",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_misc_zentangle",
+      "name": "misc-zentangle",
+      "positive": "zentangle {prompt} . intricate, abstract, monochrome, patterns, meditative, highly detailed",
+      "negative": "colorful, representative, simplistic, large fields of color",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_collage",
+      "name": "papercraft-collage",
+      "positive": "collage style {prompt} . mixed media, layered, textural, detailed, artistic",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_flat_papercut",
+      "name": "papercraft-flat papercut",
+      "positive": "flat papercut style {prompt} . silhouette, clean cuts, paper, sharp edges, minimalist, color block",
+      "negative": "3D, high detail, noise, grainy, blurry, painting, drawing, photo, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_kirigami",
+      "name": "papercraft-kirigami",
+      "positive": "kirigami representation of {prompt} . 3D, paper folding, paper cutting, Japanese, intricate, symmetrical, precision, clean lines",
+      "negative": "painting, drawing, 2D, noisy, blurry, deformed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_paper_mache",
+      "name": "papercraft-paper mache",
+      "positive": "paper mache representation of {prompt} . 3D, sculptural, textured, handmade, vibrant, fun",
+      "negative": "2D, flat, photo, sketch, digital art, deformed, noisy, blurry",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_paper_quilling",
+      "name": "papercraft-paper quilling",
+      "positive": "paper quilling art of {prompt} . intricate, delicate, curling, rolling, shaping, coiling, loops, 3D, dimensional, ornamental",
+      "negative": "photo, painting, drawing, 2D, flat, deformed, noisy, blurry",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_papercut_collage",
+      "name": "papercraft-papercut collage",
+      "positive": "papercut collage of {prompt} . mixed media, textured paper, overlapping, asymmetrical, abstract, vibrant",
+      "negative": "photo, 3D, realistic, drawing, painting, high detail, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_papercut_shadow_box",
+      "name": "papercraft-papercut shadow box",
+      "positive": "3D papercut shadow box of {prompt} . layered, dimensional, depth, silhouette, shadow, papercut, handmade, high contrast",
+      "negative": "painting, drawing, photo, 2D, flat, high detail, blurry, noisy, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_stacked_papercut",
+      "name": "papercraft-stacked papercut",
+      "positive": "stacked papercut art of {prompt} . 3D, layered, dimensional, depth, precision cut, stacked layers, papercut, high contrast",
+      "negative": "2D, flat, noisy, blurry, painting, drawing, photo, deformed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_papercraft_thick_layered_papercut",
+      "name": "papercraft-thick layered papercut",
+      "positive": "thick layered papercut art of {prompt} . deep 3D, volumetric, dimensional, depth, thick paper, high stack, heavy texture, tangible layers",
+      "negative": "2D, flat, thin paper, low stack, smooth texture, painting, drawing, photo, deformed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_alien",
+      "name": "photo-alien",
+      "positive": "alien-themed {prompt} . extraterrestrial, cosmic, otherworldly, mysterious, sci-fi, highly detailed",
+      "negative": "earthly, mundane, common, realistic, simple",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_film_noir",
+      "name": "photo-film noir",
+      "positive": "film noir style {prompt} . monochrome, high contrast, dramatic shadows, 1940s style, mysterious, cinematic",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic, vibrant, colorful",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_hdr",
+      "name": "photo-hdr",
+      "positive": "HDR photo of {prompt} . High dynamic range, vivid, rich details, clear shadows and highlights, realistic, intense, enhanced contrast, highly detailed",
+      "negative": "flat, low contrast, oversaturated, underexposed, overexposed, blurred, noisy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_long_exposure",
+      "name": "photo-long exposure",
+      "positive": "long exposure photo of {prompt} . Blurred motion, streaks of light, surreal, dreamy, ghosting effect, highly detailed",
+      "negative": "static, noisy, deformed, shaky, abrupt, flat, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_neon_noir",
+      "name": "photo-neon noir",
+      "positive": "neon noir {prompt} . cyberpunk, dark, rainy streets, neon signs, high contrast, low light, vibrant, highly detailed",
+      "negative": "bright, sunny, daytime, low contrast, black and white, sketch, watercolor",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_silhouette",
+      "name": "photo-silhouette",
+      "positive": "silhouette style {prompt} . high contrast, minimalistic, black and white, stark, dramatic",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, color, realism, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_photo_tilt_shift",
+      "name": "photo-tilt-shift",
+      "positive": "tilt-shift photo of {prompt} . Selective focus, miniature effect, blurred background, highly detailed, vibrant, perspective control",
+      "negative": "blurry, noisy, deformed, flat, low contrast, unrealistic, oversaturated, underexposed",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_cinematic_diva",
+      "name": "cinematic-diva",
+      "positive": "UHD, 8K, ultra detailed, a cinematic photograph of {prompt}, beautiful lighting, great composition",
+      "negative": "ugly, deformed, noisy, blurry, NSFW",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_abstract_expressionism",
+      "name": "Abstract Expressionism",
+      "positive": "Abstract Expressionism Art, {prompt}, High contrast, minimalistic, colorful, stark, dramatic, expressionism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realism, photorealistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_academia",
+      "name": "Academia",
+      "positive": "Academia, {prompt}, preppy Ivy League style, stark, dramatic, chic boarding school, academia",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, grunge, sloppy, unkempt",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_action_figure",
+      "name": "Action Figure",
+      "positive": "Action Figure, {prompt}, plastic collectable action figure, collectable toy action figure",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_adorable_3d_character",
+      "name": "Adorable 3D Character",
+      "positive": "Adorable 3D Character, {prompt}, 3D render, adorable character, 3D art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, grunge, sloppy, unkempt, photograph, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_adorable_kawaii",
+      "name": "Adorable Kawaii",
+      "positive": "Adorable Kawaii, {prompt}, pretty, cute, adorable, kawaii",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, gothic, dark, moody, monochromatic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_art_deco",
+      "name": "Art Deco",
+      "positive": "Art Deco, {prompt}, sleek, geometric forms, art deco style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_art_nouveau",
+      "name": "Art Nouveau",
+      "positive": "Art Nouveau, beautiful art, {prompt}, sleek, organic forms, long, sinuous, art nouveau style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, industrial, mechanical",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_astral_aura",
+      "name": "Astral Aura",
+      "positive": "Astral Aura, {prompt}, astral, colorful aura, vibrant energy",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_avant_garde",
+      "name": "Avant-garde",
+      "positive": "Avant-garde, {prompt}, unusual, experimental, avant-garde art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_baroque",
+      "name": "Baroque",
+      "positive": "Baroque, {prompt}, dramatic, exuberant, grandeur, baroque art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_bauhaus_style_poster",
+      "name": "Bauhaus-Style Poster",
+      "positive": "Bauhaus-Style Poster, {prompt}, simple geometric shapes, clean lines, primary colors, Bauhaus-Style Poster",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_blueprint_schematic_drawing",
+      "name": "Blueprint Schematic Drawing",
+      "positive": "Blueprint Schematic Drawing, {prompt}, technical drawing, blueprint, schematic",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_caricature",
+      "name": "Caricature",
+      "positive": "Caricature, {prompt}, exaggerated, comical, caricature",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_cel_shaded_art",
+      "name": "Cel Shaded Art",
+      "positive": "Cel Shaded Art, {prompt}, 2D, flat color, toon shading, cel shaded style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_character_design_sheet",
+      "name": "Character Design Sheet",
+      "positive": "Character Design Sheet, {prompt}, character reference sheet, character turn around",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_classicism_art",
+      "name": "Classicism Art",
+      "positive": "Classicism Art, {prompt}, inspired by Roman and Greek culture, clarity, harmonious, classicism art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_color_field_painting",
+      "name": "Color Field Painting",
+      "positive": "Color Field Painting, {prompt}, abstract, simple, geometic, color field painting style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_colored_pencil_art",
+      "name": "Colored Pencil Art",
+      "positive": "Colored Pencil Art, {prompt}, colored pencil strokes, light color, visible paper texture, colored pencil art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_conceptual_art",
+      "name": "Conceptual Art",
+      "positive": "Conceptual Art, {prompt}, concept art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_constructivism",
+      "name": "Constructivism",
+      "positive": "Constructivism Art, {prompt}, minimalistic, geometric forms, constructivism art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_cubism",
+      "name": "Cubism",
+      "positive": "Cubism Art, {prompt}, flat geometric forms, cubism art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_dadaism",
+      "name": "Dadaism",
+      "positive": "Dadaism Art, {prompt}, satirical, nonsensical, dadaism art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_dark_fantasy",
+      "name": "Dark Fantasy",
+      "positive": "Dark Fantasy Art, {prompt}, dark, moody, dark fantasy style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, bright, sunny",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_dark_moody_atmosphere",
+      "name": "Dark Moody Atmosphere",
+      "positive": "Dark Moody Atmosphere, {prompt}, dramatic, mysterious, dark moody atmosphere",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, vibrant, colorful, bright",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_dmt_art_style",
+      "name": "DMT Art Style",
+      "positive": "DMT Art Style, {prompt}, bright colors, surreal visuals, swirling patterns, DMT art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_doodle_art",
+      "name": "Doodle Art",
+      "positive": "Doodle Art Style, {prompt}, drawing, freeform, swirling patterns, doodle art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_double_exposure",
+      "name": "Double Exposure",
+      "positive": "Double Exposure Style, {prompt}, double image ghost effect, image combination, double exposure style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_dripping_paint_splatter_art",
+      "name": "Dripping Paint Splatter Art",
+      "positive": "Dripping Paint Splatter Art, {prompt}, dramatic, paint drips, splatters, dripping paint",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_expressionism",
+      "name": "Expressionism",
+      "positive": "Expressionism Art Style, {prompt}, movement, contrast, emotional, exaggerated forms, expressionism art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_faded_polaroid_photo",
+      "name": "Faded Polaroid Photo",
+      "positive": "Faded Polaroid Photo, {prompt}, analog, old faded photo, old polaroid",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, vibrant, colorful",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_fauvism",
+      "name": "Fauvism",
+      "positive": "Fauvism Art, {prompt}, painterly, bold colors, textured brushwork, fauvism art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_flat_2d_art",
+      "name": "Flat 2D Art",
+      "positive": "Flat 2D Art, {prompt}, simple flat color, 2-dimensional, Flat 2D Art Style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, 3D, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_fortnite_art_style",
+      "name": "Fortnite Art Style",
+      "positive": "Fortnite Art Style, {prompt}, 3D cartoon, colorful, Fortnite Art Style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_futurism",
+      "name": "Futurism",
+      "positive": "Futurism Art Style, {prompt}, dynamic, dramatic, Futurism Art Style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_glitchcore",
+      "name": "Glitchcore",
+      "positive": "Glitchcore Art Style, {prompt}, dynamic, dramatic, distorted, vibrant colors, glitchcore art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_glo_fi",
+      "name": "Glo-fi",
+      "positive": "Glo-fi Art Style, {prompt}, dynamic, dramatic, vibrant colors, glo-fi art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_googie_art_style",
+      "name": "Googie Art Style",
+      "positive": "Googie Art Style, {prompt}, dynamic, dramatic, 1950's futurism, bold boomerang angles, Googie art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_graffiti_art",
+      "name": "Graffiti Art",
+      "positive": "Graffiti Art Style, {prompt}, dynamic, dramatic, vibrant colors, graffiti art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_harlem_renaissance_art",
+      "name": "Harlem Renaissance Art",
+      "positive": "Harlem Renaissance Art Style, {prompt}, dynamic, dramatic, 1920s African American culture, Harlem Renaissance art style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_high_fashion",
+      "name": "High Fashion",
+      "positive": "High Fashion, {prompt}, dynamic, dramatic, haute couture, elegant, ornate clothing, High Fashion",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_idyllic",
+      "name": "Idyllic",
+      "positive": "Idyllic, {prompt}, peaceful, happy, pleasant, happy, harmonious, picturesque, charming",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_impressionism",
+      "name": "Impressionism",
+      "positive": "Impressionism, {prompt}, painterly, small brushstrokes, visible brushstrokes, impressionistic style",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_infographic_drawing",
+      "name": "Infographic Drawing",
+      "positive": "Infographic Drawing, {prompt}, diagram, infographic",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ink_dripping_drawing",
+      "name": "Ink Dripping Drawing",
+      "positive": "Ink Dripping Drawing, {prompt}, ink drawing, dripping ink",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, colorful, vibrant",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_japanese_ink_drawing",
+      "name": "Japanese Ink Drawing",
+      "positive": "Japanese Ink Drawing, {prompt}, ink drawing, inkwash, Japanese Ink Drawing",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, colorful, vibrant",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_knolling_photography",
+      "name": "Knolling Photography",
+      "positive": "Knolling Photography, {prompt}, flat lay photography, object arrangment, knolling photography",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_light_cheery_atmosphere",
+      "name": "Light Cheery Atmosphere",
+      "positive": "Light Cheery Atmosphere, {prompt}, happy, joyful, cheerful, carefree, gleeful, lighthearted, pleasant atmosphere",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, monochromatic, dark, moody",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_logo_design",
+      "name": "Logo Design",
+      "positive": "Logo Design, {prompt}, dynamic graphic art, vector art, minimalist, professional logo design",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_luxurious_elegance",
+      "name": "Luxurious Elegance",
+      "positive": "Luxurious Elegance, {prompt}, extravagant, ornate, designer, opulent, picturesque, lavish",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_macro_photography",
+      "name": "Macro Photography",
+      "positive": "Macro Photography, {prompt}, close-up, macro 100mm, macro photography",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_mandola_art",
+      "name": "Mandola Art",
+      "positive": "Mandola art style, {prompt}, complex, circular design, mandola",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_marker_drawing",
+      "name": "Marker Drawing",
+      "positive": "Marker Drawing, {prompt}, bold marker lines, visibile paper texture, marker drawing",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, photograph, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_medievalism",
+      "name": "Medievalism",
+      "positive": "Medievalism, {prompt}, inspired by The Middle Ages, medieval art, elaborate patterns and decoration, Medievalism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_minimalism",
+      "name": "Minimalism",
+      "positive": "Minimalism, {prompt}, abstract, simple geometic shapes, hard edges, sleek contours, Minimalism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_neo_baroque",
+      "name": "Neo-Baroque",
+      "positive": "Neo-Baroque, {prompt}, ornate and elaborate, dynaimc, Neo-Baroque",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_neo_byzantine",
+      "name": "Neo-Byzantine",
+      "positive": "Neo-Byzantine, {prompt}, grand decorative religious style, Orthodox Christian inspired, Neo-Byzantine",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_neo_futurism",
+      "name": "Neo-Futurism",
+      "positive": "Neo-Futurism, {prompt}, high-tech, curves, spirals, flowing lines, idealistic future, Neo-Futurism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_neo_impressionism",
+      "name": "Neo-Impressionism",
+      "positive": "Neo-Impressionism, {prompt}, tiny dabs of color, Pointillism, painterly, Neo-Impressionism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, photograph, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_neo_rococo",
+      "name": "Neo-Rococo",
+      "positive": "Neo-Rococo, {prompt}, curved forms, naturalistic ornamentation, elaborate, decorative, gaudy, Neo-Rococo",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_neoclassicism",
+      "name": "Neoclassicism",
+      "positive": "Neoclassicism, {prompt}, ancient Rome and Greece inspired, idealic, sober colors, Neoclassicism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_op_art",
+      "name": "Op Art",
+      "positive": "Op Art, {prompt}, optical illusion, abstract, geometric pattern, impression of movement, Op Art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_ornate_and_intricate",
+      "name": "Ornate and Intricate",
+      "positive": "Ornate and Intricate, {prompt}, decorative, highly detailed, elaborate, ornate, intricate",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_pencil_sketch_drawing",
+      "name": "Pencil Sketch Drawing",
+      "positive": "Pencil Sketch Drawing, {prompt}, black and white drawing, graphite drawing",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_pop_art_2",
+      "name": "Pop Art 2",
+      "positive": "Pop Art, {prompt}, vivid colors, flat color, 2D, strong lines, Pop Art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_rococo",
+      "name": "Rococo",
+      "positive": "Rococo, {prompt}, flamboyant, pastel colors, curved lines, elaborate detail, Rococo",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_silhouette_art",
+      "name": "Silhouette Art",
+      "positive": "Silhouette Art, {prompt}, high contrast, well defined, Silhouette Art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_simple_vector_art",
+      "name": "Simple Vector Art",
+      "positive": "Simple Vector Art, {prompt}, 2D flat, simple shapes, minimalistic, professional graphic, flat color, high contrast, Simple Vector Art",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, 3D, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sketchup",
+      "name": "Sketchup",
+      "positive": "Sketchup, {prompt}, CAD, professional design, Sketchup",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, photo, photograph",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_steampunk_2",
+      "name": "Steampunk 2",
+      "positive": "Steampunk, {prompt}, retrofuturistic science fantasy, steam-powered tech, vintage industry, gears, neo-victorian, steampunk",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_surrealism",
+      "name": "Surrealism",
+      "positive": "Surrealism, {prompt}, expressive, dramatic, organic lines and forms, dreamlike and mysterious, Surrealism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_suprematism",
+      "name": "Suprematism",
+      "positive": "Suprematism, {prompt}, abstract, limited color palette, geometric forms, Suprematism",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_terragen",
+      "name": "Terragen",
+      "positive": "Terragen, {prompt}, beautiful massive landscape, epic scenery, Terragen",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_tranquil_relaxing_atmosphere",
+      "name": "Tranquil Relaxing Atmosphere",
+      "positive": "Tranquil Relaxing Atmosphere, {prompt}, calming style, soothing colors, peaceful, idealic, Tranquil Relaxing Atmosphere",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, oversaturated",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_sticker_designs",
+      "name": "Sticker Designs",
+      "positive": "Vector Art Stickers, {prompt}, professional vector design, sticker designs, Sticker Sheet",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_vibrant_rim_light",
+      "name": "Vibrant Rim Light",
+      "positive": "Vibrant Rim Light, {prompt}, bright rim light, high contrast, bold edge light",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_volumetric_lighting",
+      "name": "Volumetric Lighting",
+      "positive": "Volumetric Lighting, {prompt}, light depth, dramatic atmospheric lighting, Volumetric Lighting",
+      "negative": "ugly, deformed, noisy, blurry, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_watercolor_2",
+      "name": "Watercolor 2",
+      "positive": "Watercolor style painting, {prompt}, visible paper texture, colorwash, watercolor",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, photo, realistic",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_whimsical_and_playful",
+      "name": "Whimsical and Playful",
+      "positive": "Whimsical and Playful, {prompt}, imaginative, fantastical, bight colors, stylized, happy, Whimsical and Playful",
+      "negative": "ugly, deformed, noisy, blurry, low contrast, drab, boring, moody",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_3d_model",
+      "name": "Kamph_3d-model",
+      "positive": "professional 3d model {prompt}, octane render, highly detailed, volumetric, dramatic lighting",
+      "negative": "ugly, deformed, noisy, low poly, blurry, painting",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_analog_film",
+      "name": "Kamph_Analog film",
+      "positive": "analog film photo {prompt}, faded film, desaturated, 35mm photo, grainy, vignette, vintage, Kodachrome, Lomography, stained, highly detailed, found footage",
+      "negative": "painting, drawing, illustration, glitch, deformed, mutated, cross-eyed, ugly, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_anime",
+      "name": "Kamph_Anime",
+      "positive": "anime artwork {prompt}, anime style, key visual, vibrant, studio anime,  highly detailed",
+      "negative": "photo, deformed, black and white, realism, disfigured, low contrast",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_cinematic",
+      "name": "Kamph_Cinematic",
+      "positive": "cinematic film still {prompt}, shallow depth of field, vignette, highly detailed, high budget Hollywood film, bokeh, cinemascope, moody, epic, gorgeous, film grain",
+      "negative": "anime, cartoon, graphic, text, painting, crayon, graphite, abstract, glitch",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_comic_book",
+      "name": "Kamph_Comic book",
+      "positive": "comic {prompt}, graphic illustration, comic art, graphic novel art, vibrant, highly detailed",
+      "negative": "photograph, deformed, glitch, noisy, realistic, stock photo",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_digital_art",
+      "name": "Kamph_Digital art",
+      "positive": "concept art {prompt}, digital artwork, illustrative, painterly, matte painting, highly detailed",
+      "negative": "photo, photorealistic, realism, ugly",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_fantasy_art",
+      "name": "Kamph_Fantasy art",
+      "positive": "ethereal fantasy concept art of  {prompt}, magnificent, celestial, ethereal, painterly, epic, majestic, magical, fantasy art, cover art, dreamy",
+      "negative": "photographic, realistic, realism, 35mm film, dslr, cropped, frame, text, deformed, glitch, noise, noisy, off-center, deformed, cross-eyed, closed eyes, bad anatomy, ugly, disfigured, sloppy, duplicate, mutated, black and white",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_cyberpunk",
+      "name": "Kamph_Cyberpunk",
+      "positive": "neonpunk style {prompt}, cyberpunk, vaporwave, neon, vibes, vibrant, stunningly beautiful, crisp, detailed, sleek, ultramodern, magenta highlights, dark purple shadows, high contrast, cinematic, ultra detailed, intricate, professional",
+      "negative": "painting, drawing, illustration, glitch, deformed, mutated, cross-eyed, ugly, disfigured",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_photo_with_bokeh",
+      "name": "Kamph_Photo with Bokeh",
+      "positive": "cinematic photo {prompt}, 35mm photograph, film, bokeh, professional, 4k, highly detailed",
+      "negative": "drawing, painting, crayon, sketch, graphite, impressionist, noisy, blurry, soft, deformed, ugly",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_photo_without_bokeh",
+      "name": "Kamph_Photo without Bokeh",
+      "positive": "cinematic photo {prompt}, 35mm photograph, film, professional, 4k, highly detailed",
+      "negative": "bokeh, drawing, painting, crayon, sketch, graphite, impressionist, noisy, blurry, soft, deformed, ugly",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_kamph_enhancer",
+      "name": "Kamph_Enhancer",
+      "positive": "breathtaking {prompt}, masterpiece, award-winning, professional, highly detailed",
+      "negative": "ugly, deformed, noisy, blurry, distorted, grainy",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_bens_red_dress_tutorial_prompt",
+      "name": "Bens_Red Dress (Tutorial Prompt)",
+      "positive": "a fashion shoot of a european woman with blonde hair in a maxi silk red dress with slit at front of dress from thigh to floor, (legs exposed:1.8), Red Patent Pointed Stiletto Heel Court Shoes, plain background, RAW candid cinema, 35mm, color graded portra 400 film, remarkable color, ultra realistic, textured skin, remarkable detailed pupils, realistic dull skin noise, visible skin detail, skin fuzz, dry skin, shot with cinematic camera",
+      "negative": "",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_bens_daguerreotype_photo_1920",
+      "name": "Bens_Daguerreotype Photo 1920",
+      "positive": "daguerreotype photo, {prompt},  1920s photography, historical photo, aged photo, black & white photography, damaged photo",
+      "negative": "cartoon, illustration, painting, frame",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    },
+    {
+      "id": "forge_bens_underwater_and_god_rays",
+      "name": "Bens Underwater and god rays",
+      "positive": "deep underwater, {prompt} highly detailed,  intricate lighting, god rays",
+      "negative": "ugly, deformed, noisy, blurry, low contrast,",
+      "source": "forge",
+      "exampleImage": null,
+      "updatedAt": "2026-05-29T02:03:57.904Z"
+    }
+  ]
+}

@@ -32,7 +32,7 @@ try {
     const activeTab = [...document.querySelectorAll(".video-layer-tab.active .video-layer-tab__label")].map(
       (el) => el.textContent?.trim(),
     );
-    const webglTab = document.querySelector('[data-testid="video-layer-tabs-engine"]');
+    const webglTab = document.querySelector('[data-testid="animation-engine-webgl"]');
     return {
       standbyExists: !!standby,
       standbyClass: standby?.className || null,

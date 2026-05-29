@@ -8,7 +8,7 @@
  *   4. Verify all 8 frames appear in the UI frame rail (WebSocket push path).
  *   5. Encode the 8 frames into a real MP4 using local ffmpeg (no Docker needed).
  *   6. Write the MP4 into uploadsDir so the server can list it.
- *   7. Navigate to Settings → SYSTEM → VideoSwarm browser → "Uploads" root.
+ *   7. Navigate to Library → VideoSwarm browser → "Uploads" root.
  *   8. Assert the MP4 tile appears in the grid.
  *   9. Assert the file endpoint returns HTTP 200 (video is actually servable).
  *
@@ -211,10 +211,9 @@ try {
   fs.writeFileSync(path.join(liveDir, "deforum.m3u8"), m3u8Content);
   console.log(`✓  HLS playlist written to ${liveDir}/deforum.m3u8`);
 
-  // ── 7. Navigate to Settings → SYSTEM → VideoSwarm browser ───────────────
-  await clickTab(page, "SETTINGS");
-  await page.waitForSelector(".sub-pill", { timeout: 20_000 });
-  await clickSubPill(page, "SYSTEM");
+  // ── 7. Navigate to Library → VideoSwarm browser ───────────────
+  await clickTab(page, "LIBRARY");
+  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 20_000 });
 
   const browserRoot = page
     .locator('.video-swarm-browser[data-testid="video-swarm-browser"]')

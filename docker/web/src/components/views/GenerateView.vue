@@ -14,8 +14,6 @@
       <UiIcon class="generate-story-strip__chevron" :name="storyStripOpen ? 'chevron-up' : 'chevron-down'" />
     </button>
     <div v-if="storyStripOpen" class="generate-story-strip__body">
-      <div v-if="sequencerStatus" class="generate-story-strip__line">{{ sequencerStatus }}</div>
-      <div v-if="performance.status" class="generate-story-strip__line">{{ performance.status }}</div>
       <div v-if="generator.status" class="generate-story-strip__line">{{ generator.status }}</div>
       <pre v-if="generator.result && generator.result.formatted" class="generate-story-strip__text">{{ generator.result.formatted }}</pre>
       <button
@@ -39,7 +37,7 @@
       </div>
 
       <p class="generate-sequencer__live-hint">
-        Timeline and transport live below the video. Switch to the <strong>Sequencer</strong> tab under Motion.
+        Timeline and transport live below the video. Open the <strong>Edit</strong> side panel on the sequencer dock for tracks, clips, and markers.
       </p>
     </div>
   </div>

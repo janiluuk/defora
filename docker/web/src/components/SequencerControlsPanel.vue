@@ -1,21 +1,24 @@
 <template>
   <div
     class="sequencer-controls-panel"
-    :class="{ 'sequencer-controls-panel--stage': stage }"
+    :class="{
+      'sequencer-controls-panel--stage': stage,
+      'sequencer-controls-panel--side-drawer': sideDrawer,
+    }"
     data-testid="sequencer-controls-panel"
   >
     <div v-if="stage" class="stage-sequencer-bar">
       <div class="stage-sequencer-bar__left">
         <button
           type="button"
-          class="stage-sequencer-bar__btn"
-          :class="{ 'stage-sequencer-bar__btn--live': sequencerPlaying }"
+          class="framesync-button framesync-button--compact control-btn"
+          :class="{ 'framesync-button--live': sequencerPlaying, playing: sequencerPlaying }"
           :title="sequencerPlaying ? 'Stop' : 'Play'"
           @click="toggleSequencerPlayback"
         >
           <UiIcon :name="sequencerPlaying ? 'stop' : 'play'" />
         </button>
-        <button type="button" class="stage-sequencer-bar__btn" title="Preview frame" @click="previewSequencerFrame">
+        <button type="button" class="framesync-button framesync-button--compact" title="Preview frame" @click="previewSequencerFrame">
           <UiIcon name="sparkles" />
         </button>
         <span
@@ -52,10 +55,11 @@
         <button
           type="button"
           class="framesync-button framesync-button--compact"
-          :class="{ active: generateDockExpanded }"
-          @click="generateDockExpanded = !generateDockExpanded; saveSessionState()"
+          :class="{ active: motionSequencerSideOpen }"
+          data-testid="motion-sequencer-side-toggle-bar"
+          @click="motionSequencerSideOpen = !motionSequencerSideOpen; saveSessionState()"
         >
-          {{ generateDockExpanded ? 'Less' : 'Edit' }}
+          {{ motionSequencerSideOpen ? 'Less' : 'Edit' }}
         </button>
         <button type="button" class="framesync-button framesync-button--compact framesync-button--live" @click="applySequencerToDeforumSettings">
           Apply
@@ -64,7 +68,7 @@
     </div>
 
     <div
-      v-if="!stage && !summaryOnly"
+      v-if="!stage && !sideDrawer && !summaryOnly"
       class="generate-sequencer__frame-hero"
       :class="{ 'generate-sequencer__frame-hero--live': sequencerJobFrameLive }"
       data-testid="sequencer-job-frame-hero"
@@ -83,7 +87,7 @@
       </div>
     </div>
 
-    <div v-if="!stage" class="modulation-lfo-grid generate-sequencer__control-grid">
+    <div v-if="!stage && !sideDrawer" class="modulation-lfo-grid generate-sequencer__control-grid">
       <div class="modulation-lfo-card modulation-lfo-card--static modulation-lfo-card--active">
         <div class="modulation-lfo-card__header">
           <div class="modulation-lfo-card__title">
@@ -257,7 +261,7 @@
     </div>
 
     <Timeline
-      v-if="showTimeline"
+      v-if="showTimeline && !sideDrawer"
       :duration="Number(sequencer.durationSec) || 0"
       :playhead="sequencerPlayhead"
       :markers="sortedSequencerMarkers"
@@ -281,7 +285,7 @@
       @update-keyframe="updateSequencerKeyframe"
     />
 
-    <template v-if="!summaryOnly && (!stage || generateDockExpanded)">
+    <template v-if="!summaryOnly && (sideDrawer || (!stage && generateDockExpanded))">
       <div class="modulation-lfo-grid generate-sequencer__control-grid generate-sequencer__control-grid--edit">
         <div class="modulation-lfo-card modulation-lfo-card--static modulation-lfo-card--active generate-sequencer__control-span">
           <div class="modulation-lfo-card__header">
@@ -354,7 +358,7 @@
         </div>
       </div>
 
-      <div v-if="generateDockExpanded" class="generate-sequencer__details">
+      <div v-if="generateDockExpanded || sideDrawer" class="generate-sequencer__details">
         <div class="modulation-lfo-grid generate-sequencer__track-list" v-if="sortedSequencerClips.length">
           <div
             v-for="clip in sortedSequencerClips"
@@ -476,8 +480,8 @@
 
         <div v-if="sequencerStatus" class="generate-sequencer__status-text">{{ sequencerStatus }}</div>
       </div>
-      <div v-else class="generate-sequencer__dock-note">
-        Expand lanes for detailed keyframe editing and marker actions.
+      <div v-else-if="!sideDrawer" class="generate-sequencer__dock-note">
+        Open the side editor for keyframes, clips, markers, and track files.
       </div>
     </template>
   </div>
@@ -496,6 +500,7 @@ export default {
     showTimeline: { type: Boolean, default: true },
     summaryOnly: { type: Boolean, default: false },
     stage: { type: Boolean, default: false },
+    sideDrawer: { type: Boolean, default: false },
   },
   setup(props) {
     return proxyAppView(props);

@@ -1,3 +1,5 @@
 node_modules/
 public/assets/*.*.js
 public/assets/*.*.css
+data/prompt-styles.json
+data/prompt-styles/examples/

@@ -4,6 +4,7 @@
     :class="{
       'target-cell--routed': owners.length > 0,
       'target-cell--selected': selected,
+      'target-cell--focused': focused,
     }"
     :title="tooltip"
     @click="$emit('toggle', paramKey)"
@@ -26,6 +27,7 @@ export default {
     paramKey: { type: String, required: true },
     owners:   { type: Array, default: () => [] },
     selected: { type: Boolean, default: false },
+    focused:  { type: Boolean, default: false },
   },
   computed: {
     tooltip() {
@@ -63,6 +65,10 @@ export default {
   border-color: var(--accent);
   background: rgba(127, 119, 221, 0.1);
   box-shadow: 0 0 6px rgba(127, 119, 221, 0.2);
+}
+.target-cell--focused {
+  outline: 2px solid var(--warn);
+  outline-offset: 1px;
 }
 
 .target-cell-label {
