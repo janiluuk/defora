@@ -678,7 +678,7 @@ import {
   buildRunDetailCurrentContext,
   buildRunDetailJsonRows,
   runDetailJsonPretty,
-} from './lib/run-detail-json.mjs'
+} from './shared/run-detail-json.mjs'
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
