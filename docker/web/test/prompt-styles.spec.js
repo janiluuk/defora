@@ -7,8 +7,7 @@ const { loadEsm } = require("./load-esm");
 const promptStylesStore = require("../modules/prompt-styles-store.js");
 
 describe("prompt styles", () => {
-  it("merges positive and negative prompt parts", async () => {
-    const { mergePromptParts, applyPromptStyleToPrompts } = await loadEsm("..", "src", "shared", "prompt-styles.mjs");
+  it("merges positive and negative prompt parts", () => {
     assert.equal(mergePromptParts("cat", "oil painting"), "cat, oil painting");
     assert.equal(applyPromptStyleToPrompts({ positive: "cat", negative: "blur" }, {
       positive: "cubism",
@@ -23,8 +22,7 @@ describe("prompt styles", () => {
     );
   });
 
-  it("parses forge style rows and dedupes ids", async () => {
-    const { forgeStyleToRecord, dedupeStyleIds } = await loadEsm("..", "src", "shared", "prompt-styles.mjs");
+  it("parses forge style rows and dedupes ids", () => {
     const row = forgeStyleToRecord({ name: "Cubism", prompt: "cubist", negative_prompt: "photo" }, 0);
     assert.equal(row.name, "Cubism");
     assert.equal(row.id, "cubism");

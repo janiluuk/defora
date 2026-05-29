@@ -334,6 +334,8 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
     expect(appVm.displayedPreviewStillPath).to.equal("/frames/frame_0001.png");
     expect(appVm.showFrameProcessing).to.equal(true);
+    expect(appVm.showFrameProcessingOnStage).to.equal(true);
+    expect(appVm.showFrameProcessingInChrome).to.equal(false);
     expect(appVm.showDefaultAnimation).to.equal(false);
 
     appVm.videoReady = true;
@@ -345,6 +347,22 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(false);
     appVm.clearHeldPreviewFrame();
     appVm.deforumPlaying = false;
+  });
+
+  it("shows preview processing in chrome instead of over the WebGL animation", () => {
+    appVm.currentTab = "LIVE";
+    appVm.selectVideoLayer("webgl");
+    appVm.previewGenerating = true;
+    appVm.performance.lastPreviewPath = "";
+    appVm.clearHeldPreviewFrame();
+
+    expect(appVm.showPreviewStill).to.equal(false);
+    expect(appVm.showFrameProcessing).to.equal(true);
+    expect(appVm.showFrameProcessingOnStage).to.equal(false);
+    expect(appVm.showFrameProcessingInChrome).to.equal(true);
+    expect(appVm.frameProcessingLabel).to.match(/rendering preview frame/i);
+
+    appVm.previewGenerating = false;
   });
 
   it("keeps the standby animation visible on initial LIVE load", () => {
