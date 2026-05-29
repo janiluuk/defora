@@ -1699,10 +1699,18 @@ export default {
       return this.rightPanelOpen ? 'chevron-left' : 'chevron-right';
     },
     rightPanelToggleTitle() {
-      if (this.sidePanelUsesEdgeDock) {
-        return this.rightPanelOpen ? 'Collapse panel' : 'Expand panel';
-      }
-      return this.rightPanelOpen ? 'Collapse controls' : 'Show controls';
+      return this.rightPanelOpen ? 'Hide tab panel' : 'Show tab panel';
+    },
+    videoOverlayCssVars() {
+      const b = this.videoOverlayBounds;
+      if (!b || !Number(b.height) || b.height < 8) return null;
+      return {
+        '--video-overlay-top': `${b.top}px`,
+        '--video-overlay-left': `${b.left}px`,
+        '--video-overlay-width': `${b.width}px`,
+        '--video-overlay-height': `${b.height}px`,
+        '--video-overlay-right': `${b.right}px`,
+      };
     },
     sidePanelDockStyle() {
       if (this.sidePanelUsesEdgeDock) return null;
