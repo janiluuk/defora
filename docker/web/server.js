@@ -11,6 +11,7 @@ const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
 const { resolveStoragePaths } = require("./modules/storage-paths");
+const promptStylesStore = require("./modules/prompt-styles-store");
 
 async function start(opts = {}) {
   const port = opts.port ?? process.env.PORT ?? 3000;
@@ -18,6 +19,7 @@ async function start(opts = {}) {
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
   const storage = resolveStoragePaths(opts);
+  const webRoot = storage.webRoot;
   const framesDir = storage.framesDir;
   const runsDir = storage.runsDir;
   const uploadsDir = storage.uploadsDir;
@@ -1117,45 +1119,6 @@ async function start(opts = {}) {
     "/style-examples",
     express.static(promptStylesStore.examplesDir(webRoot), { maxAge: "3600s" }),
   );
-
-  async function resolveStandbyPreviewPath() {
-    const candidates = [
-      process.env.STANDBY_PREVIEW_VIDEO,
-      path.join(uploadsDir, "vid_preview.mp4"),
-    ].filter(Boolean);
-    for (const candidate of candidates) {
-      try {
-        const st = await fsp.stat(candidate);
-        if (st.isFile()) return path.resolve(candidate);
-      } catch (_e) {
-        /* try next */
-      }
-    }
-    return null;
-  }
-
-  app.head("/api/preview/standby-video", async (_req, res) => {
-    try {
-      const filePath = await resolveStandbyPreviewPath();
-      if (!filePath) return res.status(404).end();
-      res.set("Accept-Ranges", "bytes");
-      res.set("Content-Type", "video/mp4");
-      return res.status(200).end();
-    } catch (err) {
-      res.status(500).end();
-    }
-  });
-
-  app.get("/api/preview/standby-video", async (_req, res) => {
-    try {
-      const filePath = await resolveStandbyPreviewPath();
-      if (!filePath) return res.status(404).json({ error: "standby preview not configured" });
-      res.type("video/mp4");
-      return res.sendFile(filePath);
-    } catch (err) {
-      res.status(500).json({ error: err.message || "standby preview unavailable" });
-    }
-  });
 
   async function resolveStandbyPreviewPath() {
     const candidates = [

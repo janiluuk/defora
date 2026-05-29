@@ -7127,6 +7127,185 @@
     .motion-view__tabs {
       margin-bottom: 10px;
     }
+    .prompt-style-bar__row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+    }
+    .prompt-style-bar__select {
+      flex: 1 1 220px;
+      min-width: 180px;
+    }
+    .prompt-style-bar__auto {
+      font-size: 11px;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+    .prompt-style-bar__hint {
+      margin: 8px 0 0;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+    .engine-seed-control,
+    .deforum-seed-control {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .engine-seed-control__label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .engine-seed-control__input,
+    .deforum-seed-control__input {
+      width: 7.5rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .engine-seed-control__random-hint,
+    .deforum-seed-control__hint {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .deforum-seed-control {
+      width: 100%;
+    }
+    .styles-settings__header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    .styles-settings__count {
+      font-size: 11px;
+      color: var(--text-dim);
+    }
+    .styles-settings__intro,
+    .styles-settings__status {
+      margin: 8px 0 0;
+    }
+    .styles-settings__search {
+      margin-top: 10px;
+      width: 100%;
+    }
+    .styles-settings__body {
+      display: grid;
+      grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+    @media (max-width: 960px) {
+      .styles-settings__body {
+        grid-template-columns: 1fr;
+      }
+    }
+    .styles-settings__list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: min(62vh, 640px);
+      overflow: auto;
+    }
+    .styles-settings__item {
+      display: grid;
+      grid-template-columns: 48px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      width: 100%;
+      padding: 8px 10px;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-1);
+      color: var(--text-primary);
+      text-align: left;
+      cursor: pointer;
+    }
+    .styles-settings__item:hover {
+      border-color: var(--border-strong);
+    }
+    .styles-settings__item.active {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px rgba(127, 119, 221, 0.35);
+    }
+    .styles-settings__item.selected {
+      background: rgba(127, 119, 221, 0.1);
+    }
+    .styles-settings__thumb {
+      width: 48px;
+      height: 48px;
+      border-radius: 6px;
+      overflow: hidden;
+      background: var(--bg-0);
+      border: 1px solid var(--border);
+    }
+    .styles-settings__thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .styles-settings__thumb--empty {
+      background: linear-gradient(135deg, rgba(127, 119, 221, 0.2), rgba(45, 226, 255, 0.12));
+    }
+    .styles-settings__item-title {
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .styles-settings__item-meta {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .styles-settings__active-tag {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent-text);
+      padding: 2px 6px;
+      border-radius: 999px;
+      border: 1px solid rgba(127, 119, 221, 0.45);
+    }
+    .styles-settings__editor {
+      min-width: 0;
+    }
+    .styles-settings__field {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-top: 10px;
+    }
+    .styles-settings__example-preview {
+      margin-top: 10px;
+      border-radius: var(--radius-sm);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      max-height: 220px;
+    }
+    .styles-settings__example-preview img {
+      width: 100%;
+      display: block;
+      object-fit: contain;
+      background: var(--bg-0);
+    }
+    .styles-settings__editor-actions {
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .styles-settings__upload {
+      position: relative;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .styles-settings__upload-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
     .sequencer-controls-panel--stage .stage-sequencer-bar {
       border: 0.5px solid var(--border);
       background: var(--bg-1);
