@@ -5,6 +5,7 @@
         <span class="frame-rail__title">Frames</span>
         <span class="frame-rail__meta" v-if="frameStripThumbs.length">
           {{ selectedFrameLabel }} · {{ frameStripThumbs.length }} generated
+          <span v-if="deforumPlaying && frameRailFollowLatest" class="frame-rail__live-tag">Live</span>
         </span>
         <span class="frame-rail__meta" v-else>Waiting for rendered frames…</span>
       </div>
@@ -17,7 +18,7 @@
             min="0"
             :max="Math.max(0, frameStripThumbs.length - 1)"
             :value="Math.max(0, selectedFrameIndex)"
-            @input="selectFrame(Number($event.target.value))"
+            @input="selectFrame(Number($event.target.value), { userInitiated: true })"
           >
           <button
             type="button"
@@ -39,14 +40,48 @@
         :key="'frame-rail-' + (f.name || idx)"
         type="button"
         class="frame-rail__item"
-        :class="{ 'frame-rail__item--active': idx === selectedFrameIndex }"
+        :class="{
+          'frame-rail__item--active': idx === selectedFrameIndex,
+          'frame-rail__item--loading': isFrameThumbLoading(f),
+        }"
         :data-frame-index="idx"
         data-testid="frame-rail-item"
-        @click="selectFrame(idx)"
+        @click="selectFrame(idx, { userInitiated: true })"
       >
-        <img class="frame-rail__thumb" :src="f.src || f.url" :alt="f.name || ('Frame ' + idx)" />
+        <div class="frame-rail__thumb-wrap">
+          <img
+            class="frame-rail__thumb"
+            :src="f.src || f.url"
+            :alt="f.name || ('Frame ' + idx)"
+            @load="onFrameThumbImageLoad(f)"
+            @error="onFrameThumbImageError(f)"
+          >
+          <div
+            v-if="isFrameThumbLoading(f)"
+            class="frame-rail__thumb-loading"
+            aria-hidden="true"
+          >
+            <span class="lazy-loading-indicator lazy-loading-indicator--thumb">
+              <span class="lazy-loading-indicator__spinner"></span>
+            </span>
+          </div>
+        </div>
         <span class="frame-rail__label">{{ frameLabel(f) }}</span>
       </button>
+      <div
+        v-if="deforumPlaying && frameRailFollowLatest"
+        class="frame-rail__item frame-rail__item--pending"
+        data-testid="frame-rail-pending"
+        aria-hidden="true"
+      >
+        <div class="frame-rail__thumb-wrap frame-rail__thumb-wrap--pending">
+          <span class="lazy-loading-indicator lazy-loading-indicator--thumb">
+            <span class="lazy-loading-indicator__spinner"></span>
+            <span class="lazy-loading-indicator__dots"><span></span><span></span><span></span></span>
+          </span>
+        </div>
+        <span class="frame-rail__label">Next…</span>
+      </div>
     </div>
     <div v-else class="frame-rail__empty">
       <span class="lazy-loading-indicator">

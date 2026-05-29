@@ -1324,6 +1324,7 @@ export default {
         forgeLayerOpacity: 0.88,
       },
       thumbs: [],
+      frameThumbLoadingKeys: {},
       framesTimer: null,
       playerEl: null,
       timeHandler: null,
@@ -1711,6 +1712,12 @@ export default {
     showMainStageHls() {
       return this.currentTab === "STREAM" && this.hlsWatchEnabled;
     },
+    canStartHlsWatch() {
+      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
+    },
+    showMainStageHls() {
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+    },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
       if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
@@ -2014,6 +2021,30 @@ export default {
       return this.loraBrowserFamilies
         .map((family) => ({ ...family, items: family.items.filter(Boolean) }))
         .filter((family) => family.items.length);
+    },
+    videoSwarmIsCloudRoot() {
+      return this.isCloudStorageRoot(this.systemFiles.rootId);
+    },
+    videoSwarmIsVideosOnly() {
+      return this.systemFiles.viewMode === 'videos-only';
+    },
+    videoSwarmCloudPathLabel() {
+      const src = this.systemFiles.cloudSource;
+      if (!src) return 'Cloud storage';
+      return `${this.cloudProviderLabel(src.provider)} — ${src.label}`;
+    },
+    videoSwarmDisplayFolders() {
+      if (this.videoSwarmIsVideosOnly || this.videoSwarmIsCloudRoot) return [];
+      return Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : [];
+    },
+    videoSwarmDisplayVideos() {
+      const list = Array.isArray(this.systemFiles.videos) ? this.systemFiles.videos : [];
+      return list.slice(this.videoSwarmVisibleStart, this.videoSwarmVisibleEnd);
+    },
+    videoSwarmFullscreenVideo() {
+      const list = this.systemFiles.videos || [];
+      const idx = this.systemFiles.fullscreenIndex;
+      return idx >= 0 && idx < list.length ? list[idx] : null;
     },
     loraCrossfaderReady() {
       return this.loras.groupA.length > 0 && this.loras.groupB.length > 0;
@@ -2823,10 +2854,13 @@ export default {
     },
     deforumPlaying(playing) {
       if (playing) {
+        this.frameRailFollowLatest = true;
         this.pinHeldPreviewFrame();
         this.maybePromoteDeforumPreview();
+        this.scheduleFrameRefresh(0);
       } else {
         this.clearHeldPreviewFrame();
+        this.clearFrameThumbLoadingState();
       }
     },
     videoReady(ready) {
@@ -3975,10 +4009,13 @@ export default {
    const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
    this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
    this.pinHeldPreviewFrame();
+   this.frameRailFollowLatest = true;
    this.deforumPlaying = true;
    if (!this.deforumSessionStartedAt) this.deforumSessionStartedAt = Date.now();
    this.performance.status = 'Deforum animation playing';
    this.isPlaying = true;
+   this.openFramesInRunsPanel();
+   this.scheduleFrameRefresh(0);
  },
  pauseDeforumAnimation() {
    this.sendControl('liveParam', { is_paused_rendering: 1 });
@@ -4596,6 +4633,68 @@ pinHeldPreviewFrame() {
 clearHeldPreviewFrame() {
   this.heldPreviewFramePath = "";
 },
+clearFrameThumbLoadingState() {
+  this.frameThumbLoadingKeys = {};
+},
+markFrameThumbLoading(srcKey) {
+  const key = this.frameSrcKey(srcKey);
+  if (!key) return;
+  const loading = this.frameThumbLoadingKeys || {};
+  if (loading[key]) return;
+  this.frameThumbLoadingKeys = { ...loading, [key]: true };
+},
+markFrameThumbLoaded(srcKey) {
+  const key = this.frameSrcKey(srcKey);
+  if (!key || !this.frameThumbLoadingKeys[key]) return;
+  const next = { ...this.frameThumbLoadingKeys };
+  delete next[key];
+  this.frameThumbLoadingKeys = next;
+},
+isFrameThumbLoading(thumb) {
+  const key = this.frameSrcKey(thumb && (thumb.src || thumb.url || thumb.path || ''));
+  return !!key && !!this.frameThumbLoadingKeys[key];
+},
+onFrameThumbImageLoad(thumb) {
+  this.markFrameThumbLoaded(thumb && (thumb.src || thumb.url || thumb.path || ''));
+},
+onFrameThumbImageError(thumb) {
+  this.markFrameThumbLoaded(thumb && (thumb.src || thumb.url || thumb.path || ''));
+},
+onPreviewStillImageLoad() {
+  this.markFrameThumbLoaded(this.displayedPreviewStillPath);
+},
+onPreviewStillImageError() {
+  this.markFrameThumbLoaded(this.displayedPreviewStillPath);
+},
+applyNewGeneratedFrames(previousCount) {
+  const thumbs = this.frameStripThumbs;
+  const newCount = thumbs.length;
+  if (newCount <= previousCount) return;
+  for (let i = previousCount; i < newCount; i += 1) {
+    const thumb = thumbs[i];
+    if (thumb) this.markFrameThumbLoading(thumb.src || thumb.url || thumb.path || '');
+  }
+  if (this.deforumPlaying && this.frameRailFollowLatest) {
+    this.followLatestGeneratedFrame();
+    return;
+  }
+  if (!Number.isFinite(Number(this.selectedFrameIndex)) || this.selectedFrameIndex < 0) {
+    this.selectFrame(thumbs.length - 1, { scroll: false });
+  }
+},
+followLatestGeneratedFrame() {
+  const thumbs = this.frameStripThumbs;
+  if (!thumbs.length) return;
+  const latest = thumbs[thumbs.length - 1];
+  const path = (latest && (latest.src || latest.url || latest.path)) || '';
+  if (path) this.markFrameThumbLoading(path);
+  this.selectFrame(thumbs.length - 1, { scroll: true });
+  this.updateHeldPreviewFromLatestFrame();
+  if (path) {
+    this.performance.lastPreviewPath = path;
+    this.generator.lastPath = path;
+  }
+},
 updateHeldPreviewFromLatestFrame() {
   if (!this.deforumPlaying || this.showDeforumVideo) return;
   const path = this.latestGeneratedFramePath;
@@ -4668,6 +4767,17 @@ selectVideoLayer(id, opts = {}) {
     if (this.hlsWatchEnabled) this.attachPlayer();
     this.queueDeforumSettingsSave();
     if (!this.deforumPlaying) this.scheduleDeforumPreview();
+    this.saveSessionState();
+    return;
+  }
+  if (layer?.kind === 'wan') {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+      ...this.defaultAnimation,
+      preferDeforumVideo: true,
+    });
+    this.videoReady = false;
+    if (this.hlsWatchEnabled) this.attachPlayer();
+    this.queueDeforumSettingsSave();
     this.saveSessionState();
     return;
   }
@@ -6203,6 +6313,7 @@ normalizeFrameThumb(item) {
 mergeFrameThumb(item) {
   const normalized = this.normalizeFrameThumb(item);
   if (!normalized || (!normalized.name && !normalized.src)) return;
+  const previousCount = this.frameStripThumbs.length;
   const selectedSrcKey = this.frameSrcKey(
     this.selectedFrameThumb ? (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || "") : ""
   );
@@ -6217,8 +6328,12 @@ mergeFrameThumb(item) {
     });
   this.thumbs = next;
   this.saveCachedFrameThumbs(next);
-  this.updateFrameSelection(selectedSrcKey);
-  this.updateHeldPreviewFromLatestFrame();
+  if (this.frameStripThumbs.length > previousCount) {
+    this.applyNewGeneratedFrames(previousCount);
+  } else {
+    this.updateFrameSelection(selectedSrcKey);
+    this.updateHeldPreviewFromLatestFrame();
+  }
 },
 scheduleFrameRefresh(delay = 0) {
   clearTimeout(this.frameRefreshTimer);
@@ -6232,7 +6347,8 @@ nextFramesPollDelay({ failed = false } = {}) {
   if (failed) {
     return Math.min(10000, Math.max(1000, current * 2));
   }
-  if (this.previewGenerating || this.deforumPlaying) return 750;
+  if (this.deforumPlaying) return 400;
+  if (this.previewGenerating) return 750;
   if (this.wsStatus !== "connected") return 1500;
   return 3000;
 },
@@ -7017,6 +7133,37 @@ resetMotionToDefault() {
   this.sendControl('liveParam', payload);
   if (!this.deforumPlaying) this.schedulePreviewFrame();
 },
+resetMotionToDefault() {
+  this.motionSelectedPreset = 'Static';
+  this.motionPadValues.translation_x = 0;
+  this.motionPadValues.translation_y = 0;
+  this.motionPadValues.translation_z = 0;
+  this.motionPadValues.zoom = 1;
+  this.motionPadValues.rotation_z = 0;
+  this.motionPadValues.look_x = 0;
+  this.motionPadValues.look_y = 0;
+  const pan = this.liveHudParamByKey('panx');
+  const pany = this.liveHudParamByKey('pany');
+  if (pan) pan.val = 0;
+  if (pany) pany.val = 0;
+  const payload = this.isDeforumMotion2d
+    ? {
+        translation_x: 0,
+        translation_y: 0,
+        angle_2d: 0,
+        zoom_2d: 0,
+      }
+    : {
+        translation_x: 0,
+        translation_y: 0,
+        translation_z: 0,
+        zoom_2d: 0,
+        rotation_z: 0,
+        rotation_y: 0,
+      };
+  this.sendControl('liveParam', payload);
+  if (!this.deforumPlaying) this.schedulePreviewFrame();
+},
 emitMotionLiveParam(key, val) {
   const num = Number(val);
   if (!Number.isFinite(num)) return;
@@ -7589,6 +7736,7 @@ toggleLfoTarget(lfo, targetKey) {
  async refreshFrames() {
    if (typeof fetch !== "function") return;
    try {
+   const previousCount = this.frameStripThumbs.length;
    const previousSelectedSrc = this.frameSrcKey(this.selectedFrameThumb ? (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path || '') : '');
     const res = await fetch("/api/frames?limit=48", { cache: "no-store" });
      if (!res.ok) {
@@ -7600,7 +7748,11 @@ toggleLfoTarget(lfo, targetKey) {
       const merged = this.mergeFrameThumbs(json.items, { keepCachedOnEmpty: true });
       this.thumbs = merged.length ? merged : this.thumbs;
       this.saveCachedFrameThumbs(this.thumbs);
-      this.updateFrameSelection(previousSelectedSrc);
+      if (this.frameStripThumbs.length > previousCount) {
+        this.applyNewGeneratedFrames(previousCount);
+      } else {
+        this.updateFrameSelection(previousSelectedSrc);
+      }
      }
     this.framesRefreshBackoffMs = this.nextFramesPollDelay();
    } catch (e) {
@@ -7671,12 +7823,15 @@ startAudioStream() {
     item.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
   }
 },
-selectFrame(index, { scroll = true } = {}) {
+selectFrame(index, { scroll = true, userInitiated = false } = {}) {
   if (!this.frameStripThumbs.length) {
     this.selectedFrameIndex = -1;
     return;
   }
   const clamped = Math.min(this.frameStripThumbs.length - 1, Math.max(0, Number(index) || 0));
+  if (userInitiated && this.deforumPlaying) {
+    this.frameRailFollowLatest = clamped >= this.frameStripThumbs.length - 1;
+  }
   this.selectedFrameIndex = clamped;
   const thumb = this.frameStripThumbs[clamped];
   if (thumb) {
@@ -7722,6 +7877,10 @@ syncFrameSelectionFromPlayback(seconds) {
 updateFrameSelection(preferredSrc = '') {
   if (!this.frameStripThumbs.length) {
     this.selectedFrameIndex = -1;
+    return;
+  }
+  if (this.deforumPlaying && this.frameRailFollowLatest) {
+    this.followLatestGeneratedFrame();
     return;
   }
   if (preferredSrc) {

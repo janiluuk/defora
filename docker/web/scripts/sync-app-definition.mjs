@@ -175,7 +175,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => nestedRel.endsWith(p))) {
+      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => nestedRel.endsWith(p))) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -208,7 +208,7 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => relPath.endsWith(p))) {
+    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => relPath.endsWith(p))) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }

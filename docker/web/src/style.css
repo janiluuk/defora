@@ -846,12 +846,75 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent), 0 10px 22px rgba(0,0,0,0.32);
     }
+    .frame-rail__thumb-wrap {
+      position: relative;
+      width: 110px;
+      height: 62px;
+      background: var(--bg-2);
+    }
+    .frame-rail__thumb-wrap--pending {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px dashed color-mix(in srgb, var(--accent) 40%, var(--border));
+      background: color-mix(in srgb, var(--accent) 8%, var(--bg-2));
+    }
     .frame-rail__thumb {
       width: 110px;
       height: 62px;
       display: block;
       background: var(--bg-2);
       object-fit: cover;
+    }
+    .frame-rail__item--loading .frame-rail__thumb {
+      opacity: 0.55;
+    }
+    .frame-rail__thumb-loading {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(8, 12, 20, 0.15), rgba(8, 12, 20, 0.55));
+      pointer-events: none;
+    }
+    .frame-rail__item--pending {
+      cursor: default;
+      border-style: dashed;
+      border-color: color-mix(in srgb, var(--accent) 45%, var(--border));
+      box-shadow: none;
+    }
+    .frame-rail__live-tag {
+      margin-left: 6px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--accent-text);
+      background: color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    .lazy-loading-indicator--thumb {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      color: var(--accent-text);
+    }
+    .video-still-preview--loading {
+      opacity: 0.72;
+      filter: saturate(0.85);
+    }
+    .video-still-preview__loading {
+      position: absolute;
+      inset: 0;
+      z-index: 4;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding-top: 12px;
+      pointer-events: none;
     }
     .frame-rail__label {
       position: absolute;
@@ -1441,6 +1504,9 @@
     .top-drawer-panel--open.top-drawer-panel--crossfader {
       max-height: min(56vh, calc(100vh - var(--app-chrome-top) - 80px));
     }
+    .bottom-drawer-panel--open.bottom-drawer-panel--system {
+      max-height: min(72vh, calc(100vh - 96px));
+    }
     .crossfader-panel {
       padding: 0 10px 12px;
       display: flex;
@@ -1491,6 +1557,7 @@
       margin-top: 0;
       padding-top: 0;
     }
+    .live-bottom-drawer__tabs,
     .live-top-drawer__tabs {
       display: flex;
       gap: 8px;

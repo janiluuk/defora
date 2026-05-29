@@ -136,6 +136,7 @@ function instantiate(appDef, overrides = {}) {
       Object.defineProperty(instance, k, { get: fn.bind(instance) });
     });
   }
+  instance.$nextTick = (fn) => Promise.resolve().then(fn);
   return instance;
 }
 
@@ -1700,6 +1701,40 @@ describe("Deforumation Web UI behavior", () => {
     expect(last.payload.strength).to.be.closeTo((100 / 127) * 1.5, 1e-3);
   });
 
+  it("follows new frames in the rail while Deforum is generating", async () => {
+    const instance = instantiate(appDef);
+    instance.deforumPlaying = true;
+    instance.frameRailFollowLatest = true;
+    instance.thumbs = [
+      { src: "/frames/frame_0001.png", name: "frame_0001.png", frame: 1 },
+    ];
+    instance.selectedFrameIndex = 0;
+
+    let fetchCount = 0;
+    global.fetch = async () => {
+      fetchCount += 1;
+      const items = fetchCount === 1
+        ? ["/frames/frame_0001.png", "/frames/frame_0002.png"]
+        : ["/frames/frame_0001.png", "/frames/frame_0002.png", "/frames/frame_0003.png"];
+      return {
+        ok: true,
+        json: async () => ({ items }),
+      };
+    };
+
+    await instance.refreshFrames();
+    expect(instance.frameStripThumbs).to.have.lengthOf(2);
+    expect(instance.selectedFrameIndex).to.equal(1);
+    expect(instance.isFrameThumbLoading(instance.frameStripThumbs[1])).to.equal(true);
+
+    await instance.refreshFrames();
+    expect(instance.frameStripThumbs).to.have.lengthOf(3);
+    expect(instance.selectedFrameIndex).to.equal(2);
+    expect(instance.performance.lastPreviewPath).to.include("frame_0003");
+
+    delete global.fetch;
+  });
+
   it("refreshFrames builds frame metadata from API responses", async () => {
     const instance = instantiate(appDef);
     global.fetch = async () => ({
@@ -2594,5 +2629,31 @@ describe("Reference A/V sync mounted e2e", () => {
     expect(ct).to.equal(9);
     delete global.fetch;
     removeFileReaderMock();
+  });
+
+  after(async () => {
+    await nextTick();
+    await nextTick();
+    if (appVm) {
+      for (const key of ["previewDebounceTimer", "deforumPreviewTimer", "frameRefreshTimer", "framesTimer", "apiStatusTimer", "wsReconnectTimer", "sequencerTimer", "_runsPollTimer"]) {
+        if (appVm[key]) {
+          clearTimeout(appVm[key]);
+          clearInterval(appVm[key]);
+          appVm[key] = null;
+        }
+      }
+      for (const key of ["playbackTimer", "lfoTimer", "beatTimer"]) {
+        if (appVm[key]) {
+          clearInterval(appVm[key]);
+          appVm[key] = null;
+        }
+      }
+    }
+    if (dom && dom.window) {
+      try { dom.window.close(); } catch (_) {}
+    }
+    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node", "requestAnimationFrame", "cancelAnimationFrame"]) {
+      delete global[key];
+    }
   });
 });
