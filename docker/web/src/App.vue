@@ -15,23 +15,6 @@
       </div>
     </div>
     <header>
-      <div class="tabs">
-        <button
-          class="tab"
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
-          @click="switchTab(tab.id)"
-        >
-          <span class="tab__icon-wrap" aria-hidden="true">
-            <UiIcon class="tab__icon" :name="tab.icon" />
-          </span>
-          <span class="tab__copy">
-            <span class="tab__label">{{ tab.label }}</span>
-            <span class="tab__hint">{{ tab.hint }}</span>
-          </span>
-        </button>
-      </div>
       <StatusStrip
         :playing="deforumPlaying"
         :recording="isRecording"
@@ -642,6 +625,25 @@
         </div>
       </div>
     </div>
+
+    <nav class="bottom-nav" aria-label="Main navigation">
+      <div class="bottom-nav__inner">
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+          </span>
+        </button>
+      </div>
+    </nav>
 
   </div>
 </template>
