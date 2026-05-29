@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.36] - 2026-05-29
+
+## What's Changed
+
+- feat(ui): move tab nav to fixed bottom bar, centered and enlarged (fc890fe)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.35...v0.6.36
+
+
 ## [0.6.35] - 2026-05-29
 
 ## What's Changed
