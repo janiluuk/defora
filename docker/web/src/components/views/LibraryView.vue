@@ -1,9 +1,19 @@
 <template>
   <div class="library-shell" :class="{ 'library-shell--fullscreen': libraryFullscreen }">
     <div class="framesync-panel library-storage-browser">
-      <div class="framesync-header">
+      <div class="framesync-header library-storage-browser__header">
         <div class="framesync-title"><span class="framesync-accent">Browser</span></div>
-        <span class="framesync-subtitle" style="margin:0;">Projects, uploads, and mounted videos</span>
+        <span class="framesync-subtitle" style="margin:0;">Local folders, cloud links, and all videos</span>
+      </div>
+      <div class="library-storage-browser__actions">
+        <button
+          type="button"
+          class="framesync-button framesync-button--compact framesync-button--live"
+          data-testid="open-in-video-editor"
+          @click="openInVideoEditor()"
+        >
+          Open in editor
+        </button>
       </div>
       <VideoSwarmBrowser :app="app" />
     </div>

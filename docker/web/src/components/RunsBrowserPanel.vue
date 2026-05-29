@@ -4,12 +4,39 @@
       <div class="framesync-header">
         <div class="framesync-title">Runs <span class="framesync-accent">Monitor</span></div>
         <div class="runs-browser__meta">
-          <span class="runs-browser__count">{{ runsFiltered.length }} / {{ runsAll.length }}</span>
+          <span class="runs-browser__count">
+            <template v-if="runsBrowserTab === 'active'">{{ runsActiveList.length }} active</template>
+            <template v-else>{{ runsFiltered.length }} / {{ runsPastCount }}</template>
+          </span>
           <span v-if="runsLastRefreshedLabel" class="runs-monitor__refreshed">{{ runsLastRefreshedLabel }}</span>
           <button class="framesync-button" :disabled="runsLoading" @click="refreshRuns()">Refresh</button>
         </div>
       </div>
 
+      <div class="runs-browser__main-tabs sub-pills" data-testid="runs-browser-main-tabs">
+        <button
+          type="button"
+          class="sub-pill"
+          :class="{ active: runsBrowserTab === 'active' }"
+          data-testid="runs-browser-tab-active"
+          @click="runsBrowserTab = 'active'"
+        >
+          Runs
+          <span v-if="runsActiveList.length" class="runs-browser__tab-badge">{{ runsActiveList.length }}</span>
+        </button>
+        <button
+          type="button"
+          class="sub-pill"
+          :class="{ active: runsBrowserTab === 'past' }"
+          data-testid="runs-browser-tab-past"
+          @click="runsBrowserTab = 'past'"
+        >
+          Past runs
+          <span v-if="runsPastCount" class="runs-browser__tab-badge runs-browser__tab-badge--dim">{{ runsPastCount }}</span>
+        </button>
+      </div>
+
+      <template v-if="runsBrowserTab === 'active'">
       <div class="runs-monitor-bar">
         <button
           type="button"
@@ -27,6 +54,12 @@
         <button type="button" class="framesync-button framesync-button--compact" @click="clearRunsJobLog">Clear log</button>
       </div>
 
+      <div class="runs-activity-summary" data-testid="runs-activity-summary">
+        <span class="runs-activity-summary__label">{{ runsActiveSummaryLabel }}</span>
+        <span v-if="deforumBatchesStatus" class="runs-active-jobs__warn">{{ deforumBatchesStatus }}</span>
+        <span v-if="runsStatus" class="runs-active-jobs__status">{{ runsStatus }}</span>
+      </div>
+
       <div v-if="runsJobLog.length" class="runs-job-log" data-testid="runs-job-log">
         <div
           v-for="entry in runsJobLog"
@@ -39,33 +72,77 @@
         </div>
       </div>
 
-      <div v-if="runsGpuNodeSummaries.length || runsActiveGpuJobs.length" class="runs-active-jobs">
-        <div class="runs-active-jobs__header">
-          <div class="framesync-subtitle">Active GPU Jobs</div>
-          <span v-if="deforumBatchesStatus" class="runs-active-jobs__warn">{{ deforumBatchesStatus }}</span>
-          <span v-if="runsStatus" class="runs-active-jobs__status">{{ runsStatus }}</span>
-        </div>
-        <div class="runs-active-jobs__grid">
-          <div v-for="node in runsGpuNodeSummaries" :key="node.id || node.url" class="runs-active-jobs__node">
-            <div class="runs-active-jobs__node-head">
-              <span class="runs-active-jobs__node-name">{{ node.name }}</span>
-              <span class="runs-status-pill" :class="'runs-status-pill--' + (node.status === 'healthy' ? 'completed' : node.status === 'unhealthy' ? 'failed' : 'queued')">{{ node.status || 'unknown' }}</span>
-              <span class="runs-active-jobs__meta">{{ node.activeJobs }} active · q {{ node.queueRunning != null ? node.queueRunning : '—' }}/{{ node.queuePending != null ? node.queuePending : '—' }}</span>
-            </div>
-            <ul v-if="node.jobs.length" class="runs-active-jobs__list">
-              <li v-for="job in node.jobs" :key="job.runId" class="runs-active-jobs__item">
-                <span class="runs-browser__run-id">{{ job.batchId }}</span>
-                <span class="runs-status-pill" :class="'runs-status-pill--' + job.status">{{ job.status }}</span>
-                <span class="runs-active-jobs__detail">{{ job.model || '—' }} · {{ job.frames || '—' }}f</span>
-              </li>
-            </ul>
-            <div v-else class="runs-active-jobs__empty">No queued or running Deforum batches</div>
-          </div>
-        </div>
+      <div class="runs-browser__table-wrap runs-browser__table-wrap--active" data-testid="runs-active-jobs">
+        <table class="runs-browser__table runs-browser__table--compact">
+          <thead>
+            <tr>
+              <th></th>
+              <th>Job</th>
+              <th>Status</th>
+              <th>Worker</th>
+              <th>Frames</th>
+              <th>Progress</th>
+              <th>ETA</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="run in runsActiveList"
+              :key="run.run_id"
+              :class="{ 'runs-row-active': runsDetailView && runsDetailView.run_id === run.run_id }"
+              @click="onRunRowClick(run, $event)"
+            >
+              <td class="runs-browser__preview">
+                <img
+                  v-if="runListingThumbUrl(run)"
+                  :src="runListingThumbUrl(run)"
+                  class="runs-browser__thumb"
+                  :alt="run.run_id"
+                >
+                <div v-else class="runs-browser__thumb runs-browser__thumb--empty">—</div>
+              </td>
+              <td class="runs-browser__run-id">{{ runListingId(run) }}</td>
+              <td>
+                <span class="runs-status-pill" :class="'runs-status-pill--' + run.status">{{ run.status }}</span>
+              </td>
+              <td class="runs-browser__worker">{{ runWorkerName(run) }}</td>
+              <td class="runs-browser__live-frames">{{ runLiveFramesLabel(run) }}</td>
+              <td class="runs-browser__progress">
+                <div class="runs-browser__progress-label">{{ runFrameProgressLabel(run) }}</div>
+                <div
+                  v-if="runFrameProgressPct(run) != null"
+                  class="runs-browser__progress-bar"
+                  :title="runFrameProgressLabel(run)"
+                >
+                  <span class="runs-browser__progress-fill" :style="{ width: runFrameProgressPct(run) + '%' }"></span>
+                </div>
+              </td>
+              <td class="runs-browser__eta">{{ runEtaLabel(run) }}</td>
+              <td>
+                <div class="runs-browser__actions">
+                  <button
+                    v-if="canKillQueuedRun(run)"
+                    class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action runs-browser__action--danger"
+                    @click.stop="killQueuedRun(run)"
+                    title="Cancel queued batch"
+                  >Kill</button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if="runsActiveList.length === 0">
+              <td colspan="8" class="runs-browser__empty">
+                No active jobs. Launch a test job or start a Deforum batch.
+              </td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+      </template>
 
-      <div class="runs-browser__filters">
-        <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search (id, tag, model, prompt, notes)" @input="applyRunsFilters">
+      <template v-else>
+      <div class="runs-browser__filters runs-browser__filters--compact">
+        <input type="text" class="framesync-input" v-model.trim="runsFilter.search" placeholder="Search…" @input="applyRunsFilters">
         <select class="framesync-select" v-model="runsFilter.status" @change="applyRunsFilters">
           <option value="">All Status</option>
           <option value="completed">Completed</option>
@@ -73,11 +150,11 @@
           <option value="running">Running</option>
           <option value="queued">Queued</option>
         </select>
-        <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Filter by tag" @input="applyRunsFilters">
-        <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Filter by model" @input="applyRunsFilters">
+        <input type="text" class="framesync-input" v-model.trim="runsFilter.tag" placeholder="Tag" @input="applyRunsFilters">
+        <input type="text" class="framesync-input" v-model.trim="runsFilter.model" placeholder="Model" @input="applyRunsFilters">
       </div>
 
-      <div class="runs-browser__sortbar">
+      <div class="runs-browser__sortbar runs-browser__sortbar--compact">
         <span class="runs-browser__sort-label">Sort:</span>
         <select class="framesync-select runs-browser__sort-select" v-model="runsSort.field" @change="applyRunsFilters">
           <option value="started_at">Date</option>
@@ -85,85 +162,165 @@
           <option value="model">Model</option>
           <option value="frame_count">Frames</option>
           <option value="status">Status</option>
-          <option value="tag">Tag</option>
         </select>
         <button class="framesync-button runs-browser__sort-order" @click="runsSort.order = runsSort.order === 'desc' ? 'asc' : 'desc'; applyRunsFilters();">
           {{ runsSort.order === 'desc' ? 'Desc' : 'Asc' }}
         </button>
+        <span class="runs-browser__hint">Ctrl+click row to compare</span>
         <div class="runs-browser__spacer"></div>
         <button class="framesync-button runs-browser__export" @click="exportRuns('json')">JSON</button>
         <button class="framesync-button runs-browser__export" @click="exportRuns('csv')">CSV</button>
       </div>
 
       <div class="runs-browser__table-wrap">
-        <table class="runs-browser__table">
+        <table class="runs-browser__table runs-browser__table--compact">
           <thead>
             <tr>
-              <th>Thumb</th>
+              <th></th>
               <th>Run ID</th>
               <th>Status</th>
               <th>Model</th>
-              <th>Frames</th>
-              <th>Seed</th>
-              <th>Tag</th>
-              <th>GPU</th>
+              <th>Progress</th>
               <th>Date</th>
-              <th>Actions</th>
+              <th></th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="run in runsFiltered" :key="run.run_id" :class="{'runs-row-selected': runsSelected.includes(run.run_id)}" @click="toggleRunSelect(run.run_id)">
-              <td>
-                <img v-if="run.has_thumbnail" :src="`/api/runs/${run.run_id}/thumb`" class="runs-browser__thumb" alt="">
-                <div v-else class="runs-browser__thumb runs-browser__thumb--empty">No img</div>
+            <tr
+              v-for="run in runsFiltered"
+              :key="run.run_id"
+              :class="{'runs-row-selected': runsSelected.includes(run.run_id), 'runs-row-active': runsDetailView && runsDetailView.run_id === run.run_id}"
+              @click="onRunRowClick(run, $event)"
+            >
+              <td class="runs-browser__preview">
+                <img
+                  v-if="runListingThumbUrl(run)"
+                  :src="runListingThumbUrl(run)"
+                  class="runs-browser__thumb"
+                  :alt="run.run_id"
+                >
+                <div v-else class="runs-browser__thumb runs-browser__thumb--empty">—</div>
               </td>
               <td class="runs-browser__run-id">{{ run.run_id }}</td>
               <td>
                 <span class="runs-status-pill" :class="'runs-status-pill--' + run.status">{{ run.status }}</span>
               </td>
-              <td>{{ run.model || '-' }}</td>
-              <td>{{ run.frame_count || run.length_frames || '-' }}</td>
-              <td class="runs-browser__seed">{{ run.seed || '-' }}</td>
-              <td>{{ run.tag || '-' }}</td>
-              <td>{{ run._gpu || '-' }}</td>
+              <td class="runs-browser__model">{{ run.model || '-' }}</td>
+              <td class="runs-browser__progress">
+                <div class="runs-browser__progress-label">{{ runFrameProgressLabel(run) }}</div>
+                <div
+                  v-if="runFrameProgressPct(run) != null"
+                  class="runs-browser__progress-bar"
+                  :title="runFrameProgressLabel(run)"
+                >
+                  <span class="runs-browser__progress-fill" :style="{ width: runFrameProgressPct(run) + '%' }"></span>
+                </div>
+              </td>
               <td class="runs-browser__date">{{ formatDate(run.started_at) }}</td>
               <td>
                 <div class="runs-browser__actions">
-                  <button class="framesync-button runs-browser__action" @click.stop="showRunDetails(run)" title="Details">Details</button>
                   <button
                     v-if="canKillQueuedRun(run)"
                     class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action runs-browser__action--danger"
                     @click.stop="killQueuedRun(run)"
                     title="Cancel queued batch"
                   >Kill</button>
-                  <button v-if="!run._isBatch" class="framesync-button runs-browser__action" @click.stop="rerunRun(run)" title="Rerun">Rerun</button>
-                  <button v-if="!run._isBatch" class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click.stop="deleteRun(run)" title="Delete">Delete</button>
+                  <button v-if="!run._isBatch" class="framesync-button runs-browser__action" @click.stop="rerunRun(run)" title="Rerun">↻</button>
+                  <button v-if="!run._isBatch" class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click.stop="deleteRun(run)" title="Delete">✕</button>
                 </div>
               </td>
             </tr>
             <tr v-if="runsFiltered.length === 0">
-              <td colspan="10" class="runs-browser__empty">
-                No runs found. Launch a test job or adjust filters.
+              <td colspan="7" class="runs-browser__empty">
+                No past runs found. Adjust filters or complete a job.
               </td>
             </tr>
           </tbody>
         </table>
       </div>
+      </template>
     </div>
 
-    <div v-if="runsDetailView" class="runs-detail-card">
+    <div v-if="runsDetailView" class="runs-detail-card" data-testid="runs-detail-card">
       <div class="runs-detail-card__header">
-        <div class="framesync-title">Run Details: <span class="runs-detail-card__id">{{ runsDetailView.run_id }}</span></div>
+        <div class="framesync-title">Run <span class="runs-detail-card__id">{{ runsDetailView.run_id }}</span></div>
         <div class="runs-detail-card__header-actions">
           <button
             v-if="canKillQueuedRun(runsDetailView)"
-            class="framesync-button framesync-button--danger"
+            class="framesync-button framesync-button--danger framesync-button--compact"
             @click="killQueuedRun(runsDetailView)"
-          >Kill queued batch</button>
-          <button class="framesync-button" @click="runsDetailView = null">Close</button>
+          >Kill</button>
+          <button class="framesync-button framesync-button--compact" @click="runsDetailView = null">Close</button>
         </div>
       </div>
-      <div class="runs-detail-card__grid">
+
+      <div class="runs-detail-card__tabs sub-pills">
+        <button
+          type="button"
+          class="sub-pill"
+          :class="{ active: runsDetailTab === 'summary' }"
+          @click="runsDetailTab = 'summary'"
+        >Summary</button>
+        <button
+          type="button"
+          class="sub-pill"
+          :class="{ active: runsDetailTab === 'json' }"
+          data-testid="runs-detail-json-tab"
+          @click="runsDetailTab = 'json'"
+        >
+          JSON
+          <span v-if="runDetailJsonDiffCount(runsDetailView)" class="runs-detail-json__diff-badge">{{ runDetailJsonDiffCount(runsDetailView) }}</span>
+        </button>
+      </div>
+
+      <template v-if="runsDetailTab === 'summary'">
+      <div v-if="runHasOutputMaterial(runsDetailView)" class="runs-detail-card__outputs" data-testid="runs-detail-outputs">
+        <div class="framesync-subtitle">Output</div>
+        <div v-if="runPrimaryVideoUrl(runsDetailView)" class="runs-detail-card__video-wrap">
+          <video
+            class="runs-detail-card__video"
+            controls
+            playsinline
+            preload="metadata"
+            :src="runPrimaryVideoUrl(runsDetailView)"
+          ></video>
+        </div>
+        <div class="runs-detail-card__output-links">
+          <a
+            v-if="runPrimaryVideoUrl(runsDetailView)"
+            class="framesync-button framesync-button--compact"
+            :href="runPrimaryVideoUrl(runsDetailView)"
+            target="_blank"
+            rel="noopener"
+          >Open video</a>
+          <button
+            v-if="runPrimaryVideoUrl(runsDetailView)"
+            type="button"
+            class="framesync-button framesync-button--compact"
+            @click="openRunVideoInEditor(runsDetailView)"
+          >Open in editor</button>
+          <button
+            v-if="runsDetailView.frames_browse_url || (runsDetailView.frames && runsDetailView.frames.length)"
+            type="button"
+            class="framesync-button framesync-button--compact"
+            @click="openRunMaterialInBrowser(runsDetailView)"
+          >Browse frames{{ runsDetailView.frames && runsDetailView.frames.length ? ` (${runsDetailView.frames.length})` : '' }}</button>
+          <a
+            v-for="out in (runsDetailView.outputs || []).filter(o => o.kind === 'preview_frame' && o.url)"
+            :key="out.url"
+            class="framesync-button framesync-button--compact"
+            :href="out.url"
+            target="_blank"
+            rel="noopener"
+          >Preview frame</a>
+        </div>
+      </div>
+      <div v-else class="runs-detail-card__outputs runs-detail-card__outputs--empty">
+        <span class="framesync-subtitle">Output</span>
+        <span class="runs-detail-card__no-output">No video or frames yet</span>
+      </div>
+
+      <div class="runs-detail-card__grid runs-detail-card__grid--compact">
         <div>
           <div class="framesync-subtitle">Status</div>
           <span class="runs-status-pill" :class="'runs-status-pill--' + runsDetailView.status">{{ runsDetailView.status }}</span>
@@ -174,7 +331,7 @@
         </div>
         <div>
           <div class="framesync-subtitle">Frames</div>
-          <div>{{ runsDetailView.frame_count || runsDetailView.length_frames || '-' }}</div>
+          <div>{{ runFrameProgressLabel(runsDetailView) }}</div>
         </div>
         <div>
           <div class="framesync-subtitle">Seed</div>
@@ -218,8 +375,66 @@
       <div v-if="runsDetailView.frames && runsDetailView.frames.length" class="runs-detail-card__frames">
         <div class="framesync-subtitle">Frames ({{ runsDetailView.frames.length }})</div>
         <div class="runs-detail-card__frames-list">
-          <img v-for="f in runsDetailView.frames.slice(0, 50)" :key="f" :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" class="runs-detail-card__frame" :alt="f">
+          <a
+            v-for="f in runsDetailView.frames.slice(0, 24)"
+            :key="f"
+            :href="`/api/runs/${runsDetailView.run_id}/frames/${f}`"
+            target="_blank"
+            rel="noopener"
+            class="runs-detail-card__frame-link"
+          >
+            <img :src="`/api/runs/${runsDetailView.run_id}/frames/${f}`" class="runs-detail-card__frame" :alt="f">
+          </a>
         </div>
+      </div>
+      </template>
+
+      <div v-else class="runs-detail-json" data-testid="runs-detail-json">
+        <div class="runs-detail-json__toolbar">
+          <button type="button" class="framesync-button framesync-button--compact" @click="copyRunDetailJson(runsDetailView)">Copy JSON</button>
+          <label class="framesync-checkbox runs-detail-json__filter">
+            <input type="checkbox" v-model="runsDetailJsonShowDiffOnly">
+            Show differences only
+          </label>
+          <span v-if="runDetailJsonDiffCount(runsDetailView)" class="runs-detail-json__diff-hint">
+            {{ runDetailJsonDiffCount(runsDetailView) }} value(s) differ from current UI settings
+          </span>
+        </div>
+        <div class="runs-detail-json__table-wrap">
+          <table class="runs-detail-json__table">
+            <thead>
+              <tr>
+                <th>Key</th>
+                <th>Run value</th>
+                <th>Current</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="row in runDetailJsonRows(runsDetailView)"
+                :key="row.path"
+                :class="{ 'runs-detail-json__row--diff': row.differs }"
+              >
+                <td class="runs-detail-json__key">{{ row.path }}</td>
+                <td class="runs-detail-json__value">{{ row.displayValue }}</td>
+                <td class="runs-detail-json__current">
+                  <span v-if="row.hasCurrent">{{ row.displayCurrent }}</span>
+                  <span v-else class="runs-detail-json__na">—</span>
+                  <span v-if="row.differs" class="runs-detail-json__changed" title="Differs from current UI value">≠</span>
+                </td>
+              </tr>
+              <tr v-if="runDetailJsonRows(runsDetailView).length === 0">
+                <td colspan="3" class="runs-detail-json__empty">
+                  {{ runsDetailJsonShowDiffOnly ? 'No differences from current settings' : 'No values' }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <details class="runs-detail-json__raw">
+          <summary>Raw JSON</summary>
+          <pre class="runs-detail-json__pre">{{ runDetailJsonPretty(runsDetailView) }}</pre>
+        </details>
       </div>
     </div>
 

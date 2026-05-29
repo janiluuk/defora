@@ -189,8 +189,10 @@
       </div>
 
       <div class="video-swarm-browser__path">
-        <code>{{ systemFiles.currentPath || '—' }}</code>
-        <span v-if="systemFiles.folderCount != null && systemFiles.folderCount > 0" class="video-swarm-browser__count">
+        <code v-if="!isCloudRoot">{{ systemFiles.currentPath || '—' }}</code>
+        <code v-else>{{ cloudPathLabel }}</code>
+        <span v-if="isVideosOnly" class="video-swarm-browser__count">Videos only · all subfolders</span>
+        <span v-else-if="systemFiles.folderCount != null && systemFiles.folderCount > 0" class="video-swarm-browser__count">
           {{ systemFiles.folderCount }} folders
         </span>
         <span v-if="systemFiles.videoCount != null" class="video-swarm-browser__count">
@@ -244,7 +246,9 @@
       </div>
 
     <div v-if="systemFiles.loading" class="video-swarm-browser__empty">Scanning folder…</div>
-    <div v-else-if="!displayFolders.length && !displayVideos.length" class="video-swarm-browser__empty">No folders or videos in this location.</div>
+    <div v-else-if="!displayFolders.length && !displayVideos.length" class="video-swarm-browser__empty">
+      {{ isCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}
+    </div>
     <div
       v-else
       ref="gridEl"
@@ -371,7 +375,19 @@ export default {
     }
   },
   computed: {
+    isCloudRoot() {
+      return this.isCloudStorageRoot(this.systemFiles.rootId)
+    },
+    isVideosOnly() {
+      return this.systemFiles.viewMode === 'videos-only'
+    },
+    cloudPathLabel() {
+      const src = this.systemFiles.cloudSource
+      if (!src) return 'Cloud storage'
+      return `${this.cloudProviderLabel(src.provider)} — ${src.label}`
+    },
     displayFolders() {
+      if (this.isVideosOnly || this.isCloudRoot) return []
       const list = Array.isArray(this.systemFiles.folders) ? this.systemFiles.folders : []
       return list
     },
@@ -468,10 +484,6 @@ export default {
       if (!source || !source.id) return
       this.systemFiles.cloudConnectOpen = false
       void this.browseSystemFiles('', { rootId: `cloud:${source.id}` })
-    },
-    openSystemFolder(folder) {
-      if (!folder || !folder.path) return
-      void this.browseSystemFiles(folder.path, { rootId: folder.rootId || this.systemFiles.rootId })
     },
     openSystemFolder(folder) {
       if (!folder || !folder.path) return

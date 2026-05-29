@@ -280,12 +280,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(true);
     appVm.standbyPreviewVideoUrl = "/api/preview/standby-video";
     expect(appVm.showStandbyPreviewVideo).to.equal(true);
-
-    appVm.currentTab = "LIVE";
-    appVm.hlsWatchEnabled = false;
-    appVm.defaultAnimation.showStandbyClip = false;
-    expect(appVm.showStandbyPreviewVideo).to.equal(false);
-    expect(appVm.showDefaultAnimation).to.equal(true);
     appVm.hlsWatchEnabled = false;
     appVm.currentTab = "LIVE";
   });
@@ -331,8 +325,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
     expect(appVm.displayedPreviewStillPath).to.equal("/frames/frame_0001.png");
     expect(appVm.showFrameProcessing).to.equal(true);
-    expect(appVm.showFrameProcessingOnStage).to.equal(true);
-    expect(appVm.showFrameProcessingInChrome).to.equal(false);
     expect(appVm.showDefaultAnimation).to.equal(false);
 
     appVm.videoReady = true;
@@ -344,22 +336,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(false);
     appVm.clearHeldPreviewFrame();
     appVm.deforumPlaying = false;
-  });
-
-  it("shows preview processing in chrome instead of over the WebGL animation", () => {
-    appVm.currentTab = "LIVE";
-    appVm.selectVideoLayer("webgl");
-    appVm.previewGenerating = true;
-    appVm.performance.lastPreviewPath = "";
-    appVm.clearHeldPreviewFrame();
-
-    expect(appVm.showPreviewStill).to.equal(false);
-    expect(appVm.showFrameProcessing).to.equal(true);
-    expect(appVm.showFrameProcessingOnStage).to.equal(false);
-    expect(appVm.showFrameProcessingInChrome).to.equal(true);
-    expect(appVm.frameProcessingLabel).to.match(/rendering preview frame/i);
-
-    appVm.previewGenerating = false;
   });
 
   it("keeps the standby animation visible on initial LIVE load", () => {
@@ -869,11 +845,11 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.zoom).to.equal(0);
     expect(appVm.motionSelectedPreset).to.equal("Static");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
-    expect(document.querySelector('[data-testid="motion-sequencer-side-toggle"]')).to.exist;
-    appVm.motionSequencerSideOpen = true;
+    expect(document.querySelector(".stage-motion-tabs")).to.exist;
+    appVm.switchSubTab("MOTION", "SEQUENCER");
     await nextTick();
-    expect(document.querySelector('[data-testid="motion-sequencer-side-drawer"]')).to.exist;
-    expect(document.querySelectorAll('[data-testid="sequencer-controls-panel"]').length).to.be.at.least(2);
+    expect(document.querySelector('[data-testid="motion-sequencer-editor-shell"]')).to.exist;
+    expect(document.querySelector('[data-testid="sequencer-controls-panel"]')).to.exist;
   });
 
   it("shows the modern story generator under the story subtab", async () => {
@@ -1042,7 +1018,7 @@ describe("Deforumation Web UI", () => {
 
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
     expect(drawerTabs.join(" ")).to.include("CROSSFADER");
-    expect(drawerTabs.join(" ")).to.include("RUNS");
+    expect(drawerTabs.join(" ")).to.include("SYSTEM");
     expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
 
     const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
@@ -1115,9 +1091,9 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders recent runs in the bottom drawer RUNS tab", async () => {
+  it("renders the runs monitor in the bottom drawer SYSTEM tab", async () => {
     appVm.liveBottomDrawerOpen = true;
-    appVm.setLiveBottomDrawerTab("RUNS");
+    appVm.setLiveBottomDrawerTab("SYSTEM");
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
       { run_id: "run-002", status: "completed", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
@@ -1127,16 +1103,13 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector('[data-testid="bottom-drawer-runs"]')).to.exist;
+    expect(document.querySelector('[data-testid="bottom-drawer-system"]')).to.exist;
     const drawerTabs = [...document.querySelectorAll(".live-bottom-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
-    expect(drawerTabs.join(" ")).to.include("RUNS");
-    const railItems = [...document.querySelectorAll(".recent-runs-rail__item")];
-    expect(railItems.length).to.equal(4);
-    expect(railItems[0].textContent).to.include("run-005");
-    expect(document.querySelector(".recent-runs-rail__link").textContent).to.include("All runs");
-    const railRoot = document.querySelector(".recent-runs-rail");
-    expect(railRoot).to.exist;
-    expect(railRoot.closest('[data-testid="bottom-drawer"]')).to.exist;
+    expect(drawerTabs.join(" ")).to.include("SYSTEM");
+    const runsBrowser = document.querySelector('[data-testid="bottom-drawer-system"] [data-testid="runs-browser"]');
+    expect(runsBrowser).to.exist;
+    expect(document.body.textContent).to.include("Runs Monitor");
+    expect(runsBrowser.closest('[data-testid="bottom-drawer"]')).to.exist;
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
@@ -1175,6 +1148,7 @@ describe("Deforumation Web UI", () => {
 
     appVm.switchTab("SETTINGS");
     appVm.switchSubTab("SETTINGS", "SYSTEM");
+    appVm.runsBrowserTab = "past";
     await nextTick();
     await nextTick();
 
@@ -1285,6 +1259,52 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(document.querySelector('[data-testid="library-frame-rail"]')).to.equal(null);
     expect(document.querySelector('[data-testid="library-run-thumbs"]')).to.equal(null);
+  });
+
+  it("Library browser exposes new folder, videos-only, and cloud connect", async () => {
+    global.fetch = async (url) => {
+      const path = String(url);
+      if (path.includes("/api/video-swarm/roots")) {
+        return {
+          ok: true,
+          json: async () => ({
+            roots: [{ id: "uploads", label: "Uploads", path: "/tmp/uploads", kind: "local" }],
+            cloudSources: [],
+          }),
+        };
+      }
+      if (path.includes("/api/video-swarm/browse")) {
+        return {
+          ok: true,
+          json: async () => ({
+            kind: "local",
+            path: "/tmp/uploads",
+            parent: "",
+            folders: [],
+            videos: [{ name: "a.mp4", path: "/tmp/uploads/a.mp4", rootId: "uploads", size: 100 }],
+            folderCount: 0,
+            videoCount: 1,
+          }),
+        };
+      }
+      return { ok: true, json: async () => ({}) };
+    };
+    appVm.systemFiles._rootsLoaded = false;
+    appVm.switchTab("LIBRARY");
+    await appVm.initSystemFilesBrowser();
+    await nextTick();
+    await nextTick();
+
+    expect(document.querySelector('[data-testid="video-swarm-browser"]')).to.exist;
+    expect(document.querySelector('[data-testid="video-swarm-new-folder"]')).to.exist;
+    expect(document.querySelector('[data-testid="video-swarm-view-videos-only"]')).to.exist;
+    expect(document.querySelector('[data-testid="video-swarm-connect-cloud"]')).to.exist;
+
+    appVm.toggleSystemFilesVideosOnly();
+    await nextTick();
+    expect(appVm.systemFiles.viewMode).to.equal("videos-only");
+
+    delete global.fetch;
   });
 
   it("launchTestRun logs job and refreshes runs", async () => {

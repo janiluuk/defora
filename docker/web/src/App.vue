@@ -53,7 +53,7 @@
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION',
       'layout--studio': currentTab === 'MODULATION',
-      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',
+      'layout--editor': currentTab === 'EDITOR',
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
@@ -61,30 +61,17 @@
         'preview--motion-dock': currentTab === 'MOTION',
       }">
         <div
-          v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
+          v-if="currentTab === 'EDITOR'"
           class="editor-workspace-shell"
           data-testid="editor-workspace"
         >
-          <div class="editor-workspace-shell__toolbar">
-            <button
-              type="button"
-              class="framesync-button framesync-button--compact"
-              data-testid="close-library-editor"
-              @click="closeLibraryEditor()"
-            >
-              ← Back to Library
-            </button>
-            <span v-if="editorStatus" class="editor-workspace-shell__status" :class="{ 'editor-workspace-shell__status--live': editorStatusLive }">
-              {{ editorStatus }}
-            </span>
-          </div>
           <EditorView :app="appViewModel" />
         </div>
         <div
           v-else
           class="video-wrap video-wrap--anchored"
           :class="{
-            'video-wrap--frame-processing': showFrameProcessingOnStage,
+            'video-wrap--frame-processing': showFrameProcessing,
             'video-wrap--hls-and-preview': showMainStageHls && showStandbyPreviewVideo,
           }"
         >
@@ -159,7 +146,7 @@
               <button type="button" class="framesync-button" @click="openCloudLayer(activeVideoLayer)">Open link</button>
             </div>
           <div
-            v-if="showFrameProcessingOnStage"
+            v-if="showFrameProcessing"
             class="preview-loading-overlay"
             data-testid="frame-processing-overlay"
             aria-live="polite"
@@ -388,15 +375,25 @@
         <!-- Local blob URL only; used to align reference audio with HLS video timeline -->
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
-        <div v-if="currentTab === 'MOTION'" class="stage-sequencer-shell" data-testid="motion-sequencer-dock">
-          <SequencerControlsPanel :app="appViewModel" stage show-timeline />
-          <GenerateView
-            v-if="generator.result || generator.status || performance.status || sequencerStatus"
-            :app="appViewModel"
-            story-only
-          />
+        <div class="preview-bottom-dock" data-testid="preview-bottom-dock">
+        <div
+          v-show="currentTab === 'MOTION'"
+          class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer"
+        >
+          <div class="stage-sequencer-shell" data-testid="motion-sequencer-dock">
+            <SequencerControlsPanel :app="appViewModel" stage show-timeline />
+            <GenerateView
+              v-if="generator.result || generator.status || performance.status || sequencerStatus"
+              :app="appViewModel"
+              story-only
+            />
+          </div>
         </div>
-        <div v-else class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }" style="margin-top: 4px;">
+        <div
+          v-show="currentTab !== 'MOTION'"
+          class="preview-bottom-dock__pane preview-bottom-dock__pane--frames"
+        >
+        <div class="frame-rail" :class="{ 'frame-rail--collapsed': !showFrames }">
             <div class="frame-rail__header">
               <div class="frame-rail__title-wrap">
                 <span class="frame-rail__title">Frames</span>
@@ -459,6 +456,8 @@
               <div class="framesync-subtitle" style="margin-top:6px;">{{ framesEmptyStatus.detail }}</div>
             </div>
           </div>
+        </div>
+        </div>
 
         <!-- transport moved to top bar in LIVE -->
 
@@ -484,7 +483,7 @@
         </button>
         <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
           <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-          <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+          <LibraryView v-else-if="currentTab === 'LIBRARY' || currentTab === 'EDITOR'" :app="appViewModel" />
           <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
           <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
           <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
@@ -537,10 +536,10 @@
           <button
             type="button"
             class="sub-pill"
-            :class="{ active: liveBottomDrawerTab === 'RUNS' }"
-            @click="setLiveBottomDrawerTab('RUNS')"
+            :class="{ active: liveBottomDrawerTab === 'SYSTEM' }"
+            @click="setLiveBottomDrawerTab('SYSTEM')"
           >
-            RUNS
+            SYSTEM
           </button>
         </div>
 
@@ -630,36 +629,11 @@
         <LoraCrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
 
         <div
-          v-else-if="liveBottomDrawerTab === 'RUNS'"
-          class="bottom-drawer-runs recent-runs-rail"
-          data-testid="bottom-drawer-runs"
+          v-else-if="liveBottomDrawerTab === 'SYSTEM'"
+          class="bottom-drawer-system system-runs-tab"
+          data-testid="bottom-drawer-system"
         >
-          <div class="recent-runs-rail__header">
-            <span class="recent-runs-rail__title">Recent runs</span>
-            <button type="button" class="recent-runs-rail__link" @click="openRunsSettings">All runs</button>
-          </div>
-          <div v-if="recentRunsRail.length" class="recent-runs-rail__list">
-            <button
-              v-for="run in recentRunsRail"
-              :key="'recent-run-' + run.run_id"
-              type="button"
-              class="recent-runs-rail__item"
-              @click="openRecentRun(run)"
-            >
-              <img
-                v-if="run.has_thumbnail"
-                class="recent-runs-rail__thumb"
-                :src="`/api/runs/${run.run_id}/thumb`"
-                :alt="run.run_id"
-              />
-              <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">No img</div>
-              <div class="recent-runs-rail__meta">
-                <span class="recent-runs-rail__id">{{ run.run_id }}</span>
-                <span class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</span>
-              </div>
-            </button>
-          </div>
-          <div v-else class="recent-runs-rail__empty">No recent runs yet.</div>
+          <RunsBrowserPanel :app="appViewModel" />
         </div>
       </div>
     </div>
@@ -708,6 +682,8 @@ import {
   removeNestedValue,
   patchFromKeyPath,
   mergeDeforumSettings,
+  readScheduleValueAtFrame,
+  buildLinearScheduleRamp,
 } from './deforum-settings-schema.js'
 import { verifyDeforumSettings } from './deforum-settings-verify.js'
 import { apiFetch, modelSourceLabel } from './api-utils.js'
@@ -715,22 +691,7 @@ import {
   buildRunDetailCurrentContext,
   buildRunDetailJsonRows,
   runDetailJsonPretty,
-} from './shared/run-detail-json.mjs'
-import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
-import {
-  DEFAULT_FORGE_MODEL,
-  DEFAULT_LCM_ENGINE,
-  DEFAULT_LCM_LORA_TAG,
-  mergeLoraIntoPrompt,
-} from './shared/engine-config.mjs'
-import {
-  DEFAULT_WAN_ENGINE,
-  mergeWanEngineIntoDeforumSettings,
-  normalizeWanEngine,
-  parseWanResolution,
-  visibleWanControlFields,
-  WAN_ANIMATION_MODE,
-} from './shared/wan-engine-config.mjs'
+} from './lib/run-detail-json.mjs'
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -942,6 +903,7 @@ export default {
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
+        { id: "EDITOR", label: "EDITOR", hint: "Cut", icon: "film" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -991,6 +953,12 @@ export default {
         zoomLevel: 2,
         selectedPaths: [],
         fullscreenIndex: -1,
+        cloudSources: [],
+        cloudSource: null,
+        cloudConnectOpen: false,
+        cloudVideoDraft: { name: '', url: '' },
+        newFolderOpen: false,
+        newFolderName: '',
         _rootsLoaded: false,
       },
       librarySubTab: 'BROWSER',
@@ -1132,8 +1100,12 @@ export default {
       motionStyles: ["Calm", "Travel", "Spin", "Handheld", "Chaos"],
       motionStylesSaved: {},
       motionSelectedPreset: "Static",
-      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1, look_x: 0, look_y: 0 },
-      xyPad: { dragging: false, activePad: null, padSize: 420 },
+      motionPadValues: { translation_x: 0, translation_y: 0, translation_z: 0, zoom: 1, rotation_z: 0, look_x: 0, look_y: 0 },
+      motionSmoothness: {
+        enabled: false,
+        frames: 1,
+      },
+      xyPad: { dragging: false, activePad: null, padSize: 420, dragStartValues: null },
       audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
       audioSpectrogramDataUrl: null,
       audioSpectrogramStatus: "",
@@ -1533,7 +1505,7 @@ export default {
     },
     runsMonitorActive() {
       if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
-      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'RUNS';
+      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'SYSTEM';
     },
     runsLastRefreshedLabel() {
       if (!this.runsLastRefreshedAt) return '';
@@ -1542,6 +1514,31 @@ export default {
       } catch (_e) {
         return '';
       }
+    },
+    runsActiveList() {
+      return (this.runsAll || []).filter((r) => r.status === 'running' || r.status === 'queued');
+    },
+    runsActiveRunningCount() {
+      return this.runsActiveList.filter((r) => r.status === 'running').length;
+    },
+    runsActiveQueuedCount() {
+      return this.runsActiveList.filter((r) => r.status === 'queued').length;
+    },
+    runsActiveWorkerCount() {
+      const names = this.runsActiveList
+        .map((r) => this.runWorkerName(r))
+        .filter((n) => n && n !== '—');
+      return new Set(names).size;
+    },
+    runsActiveSummaryLabel() {
+      const running = this.runsActiveRunningCount;
+      const queued = this.runsActiveQueuedCount;
+      const workers = this.runsActiveWorkerCount;
+      const workerPart = workers ? ` · ${workers} worker${workers === 1 ? '' : 's'}` : '';
+      return `${running} running · ${queued} queued${workerPart}`;
+    },
+    runsPastCount() {
+      return (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued').length;
     },
     rtmpStreamHref() {
       const nodes = this.infrastructure && Array.isArray(this.infrastructure.transcoders)
@@ -1621,7 +1618,14 @@ export default {
       return (latest && (latest.src || latest.url || latest.path)) || '';
     },
     activePreviewStillPath() {
-      if (!this.deforumPlaying && this.currentTab === 'LIVE') {
+      if (this.deforumPlaying) {
+        return this.latestGeneratedFramePath
+          || this.performance.lastPreviewPath
+          || this.generator.lastPath
+          || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
+          || '';
+      }
+      if (this.currentTab === 'LIVE') {
         return this.performance.lastPreviewPath
           || this.generator.lastPath
           || (this.selectedFrameThumb && (this.selectedFrameThumb.src || this.selectedFrameThumb.url || this.selectedFrameThumb.path))
@@ -1645,17 +1649,6 @@ export default {
       if (this.previewGenerating) return true;
       if (this.deforumPlaying && !this.showDeforumVideo && !!this.displayedPreviewStillPath) return true;
       return false;
-    },
-    /** Full-screen overlay only on still frames — never on WebGL / standby video. */
-    showFrameProcessingOnStage() {
-      if (!this.showFrameProcessing) return false;
-      if (this.showPreviewStill) return true;
-      if (this.deforumPlaying && !this.showDeforumVideo && !!this.displayedPreviewStillPath) return true;
-      return false;
-    },
-    /** Status in header + Live controls while the stage keeps animating underneath. */
-    showFrameProcessingInChrome() {
-      return this.showFrameProcessing && !this.showFrameProcessingOnStage;
     },
     frameProcessingLabel() {
       if (this.previewGenerating) return 'Rendering preview frame';
@@ -1683,6 +1676,12 @@ export default {
     rightPanelToggleTitle() {
       return this.rightPanelOpen ? 'Collapse sidebar' : 'Expand sidebar';
     },
+    canStartHlsWatch() {
+      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
+    },
+    showMainStageHls() {
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+    },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
       if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
@@ -1692,9 +1691,7 @@ export default {
     },
     showStandbyPreviewVideo() {
       if (!this.standbyPreviewVideoUrl) return false;
-      const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
-      if (!showClip && !this.showMainStageHls) return false;
-      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
+      if (this.currentTab === "EDITOR") return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -1812,7 +1809,7 @@ export default {
     showPreviewStill() {
       if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
-        || this.isForgeAnimationLayerActive
+        || this.isDeforumLayerActive
         || this.isBlendLayerActive;
       return !!(!this.showDeforumVideo && this.displayedPreviewStillPath && shouldSurfaceStill);
     },
@@ -2375,15 +2372,6 @@ export default {
         knobSlot(pick(7), 'Knob 2'),
       ];
     },
-    recentRunsRail() {
-      return [...this.runsAll]
-        .sort((a, b) => {
-          const aTime = a && a.started_at ? new Date(a.started_at).getTime() : 0;
-          const bTime = b && b.started_at ? new Date(b.started_at).getTime() : 0;
-          return bTime - aTime;
-        })
-        .slice(0, 4);
-    },
     sessionCatalog() {
       try {
         if (typeof window === 'undefined' || !window.localStorage) return [];
@@ -2634,6 +2622,7 @@ export default {
         y: Number(this.motionPadValues.translation_y || 0),
         z: Number(this.motionPadValues.translation_z || 0),
         zoom: Number(this.motionPadValues.zoom ?? 1),
+        tilt: Number(this.motionPadValues.rotation_z ?? 0),
         lookX: Number(this.motionPadValues.look_x ?? 0),
         lookY: Number(this.motionPadValues.look_y ?? 0),
       };
@@ -2750,6 +2739,9 @@ export default {
         if (this.showDeforumVideo) this.clearHeldPreviewFrame();
       }
     },
+    showDeforumVideo(visible) {
+      if (visible) this.clearHeldPreviewFrame();
+    },
     currentTab() {
       this.syncRunsMonitorPolling();
     },
@@ -2766,8 +2758,24 @@ export default {
       this.syncRunsMonitorPolling();
     },
     liveBottomDrawerTab(tab) {
-      if (tab === 'RUNS') void this.refreshRuns();
+      if (tab === 'SYSTEM') void this.refreshRuns();
       this.syncRunsMonitorPolling();
+    },
+    currentTab(tab, prev) {
+      if (prev === "STREAM" && tab !== "STREAM") {
+        this.disableHlsWatch();
+      }
+    },
+    hlsPreviewStreamValid(valid) {
+      if (!valid && this.hlsWatchEnabled) {
+        this.disableHlsWatch();
+      }
+    },
+    deforumActiveTab(tab) {
+      if (tab === 'sampling') void this.ensureForgeSamplerSchedulerLists();
+    },
+    'currentSubTab.LIVE'(sub) {
+      if (sub === 'DEFORUM_JOB') void this.ensureForgeSamplerSchedulerLists();
     },
   },
   mounted() {
@@ -2806,7 +2814,6 @@ export default {
     });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
       this.restoreLastModel();
-      void this.ensureDefaultForgeModelPreloaded();
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -3214,6 +3221,10 @@ export default {
     this.setLiveBottomDrawerTab('SYSTEM');
     this.showRunDetails(run);
   },
+  openRunsDrawerSystem() {
+    this.liveBottomDrawerOpen = true;
+    this.setLiveBottomDrawerTab('SYSTEM');
+  },
   applyRunsFilters() {
     let filtered = (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued');
     const { search, status, tag, model } = this.runsFilter;
@@ -3320,7 +3331,8 @@ export default {
     this.editorFreecutRoute = "projects";
     this.editorStatus = "Ready to import run video";
     this.editorStatusLive = true;
-    this.openLibraryVideoEditor();
+    this.currentTab = "EDITOR";
+    this.saveSessionState();
   },
   canKillQueuedRun(run) {
     return !!(run && run._isBatch && run.status === "queued");
@@ -3468,6 +3480,139 @@ export default {
       return dateStr;
     }
   },
+  runListingId(run) {
+    return String(run?.run_id || '').replace(/^batch:/, '');
+  },
+  runListingThumbUrl(run) {
+    if (!run) return '';
+    const id = this.runListingId(run);
+    if (!id) return '';
+    if (!run.has_thumbnail && !(Number(run.frames_done) > 0) && !run.latest_frame) return '';
+    const base = `/api/runs/${encodeURIComponent(id)}/thumb`;
+    const rev = run.thumb_rev || run.latest_frame || run.frames_done || '';
+    return rev ? `${base}?v=${encodeURIComponent(rev)}` : base;
+  },
+  runFramesDone(run) {
+    if (!run) return null;
+    if (Number.isFinite(run.frames_done)) return run.frames_done;
+    if (run._isBatch && run._batch) {
+      const b = run._batch;
+      const total = this.runFramesTotal(run);
+      if (Number.isFinite(b.frames_done)) return b.frames_done;
+      if (Number.isFinite(b.frames_completed)) return b.frames_completed;
+      if (Number.isFinite(b.current_frame)) return b.current_frame;
+      if (typeof b.progress === 'number' && total) return Math.round(b.progress * total);
+    }
+    return null;
+  },
+  runFramesTotal(run) {
+    if (!run) return null;
+    if (Number.isFinite(run.frames_total) && run.frames_total > 0) return run.frames_total;
+    const total = run.frame_count ?? run.length_frames ?? null;
+    if (Number.isFinite(total) && total > 0) return total;
+    if (run._isBatch && run._batch) {
+      const b = run._batch;
+      const candidate = b.max_frames ?? b.frame_count ?? b.frames ?? null;
+      if (Number.isFinite(candidate) && candidate > 0) return candidate;
+    }
+    return null;
+  },
+  runFrameProgressPct(run) {
+    if (!run) return null;
+    if (Number.isFinite(run.frames_progress_pct)) return run.frames_progress_pct;
+    const done = this.runFramesDone(run);
+    const total = this.runFramesTotal(run);
+    if (done != null && total != null && total > 0) {
+      return Math.min(100, Math.round((done / total) * 100));
+    }
+    return null;
+  },
+  runFrameProgressLabel(run) {
+    const done = this.runFramesDone(run);
+    const total = this.runFramesTotal(run);
+    if (done == null && total == null) return '-';
+    const pct = this.runFrameProgressPct(run);
+    const doneStr = done != null ? done : '?';
+    const totalStr = total != null ? total : '?';
+    if (pct != null) return `${doneStr}/${totalStr} · ${pct}%`;
+    return `${doneStr}/${totalStr}`;
+  },
+  runWorkerName(run) {
+    if (!run) return '—';
+    return (
+      run._gpu
+      || (run._batchNode && run._batchNode.name)
+      || (run._batch && run._batch._node && run._batch._node.name)
+      || (run.job && run.job.snapshot && run.job.snapshot.node && run.job.snapshot.node.name)
+      || '—'
+    );
+  },
+  runLiveFramesLabel(run) {
+    const done = this.runFramesDone(run);
+    if (done == null) return '—';
+    const total = this.runFramesTotal(run);
+    if (total != null) return `${done} / ${total} frames`;
+    return `${done} frames`;
+  },
+  formatDurationShort(seconds) {
+    const sec = Number(seconds);
+    if (!Number.isFinite(sec) || sec < 0) return '—';
+    if (sec < 45) return `~${Math.max(1, Math.round(sec))}s left`;
+    if (sec < 3600) return `~${Math.round(sec / 60)}m left`;
+    return `~${(sec / 3600).toFixed(1)}h left`;
+  },
+  runEtaLabel(run) {
+    if (!run) return '—';
+    if (run.status === 'queued') return 'Waiting in queue';
+    const done = this.runFramesDone(run);
+    const total = this.runFramesTotal(run);
+    if (total != null && done != null && done >= total) return 'Finishing…';
+    if (done == null || done <= 0 || !total) return 'Estimating…';
+    const startedMs = run.started_at ? new Date(run.started_at).getTime() : NaN;
+    if (!Number.isFinite(startedMs)) return 'Estimating…';
+    const elapsedSec = Math.max(1, (Date.now() - startedMs) / 1000);
+    const rate = done / elapsedSec;
+    if (!Number.isFinite(rate) || rate <= 0) return 'Estimating…';
+    const remaining = Math.max(0, total - done);
+    if (remaining <= 0) return 'Finishing…';
+    return this.formatDurationShort(remaining / rate);
+  },
+  runDetailCurrentContext() {
+    return buildRunDetailCurrentContext({
+      deforumSettings: this.normalizedDeforumSettings(),
+      forgeModel: this.forge?.selectedModel || this.forge?.currentModel,
+    });
+  },
+  runDetailJsonRows(run) {
+    return buildRunDetailJsonRows(run, this.runDetailCurrentContext(), {
+      diffOnly: !!this.runsDetailJsonShowDiffOnly,
+    });
+  },
+  runDetailJsonPretty(run) {
+    return runDetailJsonPretty(run);
+  },
+  runDetailJsonDiffCount(run) {
+    return buildRunDetailJsonRows(run, this.runDetailCurrentContext(), { diffOnly: true }).length;
+  },
+  async copyRunDetailJson(run) {
+    const text = this.runDetailJsonPretty(run);
+    if (!text) return;
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      this.runsStatus = 'Run JSON copied';
+    } catch (_e) {
+      this.runsStatus = 'Failed to copy JSON';
+    }
+  },
  toggleRightPanel() {
    this.rightPanelOpen = !this.rightPanelOpen;
    this.liveDrawerOpen = this.rightPanelOpen;
@@ -3502,16 +3647,7 @@ export default {
      return;
    }
    if (id === 'RUNS') {
-     this.currentTab = 'SETTINGS';
-     this.currentSubTab.SETTINGS = 'SYSTEM';
-     try {
-       if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'SETTINGS');
-         window.localStorage.setItem('defora_subtab_SETTINGS', 'SYSTEM');
-       }
-     } catch (_e) {}
-     void this.refreshRuns();
-     this.syncRunsMonitorPolling();
+     this.openRunsDrawerSystem();
      return;
    }
    if (id !== 'LIBRARY') {
@@ -3527,6 +3663,10 @@ export default {
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
   if (id === 'LIBRARY') {
     void this.initSystemFilesBrowser();
+  }
+  if (id === 'EDITOR') {
+    void this.initSystemFilesBrowser();
+    if (!this.editorStatus) this.editorStatus = 'Pick media from the library sidebar or open a FreeCut project';
   }
   if (id === 'STREAM') {
     void this.refreshStreamStatus();
@@ -3583,9 +3723,9 @@ export default {
   }
  },
  setLiveBottomDrawerTab(tab) {
-  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'RUNS') return;
+  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
   this.liveBottomDrawerTab = tab;
-  if (tab === 'RUNS') {
+  if (tab === 'SYSTEM') {
     void this.refreshRuns();
   } else if (tab !== 'CROSSFADER') {
     this.loraCrossfaderPickerGroup = null;
@@ -4065,7 +4205,7 @@ setPreferDeforumVideo(prefer) {
     }
     this.videoReady = false;
     if (this.hlsWatchEnabled) this.attachPlayer();
-  } else if (this.isForgeAnimationLayerActive) {
+  } else if (this.activeVideoLayerId === 'deforum') {
     this.activeVideoLayerId = 'webgl';
   }
   this.saveSessionState();
@@ -4403,26 +4543,11 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
-openLibraryVideoEditor() {
-  this.currentTab = 'LIBRARY';
-  this.libraryEditorOpen = true;
-  this.rightPanelOpen = true;
-  this.liveDrawerOpen = true;
-  void this.initSystemFilesBrowser();
-  this.saveSessionState();
-},
-closeLibraryEditor() {
-  this.libraryEditorOpen = false;
-  this.saveSessionState();
-},
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
-    this.editorStatusLive = false;
-    this.currentTab = 'LIBRARY';
-    this.libraryEditorOpen = false;
-    this.saveSessionState();
+    this.currentTab = 'EDITOR';
     return;
   }
   this.editorPendingImportPath = entry.path;
@@ -4431,7 +4556,8 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.openLibraryVideoEditor();
+  this.currentTab = 'EDITOR';
+  this.saveSessionState();
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -4456,6 +4582,7 @@ async initSystemFilesBrowser() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Could not load library roots');
     this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
+    this.systemFiles.cloudSources = Array.isArray(data.cloudSources) ? data.cloudSources : [];
     this.systemFiles._rootsLoaded = true;
     const preferred =
       this.systemFiles.roots.find((r) => r.id === this.systemFiles.rootId)
@@ -4467,6 +4594,205 @@ async initSystemFilesBrowser() {
     }
   } catch (err) {
     this.systemFiles.status = err.message || 'Library unavailable';
+  }
+},
+async refreshCloudSources() {
+  try {
+    const res = await fetch('/api/video-swarm/cloud-sources');
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not load cloud sources');
+    this.systemFiles.cloudSources = Array.isArray(data.sources) ? data.sources : [];
+    const localRoots = (this.systemFiles.roots || []).filter((r) => r.kind !== 'cloud');
+    this.systemFiles.roots = [
+      ...localRoots,
+      ...(this.systemFiles.cloudSources || []).map((source) => ({
+        id: `cloud:${source.id}`,
+        label: `${this.cloudProviderLabel(source.provider)} — ${source.label}`,
+        kind: 'cloud',
+        provider: source.provider,
+        url: source.url,
+        path: '',
+      })),
+    ];
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Cloud storage unavailable';
+  }
+},
+async connectCloudStorage({ label, provider, url } = {}) {
+  const shareUrl = String(url || this.cloudDriveDraft.url || '').trim();
+  if (!shareUrl) {
+    this.systemFiles.status = 'Enter a cloud share link';
+    return;
+  }
+  try {
+    const res = await fetch('/api/video-swarm/cloud-sources', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        label: String(label || '').trim() || this.cloudProviderLabel(provider || this.cloudDriveDraft.provider),
+        provider: provider || this.cloudDriveDraft.provider || 'other',
+        url: shareUrl,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not connect cloud storage');
+    this.cloudDriveDraft.url = '';
+    this.systemFiles.cloudConnectOpen = false;
+    await this.refreshCloudSources();
+    const created = data.source;
+    if (created && created.id) {
+      this.systemFiles.rootId = `cloud:${created.id}`;
+      await this.browseSystemFiles('', { rootId: this.systemFiles.rootId });
+    }
+    this.systemFiles.status = 'Cloud storage connected';
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Could not connect cloud storage';
+  }
+},
+async disconnectCloudStorage(sourceId) {
+  const id = String(sourceId || '').trim();
+  if (!id) return;
+  if (!window.confirm('Remove this cloud connection from the browser?')) return;
+  try {
+    const res = await fetch(`/api/video-swarm/cloud-sources/${encodeURIComponent(id)}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not remove cloud storage');
+    await this.refreshCloudSources();
+    if (this.isCloudStorageRoot(this.systemFiles.rootId)) {
+      const fallback = (this.systemFiles.roots || []).find((r) => r.kind !== 'cloud') || this.systemFiles.roots[0];
+      if (fallback) {
+        this.systemFiles.rootId = fallback.id;
+        await this.browseSystemFiles(fallback.path, { rootId: fallback.id });
+      }
+    }
+    this.systemFiles.status = 'Cloud storage removed';
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Could not remove cloud storage';
+  }
+},
+openCloudStorageLink(source) {
+  const targetUrl = source && source.url ? String(source.url) : '';
+  if (!targetUrl) return;
+  try {
+    window.open(targetUrl, '_blank', 'noopener,noreferrer');
+  } catch (_e) {
+    this.systemFiles.status = 'Could not open cloud link';
+  }
+},
+async addCloudStorageVideo(sourceId) {
+  const id = String(sourceId || this.cloudStorageSourceId() || '').trim();
+  const videoUrl = String(this.systemFiles.cloudVideoDraft.url || '').trim();
+  if (!id || !videoUrl) {
+    this.systemFiles.status = 'Enter a direct video URL from the cloud share';
+    return;
+  }
+  try {
+    const res = await fetch(`/api/video-swarm/cloud-sources/${encodeURIComponent(id)}/videos`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: String(this.systemFiles.cloudVideoDraft.name || '').trim(),
+        url: videoUrl,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not add cloud video');
+    this.systemFiles.cloudVideoDraft = { name: '', url: '' };
+    if (this.isCloudStorageRoot(this.systemFiles.rootId)) {
+      await this.browseSystemFiles('', { rootId: this.systemFiles.rootId });
+    }
+    this.systemFiles.status = 'Cloud video added';
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Could not add cloud video';
+  }
+},
+toggleSystemFilesVideosOnly() {
+  this.systemFiles.viewMode = this.systemFiles.viewMode === 'videos-only' ? 'browse' : 'videos-only';
+  void this.browseSystemFiles(this.systemFiles.currentPath);
+  this.saveSessionState();
+},
+openNewFolderDialog() {
+  if (this.isCloudStorageRoot()) {
+    this.systemFiles.status = 'Create folders on local storage roots only';
+    return;
+  }
+  this.systemFiles.newFolderName = '';
+  this.systemFiles.newFolderOpen = true;
+},
+cancelNewFolderDialog() {
+  this.systemFiles.newFolderOpen = false;
+  this.systemFiles.newFolderName = '';
+},
+async uploadSystemVideoFile(file, { target = "uploads" } = {}) {
+  if (!file) return;
+  const name = String(file.name || "upload.mp4");
+  const ext = name.includes(".") ? name.slice(name.lastIndexOf(".")).toLowerCase() : "";
+  const allowed = [".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"];
+  if (ext && !allowed.includes(ext)) {
+    this.systemFiles.status = "Unsupported file type (use mp4, webm, mov, mkv, m4v, avi)";
+    return;
+  }
+  this.systemFiles.loading = true;
+  this.systemFiles.status = `Uploading ${name}…`;
+  try {
+    const body = await file.arrayBuffer();
+    const q = new URLSearchParams({ name, dir: target === "videoswarm" ? "videoswarm" : "uploads" });
+    const res = await fetch(`/api/video-swarm/upload?${q.toString()}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        "X-Filename": name,
+      },
+      body,
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Upload failed");
+    this.systemFiles.status = `Uploaded ${data.name || name}`;
+    const browsePath = this.systemFiles.currentPath
+      || (this.systemFiles.roots || []).find((r) => r.id === (data.rootId || "uploads"))?.path;
+    await this.browseSystemFiles(browsePath, { rootId: data.rootId || "uploads" });
+    if (data.path) this.systemFiles.selectedPaths = [data.path];
+  } catch (err) {
+    this.systemFiles.status = err.message || "Upload failed";
+  } finally {
+    this.systemFiles.loading = false;
+  }
+},
+async uploadSystemVideoFiles(fileList) {
+  const files = Array.from(fileList || []).filter((f) => f && f.size);
+  if (!files.length) return;
+  for (const file of files) {
+    await this.uploadSystemVideoFile(file);
+  }
+},
+async createSystemFolder() {
+  const name = String(this.systemFiles.newFolderName || '').trim();
+  if (!name) {
+    this.systemFiles.status = 'Enter a folder name';
+    return;
+  }
+  if (this.isCloudStorageRoot()) {
+    this.systemFiles.status = 'Cannot create folders on cloud storage';
+    return;
+  }
+  try {
+    const res = await fetch('/api/video-swarm/mkdir', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name,
+        path: this.systemFiles.currentPath,
+        rootId: this.systemFiles.rootId,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not create folder');
+    this.systemFiles.newFolderOpen = false;
+    this.systemFiles.newFolderName = '';
+    await this.browseSystemFiles(this.systemFiles.currentPath);
+    this.systemFiles.status = `Created folder “${name}”`;
+  } catch (err) {
+    this.systemFiles.status = err.message || 'Could not create folder';
   }
 },
 systemFilesSortApiKey(uiKey) {
@@ -4508,8 +4834,10 @@ async browseSystemFiles(targetPath, { rootId } = {}) {
     const activeRootId = rootId || this.systemFiles.rootId;
     const q = new URLSearchParams();
     if (targetPath) q.set('path', targetPath);
-    if (rootId || this.systemFiles.rootId) q.set('rootId', rootId || this.systemFiles.rootId);
-    if (this.systemFiles.recursive) q.set('recursive', '1');
+    if (activeRootId) q.set('rootId', activeRootId);
+    const videosOnly = this.systemFiles.viewMode === 'videos-only';
+    if (videosOnly) q.set('videosOnly', '1');
+    else if (this.systemFiles.recursive) q.set('recursive', '1');
     q.set('sort', this.systemFilesSortApiKey(this.systemFiles.sortKey));
     const res = await fetch(`/api/video-swarm/browse?${q.toString()}`);
     const data = await res.json();
@@ -4517,7 +4845,9 @@ async browseSystemFiles(targetPath, { rootId } = {}) {
     this.systemFiles.cloudSource = data.kind === 'cloud' ? (data.cloudSource || null) : null;
     this.systemFiles.currentPath = data.path || '';
     this.systemFiles.parent = data.parent || '';
-    this.systemFiles.folders = Array.isArray(data.folders) ? data.folders : [];
+    this.systemFiles.folders = videosOnly || data.kind === 'cloud'
+      ? []
+      : (Array.isArray(data.folders) ? data.folders : []);
     this.systemFiles.videos = Array.isArray(data.videos) ? data.videos : [];
     this.systemFiles.folderCount = Number.isFinite(Number(data.folderCount))
       ? Number(data.folderCount)
@@ -6005,6 +6335,10 @@ syncMotionPadFromPayload(payload) {
   if (angle != null && Number.isFinite(Number(angle))) {
     this.motionPadValues.look_x = this.clampVal(Number(angle), -1, 1);
   }
+  const tilt = payload.rotation_z ?? payload.tilt;
+  if (tilt != null && Number.isFinite(Number(tilt))) {
+    this.motionPadValues.rotation_z = Number(tilt);
+  }
 },
  updateParam(p, evt) {
    if (this.isParamLocked(p.key) && !this.isParamLockedByMe(p.key)) {
@@ -6332,36 +6666,6 @@ resetMotionToDefault() {
   this.motionPadValues.translation_z = 0;
   this.motionPadValues.zoom = 1;
   this.motionPadValues.rotation_z = 0;
-  this.motionPadValues.look_x = 0;
-  this.motionPadValues.look_y = 0;
-  const pan = this.liveHudParamByKey('panx');
-  const pany = this.liveHudParamByKey('pany');
-  if (pan) pan.val = 0;
-  if (pany) pany.val = 0;
-  const payload = this.isDeforumMotion2d
-    ? {
-        translation_x: 0,
-        translation_y: 0,
-        angle_2d: 0,
-        zoom_2d: 0,
-      }
-    : {
-        translation_x: 0,
-        translation_y: 0,
-        translation_z: 0,
-        zoom_2d: 0,
-        rotation_z: 0,
-        rotation_y: 0,
-      };
-  this.sendControl('liveParam', payload);
-  if (!this.deforumPlaying) this.schedulePreviewFrame();
-},
-resetMotionToDefault() {
-  this.motionSelectedPreset = 'Static';
-  this.motionPadValues.translation_x = 0;
-  this.motionPadValues.translation_y = 0;
-  this.motionPadValues.translation_z = 0;
-  this.motionPadValues.zoom = 0;
   this.motionPadValues.look_x = 0;
   this.motionPadValues.look_y = 0;
   const pan = this.liveHudParamByKey('panx');
@@ -8801,7 +9105,8 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  motionPadMouseDown(evt, padKind) {
    this.xyPad.dragging = true;
    this.xyPad.activePad = padKind;
-   this.updateMotionPad(evt, padKind);
+   this.xyPad.dragStartValues = this.captureMotionPadSnapshot();
+   this.updateMotionPad(evt, padKind, { previewOnly: this.motionSmoothnessActive() });
    evt.preventDefault();
  },
  motionPadMouseMove(evt, padKind) {
@@ -8810,8 +9115,13 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    evt.preventDefault();
  },
  motionPadMouseUp() {
+   const padKind = this.xyPad.activePad;
+   if (this.xyPad.dragging && padKind && this.motionSmoothnessActive()) {
+     this.commitMotionPadDrag(padKind);
+   }
    this.xyPad.dragging = false;
    this.xyPad.activePad = null;
+   this.xyPad.dragStartValues = null;
  },
  xyPadMouseDown(evt) {
    this.motionPadMouseDown(evt, 'move');
@@ -8822,7 +9132,7 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  xyPadMouseUp() {
    this.motionPadMouseUp();
  },
- updateMotionPad(evt, padKind) {
+ updateMotionPad(evt, padKind, opts = {}) {
    const pad = evt.currentTarget;
    const rect = pad.getBoundingClientRect();
    let clientX;
@@ -8840,12 +9150,15 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    const y = Math.max(0, Math.min(height, clientY - rect.top));
    const normX = this.clampVal((x / width) * 2 - 1, -1, 1);
    const normY = this.clampVal(1 - (y / height) * 2, -1, 1);
+   const previewOnly = !!opts.previewOnly;
    if (padKind === 'look') {
      this.motionPadValues.look_x = normX;
      this.motionPadValues.look_y = normY;
      this.motionPadValues.zoom = normY;
-     this.emitMotionLiveParam('angle_2d', normX);
-     this.emitMotionLiveParam('zoom_2d', normY);
+     if (!previewOnly) {
+       this.emitMotionLiveParam('angle_2d', normX);
+       this.emitMotionLiveParam('zoom_2d', normY);
+     }
    } else {
      const range = this.motionMovePadRange;
      const translation_x = normX * range;
@@ -8856,10 +9169,12 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
      const pany = this.liveHudParamByKey('pany');
      if (pan && range === 1) pan.val = translation_x;
      if (pany && range === 1) pany.val = translation_y;
-     this.emitMotionLiveParam('translation_x', translation_x);
-     this.emitMotionLiveParam('translation_y', translation_y);
+     if (!previewOnly) {
+       this.emitMotionLiveParam('translation_x', translation_x);
+       this.emitMotionLiveParam('translation_y', translation_y);
+     }
    }
-   if (!this.deforumPlaying) this.schedulePreviewFrame();
+   if (!previewOnly && !this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
  async refreshLoras() {
@@ -9443,7 +9758,11 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        this.liveDrawerOpen = s.liveDrawerOpen;
      }
      if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
-     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'RUNS') this.liveBottomDrawerTab = s.liveBottomDrawerTab;
+     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
+       this.liveBottomDrawerTab = s.liveBottomDrawerTab;
+     } else if (s.liveBottomDrawerTab === 'RUNS') {
+       this.liveBottomDrawerTab = 'SYSTEM';
+     }
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
@@ -9472,6 +9791,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         ...this.systemFiles,
         rootId: typeof sf.rootId === 'string' ? sf.rootId : this.systemFiles.rootId,
         recursive: typeof sf.recursive === 'boolean' ? sf.recursive : this.systemFiles.recursive,
+        viewMode: sf.viewMode === 'videos-only' ? 'videos-only' : 'browse',
         showFilenames: typeof sf.showFilenames === 'boolean' ? sf.showFilenames : this.systemFiles.showFilenames,
         sortKey: typeof sf.sortKey === 'string' ? sf.sortKey : this.systemFiles.sortKey,
         zoomLevel: Number.isFinite(Number(sf.zoomLevel)) ? sf.zoomLevel : this.systemFiles.zoomLevel,
@@ -9503,6 +9823,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
     }
+    if (typeof s.editorFreecutRoute === 'string') this.editorFreecutRoute = s.editorFreecutRoute;
+    if (typeof s.editorPendingImportPath === 'string') this.editorPendingImportPath = s.editorPendingImportPath;
+    if (typeof s.editorPendingImportRootId === 'string') this.editorPendingImportRootId = s.editorPendingImportRootId;
+    if (typeof s.editorPendingImportUrl === 'string') this.editorPendingImportUrl = s.editorPendingImportUrl;
     if (typeof s.runsAutoRefresh === 'boolean') this.runsAutoRefresh = s.runsAutoRefresh;
     if (Number.isFinite(Number(s.runsPollIntervalSec))) {
       this.runsPollIntervalSec = Math.max(2, Math.min(60, Number(s.runsPollIntervalSec)));
@@ -9550,30 +9874,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        }
      }
      if (s.prompts) Object.assign(this.prompts, s.prompts);
-    if (typeof s.activePromptStyleId === 'string' || s.activePromptStyleId === null) {
-      this.activePromptStyleId = s.activePromptStyleId;
-    }
-    if (typeof s.promptStyleAutoExample === 'boolean') {
-      this.promptStyleAutoExample = s.promptStyleAutoExample;
-    }
-    if (s.lcmEngine && typeof s.lcmEngine === 'object') {
-      this.lcmEngine = {
-        enabled: !!s.lcmEngine.enabled,
-        steps: Math.max(1, Math.round(Number(s.lcmEngine.steps) || DEFAULT_LCM_ENGINE.steps)),
-        loraTag: String(s.lcmEngine.loraTag || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
-      };
-      if (this.lcmEngine.enabled) this.applyLcmEngineToDeforum({ saveSession: false });
-    }
-    if (s.wanEngine && typeof s.wanEngine === 'object') {
-      this.wanEngine = normalizeWanEngine(s.wanEngine);
-    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
       this.motionSmoothness.frames = Number.isFinite(frames) ? Math.max(1, Math.min(999, frames)) : 1;
-    }
-    if (Number.isFinite(Number(s.seedFixedBackup)) && Number(s.seedFixedBackup) >= 0) {
-      this.seedFixedBackup = Number(s.seedFixedBackup);
     }
    } catch (_e) { /* ignore */ }
  },
@@ -9609,6 +9913,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       libraryFullscreen: this.libraryFullscreen,
       libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
+      editorFreecutRoute: this.editorFreecutRoute,
+      editorPendingImportPath: this.editorPendingImportPath,
+      editorPendingImportRootId: this.editorPendingImportRootId,
+      editorPendingImportUrl: this.editorPendingImportUrl,
       runsAutoRefresh: this.runsAutoRefresh,
       runsPollIntervalSec: this.runsPollIntervalSec,
        paramPanelOpen: this.paramPanelOpen,
@@ -9628,21 +9936,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumSettings: this.normalizedDeforumSettings(),
        lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
        prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
-      activePromptStyleId: this.activePromptStyleId,
-      promptStyleAutoExample: this.promptStyleAutoExample,
-      lcmEngine: {
-        enabled: !!(this.lcmEngine && this.lcmEngine.enabled),
-        steps: Math.max(1, Math.round(Number(this.lcmEngine && this.lcmEngine.steps) || 1)),
-        loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
-      },
-      wanEngine: normalizeWanEngine(this.wanEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
       },
-      seedFixedBackup: Number.isFinite(Number(this.seedFixedBackup)) && this.seedFixedBackup >= 0
-        ? this.seedFixedBackup
-        : null,
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
     window.localStorage.setItem(this.sessionStorageTouchedKey(), String(Date.now()));
@@ -9703,14 +10000,6 @@ getCurrentSessionSnapshotRaw() {
       deforumSettings: this.normalizedDeforumSettings(),
       lastModel: this.forge.lastModel || this.forge.currentModel || this.forge.selectedModel,
       prompts: { pos: this.prompts.pos, neg: this.prompts.neg },
-      activePromptStyleId: this.activePromptStyleId,
-      promptStyleAutoExample: this.promptStyleAutoExample,
-      lcmEngine: {
-        enabled: !!(this.lcmEngine && this.lcmEngine.enabled),
-        steps: Math.max(1, Math.round(Number(this.lcmEngine && this.lcmEngine.steps) || 1)),
-        loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
-      },
-      wanEngine: normalizeWanEngine(this.wanEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
