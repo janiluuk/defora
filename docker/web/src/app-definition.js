@@ -906,7 +906,7 @@ function modelSourceLabel(source) {
   if (source === 'placeholder') return 'Placeholder';
   return source || 'Unknown';
 }
-// --- inlined from lib/run-detail-json.mjs (ESM source; do not edit) ---
+// --- inlined from shared/run-detail-json.mjs (ESM source; do not edit) ---
 function parseScheduleConstant(raw) {
   if (raw == null) return undefined;
   if (typeof raw === 'number') return raw;
