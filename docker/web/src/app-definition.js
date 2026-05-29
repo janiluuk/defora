@@ -2064,6 +2064,7 @@ module.exports = {
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
         { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
+        { id: "EDITOR", label: "EDITOR", hint: "Cut", icon: "film" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
@@ -2879,6 +2880,12 @@ module.exports = {
         left: `${Number.isFinite(left) ? left : 0}px`,
         height: `${height}px`,
       };
+    },
+    canStartHlsWatch() {
+      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
+    },
+    showMainStageHls() {
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
     },
     canStartHlsWatch() {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;

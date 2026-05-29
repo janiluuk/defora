@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import { clickTab, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
+const expected = ['LIVE', 'STREAM', 'LIBRARY', 'EDITOR', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
