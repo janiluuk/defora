@@ -1,37 +1,6 @@
 <template>
   <div class="rack motion-view" data-testid="motion-controls-panel">
-    <div class="sub-pills motion-view__tabs stage-motion-tabs" data-testid="motion-view-tabs">
-      <button
-        type="button"
-        class="sub-pill"
-        :class="{ active: currentSubTab.MOTION === 'PERFORMANCE' }"
-        @click="switchSubTab('MOTION', 'PERFORMANCE')"
-      >
-        Performance
-      </button>
-      <button
-        type="button"
-        class="sub-pill"
-        :class="{ active: currentSubTab.MOTION === 'SEQUENCER' }"
-        @click="switchSubTab('MOTION', 'SEQUENCER')"
-      >
-        Sequencer
-      </button>
-    </div>
-
-    <EditorShell
-      v-if="currentSubTab.MOTION === 'SEQUENCER'"
-      title-accent="Motion"
-      title-rest="Sequencer"
-      subtitle="Keyframes, clips, markers, and Deforum schedule export"
-      :status="sequencerPlaying ? 'Playing timeline' : (sequencerStatus || performance.status || '')"
-      :status-live="sequencerPlaying"
-      test-id="motion-sequencer-editor-shell"
-    >
-      <SequencerControlsPanel :app="app" data-testid="motion-sequencer-editor" />
-    </EditorShell>
-
-    <div v-else class="framesync-panel motion-panel">
+    <div class="framesync-panel motion-panel">
       <div class="framesync-header">
         <div class="framesync-title">Motion <span class="framesync-accent">Performance</span></div>
         <div class="motion-panel__header-actions">
@@ -304,14 +273,12 @@
 
 <script>
 import UiIcon from '../UiIcon.vue'
-import EditorShell from '../EditorShell.vue'
-import SequencerControlsPanel from '../SequencerControlsPanel.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, EditorShell, SequencerControlsPanel, MotionPathPreview },
+  components: { UiIcon, MotionPathPreview },
   props: {
     app: { type: Object, required: true },
   },

@@ -416,6 +416,9 @@
       width: 100%;
       max-width: min(1400px, calc(100vw - 16px));
       margin: 0 auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
     }
     /* For full-screen video tabs, remove padding/gap so video fills the viewport */
     .layout--live,
@@ -625,7 +628,7 @@
       filter: none;
       transform: none;
     }
-    video { width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: contain; }
+    video { width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: cover; }
     .video-feed {
       position: absolute;
       inset: 0;
@@ -653,12 +656,12 @@
     }
     .video-feed--standby-preview {
       z-index: 2;
-      object-fit: contain;
+      object-fit: cover;
       background: var(--media-bg);
     }
     .video-feed--hls {
       z-index: 3;
-      object-fit: contain;
+      object-fit: cover;
       background: var(--media-bg);
     }
     .video-wrap--hls-and-preview .video-feed--standby-preview {
@@ -671,7 +674,7 @@
       left: 50%;
       right: 0;
     }
-    .video-still-preview { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: contain; }
+    .video-still-preview { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; display: block; background: var(--media-bg); object-fit: cover; }
     .overlay { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: space-between; padding: 10px 12px; background: linear-gradient(180deg, rgba(0,0,0,0.7), transparent); font-size: 13px; font-weight: 600; color: var(--media-text); }
     .video-feed-frames {
       margin-top: 4px;
@@ -5644,7 +5647,6 @@
 
     /* ── Stage sizing — video fills the full stage ── */
     .layout--sidebar .video-wrap--anchored {
-      aspect-ratio: auto;
       width: 100%;
       max-width: none;
       margin: 0;
@@ -5666,9 +5668,10 @@
       min-height: calc(100vh - var(--app-chrome-top));
       aspect-ratio: 16 / 9;
       overflow: hidden;
-      border-radius: 10px;
+      border-radius: 10px 10px 0 0;
       border: 1px solid rgba(255, 255, 255, 0.08);
-      background: radial-gradient(circle at 50% 35%, rgba(127, 119, 221, 0.18), transparent 40%), var(--media-bg);
+      border-bottom: none;
+      background: var(--media-bg);
     }
     /* panels are fixed overlays; top-dock no longer shrinks video */
     .preview--top-dock .video-wrap--anchored .video-wrap__stage {
@@ -5681,7 +5684,7 @@
       min-height: calc(100vh - var(--app-chrome-top));
     }
     .video-wrap--anchored .video-wrap__stage--preview {
-      max-width: min(960px, 100%);
+      max-width: 100%;
     }
     .video-wrap--anchored .video-wrap__stage--full {
       max-width: 100%;
@@ -5699,7 +5702,8 @@
       min-height: calc(100vh - var(--app-chrome-top));
     }
     .video-wrap--anchored .video-wrap__stage video,
-    .video-wrap--anchored .video-wrap__stage .video-still-preview {
+    .video-wrap--anchored .video-wrap__stage .video-still-preview,
+    .video-wrap--anchored .video-wrap__stage .video-feed {
       object-fit: cover;
     }
   .video-wrap--anchored .video-wrap__stage > .overlay {
@@ -7614,6 +7618,29 @@
       display: grid;
       gap: 10px;
       min-height: min(78vh, 900px);
+      grid-template-rows: auto 1fr;
+    }
+    .editor-workspace-shell__toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 0 2px 4px;
+    }
+    .editor-workspace-shell__status {
+      font-size: 11px;
+      color: var(--text-dim);
+      max-width: min(520px, 100%);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .editor-workspace-shell__status--live {
+      color: var(--live-text);
+    }
+    .editor-workspace-shell .editor-view {
+      min-height: 0;
     }
     .editor-view {
       display: grid;
