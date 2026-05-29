@@ -7,7 +7,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { openRunsMonitor, waitForNavTabs } from "./playwright-nav.mjs";
 
 async function dismissSessionModalIfOpen(page) {
   const modal = page.locator(".restore-session-modal");
@@ -15,12 +15,6 @@ async function dismissSessionModalIfOpen(page) {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10000 });
   }
-}
-
-async function openRunsMonitor(page) {
-  await clickTab(page, "SETTINGS");
-  await page.locator(".sub-pill").filter({ hasText: /^SYSTEM$/ }).first().click();
-  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
 }
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-e2e-runs-rt-"));
@@ -80,6 +74,8 @@ try {
     { timeout: 20000 },
   );
 
+  const logText = (await log.textContent()) || "";
+
   await page.locator('[data-testid="runs-browser-tab-past"]').click();
 
   const row = page
@@ -99,7 +95,6 @@ try {
 
   await row.waitFor({ state: "visible", timeout: 5000 });
 
-  const logText = (await log.textContent()) || "";
   if (!/Demo run (logged|started|completed|done)/i.test(logText)) {
     throw new Error(`Job log missing demo run entries: ${logText.slice(0, 400)}`);
   }

@@ -9,7 +9,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   return Buffer.from("defora-e2e-storage-mp4");
@@ -21,14 +21,6 @@ async function dismissSessionModalIfOpen(page) {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10000 });
   }
-}
-
-async function openLibraryBrowser(page) {
-  await clickTab(page, "LIBRARY");
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
-  const browserRoot = page.locator('.video-swarm-browser[data-testid="video-swarm-browser"]').first();
-  await browserRoot.waitFor({ state: "visible", timeout: 30000 });
-  return browserRoot;
 }
 
 async function selectRoot(browserRoot, rootId) {

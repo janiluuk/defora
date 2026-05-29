@@ -6,16 +6,7 @@ import os from 'os';
 import path from 'path';
 import { chromium } from 'playwright';
 import { start } from '../server.js';
-import { clickTab, waitForNavTabs } from './playwright-nav.mjs';
-
-async function ensureSidebarOpen(page) {
-  const toggle = page.locator('[data-testid="right-panel-toggle"]').first();
-  const expanded = await toggle.getAttribute('aria-expanded');
-  if (expanded !== 'true') {
-    await toggle.click();
-    await page.waitForTimeout(400);
-  }
-}
+import { clickTab, ensureRightPanelOpen, openLibraryBrowser, waitForNavTabs } from './playwright-nav.mjs';
 
 async function dismissSessionModalIfOpen(page) {
   const modal = page.locator('.restore-session-modal');
@@ -64,9 +55,7 @@ try {
   await dismissSessionModalIfOpen(page);
   await waitForNavTabs(page);
 
-  await clickTab(page, 'LIBRARY');
-  await ensureSidebarOpen(page);
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
+  await openLibraryBrowser(page);
   const rootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
   await rootSelect.selectOption({ value: 'uploads' });
   await page.waitForTimeout(600);
@@ -89,7 +78,7 @@ try {
   }
 
   await clickTab(page, 'MOTION');
-  await ensureSidebarOpen(page);
+  await ensureRightPanelOpen(page);
   await page.waitForSelector('[data-testid="motion-controls-panel"]', { timeout: 15000 });
   await page.locator('[data-testid="motion-sequencer-side-toggle"]').click();
   await page.waitForSelector('[data-testid="motion-sequencer-side-drawer"]', { timeout: 15000 });

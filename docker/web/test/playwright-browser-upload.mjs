@@ -6,7 +6,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
 import { start } from "../server.js";
-import { clickTab, waitForNavTabs } from "./playwright-nav.mjs";
+import { openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../..");
@@ -93,9 +93,7 @@ try {
   await dismissSessionModalIfOpen(page);
   await waitForNavTabs(page);
 
-  await clickTab(page, "LIBRARY");
-  const browserRoot = page.locator('[data-testid="video-swarm-browser"]').first();
-  await browserRoot.waitFor({ state: "visible", timeout: 30000 });
+  const browserRoot = await openLibraryBrowser(page);
 
   const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();
   await rootSelect.selectOption({ value: "uploads" });

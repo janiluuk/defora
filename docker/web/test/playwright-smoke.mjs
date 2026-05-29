@@ -3,7 +3,7 @@
  * Usage: BASE_URL=http://127.0.0.1:3999 node test/playwright-smoke.mjs
  */
 import { chromium } from 'playwright';
-import { clickTab, getTabLabels, waitForNavTabs } from './playwright-nav.mjs';
+import { clickTab, getTabLabels, openLibraryBrowser, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
 const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
@@ -48,7 +48,7 @@ try {
   if ((await audioReactivePanel.count()) === 0) {
     throw new Error('Audio reactive panel not found under MODULATION -> Reactive');
   }
-  await clickTab(page, 'LIBRARY');
+  await openLibraryBrowser(page);
   await page.waitForTimeout(300);
   const storageBrowser = page.locator('.library-storage-browser');
   if ((await storageBrowser.count()) === 0) {
