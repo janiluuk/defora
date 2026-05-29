@@ -11,6 +11,7 @@ const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
 const { resolveStoragePaths } = require("./modules/storage-paths");
+const promptStylesStore = require("./modules/prompt-styles-store");
 
 async function start(opts = {}) {
   const port = opts.port ?? process.env.PORT ?? 3000;
@@ -18,6 +19,7 @@ async function start(opts = {}) {
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
   const queue = opts.queue || process.env.CONTROL_QUEUE || "controls";
   const storage = resolveStoragePaths(opts);
+  const webRoot = storage.webRoot;
   const framesDir = storage.framesDir;
   const runsDir = storage.runsDir;
   const uploadsDir = storage.uploadsDir;
@@ -1112,6 +1114,11 @@ async function start(opts = {}) {
   } catch (_e) {}
 
   app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
+  await promptStylesStore.ensurePromptStylesStore(webRoot);
+  app.use(
+    "/style-examples",
+    express.static(promptStylesStore.examplesDir(webRoot), { maxAge: "3600s" }),
+  );
 
   async function resolveStandbyPreviewPath() {
     const candidates = [
@@ -2012,6 +2019,129 @@ async function start(opts = {}) {
     } catch (err) {
       console.error("[api] deforum settings save error", err);
       res.status(500).json({ error: "could not save deforum settings" });
+    }
+  });
+
+  app.get("/api/prompt-styles", async (_req, res) => {
+    try {
+      const styles = await promptStylesStore.readStyles(webRoot);
+      res.json({ styles, count: styles.length });
+    } catch (err) {
+      console.error("[api] prompt-styles list error", err);
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.post("/api/prompt-styles/import-forge", async (req, res) => {
+    const body = req.body || {};
+    const forgeUrl =
+      String(body.forgeUrl || "").trim()
+      || previewForgeTarget(req)?.url
+      || process.env.FORGE_URL
+      || "http://127.0.0.1:7860";
+    try {
+      const result = await promptStylesStore.importFromForge(forgeUrl, webRoot, {
+        merge: body.replace !== true,
+      });
+      const styles = await promptStylesStore.readStyles(webRoot);
+      res.json({ ok: true, forgeUrl, ...result, styles });
+    } catch (err) {
+      console.error("[api] prompt-styles import error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.post("/api/prompt-styles", async (req, res) => {
+    const { name, positive, negative } = req.body || {};
+    if (!String(name || "").trim()) {
+      return res.status(400).json({ error: "name required" });
+    }
+    try {
+      const styles = await promptStylesStore.readStyles(webRoot);
+      const id = promptStylesStore.dedupeStyleIds([
+        {
+          id: String(req.body?.id || "").trim() || undefined,
+          name: String(name).trim(),
+          positive: String(positive || "").trim(),
+          negative: String(negative || "").trim(),
+          source: "custom",
+          exampleImage: null,
+          updatedAt: new Date().toISOString(),
+        },
+      ])[0].id;
+      if (styles.some((style) => style.id === id)) {
+        return res.status(409).json({ error: "style id already exists" });
+      }
+      styles.push({
+        id,
+        name: String(name).trim(),
+        positive: String(positive || "").trim(),
+        negative: String(negative || "").trim(),
+        source: "custom",
+        exampleImage: null,
+        updatedAt: new Date().toISOString(),
+      });
+      const saved = await promptStylesStore.writeStyles(webRoot, styles);
+      const style = saved.find((entry) => entry.id === id);
+      res.json({ ok: true, style });
+    } catch (err) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.put("/api/prompt-styles/:id", async (req, res) => {
+    const id = String(req.params.id || "").trim();
+    if (!id) return res.status(400).json({ error: "id required" });
+    const { name, positive, negative } = req.body || {};
+    try {
+      const styles = await promptStylesStore.readStyles(webRoot);
+      const idx = styles.findIndex((style) => style.id === id);
+      if (idx < 0) return res.status(404).json({ error: "style not found" });
+      if (name != null) styles[idx].name = String(name).trim() || styles[idx].name;
+      if (positive != null) styles[idx].positive = String(positive).trim();
+      if (negative != null) styles[idx].negative = String(negative).trim();
+      styles[idx].updatedAt = new Date().toISOString();
+      const saved = await promptStylesStore.writeStyles(webRoot, styles);
+      res.json({ ok: true, style: saved.find((entry) => entry.id === id) });
+    } catch (err) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.delete("/api/prompt-styles/:id", async (req, res) => {
+    const id = String(req.params.id || "").trim();
+    try {
+      const styles = (await promptStylesStore.readStyles(webRoot)).filter((style) => style.id !== id);
+      if (styles.length === (await promptStylesStore.readStyles(webRoot)).length) {
+        return res.status(404).json({ error: "style not found" });
+      }
+      await promptStylesStore.clearStyleExample(webRoot, id).catch(() => null);
+      await promptStylesStore.writeStyles(webRoot, styles);
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.post("/api/prompt-styles/:id/example", async (req, res) => {
+    const id = String(req.params.id || "").trim();
+    const sourcePath = String((req.body || {}).path || "").trim();
+    if (!sourcePath) return res.status(400).json({ error: "path required" });
+    try {
+      const style = await promptStylesStore.setStyleExampleFromPath(webRoot, id, sourcePath, uploadsDir);
+      res.json({ ok: true, style });
+    } catch (err) {
+      res.status(400).json({ error: String(err.message || err) });
+    }
+  });
+
+  app.delete("/api/prompt-styles/:id/example", async (req, res) => {
+    const id = String(req.params.id || "").trim();
+    try {
+      const style = await promptStylesStore.clearStyleExample(webRoot, id);
+      res.json({ ok: true, style });
+    } catch (err) {
+      res.status(400).json({ error: String(err.message || err) });
     }
   });
 
@@ -3028,23 +3158,54 @@ async function start(opts = {}) {
     if (!nextModel) {
       throw new Error("model_name is required");
     }
-    const sync = await applyForgeOptionsAcrossTargets(
-      { sd_model_checkpoint: nextModel },
-      30000
-    );
+    const existing = gpuPool.findNodeWithModel(nextModel);
+    if (existing && gpuPool.modelsMatch(existing.currentModel || existing.model, nextModel)) {
+      apiStatus.currentModel = {
+        model_name: nextModel,
+        title: nextModel,
+        metadata: extractModelMetadata({ model_name: nextModel, title: nextModel }),
+      };
+      console.log(`[sd-models] Model already on ${existing.name}: ${nextModel}`);
+      broadcast({
+        type: "sd_model",
+        action: "switched",
+        model: apiStatus.currentModel,
+        skipped: true,
+        node: { id: existing.id, name: existing.name },
+      });
+      return {
+        success: true,
+        skipped: true,
+        message: `Already loaded on ${existing.name}`,
+        model: apiStatus.currentModel,
+        node: { id: existing.id, name: existing.name, url: existing.url },
+      };
+    }
+    const target = gpuPool.selectPreloadNode(nextModel);
+    if (!target) {
+      throw new Error("No Forge node available to switch model");
+    }
+    const switchResult = await gpuPool.setForgeModelOnNode(target, nextModel);
+    if (!switchResult.ok) {
+      throw new Error(switchResult.error || `Failed to switch model on ${target.name}`);
+    }
     apiStatus.currentModel = {
       model_name: nextModel,
       title: nextModel,
       metadata: extractModelMetadata({ model_name: nextModel, title: nextModel }),
     };
-    console.log(`[sd-models] Switched to model across ${sync.successes} node(s): ${nextModel}`);
-    broadcast({ type: "sd_model", action: "switched", model: apiStatus.currentModel, sync });
+    console.log(`[sd-models] Switched to model on ${target.name}: ${nextModel}`);
+    broadcast({
+      type: "sd_model",
+      action: "switched",
+      model: apiStatus.currentModel,
+      node: { id: target.id, name: target.name },
+    });
     return {
       success: true,
-      partial: sync.partial,
-      message: `Switched to ${nextModel}`,
+      message: `Switched to ${nextModel} on ${target.name}`,
       model: apiStatus.currentModel,
-      sync,
+      node: { id: target.id, name: target.name, url: target.url },
     };
   }
 

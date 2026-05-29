@@ -20,12 +20,34 @@
     </div>
 
     <template v-if="currentSubTab.LIVE === 'MONITOR'">
+    <div
+      v-if="showFrameProcessingInChrome"
+      class="live-frame-processing-banner"
+      data-testid="live-frame-processing-banner"
+      aria-live="polite"
+    >
+      <span class="lazy-loading-indicator lazy-loading-indicator--inline">
+        <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+        <span>{{ frameProcessingLabel }}</span>
+        <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+      </span>
+      <span class="live-frame-processing-banner__hint">{{ frameProcessingHint }}</span>
+    </div>
     <div class="rack performance-deck">
       <div class="framesync-panel">
         <div class="framesync-header">
           <div class="framesync-title">
             <UiIcon class="framesync-title-icon" name="film" />
             <span class="framesync-accent">Animation Engine</span>
+            <span
+              v-if="lcmEngineEnabled"
+              class="lcm-engine-badge"
+              data-testid="lcm-engine-badge"
+              title="LCM Engine mode — fast steps with LCM LoRA"
+            >
+              <UiIcon class="lcm-engine-badge__icon" name="lightning" />
+              LCM
+            </span>
           </div>
           <button
             type="button"
@@ -38,112 +60,58 @@
           </button>
         </div>
 
-        <div v-if="!liveAnimationBoxOpen" class="live-animation-summary" data-testid="live-animation-summary">
-          <div class="framesync-subtitle" style="margin:0;">Layers</div>
-          <div class="chips">
+        <div
+          class="animation-engine-current"
+          :class="{ 'animation-engine-current--compact': !liveAnimationBoxOpen }"
+          data-testid="animation-engine-current"
+        >
+          <span class="animation-engine-current__badge" aria-hidden="true">Active engine</span>
+          <div class="animation-engine-current__body">
+            <span
+              class="animation-engine-current__dot"
+              :class="'animation-engine-current__dot--' + (activeVideoLayer ? layerStatus(activeVideoLayer) : 'red')"
+              aria-hidden="true"
+            ></span>
+            <div class="animation-engine-current__copy">
+              <div class="animation-engine-current__title">{{ activeVideoLayer?.label || '—' }}</div>
+              <div class="animation-engine-current__meta">{{ animationLayerDescription(activeVideoLayer) }}</div>
+              <div class="animation-engine-current__status">{{ videoLayerStatusLabel }}</div>
+            </div>
+          </div>
+        </div>
+
+        <div
+          v-if="!liveAnimationBoxOpen"
+          class="live-animation-summary"
+          data-testid="live-animation-summary"
+        >
+          <div class="animation-engine-picker animation-engine-picker--compact">
             <button
               v-for="layer in videoLayers.filter((l) => l && l.builtin)"
               :key="'anim-layer-summary-' + layer.id"
               type="button"
-              class="chip"
-              :class="{ active: activeVideoLayerId === layer.id }"
-              style="display:inline-flex; align-items:center; gap:6px;"
+              class="animation-engine-card animation-engine-card--compact"
+              :class="{ 'animation-engine-card--active': activeVideoLayerId === layer.id }"
+              :aria-pressed="activeVideoLayerId === layer.id ? 'true' : 'false'"
               @click="selectVideoLayer(layer.id)"
             >
               <span
-                style="width:8px;height:8px;border-radius:999px;display:inline-block;"
-                :style="{
-                  background: layerStatus(layer) === 'green' ? 'var(--live)' : layerStatus(layer) === 'yellow' ? 'var(--warn)' : 'var(--error)'
-                }"
+                class="animation-engine-card__dot"
+                :class="'animation-engine-card__dot--' + layerStatus(layer)"
                 aria-hidden="true"
               ></span>
-              {{ layer.label }}
+              <span class="animation-engine-card__label">{{ layer.label }}</span>
             </button>
-          </div>
-          <div class="framesync-subtitle" style="margin:0;margin-top:6px;">
-            WebGL mode: <strong>{{ defaultAnimation.mode }}</strong>
           </div>
         </div>
 
         <template v-else>
-          <div class="framesync-stack" style="margin-top:10px;">
-            <div class="framesync-subtitle">Video layers</div>
-            <div class="video-layer-tabs video-layer-tabs--engine" data-testid="video-layer-tabs-engine">
-              <div class="video-layer-tabs__transport" data-testid="live-transport-top">
-                <button class="control-btn control-btn--top" :class="{playing: deforumPlaying}" @click="toggleDeforumPlay" data-testid="deforum-play">
-                  <UiIcon class="control-btn__icon" :name="deforumPlaying ? 'pause' : 'play'" />
-                  <span>{{ deforumPlaying ? 'Pause' : 'Play' }}</span>
-                </button>
-                <button
-                  class="control-btn control-btn--top control-btn--frame"
-                  :class="{ 'control-btn--loading': previewGenerating }"
-                  @click="generatePreviewFrame"
-                  :disabled="previewGenerating || deforumPlaying"
-                  data-testid="preview-frame"
-                >
-                  <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
-                    <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-                    <span>Frame</span>
-                    <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
-                  </span>
-                  <template v-else>
-                    <UiIcon class="control-btn__icon" name="image" />
-                    <span>Frame</span>
-                  </template>
-                </button>
-                <button class="control-btn control-btn--top control-btn--record" :class="{recording: isRecording}" @click="toggleStreamRecord" data-testid="stream-record">
-                  <UiIcon class="control-btn__icon" :name="isRecording ? 'stop' : 'record'" />
-                  <span>{{ isRecording ? 'Stop Rec' : 'Record' }}</span>
-                </button>
-                <span class="perf-mode-badge" :class="deforumPlaying ? 'mode-animate' : 'mode-preview'">
-                  {{ deforumPlaying ? 'Animating' : 'Preview' }}
-                </span>
-              </div>
-
-              <div
-                v-for="layer in videoLayers"
-                :key="'video-layer-' + layer.id"
-                role="button"
-                tabindex="0"
-                class="video-layer-tab"
-                :class="{
-                  active: activeVideoLayerId === layer.id,
-                  'video-layer-tab--builtin': layer.builtin,
-                }"
-                @click="selectVideoLayer(layer.id)"
-                @keyup.enter="selectVideoLayer(layer.id)"
-              >
-                <span
-                  class="video-layer-tab__dot"
-                  :class="[
-                    'video-layer-tab__dot--' + layerStatus(layer),
-                    { active: activeVideoLayerId === layer.id },
-                  ]"
-                  aria-hidden="true"
-                ></span>
-                <span class="video-layer-tab__label">{{ layer.label }}</span>
-                <button
-                  v-if="!layer.builtin"
-                  type="button"
-                  class="video-layer-tab__close"
-                  title="Remove layer"
-                  @click.stop="closeVideoLayer(layer.id)"
-                >
-                  ×
-                </button>
-              </div>
+          <div class="framesync-stack animation-engine-expanded" style="margin-top:10px;">
+            <div class="animation-engine-picker__toolbar">
+              <div class="framesync-subtitle" style="margin:0;">Preview source</div>
               <button
                 type="button"
-                class="video-layer-tab video-layer-tab--add"
-                :class="{ active: videoLayerAddOpen }"
-                data-testid="video-layer-add-toggle"
-                @click="toggleVideoLayerAdd"
-              >
-                + Add source
-              </button>
-              <button
-                type="button"
-                class="video-layer-tab video-layer-tab--size"
+                class="framesync-button framesync-button--compact animation-engine-picker__size"
                 :title="videoStageSize === 'small' ? 'Small stage' : videoStageSize === 'medium' ? 'Medium stage' : 'Full stage'"
                 @click="toggleVideoStageSize()"
               >
@@ -151,6 +119,53 @@
                   :name="videoStageSize === 'small' ? 'size-small' : videoStageSize === 'medium' ? 'size-medium' : 'size-full'"
                   aria-hidden="true"
                 />
+                Stage size
+              </button>
+            </div>
+            <div class="animation-engine-picker" data-testid="animation-engine-picker">
+              <button
+                v-for="layer in videoLayers"
+                :key="'animation-engine-' + layer.id"
+                type="button"
+                class="animation-engine-card"
+                :class="{
+                  'animation-engine-card--active': activeVideoLayerId === layer.id,
+                  'animation-engine-card--builtin': layer.builtin,
+                  'animation-engine-card--wan': layer.kind === 'wan',
+                }"
+                :aria-pressed="activeVideoLayerId === layer.id ? 'true' : 'false'"
+                :data-testid="'animation-engine-' + layer.id"
+                @click="selectVideoLayer(layer.id)"
+              >
+                <span
+                  class="animation-engine-card__dot"
+                  :class="'animation-engine-card__dot--' + layerStatus(layer)"
+                  aria-hidden="true"
+                ></span>
+                <span class="animation-engine-card__label">{{ layer.label }}</span>
+                <span class="animation-engine-card__hint">{{ animationLayerDescription(layer) }}</span>
+                <span
+                  v-if="activeVideoLayerId === layer.id"
+                  class="animation-engine-card__active-tag"
+                >Selected</span>
+                <button
+                  v-if="!layer.builtin"
+                  type="button"
+                  class="animation-engine-card__close"
+                  title="Remove layer"
+                  @click.stop="closeVideoLayer(layer.id)"
+                >
+                  ×
+                </button>
+              </button>
+              <button
+                type="button"
+                class="animation-engine-card animation-engine-card--add"
+                :class="{ 'animation-engine-card--active': videoLayerAddOpen }"
+                data-testid="video-layer-add-toggle"
+                @click="toggleVideoLayerAdd"
+              >
+                <span class="animation-engine-card__label">+ Add source</span>
               </button>
             </div>
           </div>
@@ -169,7 +184,7 @@
               <button type="button" class="framesync-button framesync-button--compact" @click="toggleVideoLayerAdd(false)">Close</button>
             </div>
             <p class="framesync-subtitle video-layer-add__hint">
-              New sources open as preview tabs. Built-in layers: WebGL, Deforum, and Input.
+              New sources open as preview tabs. Built-in layers: WebGL, Deforum, WAN Video, and Input.
             </p>
             <div class="chips video-layer-add__mode">
               <button
@@ -204,6 +219,58 @@
               <div class="framesync-footer" style="margin-top:8px;">
                 <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
               </div>
+            </div>
+          </div>
+          <div v-if="isWanLayerActive" class="wan-engine-controls" data-testid="wan-engine-controls">
+            <div class="framesync-subtitle" style="margin-top:10px;">WAN Video · steer generation</div>
+            <p class="framesync-subtitle wan-engine-controls__hint">
+              Uses Deforum <code>animation_mode: Wan Video</code> on the Forge node (vimage5+). Prompts come from the Prompts tab / keyframe schedule.
+            </p>
+            <div class="wan-engine-controls__grid">
+              <template v-for="field in wanEngineControlFields" :key="'wan-field-' + field.key">
+                <div v-if="field.type === 'boolean'" class="wan-engine-controls__toggle">
+                  <label>
+                    <input
+                      type="checkbox"
+                      :checked="!!wanEngine[field.key]"
+                      :data-testid="'wan-field-' + field.key"
+                      @change="onWanEngineFieldChange(field.key, $event.target.checked, 'boolean')"
+                    >
+                    <span>{{ field.label }}</span>
+                  </label>
+                </div>
+                <div v-else class="framesync-stack wan-engine-controls__field">
+                  <div class="framesync-subtitle">{{ field.label }}</div>
+                  <select
+                    v-if="field.type === 'select'"
+                    class="framesync-select"
+                    :data-testid="'wan-field-' + field.key"
+                    :value="wanEngine[field.key]"
+                    @change="onWanEngineFieldChange(field.key, $event.target.value, 'select')"
+                  >
+                    <option v-for="opt in field.options" :key="field.key + '-' + opt" :value="opt">{{ opt }}</option>
+                  </select>
+                  <input
+                    v-else-if="field.type === 'number'"
+                    type="number"
+                    class="framesync-input"
+                    :data-testid="'wan-field-' + field.key"
+                    :min="field.min"
+                    :max="field.max"
+                    :step="field.step"
+                    :value="wanEngine[field.key]"
+                    @input="onWanEngineFieldChange(field.key, $event.target.value, 'number')"
+                  >
+                  <input
+                    v-else
+                    type="text"
+                    class="framesync-input"
+                    :data-testid="'wan-field-' + field.key"
+                    :value="wanEngine[field.key]"
+                    @input="onWanEngineFieldChange(field.key, $event.target.value, 'text')"
+                  >
+                </div>
+              </template>
             </div>
           </div>
           <div v-if="isWebglLayerActive">
@@ -470,7 +537,7 @@
             <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add</button>
           </div>
 
-          <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
+          <div v-if="!performance.slots.length" class="crossfade-empty">Add prompts, styles, parameters, LoRAs, or ControlNet values on side A and/or B.</div>
 
           <div v-for="slot in performance.slots" :key="slot.id" class="crossfade-slot-row">
             <div class="crossfade-side crossfade-side-a">
@@ -483,6 +550,12 @@
                   <option v-for="t in modulationTargets" :key="'a-'+slot.id+t.key" :value="t.key">{{ t.label }}</option>
                 </select>
                 <input type="number" class="framesync-input" v-model.number="slot.valueA" step="any" placeholder="Value A" @input="onPerformanceInput">
+              </template>
+              <template v-else-if="slot.type === 'style'">
+                <select class="framesync-select" v-model="slot.valueA" data-testid="crossfade-style-a" @change="onPerformanceInput">
+                  <option :value="null">— none —</option>
+                  <option v-for="style in promptStyles" :key="'style-a-'+slot.id+style.id" :value="style.id">{{ style.name }}</option>
+                </select>
               </template>
               <template v-else-if="slot.type === 'lora'">
                 <select class="framesync-select" v-model="slot.valueA" @change="onPerformanceInput">
@@ -511,6 +584,12 @@
               </template>
               <template v-else-if="slot.type === 'param'">
                 <input type="number" class="framesync-input" v-model.number="slot.valueB" step="any" placeholder="Value B" @input="onPerformanceInput">
+              </template>
+              <template v-else-if="slot.type === 'style'">
+                <select class="framesync-select" v-model="slot.valueB" data-testid="crossfade-style-b" @change="onPerformanceInput">
+                  <option :value="null">— none —</option>
+                  <option v-for="style in promptStyles" :key="'style-b-'+slot.id+style.id" :value="style.id">{{ style.name }}</option>
+                </select>
               </template>
               <template v-else-if="slot.type === 'lora'">
                 <select class="framesync-select" v-model="slot.valueB" @change="onPerformanceInput">
@@ -706,13 +785,45 @@
         </p>
 
         <div v-else class="deforum-settings-groups">
+          <div
+            class="deforum-mode-toggle"
+            role="group"
+            aria-label="Deforum animation mode"
+            data-testid="deforum-mode-toggle"
+          >
+            <button
+              type="button"
+              class="deforum-mode-toggle__btn"
+              :class="{ active: deforumMode2d3d === '2D' }"
+              data-testid="deforum-mode-2d"
+              @click="setDeforumMode2d3d('2D')"
+            >
+              2D
+            </button>
+            <button
+              type="button"
+              class="deforum-mode-toggle__btn"
+              :class="{ active: deforumMode2d3d === '3D' }"
+              data-testid="deforum-mode-3d"
+              @click="setDeforumMode2d3d('3D')"
+            >
+              3D
+            </button>
+          </div>
+          <p v-if="!deforumMode3dActive" class="deforum-mode-toggle__hint">
+            3D motion schedules are disabled in 2D mode.
+          </p>
           <div class="sub-pills deforum-settings-tabs">
             <button
               v-for="group in deforumFieldGroups"
               :key="'deforum-tab-' + group.id"
               type="button"
               class="sub-pill"
-              :class="{ active: deforumActiveTab === group.id }"
+              :class="{
+                active: deforumActiveTab === group.id,
+                'sub-pill--disabled': isDeforumFieldGroupDisabledByAnimationMode(group.id),
+              }"
+              :disabled="isDeforumFieldGroupDisabledByAnimationMode(group.id)"
               @click="deforumActiveTab = group.id; saveSessionState()"
             >
               {{ group.label }}
@@ -721,7 +832,7 @@
 
           <div v-if="activeDeforumFieldGroup" class="framesync-panel deforum-settings-panel">
             <MotionPathPreview
-              v-if="deforumActiveTab === 'motion' || deforumActiveTab === 'motion3d'"
+              v-if="deforumMode3dActive && (deforumActiveTab === 'motion' || deforumActiveTab === 'motion3d')"
               :deforum-settings="deforumSettings"
               :motion-values="{}"
               :prefer-live-values="false"
@@ -733,7 +844,10 @@
                   class="deforum-field"
                   :class="[
                     'deforum-field-' + (field.type || 'text'),
-                    { 'deforum-field--disabled': !isDeforumFieldEnabled(field.key) }
+                    {
+                      'deforum-field--disabled': !isDeforumFieldEnabled(field.key),
+                      'deforum-field--mode-locked': isDeforumFieldDisabledByAnimationMode(field.key),
+                    }
                   ]"
                 >
                   <span class="deforum-field-head">
@@ -778,10 +892,36 @@
                       {{ opt }}
                     </option>
                   </select>
+                  <div v-else-if="field.key === 'seed'" class="deforum-seed-control" data-testid="deforum-seed-control">
+                    <button
+                      type="button"
+                      class="chip chip--compact"
+                      :class="{ active: seedRandomEnabled }"
+                      :disabled="!isDeforumFieldEnabled(field.key)"
+                      data-testid="seed-random-toggle"
+                      @click="setSeedRandomEnabled(!seedRandomEnabled)"
+                    >
+                      Random
+                    </button>
+                    <input
+                      v-if="!seedRandomEnabled"
+                      type="number"
+                      class="framesync-input deforum-seed-control__input"
+                      data-testid="deforum-field-seed"
+                      min="0"
+                      :max="field.max"
+                      :step="field.step || 1"
+                      :value="getDeforumField(field.key)"
+                      :disabled="!isDeforumFieldEnabled(field.key)"
+                      @input="onDeforumSeedInput($event.target.value)"
+                    />
+                    <span v-else class="deforum-seed-control__hint">Random (−1)</span>
+                  </div>
                   <input
                     v-else-if="field.type === 'number'"
                     type="number"
                     class="framesync-input"
+                    :data-testid="'deforum-field-' + field.key"
                     :min="field.min"
                     :max="field.max"
                     :step="field.step || 1"

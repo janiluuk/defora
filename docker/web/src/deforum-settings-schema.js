@@ -52,7 +52,7 @@ export const DEFORUM_DEFAULT_SETTINGS = {
   negative_prompts:
     'star, star shape, watermark, signature, dreamstime, logo, writing, text, poster element, year, number, date, label, vignette, glow, symbol, alphabet, number, freepik, blurry, low quality, ugly',
   fps: 24,
-  sd_model_name: 'SDXL_sdxl_lightning_2step',
+  sd_model_name: 'SDXL/sd_xl_turbo_1.0_fp16.safetensors',
   skip_video_creation: true,
   cn_1_enabled: false,
   cn_1_weight: '0:(2)',
@@ -147,8 +147,8 @@ export const DEFORUM_FIELD_GROUPS = [
     id: 'canvas',
     label: 'Canvas',
     fields: [
-      { key: 'W', label: 'Width', type: 'slider', min: 256, max: 4096, step: 64 },
-      { key: 'H', label: 'Height', type: 'slider', min: 256, max: 4096, step: 64 },
+      { key: 'W', label: 'Width', type: 'number', min: 256, max: 4096, step: 64 },
+      { key: 'H', label: 'Height', type: 'number', min: 256, max: 4096, step: 64 },
       { key: 'fps', label: 'FPS', type: 'select', options: ['8', '12', '24', '30'] },
       { key: 'max_frames', label: 'Max frames', type: 'number', min: 1, max: 99999, step: 1 },
       { key: 'batch_name', label: 'Batch name', type: 'text' },
@@ -187,7 +187,6 @@ export const DEFORUM_FIELD_GROUPS = [
     id: 'motion',
     label: 'Motion 2D',
     fields: [
-      { key: 'animation_mode', label: 'Mode', type: 'text' },
       { key: 'zoom', label: 'Zoom schedule', type: 'text' },
       { key: 'translation_x', label: 'Pan X schedule', type: 'text' },
       { key: 'translation_y', label: 'Pan Y schedule', type: 'text' },
@@ -236,6 +235,25 @@ export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
 );
 
 /** Engine fields that should stay editable without schedule on/off toggles. */
+/** Schedules ignored in 2D animation_mode (see deforum-settings-verify). */
+export const DEFORUM_3D_ONLY_FIELD_KEYS = new Set([
+  'translation_z',
+  'rotation_3d_x',
+  'rotation_3d_y',
+  'rotation_3d_z',
+]);
+
+export const DEFORUM_MOTION_3D_GROUP_ID = 'motion3d';
+
+export function normalizeDeforumMode2d3d(animationMode) {
+  const mode = String(animationMode || '2D').trim().toUpperCase();
+  return mode === '3D' ? '3D' : '2D';
+}
+
+export function isDeforum3dOnlyFieldKey(keyPath) {
+  return DEFORUM_3D_ONLY_FIELD_KEYS.has(keyPath);
+}
+
 export const DEFORUM_NON_TOGGLEABLE_KEYS = new Set([
   'sampler',
   'scheduler',

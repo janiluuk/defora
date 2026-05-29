@@ -66,6 +66,26 @@ export function morphLoraSlot(a, b, t) {
   return { name: pb.name, strength: (pb.strength ?? 1) * ((st - 0.5) * 2) };
 }
 
+/** Morph Forge-style positive/negative append pairs (style A → style B). */
+export function morphStyleModifiers(styleA, styleB, t) {
+  const norm = (s) => {
+    if (!s || typeof s !== "object") return { positive: "", negative: "" };
+    return {
+      positive: String(s.positive ?? "").trim(),
+      negative: String(s.negative ?? "").trim(),
+    };
+  };
+  const a = norm(styleA);
+  const b = norm(styleB);
+  if (!a.positive && !a.negative && !b.positive && !b.negative) {
+    return { positive: "", negative: "" };
+  }
+  return {
+    positive: morphPrompt(a.positive, b.positive, t) || "",
+    negative: morphPrompt(a.negative, b.negative, t) || "",
+  };
+}
+
 export function morphControlNetSlot(a, b, t) {
   const st = smoothstep(t);
   const norm = (v) => {
@@ -108,6 +128,11 @@ export function morphSlotValue(slot, t) {
       return morphLoraSlot(slot.valueA, slot.valueB, st);
     case "controlnet":
       return morphControlNetSlot(slot.valueA, slot.valueB, st);
+    case "style": {
+      const out = morphStyleModifiers(slot.valueA, slot.valueB, st);
+      if (!out.positive && !out.negative) return null;
+      return out;
+    }
     default:
       return lerpNum(slot.valueA, slot.valueB, st);
   }
@@ -115,6 +140,7 @@ export function morphSlotValue(slot, t) {
 
 export const CROSSFADE_SLOT_TYPES = [
   { id: "prompt", label: "Prompt" },
+  { id: "style", label: "Style" },
   { id: "param", label: "Parameter" },
   { id: "lora", label: "LoRA" },
   { id: "controlnet", label: "ControlNet" },

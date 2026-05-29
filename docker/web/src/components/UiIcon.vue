@@ -46,6 +46,9 @@
       <path d="M5 8H19" stroke="currentColor" stroke-width="1.5" />
       <path d="M5 16H19" stroke="currentColor" stroke-width="1.5" />
     </template>
+    <template v-else-if="name === 'lightning'">
+      <path d="M13 2.5L6.5 13.5H11.5L10.5 21.5L17 10.5H12L13 2.5Z" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linejoin="round" />
+    </template>
     <template v-else-if="name === 'sparkles'">
       <path d="M12 3.5L13.7 8.3L18.5 10L13.7 11.7L12 16.5L10.3 11.7L5.5 10L10.3 8.3L12 3.5Z" fill="currentColor" />
       <path d="M18.5 3L19.2 5L21.2 5.7L19.2 6.4L18.5 8.4L17.8 6.4L15.8 5.7L17.8 5L18.5 3Z" fill="currentColor" opacity="0.75" />

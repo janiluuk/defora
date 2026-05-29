@@ -81,6 +81,19 @@
           <span class="header-transport__preview-label">Frame</span>
         </template>
       </button>
+      <div
+        v-if="frameProcessingActive"
+        class="header-frame-processing"
+        data-testid="header-frame-processing"
+        aria-live="polite"
+        :title="frameProcessingHint"
+      >
+        <span class="lazy-loading-indicator lazy-loading-indicator--inline">
+          <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+          <span class="header-frame-processing__label">{{ frameProcessingLabel }}</span>
+          <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+        </span>
+      </div>
     </div>
 
     <div class="ss-health">
@@ -275,6 +288,9 @@ export default {
     hlsWatchEnabled: { type: Boolean, default: false },
     hlsPreviewValid: { type: Boolean, default: false },
     previewGenerating: { type: Boolean, default: false },
+    frameProcessingActive: { type: Boolean, default: false },
+    frameProcessingLabel: { type: String, default: '' },
+    frameProcessingHint: { type: String, default: '' },
     previewDisabled:   { type: Boolean, default: false },
     apiHealth:     { type: Object,  default: () => ({}) },
     gpuActiveCount:{ type: Number,  default: 0 },

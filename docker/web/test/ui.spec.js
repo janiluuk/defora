@@ -284,6 +284,8 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
     expect(appVm.displayedPreviewStillPath).to.equal("/frames/frame_0001.png");
     expect(appVm.showFrameProcessing).to.equal(true);
+    expect(appVm.showFrameProcessingOnStage).to.equal(true);
+    expect(appVm.showFrameProcessingInChrome).to.equal(false);
     expect(appVm.showDefaultAnimation).to.equal(false);
 
     appVm.videoReady = true;
@@ -295,6 +297,22 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDeforumVideo).to.equal(false);
     appVm.clearHeldPreviewFrame();
     appVm.deforumPlaying = false;
+  });
+
+  it("shows preview processing in chrome instead of over the WebGL animation", () => {
+    appVm.currentTab = "LIVE";
+    appVm.selectVideoLayer("webgl");
+    appVm.previewGenerating = true;
+    appVm.performance.lastPreviewPath = "";
+    appVm.clearHeldPreviewFrame();
+
+    expect(appVm.showPreviewStill).to.equal(false);
+    expect(appVm.showFrameProcessing).to.equal(true);
+    expect(appVm.showFrameProcessingOnStage).to.equal(false);
+    expect(appVm.showFrameProcessingInChrome).to.equal(true);
+    expect(appVm.frameProcessingLabel).to.match(/rendering preview frame/i);
+
+    appVm.previewGenerating = false;
   });
 
   it("keeps the standby animation visible on initial LIVE load", () => {
@@ -408,6 +426,97 @@ describe("Deforumation Web UI", () => {
     expect(appVm.defaultAnimation.mode).to.equal("instancing");
   });
 
+  it("toggles random seed (-1) vs fixed seed input", async () => {
+    appVm.onDeforumFieldInput("seed", 4242, "number");
+    expect(appVm.seedRandomEnabled).to.equal(false);
+    expect(appVm.deforumSettings.seed).to.equal(4242);
+
+    appVm.setSeedRandomEnabled(true);
+    expect(appVm.seedRandomEnabled).to.equal(true);
+    expect(appVm.deforumSettings.seed).to.equal(-1);
+
+    appVm.setSeedRandomEnabled(false);
+    expect(appVm.seedRandomEnabled).to.equal(false);
+    expect(appVm.deforumSettings.seed).to.equal(4242);
+
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "ENGINE");
+    await nextTick();
+    expect(document.querySelector("[data-testid='seed-random-toggle']")).to.exist;
+    expect(document.querySelector("[data-testid='seed-value-input']")).to.exist;
+  });
+
+  it("enforces LCM engine steps and LoRA in prompts", async () => {
+    appVm.onDeforumFieldInput("steps", 8, "number");
+    appVm.prompts.pos = "a cat";
+    appVm.setLcmEngineEnabled(true);
+    appVm.onLcmEngineStepsChange(1);
+    expect(appVm.lcmEngineEnabled).to.equal(true);
+    expect(appVm.deforumSettings.steps).to.equal(1);
+    expect(appVm.effectivePositivePrompt("a cat")).to.include("<lora:lcm-lora-ssd-1b:1>");
+
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "ENGINE");
+    await nextTick();
+    expect(document.querySelector("[data-testid='lcm-engine-toggle']")).to.exist;
+    expect(document.querySelector("[data-testid='lcm-engine-steps']")).to.exist;
+
+    appVm.switchTab("LIVE");
+    appVm.switchSubTab("LIVE", "MONITOR");
+    await nextTick();
+    expect(document.querySelector("[data-testid='lcm-engine-badge']")).to.exist;
+
+    appVm.setLcmEngineEnabled(false);
+    expect(appVm.effectivePositivePrompt("a cat")).to.not.include("<lora:lcm-lora-ssd-1b:1>");
+  });
+
+  it("exposes WAN Video animation engine with steerable controls", async () => {
+    appVm.prompts.pos = "ocean waves at dusk";
+    appVm.selectVideoLayer("wan");
+    expect(appVm.isWanLayerActive).to.equal(true);
+    const settings = appVm.effectiveDeforumSettingsForRender();
+    expect(settings.animation_mode).to.equal("Wan Video");
+    expect(settings.wan_inference_steps).to.equal(20);
+    expect(String(settings.animation_prompts)).to.include("ocean");
+
+    appVm.onWanEngineFieldChange("wan_inference_steps", 12, "number");
+    expect(appVm.wanEngine.wan_inference_steps).to.equal(12);
+
+    appVm.switchTab("LIVE");
+    appVm.switchSubTab("LIVE", "MONITOR");
+    appVm.liveAnimationBoxOpen = true;
+    await nextTick();
+    expect(document.querySelector("[data-testid='animation-engine-wan']")).to.exist;
+    expect(document.querySelector("[data-testid='wan-engine-controls']")).to.exist;
+    expect(document.querySelector("[data-testid='wan-field-wan_inference_steps']")).to.exist;
+  });
+
+  it("shows 2D/3D mode toggle and locks 3D-only deforum fields in 2D", async () => {
+    appVm.switchTab("LIVE");
+    appVm.switchSubTab("LIVE", "DEFORUM_JOB");
+    appVm.deforumAdvancedOpen = false;
+    await nextTick();
+
+    expect(document.querySelector("[data-testid='deforum-mode-toggle']")).to.exist;
+    expect(document.querySelector("[data-testid='deforum-mode-2d']")).to.exist;
+    expect(document.querySelector("[data-testid='deforum-mode-3d']")).to.exist;
+
+    appVm.setDeforumMode2d3d("2D");
+    expect(appVm.deforumMode2d3d).to.equal("2D");
+    expect(appVm.isDeforumFieldDisabledByAnimationMode("rotation_3d_x")).to.equal(true);
+    expect(appVm.isDeforumFieldGroupDisabledByAnimationMode("motion3d")).to.equal(true);
+
+    appVm.deforumActiveTab = "motion3d";
+    appVm.setDeforumMode2d3d("2D");
+    expect(appVm.deforumActiveTab).to.equal("motion");
+
+    appVm.setDeforumMode2d3d("3D");
+    expect(appVm.deforumMode2d3d).to.equal("3D");
+    expect(appVm.deforumSettings.animation_mode).to.equal("3D");
+    expect(appVm.isDeforumFieldDisabledByAnimationMode("rotation_3d_x")).to.equal(false);
+    expect(appVm.isDeforumFieldEnabled("rotation_3d_x")).to.equal(true);
+  });
+
   it("shows LIVE sub-tabs for monitor and deforum", async () => {
     appVm.switchTab("LIVE");
     appVm.rightPanelOpen = true;
@@ -423,23 +532,97 @@ describe("Deforumation Web UI", () => {
     const deforumFields = document.querySelectorAll(".deforum-settings-grid .deforum-field");
     expect(deforumFields.length).to.be.greaterThan(0);
     expect(document.body.textContent).to.include("Width");
+    const widthField = document.querySelector("[data-testid='deforum-field-W']");
+    const heightField = document.querySelector("[data-testid='deforum-field-H']");
+    expect(widthField).to.exist;
+    expect(heightField).to.exist;
+    expect(Number(widthField.value)).to.be.greaterThan(0);
+    expect(Number(heightField.value)).to.be.greaterThan(0);
+    expect(appVm.deforumSettings.use_init).to.equal(false);
 
     appVm.switchSubTab("LIVE", "MONITOR");
     await nextTick();
     expect(document.body.textContent).to.include("Animation Engine");
   });
 
-  it("shows preview layer tabs for WebGL, Deforum, and Input on the main player", async () => {
+  it("crossfades prompt styles in performance slots", () => {
+    appVm.promptStyles = [
+      { id: "cubism", name: "Cubism", positive: "cubist painting", negative: "photo", source: "forge" },
+      { id: "anime", name: "Anime", positive: "anime style", negative: "3d", source: "forge" },
+    ];
+    appVm.performance.slots = [
+      { id: "style_slot_1", type: "style", valueA: "cubism", valueB: "anime" },
+    ];
+    appVm.performance.crossfader = 0;
+    const atA = appVm.buildMorphedStyleAppend();
+    expect(atA.positive).to.equal("cubist painting");
+    expect(atA.negative).to.equal("photo");
+    appVm.performance.crossfader = 1;
+    const atB = appVm.buildMorphedStyleAppend();
+    expect(atB.positive).to.equal("anime style");
+    expect(atB.negative).to.equal("3d");
+    expect(appVm.effectivePositivePrompt("my scene")).to.equal("my scene, anime style");
+    expect(appVm.effectiveNegativePrompt("blur")).to.equal("blur, 3d");
+  });
+
+  it("shows settings styles tab and merges active style into prompts", async () => {
+    appVm.performance.slots = [];
+    appVm.promptStyles = [
+      {
+        id: "cubism",
+        name: "Cubism",
+        positive: "cubist painting",
+        negative: "photograph",
+        source: "forge",
+        exampleImage: null,
+      },
+    ];
+    appVm.switchTab("SETTINGS");
+    appVm.switchSubTab("SETTINGS", "STYLES");
+    await nextTick();
+    expect(document.querySelector("[data-testid='styles-settings-panel']")).to.exist;
+    expect(document.body.textContent).to.include("Cubism");
+
+    appVm.selectActivePromptStyle("cubism");
+    expect(appVm.effectivePositivePrompt("my cat")).to.equal("my cat, cubist painting");
+    expect(appVm.effectiveNegativePrompt("blur")).to.equal("blur, photograph");
+
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "PROMPTS");
+    await nextTick();
+    expect(document.querySelector("[data-testid='prompt-style-bar']")).to.exist;
+  });
+
+  it("shows preview layer tabs only for running engines on the main player", async () => {
     appVm.switchTab("LIVE");
+    appVm.deforumPlaying = false;
+    appVm.videoReady = false;
+    appVm.deforumGeneratedFrameCount = 0;
+    appVm.inputLayerPlaybackUrl = "";
+    appVm.selectVideoLayer("webgl");
     await nextTick();
     const layerTabs = document.querySelector("[data-testid='video-layer-tabs']");
     expect(layerTabs).to.exist;
-    const layerText = String(layerTabs && layerTabs.textContent || "");
+    let layerText = String(layerTabs && layerTabs.textContent || "");
+    expect(layerText).to.include("WebGL");
+    expect(layerText).to.not.include("Deforum");
+    expect(layerText).to.not.include("Both");
+    expect(layerText).to.not.include("Input");
+    expect(document.querySelector("[data-testid='video-layer-add-toggle']")).to.exist;
+
+    appVm.deforumPlaying = true;
+    await nextTick();
+    layerText = String(layerTabs.textContent || "");
     expect(layerText).to.include("WebGL");
     expect(layerText).to.include("Deforum");
-    expect(layerText).to.include("Both");
+
+    appVm.deforumPlaying = false;
+    appVm.inputLayerPlaybackUrl = "/api/system-files/stream?path=test.mp4";
+    appVm.rebuildVideoLayers();
+    appVm.selectVideoLayer("input");
+    await nextTick();
+    layerText = String(layerTabs.textContent || "");
     expect(layerText).to.include("Input");
-    expect(document.querySelector("[data-testid='video-layer-add-toggle']")).to.exist;
   });
 
   it("includes video, sliders, and presets", async () => {
