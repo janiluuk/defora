@@ -1,8 +1,8 @@
 {
   "run_id": "batch-1",
   "status": "completed",
-  "completed_at": "2026-05-29T07:38:26.711Z",
-  "preview_path": "/frames/frame_0001.png?v=1780040306196.161",
+  "completed_at": "2026-05-29T07:44:49.483Z",
+  "preview_path": "/frames/frame_0001.png?v=1780040689153.114",
   "started_at": "2026-05-29T01:35:44.385Z",
   "tag": "defora",
   "kind": "txt2img_fallback",
