@@ -13,7 +13,7 @@ const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
 // Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
-const UTIL_MODULES = ['morph-utils.mjs', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/common-visual.mjs', 'animation-plugins/animatelcm-engine-config.mjs', 'animation-plugins/registry.mjs'];
+const UTIL_MODULES = ['morph-utils.mjs', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -28,7 +28,6 @@ function extractVueTemplate(src, label) {
 
 function esmToInlineCjs(src) {
   return src
-    .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*/gm, '')
     .replace(/^export\s+(async\s+)?function\s+/gm, '$1function ')
     .replace(/^export\s+const\s+/gm, 'const ')
     .replace(/^export\s+\{[^}]*\};?\s*$/gm, '')
@@ -64,7 +63,7 @@ script = script.replace(/import\s+['"]\.\/style\.css['"];?\s*/g, '');
 let inlinedUtils = '';
 for (const mod of UTIL_MODULES) {
   const re = new RegExp(
-    `import\\s+\\{([\\s\\S]*?)\\}\\s+from\\s+['"]\\.\\/${mod.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}['"];?`
+    `import\\s+\\{([\\s\\S]*?)\\}\\s+from\\s+['"]\\.\\/${mod.replace('.', '\\.')}['"];?`
   );
   const m = script.match(re);
   if (m) {
@@ -133,67 +132,18 @@ function extractDataFunctionClause(scriptBody) {
   return '';
 }
 
-function extractPropsClause(scriptBody) {
-  const propsIdx = scriptBody.indexOf('props:');
-  if (propsIdx < 0) return "props: ['app']";
-  const afterProps = scriptBody.slice(propsIdx + 'props:'.length).trimStart();
-  if (afterProps.startsWith('[')) {
-    const end = afterProps.indexOf(']');
-    if (end >= 0) return `props: ${afterProps.slice(0, end + 1)}`;
-  }
-  const start = scriptBody.indexOf('{', propsIdx);
-  if (start < 0) return "props: ['app']";
-  let depth = 0;
-  for (let i = start; i < scriptBody.length; i++) {
-    const ch = scriptBody[i];
-    if (ch === '{') depth += 1;
-    else if (ch === '}') {
-      depth -= 1;
-      if (depth === 0) {
-        return `props: ${scriptBody.slice(start, i + 1)}`;
-      }
-    }
-  }
-  return "props: ['app']";
-}
-
-const FULL_STUB_COMPONENTS = [
-  'RunsBrowserPanel.vue',
-  'FrameRailPanel.vue',
-  'SequencerControlsPanel.vue',
-  'LoraCrossfaderPanel.vue',
-  'StylesSettingsPanel.vue',
-  'VideoSwarmBrowser.vue',
-  'AnimationEnginePanel.vue',
-  'LiveEngineControls.vue',
-  'LiveEngineControlsDock.vue',
-  'CrossfaderPanel.vue',
-  'DeforumJobPanel.vue',
-  'DeforumControlPanel.vue',
-  'DeforumMotionPads.vue',
-  'DeforumSettingsBody.vue',
-  'ModulationMappingsPanel.vue',
-  'MorphCrossfaderPanel.vue',
-  'ModulationActiveModsPanel.vue',
-  'LibraryWorkspaceOverlay.vue',
-];
-
-function isFullStubPath(relPath) {
-  return (
-    relPath.includes('/views/')
-    || relPath.includes('/animation-plugins/')
-    || FULL_STUB_COMPONENTS.some((p) => relPath.endsWith(p))
-  );
-}
-
 function extractComponentDefinition(scriptBody) {
   const usesProxy = scriptBody.includes('proxyAppView');
-  const propsClause = extractPropsClause(scriptBody);
+  const propsMatch = scriptBody.match(/props:\s*\{([\s\S]*?)\n\s*\},/);
+  let propsClause = "props: ['app']";
+  if (propsMatch) {
+    propsClause = `props: {${propsMatch[1]}\n  }`;
+  }
   const setupClause = usesProxy ? ', setup(props) { return __proxyAppView(props); }' : '';
-  // Proxy-backed panels delegate to app; skip local data/methods but keep computed (e.g. panel router).
+  // Proxy-backed panels delegate to app; inlining local data/computed/methods breaks the test harness.
   const dataClause = usesProxy ? '' : extractDataFunctionClause(scriptBody);
   const methodsClause = usesProxy ? '' : extractMethodsClause(scriptBody);
-  const computedClause = extractComputedClause(scriptBody);
+  const computedClause = usesProxy ? '' : extractComputedClause(scriptBody);
   return { propsClause, setupClause, dataClause, methodsClause, computedClause, usesProxy };
 }
 
@@ -225,7 +175,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (isFullStubPath(nestedRel)) {
+      if (nestedRel.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => nestedRel.endsWith(p))) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -258,7 +208,7 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (isFullStubPath(relPath)) {
+    if (relPath.includes('/views/') || ['RunsBrowserPanel.vue', 'FrameRailPanel.vue', 'SequencerControlsPanel.vue', 'LoraCrossfaderPanel.vue', 'StylesSettingsPanel.vue', 'VideoSwarmBrowser.vue', 'AnimationEnginePanel.vue', 'LiveEngineControls.vue', 'LiveEngineControlsDock.vue', 'CrossfaderPanel.vue', 'DeforumJobPanel.vue', 'ModulationMappingsPanel.vue'].some((p) => relPath.endsWith(p))) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }

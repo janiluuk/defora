@@ -1238,19 +1238,28 @@ async function start(opts = {}) {
 
   function videoSwarmRoots() {
     return [
-      { id: "frames", label: "Frames", path: framesDir },
-      { id: "runs", label: "Runs", path: runsDir },
       { id: "uploads", label: "Uploads", path: uploadsDir },
-      { id: "hls", label: "HLS", path: hlsDir },
       { id: "videoswarm", label: "VideoSwarm", path: videoswarmDir },
+      { id: "frames", label: "Frames", path: framesDir },
+      { id: "hls", label: "HLS", path: hlsDir },
+      { id: "runs", label: "Runs", path: runsDir },
     ];
   }
 
   function rootForResolvedPath(resolved, roots) {
-    return roots.find((r) => {
-      const rootResolved = path.resolve(r.path);
-      return resolved === rootResolved || resolved.startsWith(rootResolved + path.sep);
-    }) || null;
+    const target = path.resolve(resolved);
+    let best = null;
+    let bestLen = -1;
+    for (const root of roots) {
+      const rootResolved = path.resolve(root.path);
+      if (target === rootResolved || target.startsWith(rootResolved + path.sep)) {
+        if (rootResolved.length > bestLen) {
+          best = root;
+          bestLen = rootResolved.length;
+        }
+      }
+    }
+    return best;
   }
 
   function resolveVideoSwarmPath(inputPath, rootId) {
@@ -1415,9 +1424,11 @@ async function start(opts = {}) {
     }[sortKey] || ((a, b) => a.name.localeCompare(b.name));
     folders.sort((a, b) => a.name.localeCompare(b.name));
     videos.sort(sortFn);
+    const root = rootForResolvedPath(targetPath, roots);
     return {
       kind: "local",
       path: targetPath,
+      rootId: root ? root.id : "",
       parent: atRoot ? "" : parent,
       folders: videosOnly ? [] : folders,
       folderCount: videosOnly ? 0 : folders.length,

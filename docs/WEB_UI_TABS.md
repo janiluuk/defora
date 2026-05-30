@@ -203,10 +203,31 @@ Visual reference with annotated screenshots: [`docs/ui-migration/00-README.md`](
 
 ![Library workspace](../screenshots/library-tab.png)
 
-- Root selector (Frames, Runs, Uploads, HLS, VideoSwarm).
+- Root selector (Frames, Runs, Uploads, HLS, VideoSwarm) with zoom slider.
 - View mode: Browse / Videos only / Subfolders / Names.
 - **Connect cloud** — Google Drive, Dropbox, OneDrive, custom HTTPS.
 - **Open in editor** — sends selected clip to trim/export editor.
+- Each root shows a hint line explaining where that type of output lands (see table below).
+
+### Where converted / generated files appear
+
+| Library root | Default path (local dev) | What shows up here |
+|--------------|--------------------------|-------------------|
+| **Uploads** | `docker/web/runs/uploads/` | **img2img / txt2img** → `preview_*.png` (also `GET /uploads/…`). **Stage recording** → `defora_rec_<timestamp>.mp4` after header Record. **Test run export** → `demo-output.mp4`. Uploaded audio/video via + Video. |
+| **Uploads → converted/** | `…/uploads/converted/` | Good folder for exports; seed script places samples here (`npm run seed-library`). |
+| **Uploads → clips/** | `…/uploads/clips/` | User-organised clip folders (manual or + Folder). |
+| **Frames** | `docker/web/frames/` (or `FRAMES_DIR`) | Live Deforum preview **`frame_00000.png`**, … as Forge renders. LIVE layer + **RUNS → Frames** rail. |
+| **Runs** | `docker/web/runs/<run_id>/` | Per-job folder: `run.json`, `defora-job.json`, optional **`demo-output.mp4`** inside the run. Listed in **RUNS** tab monitor. |
+| **HLS** | `docker/web/hls/` (or `HLS_DIR`) | Stream encoder **`.m3u8`** + **`.ts`** segments; preview in **Settings → Output**. |
+| **VideoSwarm** | `docker/web/runs/videoswarm/` | Editor handoff / manual staging (`exports/` subfolder after seed). |
+
+Docker Compose uses `/data/runs`, `/data/frames`, `/data/runs/uploads` — same layout, different mount.
+
+Seed sample folders and videos for the current machine:
+
+```bash
+cd docker/web && npm run seed-library
+```
 
 ---
 

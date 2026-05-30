@@ -199,6 +199,13 @@
           {{ systemFiles.videoCount }} videos
         </span>
       </div>
+      <div
+        v-if="libraryOutputHint"
+        class="video-swarm-browser__outputs-hint framesync-subtitle"
+        data-testid="video-swarm-outputs-hint"
+      >
+        {{ libraryOutputHint }}
+      </div>
       <div v-if="systemFiles.status" class="framesync-subtitle video-swarm-browser__status">{{ systemFiles.status }}</div>
     </div>
 
@@ -422,6 +429,23 @@ export default {
       set(v) {
         this.app.videoSwarmVisibleEnd = v
       },
+    },
+    libraryOutputHint() {
+      const id = String(this.systemFiles?.rootId || 'frames')
+      const roots = this.systemFiles?.roots || []
+      const active = roots.find((r) => r.id === id)
+      if (active?.kind === 'cloud') {
+        return 'Cloud-linked folder — open the drive link, then add direct video URLs for playback.'
+      }
+      const hints = {
+        uploads:
+          'Converted outputs: img2img / txt2img (preview_*.png), stage recordings (defora_rec_*.mp4), demo-output.mp4, uploaded audio — also at /uploads/…',
+        frames: 'Live Deforum preview frames (frame_*.png) as they render; also in RUNS → Frames rail.',
+        runs: 'One folder per job (run.json, defora-job.json). Exported MP4s may sit inside the run folder or under Uploads.',
+        hls: 'HLS encoder output — .m3u8 playlist and .ts segments for stream preview (Settings → Output).',
+        videoswarm: 'Manual exports and editor handoff staging — use + Folder / + Video or Open in editor.',
+      }
+      return hints[id] || 'Browse folders and videos under the selected library root.'
     },
   },
   data() {
