@@ -233,7 +233,9 @@ describe("Deforumation Web UI", () => {
     if (dom && dom.window) {
       try { dom.window.close(); } catch (_) {}
     }
-    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node", "requestAnimationFrame", "cancelAnimationFrame"]) {
+    global.requestAnimationFrame = () => 0;
+    global.cancelAnimationFrame = () => {};
+    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node"]) {
       delete global[key];
     }
   });
@@ -862,6 +864,11 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
     expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
+
+    appVm.selectVideoLayer("wan");
+    await nextTick();
+    expect(document.querySelector("[data-testid='common-visual-strip']")).to.exist;
+    expect(document.body.textContent).to.include("WAN Video");
 
     appVm.updateMotionPad({
       currentTarget: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 100, height: 100 }) },
@@ -2659,7 +2666,9 @@ describe("Reference A/V sync mounted e2e", () => {
     if (dom && dom.window) {
       try { dom.window.close(); } catch (_) {}
     }
-    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node", "requestAnimationFrame", "cancelAnimationFrame"]) {
+    global.requestAnimationFrame = () => 0;
+    global.cancelAnimationFrame = () => {};
+    for (const key of ["window", "document", "navigator", "location", "SVGElement", "HTMLElement", "Element", "Node"]) {
       delete global[key];
     }
   });

@@ -230,7 +230,7 @@ export const DEFORUM_FIELD_GROUPS = [
   },
 ];
 
-/** Eight performance macros — flat schedule @ frame 0 (keep in sync with DeforumMacroKnobs.vue). */
+/** Eight performance macros — flat schedule @ frame 0 (keep in sync with CommonVisualStrip / common-visual.mjs). */
 export const DEFORUM_MACRO_KNOBS = [
   { key: 'strength_schedule', label: 'Strength', min: 0, max: 1.5, step: 0.01 },
   { key: 'keyframe_strength_schedule', label: 'Keyframe', min: 0, max: 1.5, step: 0.01 },

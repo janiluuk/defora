@@ -116,7 +116,7 @@
           Settings look good — no issues found.
         </p>
 
-        <DeforumControlPanel v-else :app="app" />
+        <DeforumControlPanel v-else :app="app" visual-plugin-id="deforum" />
       </div>
   </div>
 </template>
