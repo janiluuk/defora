@@ -71,14 +71,11 @@ async function closeLibraryWorkspaceIfOpen(page) {
   }
 }
 
-/** Settings → System runs monitor (completed runs live under Past runs). */
+/** Top-level RUNS tab or Settings → RUNS runs monitor (completed runs under Past runs). */
 export async function openRunsMonitor(page, { tab = 'active' } = {}) {
   await closeLibraryWorkspaceIfOpen(page);
-  await ensureRightPanelOpen(page);
-  await clickTab(page, 'SETTINGS');
-  await page.locator('.live-right-column button.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
+  await clickTab(page, 'RUNS');
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
-  await Promise.resolve();
   if (tab === 'past') {
     await page.locator('[data-testid="runs-browser-tab-past"]').click();
     await page.waitForSelector(
@@ -133,14 +130,10 @@ export async function openLibraryEditorTab(page) {
   await page.waitForSelector('[data-testid="editor-workspace"]', { timeout: 15000 });
 }
 
-/** LIVE top drawer → System → Frames rail (crossfader / top-nav layout). */
+/** RUNS tab → Frames rail (replaces legacy LIVE bottom drawer → System). */
 export async function openLiveFramesPanel(page) {
-  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]');
-  if ((await drawerToggle.count()) > 0) {
-    const expanded = await drawerToggle.getAttribute('aria-expanded');
-    if (expanded !== 'true') await drawerToggle.click();
-  }
-  await page.locator('.live-top-drawer__tabs .sub-pill').filter({ hasText: /^SYSTEM$/ }).click();
+  await clickTab(page, 'RUNS');
+  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 15000 });
   await page.locator('[data-testid="runs-browser-tab-frames"]').click();
   await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15000 });
 }
