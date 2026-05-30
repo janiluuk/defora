@@ -1,4 +1,5 @@
 node_modules/
+vendor/freecut-src/
 public/assets/*.*.js
 public/assets/*.*.css
 data/prompt-styles.json

@@ -1,5 +1,5 @@
 <template>
-  <div id="app" :style="videoOverlayCssVars">
+  <div id="app">
     <div v-if="restoreSessionPromptOpen" class="restore-session-modal" @click="onRestoreSessionBackdropClick">
       <div class="restore-session-modal__dialog framesync-panel">
         <div class="framesync-header">
@@ -14,40 +14,7 @@
         </div>
       </div>
     </div>
-    <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav">
-      <div class="top-nav__inner">
-        <button
-          class="tab"
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
-          @click="switchTab(tab.id)"
-        >
-          <span class="tab__icon-wrap" aria-hidden="true">
-            <UiIcon class="tab__icon" :name="tab.icon" />
-          </span>
-          <span class="tab__copy">
-            <span class="tab__label">{{ tab.label }}</span>
-          </span>
-        </button>
-      </div>
-      <div class="top-nav__actions">
-        <button
-          type="button"
-          class="top-nav__icon-btn"
-          :class="{ 'top-nav__icon-btn--active': libraryWorkspaceOpen }"
-          :aria-expanded="libraryWorkspaceOpen ? 'true' : 'false'"
-          title="Library — browse videos and open the editor"
-          data-testid="top-nav-library"
-          @click="toggleLibraryWorkspace()"
-        >
-          <UiIcon name="folder" />
-          <span class="sr-only">Library</span>
-        </button>
-      </div>
-    </nav>
-
-    <header class="app-header">
+    <header>
       <StatusStrip
         :playing="deforumPlaying"
         :recording="isRecording"
@@ -82,9 +49,28 @@
       />
     </header>
 
+    <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav">
+      <div class="top-nav__inner">
+        <button
+          class="tab"
+          v-for="tab in tabs"
+          :key="tab.id"
+          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
+          @click="switchTab(tab.id)"
+        >
+          <span class="tab__icon-wrap" aria-hidden="true">
+            <UiIcon class="tab__icon" :name="tab.icon" />
+          </span>
+          <span class="tab__copy">
+            <span class="tab__label">{{ tab.label }}</span>
+          </span>
+        </button>
+      </div>
+    </nav>
+
     <div
-      v-if="!libraryWorkspaceOpen"
-      class="live-drawer-shell live-drawer-shell--dock-top live-drawer-shell--video-anchored"
+      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+      class="live-drawer-shell live-drawer-shell--dock-top"
       :class="{ 'live-drawer-shell--open': rightPanelOpen }"
       data-testid="right-panel-drawer"
     >
@@ -92,65 +78,203 @@
         type="button"
         class="live-overlay-btn live-overlay-btn--top"
         :class="{ 'live-overlay-btn--open': rightPanelOpen }"
-        :title="rightPanelOpen ? 'Hide panel' : 'Show panel'"
+        :title="rightPanelToggleTitle"
         :aria-expanded="rightPanelOpen ? 'true' : 'false'"
         data-testid="right-panel-toggle"
         @click="toggleRightPanel"
       >
         <span class="live-overlay-btn__arrow-wrap">
-          <UiIcon class="live-overlay-btn__state" :name="rightPanelOpen ? 'chevron-left' : 'chevron-right'" />
+          <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
         </span>
-        <span class="live-overlay-btn__top-label">{{ currentTab }}</span>
+        <span class="live-overlay-btn__top-label">{{ rightPanelOpen ? 'Hide panel' : 'Show panel' }}</span>
       </button>
-      <div class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
+      <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
         <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+        <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+        <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
         <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
         <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
-        <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
-        <ModulationView v-else-if="currentTab === 'MODULATION' || currentTab === 'AUDIO'" :app="appViewModel" />
+        <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
         <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
-        <RunsBrowserPanel v-else-if="currentTab === 'RUNS'" :app="appViewModel" />
       </div>
     </div>
 
-
-    <aside
-      v-if="showEngineDrawerShell"
-      class="engine-drawer-shell engine-drawer-shell--video-anchored"
-      :class="{ 'engine-drawer-shell--open': liveEngineDrawerOpen }"
-      :aria-hidden="liveEngineDrawerOpen ? 'false' : 'true'"
-      data-testid="engine-drawer"
-    >
-      <div class="engine-drawer-panel">
-        <AnimationEnginePanel :app="appViewModel" />
-      </div>
-    </aside>
-
-    <LibraryWorkspaceOverlay :app="appViewModel" />
-
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
-      'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
-      'layout--generate-dock': currentTab === 'GENERATE',
-      'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',
-      'layout--library-workspace': libraryWorkspaceOpen,
+      'layout--stage': currentTab === 'MOTION',
+      'layout--studio': currentTab === 'MODULATION',
+      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
         'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',
-        'preview--motion-dock': currentTab === 'MOTION' || currentTab === 'GENERATE',
+        'preview--motion-dock': currentTab === 'MOTION',
+        'preview--top-dock': liveBottomDrawerOpen && !(libraryEditorOpen && currentTab === 'LIBRARY'),
         'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,
       }">
         <div
+          v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
+          class="editor-workspace-shell"
+          data-testid="editor-workspace"
+        >
+          <div class="editor-workspace-shell__toolbar">
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              data-testid="close-library-editor"
+              @click="closeLibraryEditor()"
+            >
+              ← Back to Library
+            </button>
+            <span v-if="editorStatus" class="editor-workspace-shell__status" :class="{ 'editor-workspace-shell__status--live': editorStatusLive }">
+              {{ editorStatus }}
+            </span>
+          </div>
+          <EditorView :app="appViewModel" />
+        </div>
+        <div
+          v-else
           class="preview-stage-row"
           :class="{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }"
           data-testid="preview-stage-row"
         >
           <div class="preview-stage-main">
         <div
-          class="preview-stage-video-stack"
-          ref="previewVideoStackRef"
+          v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+          class="top-drawer-shell"
+          :class="{ 'top-drawer-shell--open': liveBottomDrawerOpen }"
+          data-testid="bottom-drawer"
         >
+        <div class="live-top-drawer__tabs">
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
+            @click="setLiveBottomDrawerTab('MODULATION')"
+          >
+            MODULATION
+          </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
+            @click="setLiveBottomDrawerTab('CROSSFADER')"
+          >
+            CROSSFADER
+          </button>
+          <button
+            type="button"
+            class="sub-pill"
+            :class="{ active: liveBottomDrawerTab === 'SYSTEM' }"
+            @click="setLiveBottomDrawerTab('SYSTEM')"
+          >
+            SYSTEM
+          </button>
+        </div>
+          <div
+            class="top-drawer-panel"
+            :class="{
+              'top-drawer-panel--open': liveBottomDrawerOpen,
+              'top-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
+              'top-drawer-panel--crossfader': liveBottomDrawerOpen && liveBottomDrawerTab === 'CROSSFADER',
+            }"
+          >
+        <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
+            <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
+              <div class="live-mod-slot__head">
+                <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
+                <span v-if="slot.mappingLabel" class="live-mod-slot__map">
+                  <UiIcon name="arrow-left" />
+                  <span>{{ slot.mappingLabel }}</span>
+                </span>
+                <div class="live-mod-slot__actions">
+                  <button
+                    v-if="slot.paramKey"
+                    type="button"
+                    class="framesync-button framesync-button--compact"
+                    title="Remove mapping"
+                    @click="clearParamMapping(slot.paramKey)"
+                  >
+                    <UiIcon name="close" />
+                  </button>
+                  <button
+                    v-if="slot.paramKey"
+                    type="button"
+                    class="framesync-button framesync-button--compact"
+                    title="Add mapping"
+                    @click="openModulationMapping(slot.paramKey)"
+                  >
+                    <UiIcon name="sliders" />
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
+                <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
+                  <input
+                    type="range"
+                    class="framesync-input live-mod-slider__input"
+                    :min="slot.min"
+                    :max="slot.max"
+                    :step="slot.step"
+                    :value="slot.value"
+                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                  />
+                  <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
+                </div>
+              </div>
+
+              <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
+                <div
+                  class="live-mod-pad"
+                  @mousedown="livePadDown($event, slot)"
+                  @mousemove="livePadMove($event, slot)"
+                  @mouseup="livePadUp"
+                  @mouseleave="livePadUp"
+                  @touchstart.prevent="livePadDown($event, slot)"
+                  @touchmove.prevent="livePadMove($event, slot)"
+                  @touchend.prevent="livePadUp"
+                >
+                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
+                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
+                  <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
+                </div>
+                <div class="live-mod-pad__axes">
+                  <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
+                  <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
+                </div>
+              </div>
+
+              <div v-else class="live-mod-slot__body">
+                <div class="live-mod-knob">
+                  <input
+                    type="range"
+                    class="framesync-input live-mod-knob__input"
+                    :min="slot.min"
+                    :max="slot.max"
+                    :step="slot.step"
+                    :value="slot.value"
+                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
+                  />
+                  <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
+                </div>
+              </div>
+            </div>
+        </div>
+
+        <CrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
+
+        <div
+          v-else-if="liveBottomDrawerTab === 'SYSTEM'"
+          class="top-drawer-system system-runs-tab"
+          data-testid="bottom-drawer-system"
+        >
+          <RunsBrowserPanel :app="appViewModel" />
+        </div>
+          </div>
+        </div>
+
+        <div class="preview-stage-video-stack">
         <div
           class="video-wrap video-wrap--anchored"
           :class="{
@@ -161,7 +285,6 @@
           <div
             ref="videoStageRef"
             class="video-wrap__stage"
-            :style="previewStageStyle"
             :class="{
               'video-wrap__stage--preview': videoStageSize === 'small',
               'video-wrap__stage--canvas': videoStageSize === 'medium',
@@ -171,13 +294,7 @@
             <ThreeBackground
               ref="threeBackgroundRef"
               data-testid="preview-standby-animation"
-              :class="[
-                'video-wrap__default-animation',
-                {
-                  'video-wrap__default-animation--visible': showDefaultAnimation,
-                  'video-wrap__default-animation--blend-dim': isBlendLayerActive && showDefaultAnimation,
-                },
-              ]"
+              :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]"
               :lfos="lfos"
               :audio-metrics="backgroundAudioMetrics"
               :active-tab="currentTab"
@@ -295,47 +412,20 @@
               />
             </GlassPanel>
           </div>
-          <div v-if="currentTab === 'LIVE' && liveModulating.length" class="live-hud-strip live-hud-strip--mods">
-            <GlassPanel size="sm" class="live-hud-modulating">
-              <template #header>Modulating now</template>
-              <ModulationActiveModsPanel :app="appViewModel" />
-            </GlassPanel>
-          </div>
-          <div v-if="currentTab === 'LIVE'" class="live-hud-strip live-hud-strip--morph">
-            <GlassPanel size="sm" class="live-hud-morph">
-              <template #header>Morph</template>
-              <MorphCrossfaderPanel :app="appViewModel" />
-            </GlassPanel>
-          </div>
-          <div v-if="currentTab === 'LIVE' && recentRunsRail.length" class="live-hud-strip live-hud-strip--runs">
-            <div class="recent-runs-rail" data-testid="live-recent-runs-rail">
-              <div class="recent-runs-rail__header">
-                <span class="recent-runs-rail__title">Recent runs</span>
-                <button type="button" class="recent-runs-rail__link" @click="switchTab('RUNS')">All runs</button>
-              </div>
-              <div class="recent-runs-rail__list">
-                <button
-                  v-for="run in recentRunsRail"
-                  :key="'live-rail-' + run.run_id"
-                  type="button"
-                  class="recent-runs-rail__item"
-                  @click="openRunFromRail(run)"
-                >
-                  <img
-                    v-if="runListingThumbUrl(run)"
-                    :src="runListingThumbUrl(run)"
-                    :alt="run.run_id"
-                    class="recent-runs-rail__thumb"
-                  >
-                  <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">No preview</div>
-                  <div class="recent-runs-rail__meta">
-                    <div class="recent-runs-rail__id">{{ run.run_id }}</div>
-                    <div class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</div>
-                  </div>
-                </button>
-              </div>
-            </div>
-          </div>
+          <button
+            v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+            type="button"
+            class="top-drawer-fab top-drawer-fab--stage"
+            :class="{ 'top-drawer-fab--active': liveBottomDrawerOpen }"
+            :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
+            :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'"
+            data-testid="bottom-drawer-toggle"
+            @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
+          >
+            <span class="top-drawer-fab__icon-wrap" aria-hidden="true">
+              <UiIcon class="top-drawer-fab__icon" :name="liveBottomDrawerOpen ? 'chevron-up' : 'chevron-down'" />
+            </span>
+          </button>
           </div>
           <button
             v-if="showEngineDrawerShell"
@@ -454,9 +544,8 @@
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
         <div
-          v-if="currentTab === 'MOTION' || currentTab === 'GENERATE'"
+          v-if="currentTab === 'MOTION'"
           class="preview-bottom-dock"
-          :class="{ 'preview-bottom-dock--generate': currentTab === 'GENERATE' }"
           data-testid="preview-bottom-dock"
         >
           <div class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer">
@@ -508,7 +597,21 @@
           </div>
         </div>
 
+        <!-- transport moved to top bar in LIVE -->
+
           </div>
+
+          <aside
+            v-if="showEngineDrawerShell"
+            class="engine-drawer-shell"
+            :class="{ 'engine-drawer-shell--open': liveEngineDrawerOpen }"
+            :aria-hidden="liveEngineDrawerOpen ? 'false' : 'true'"
+            data-testid="engine-drawer"
+          >
+            <div class="engine-drawer-panel">
+              <AnimationEnginePanel :app="appViewModel" />
+            </div>
+          </aside>
         </div>
 
       </div>
@@ -540,7 +643,6 @@ import {
   patchFromKeyPath,
   mergeDeforumSettings,
   readScheduleValueAtFrame,
-  formatScheduleKeyframes,
   buildLinearScheduleRamp,
   normalizeDeforumMode2d3d,
   isDeforum3dOnlyFieldKey,
@@ -552,12 +654,7 @@ import {
   buildRunDetailJsonRows,
   runDetailJsonPretty,
 } from './shared/run-detail-json.mjs'
-import {
-  applyPromptStyleToPrompts,
-  mergePromptParts,
-  stylePreviewPromptFor,
-} from './shared/prompt-styles.mjs'
-import { diffPromptLines } from './shared/prompt-diff.mjs'
+import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
 import {
   DEFAULT_FORGE_MODEL,
   DEFAULT_LCM_ENGINE,
@@ -572,26 +669,6 @@ import {
   visibleWanControlFields,
   WAN_ANIMATION_MODE,
 } from './shared/wan-engine-config.mjs'
-import {
-  COMMON_VISUAL_PARAMS,
-  bindingFor,
-  isCommonVisualEnabled,
-  parseCommonVisualModKey,
-} from './animation-plugins/common-visual.mjs'
-import {
-  ANIMATELCM_MOTION_TYPES,
-  DEFAULT_ANIMATELCM_ENGINE,
-  ANIMATELCM_CONTROL_FIELDS,
-  normalizeAnimateLcmEngine,
-  mergeAnimateLcmIntoDeforumSettings,
-  ANIMATELCM_ANIMATION_MODE,
-} from './animation-plugins/animatelcm-engine-config.mjs'
-import {
-  ANIMATION_PLUGINS,
-  allPluginModulationTargets,
-  legacyModKeyAliases,
-  pluginByLayerKind,
-} from './animation-plugins/registry.mjs'
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -624,7 +701,8 @@ import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LiveEngineControlsDock from './components/LiveEngineControlsDock.vue'
 import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
-import LibraryWorkspaceOverlay from './components/LibraryWorkspaceOverlay.vue'
+import LibraryView from './components/views/LibraryView.vue'
+import EditorView from './components/views/EditorView.vue'
 import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
@@ -632,13 +710,11 @@ import GenerateView from './components/views/GenerateView.vue'
 import ModulationView from './components/views/ModulationView.vue'
 import SettingsView from './components/views/SettingsView.vue'
 import RunsBrowserPanel from './components/RunsBrowserPanel.vue'
-import MorphCrossfaderPanel from './components/MorphCrossfaderPanel.vue'
-import ModulationActiveModsPanel from './components/ModulationActiveModsPanel.vue'
 import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel, MorphCrossfaderPanel, ModulationActiveModsPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -667,7 +743,6 @@ export default {
       rightPanelOpen: true,
       sidePanelDock: 'auto', // auto | edge | video
       sidePanelDockBounds: { top: 0, left: 0, height: 0 },
-      videoOverlayBounds: null,
       _sidePanelDockOnResize: null,
       _sidePanelDockResizeObserver: null,
       videoStageSize: 'medium', // small | medium | full
@@ -677,8 +752,7 @@ export default {
       deforumPreloadStatus: '',
       _preloadDeforumStarted: false,
       libraryFullscreen: false,
-      libraryWorkspaceOpen: false,
-      libraryWorkspacePane: 'browser',
+      libraryEditorOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -814,13 +888,12 @@ export default {
       _syncingGlobalFps: false,
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
+        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
-        { id: "AUDIO", label: "AUDIO", hint: "Reactive", icon: "mic" },
-        { id: "RUNS", label: "RUNS", hint: "History", icon: "history" },
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
-        { id: "GENERATE", label: "GENERATE", hint: "Sequencer", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
@@ -837,12 +910,10 @@ export default {
         { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
-        { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true },
         { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
-      animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
@@ -852,7 +923,7 @@ export default {
       cloudDriveDraft: { url: '', provider: 'google_drive' },
       systemFiles: {
         roots: [],
-        rootId: 'frames',
+        rootId: 'uploads',
         currentPath: '',
         parent: '',
         folders: [],
@@ -879,6 +950,8 @@ export default {
       videoSwarmVisibleStart: 0,
       videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
+      liveBottomDrawerOpen: false,
+      liveBottomDrawerTab: 'MODULATION',
       liveEngineDrawerOpen: true,
       restoreSessionPromptOpen: false,
       pendingSessionStateRaw: '',
@@ -933,7 +1006,6 @@ export default {
       promptStyleDraft: null,
       promptStyleSearch: "",
       promptStyleAutoExample: true,
-      promptStylePreviewGeneratingId: null,
       lcmEngine: { ...DEFAULT_LCM_ENGINE },
       prompts: {
         pos: "",
@@ -1215,8 +1287,6 @@ export default {
         preferDeforumVideo: false,
         showStandbyClip: false,
         autoTransitionToDeforum: true,
-        rememberCompositorLayerOnStartup: false,
-        previewCompositorCrossfadeMs: 800,
         mode: 'instancing',
         instCount: 12000,
         beamCount: 7,
@@ -1252,10 +1322,7 @@ export default {
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
         forgeLayerOpacity: 0.88,
-        forgeLayerOpacityLfoLink: null,
-        forgeLayerOpacityLfoBase: 0.88,
       },
-      frameRailRunId: null,
       thumbs: [],
       frameThumbLoadingKeys: {},
       framesTimer: null,
@@ -1296,7 +1363,6 @@ export default {
       sequencerSelectedClipId: null,
       generateDockExpanded: false,
       motionSequencerSideOpen: false,
-      motionFineTuneOpen: false,
       selectedFrameIndex: -1,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
@@ -1429,9 +1495,8 @@ export default {
       }));
     },
     runsMonitorActive() {
-      if (this.currentTab === 'RUNS') return true;
-      if (this.currentTab === 'SETTINGS' && (this.currentSubTab.SETTINGS === 'RUNS' || this.currentSubTab.SETTINGS === 'SYSTEM')) return true;
-      return false;
+      if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
+      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'SYSTEM';
     },
     runsLastRefreshedLabel() {
       if (!this.runsLastRefreshedAt) return '';
@@ -1478,27 +1543,7 @@ export default {
       return '/hls/live/deforum.m3u8';
     },
     frameStripThumbs() {
-      const runId = this.frameRailRunId;
-      const detail = this.runsDetailView;
-      if (
-        runId
-        && detail
-        && detail.run_id === runId
-        && Array.isArray(detail.frames)
-        && detail.frames.length
-      ) {
-        return detail.frames.map((name, idx) => {
-          const frameName = String(name);
-          const src = `/api/runs/${encodeURIComponent(detail.run_id)}/frames/${encodeURIComponent(frameName)}`;
-          return { name: frameName, src, url: src, path: src, frame: idx + 1 };
-        });
-      }
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
-    },
-    frameRailSourceLabel() {
-      const runId = this.frameRailRunId;
-      if (!runId) return '';
-      return `Run ${runId}`;
     },
     framesEmptyStatus() {
       const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
@@ -1630,89 +1675,23 @@ export default {
       return this.rightPanelOpen;
     },
     showEngineDrawerShell() {
-      return !this.libraryWorkspaceOpen;
-    },
-    libraryEditorOpen: {
-      get() {
-        return this.libraryWorkspaceOpen && this.libraryWorkspacePane === 'editor';
-      },
-      set(value) {
-        if (value) {
-          this.libraryWorkspaceOpen = true;
-          this.libraryWorkspacePane = 'editor';
-        } else if (this.libraryWorkspacePane === 'editor') {
-          this.libraryWorkspaceOpen = false;
-        }
-      },
+      return !(this.libraryEditorOpen && this.currentTab === 'LIBRARY');
     },
     sidePanelUsesEdgeDock() {
       const mode = this.sidePanelDock || 'auto';
       if (mode === 'edge') return true;
       if (mode === 'video') return false;
-      if (this.libraryWorkspaceOpen) return true;
+      if (this.libraryEditorOpen && this.currentTab === 'LIBRARY') return true;
       return this.currentTab === 'LIVE' && this.videoStageSize === 'full';
     },
     rightPanelToggleIcon() {
-      return this.rightPanelOpen ? 'chevron-left' : 'chevron-right';
+      return this.rightPanelOpen ? 'chevron-up' : 'chevron-down';
     },
     rightPanelToggleTitle() {
-      return this.rightPanelOpen ? 'Hide tab panel' : 'Show tab panel';
-    },
-    videoOverlayCssVars() {
-      const b = this.videoOverlayBounds;
-      const compositor = this.previewStageStyle || {};
-      if (!b || !Number(b.height) || b.height < 8) return Object.keys(compositor).length ? compositor : null;
-      return {
-        '--video-overlay-top': `${b.top}px`,
-        '--video-overlay-left': `${b.left}px`,
-        '--video-overlay-width': `${b.width}px`,
-        '--video-overlay-height': `${b.height}px`,
-        '--video-overlay-right': `${b.right}px`,
-        ...compositor,
-      };
-    },
-    previewStageStyle() {
-      const ms = Math.max(
-        0,
-        Math.min(5000, Math.round(Number(this.defaultAnimation?.previewCompositorCrossfadeMs) || 800)),
-      );
-      const forgeOpacity = this.effectiveForgeLayerOpacity;
-      return {
-        '--preview-compositor-crossfade-ms': `${ms}ms`,
-        '--preview-forge-layer-opacity': String(forgeOpacity),
-      };
-    },
-    runsPromptDiff() {
-      if (!Array.isArray(this.runsSelected) || this.runsSelected.length !== 2) return null;
-      const [idA, idB] = this.runsSelected;
-      const runA = (this.runsAll || []).find((r) => r.run_id === idA);
-      const runB = (this.runsAll || []).find((r) => r.run_id === idB);
-      if (!runA || !runB) return null;
-      return this.buildRunsPromptDiff(runA, runB);
-    },
-    sidePanelDockStyle() {
-      if (this.sidePanelUsesEdgeDock) return null;
-      const b = this.sidePanelDockBounds || {};
-      const top = Number(b.top);
-      const left = Number(b.left);
-      const height = Number(b.height);
-      if (!Number.isFinite(height) || height < 8) return null;
-      return {
-        top: `${Number.isFinite(top) ? top : 0}px`,
-        left: `${Number.isFinite(left) ? left : 0}px`,
-        height: `${height}px`,
-      };
-    },
-    videoOverlayCssVars() {
-      const b = this.videoOverlayBounds;
-      if (!b || !Number(b.height) || b.height < 8) return null;
-      return {
-        '--video-overlay-top': `${b.top}px`,
-        '--video-overlay-left': `${b.left}px`,
-        '--video-overlay-width': `${b.width}px`,
-        '--video-overlay-height': `${b.height}px`,
-        '--video-overlay-right': `${b.right}px`,
-      };
+      if (this.sidePanelUsesEdgeDock) {
+        return this.rightPanelOpen ? 'Collapse panel' : 'Expand panel';
+      }
+      return this.rightPanelOpen ? 'Collapse controls' : 'Show controls';
     },
     sidePanelDockStyle() {
       if (this.sidePanelUsesEdgeDock) return null;
@@ -1731,7 +1710,13 @@ export default {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
     },
     showMainStageHls() {
-      return this.hlsWatchEnabled;
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+    },
+    canStartHlsWatch() {
+      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
+    },
+    showMainStageHls() {
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
     },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
@@ -1744,7 +1729,7 @@ export default {
       if (!this.standbyPreviewVideoUrl) return false;
       const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
       if (!showClip && !this.showMainStageHls) return false;
-      if (this.libraryWorkspaceOpen) return false;
+      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -1776,14 +1761,9 @@ export default {
       return list.filter(
         (style) =>
           String(style.name || "").toLowerCase().includes(q)
-          || String(style.description || "").toLowerCase().includes(q)
-          || String(style.previewPrompt || "").toLowerCase().includes(q)
           || String(style.positive || "").toLowerCase().includes(q)
           || String(style.negative || "").toLowerCase().includes(q),
       );
-    },
-    promptStyleDraftPreviewPrompt() {
-      return stylePreviewPromptFor(this.promptStyleDraft);
     },
     builtinEngineLayers() {
       return (Array.isArray(this.videoLayers) ? this.videoLayers : []).filter((layer) => layer && layer.builtin);
@@ -1828,33 +1808,9 @@ export default {
     isWanLayerActive() {
       return this.activeVideoLayer?.kind === 'wan';
     },
-    isAnimateLcmLayerActive() {
-      return this.activeVideoLayer?.kind === 'animatelcm';
-    },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
-      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm';
-    },
-    activeAnimationPlugin() {
-      return pluginByLayerKind(this.activeVideoLayer?.kind) || null;
-    },
-    activeAnimationPluginId() {
-      return this.activeAnimationPlugin?.id || null;
-    },
-    animationPluginList() {
-      return ANIMATION_PLUGINS;
-    },
-    animateLcmMotionTypes() {
-      return ANIMATELCM_MOTION_TYPES;
-    },
-    animateLcmControlFields() {
-      return ANIMATELCM_CONTROL_FIELDS;
-    },
-    commonVisualItems() {
-      return this.commonVisualItemsForPlugin(this.activeAnimationPluginId);
-    },
-    pluginModulationTargets() {
-      return allPluginModulationTargets();
+      return kind === 'deforum' || kind === 'wan';
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
@@ -1903,14 +1859,6 @@ export default {
         if (this.showDeforumVideo) return `WAN live · ${model}${frameSuffix}`;
         if (this.deforumPlaying) return `WAN generating · ${model}${frameSuffix}`;
         return `WAN Video · ${model}`;
-      }
-      if (layer.kind === 'animatelcm') {
-        const frames = this.deforumGeneratedFrameCount;
-        const frameSuffix = frames ? ` · ${frames} frame${frames === 1 ? '' : 's'}` : '';
-        const motion = String(this.animateLcmEngine?.motion_type || 'pan');
-        if (this.showDeforumVideo) return `AnimateLCM live · ${motion}${frameSuffix}`;
-        if (this.deforumPlaying) return `AnimateLCM generating · ${motion}${frameSuffix}`;
-        return `AnimateLCM · ${motion}`;
       }
       if (layer.kind === 'input') {
         return this.activeLayerPlaybackUrl ? `Input · ${this.inputLayerLabel || 'Video'}` : 'Input · no source';
@@ -2667,7 +2615,7 @@ export default {
       return 'Very strong';
     },
     modulationTargets() {
-      return [...this.lfoTargets, ...this.animationTargets, ...this.pluginModulationTargets];
+      return [...this.lfoTargets, ...this.animationTargets];
     },
     lfoTargetGroups() {
       const groups = {};
@@ -2924,19 +2872,23 @@ export default {
     showDeforumVideo(visible) {
       if (visible) this.clearHeldPreviewFrame();
     },
+    currentTab() {
+      this.syncRunsMonitorPolling();
+    },
     'currentSubTab.SETTINGS'(sub) {
       if (this.currentTab !== 'SETTINGS') return;
       this.syncRunsMonitorPolling();
       if (sub === 'SYSTEM') void this.refreshRuns();
-      if (sub === 'RUNS') void this.refreshRuns();
-      if (sub === 'OUTPUT') void this.refreshStreamStatus();
     },
     runsAutoRefresh() {
       this.syncRunsMonitorPolling();
       this.saveSessionState();
     },
+    liveBottomDrawerOpen() {
+      this.syncRunsMonitorPolling();
+    },
     liveEngineDrawerOpen(open) {
-      this.$nextTick(() => this.updateVideoOverlayBounds());
+      this.$nextTick(() => this.updateSidePanelDockBounds());
       if (open) void this.preloadDeforumPipeline();
     },
     liveAnimationBoxOpen(open) {
@@ -2945,12 +2897,14 @@ export default {
     enginePanelDetailsOpen(open) {
       if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
     },
-    currentTab(tab, prev) {
+    liveBottomDrawerTab(tab) {
+      if (tab === 'SYSTEM') void this.refreshRuns();
       this.syncRunsMonitorPolling();
-      this.updateVideoOverlayBounds();
-      this.updateSidePanelDockBounds();
-      if (tab === 'RUNS') void this.refreshRuns();
-      if (tab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'OUTPUT') void this.refreshStreamStatus();
+    },
+    currentTab(tab, prev) {
+      if (prev === "STREAM" && tab !== "STREAM") {
+        this.disableHlsWatch();
+      }
     },
     hlsPreviewStreamValid(valid) {
       if (!valid && this.hlsWatchEnabled) {
@@ -2968,27 +2922,16 @@ export default {
       this.$nextTick(() => this.bindSidePanelDockTracking());
     },
     videoStageSize() {
-      this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
     },
-    libraryWorkspaceOpen() {
-      this.updateVideoOverlayBounds();
+    libraryEditorOpen() {
       this.updateSidePanelDockBounds();
     },
-    libraryWorkspacePane() {
-      this.updateVideoOverlayBounds();
+    currentTab() {
       this.updateSidePanelDockBounds();
-    },
-    runsMonitorActive(active) {
-      if (active) this.ensureRunsJobLogReady();
-      this.syncRunsMonitorPolling();
     },
     rightPanelOpen() {
-      this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
-    },
-    motionSequencerSideOpen() {
-      this.updateVideoOverlayBounds();
     },
   },
   mounted() {
@@ -3000,9 +2943,9 @@ export default {
       if (typeof window !== 'undefined' && window.localStorage) {
         const savedTab = window.localStorage.getItem('defora_tab');
         if (savedTab === 'EDITOR') {
-          this.openLibraryWorkspace('editor');
-        } else if (savedTab === 'LIBRARY') {
-          this.openLibraryWorkspace('browser');
+          this.currentTab = 'LIBRARY';
+          this.libraryEditorOpen = true;
+          window.localStorage.setItem('defora_tab', 'LIBRARY');
         }
       }
     } catch (_e) {}
@@ -3015,26 +2958,21 @@ export default {
     this.loadBindings();
     this.refreshPresets();
     this.refreshSharedPresets();
-    const quiet = this.isQuietStartup();
-    if (!quiet) {
-      this.refreshGpuPool(false);
-      this.loadControlNetModels();
-    }
+    this.refreshGpuPool(false);
+    this.loadControlNetModels();
     this.refreshPlugins();
     void this.loadPromptStyles();
     this.syncDeforumSettingsJson();
     const deforumSettingsPromise = this.loadDeforumSettings({ syncServerModel: false });
-    const forgeRefreshPromise = quiet ? Promise.resolve() : this.refreshForgeAll();
+    const forgeRefreshPromise = this.refreshForgeAll();
     deforumSettingsPromise.finally(() => {
-      if (!quiet && !this.deforumPlaying) this.schedulePreviewFrame();
-      if (!quiet) void this.preloadDeforumPipeline();
+      if (!this.deforumPlaying) this.schedulePreviewFrame();
+      void this.preloadDeforumPipeline();
     });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
-      if (!quiet) {
-        this.restoreLastModel();
-        void this.ensureDefaultForgeModelPreloaded();
-        void this.preloadDeforumPipeline();
-      }
+      this.restoreLastModel();
+      void this.ensureDefaultForgeModelPreloaded();
+      void this.preloadDeforumPipeline();
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -3051,14 +2989,12 @@ export default {
         });
       };
       scheduleFramesPoll();
-      if (!quiet) {
-        const scheduleHealthPoll = () => {
-          this.refreshApiHealth().finally(() => {
-            this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
-          });
-        };
-        scheduleHealthPoll();
-      }
+      const scheduleHealthPoll = () => {
+        this.refreshApiHealth().finally(() => {
+          this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
+        });
+      };
+      scheduleHealthPoll();
     }
     this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
     this.lfoTimer = setInterval(() => this.runLfos(), 120);
@@ -3073,7 +3009,7 @@ export default {
       this.bindSidePanelDockTracking();
     });
     this.initPromptHistory();
-    if (!quiet) this.refreshServiceHealth();
+    this.refreshServiceHealth();
     this.syncRunsMonitorPolling();
   },
   beforeUnmount() {
@@ -3103,10 +3039,6 @@ export default {
     }
   },
   methods: {
-
-  isQuietStartup() {
-    return typeof window !== 'undefined' && window.__DEFORA_QUIET__ === 1;
-  },
 
   cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -3309,7 +3241,7 @@ export default {
       let res = await fetch('/api/deforum/warmup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxFrames: 24, fps: 24 }),
+        body: JSON.stringify({ maxFrames: 24, fps: 12 }),
       });
       let data = res.ok ? await res.json() : null;
       if (res.ok && data && data.ok && data.batchId) {
@@ -3442,36 +3374,26 @@ export default {
   },
   openRunsSettings() {
     this.switchTab('SETTINGS');
-    this.switchSubTab('SETTINGS', 'RUNS');
+    this.switchSubTab('SETTINGS', 'SYSTEM');
     this.runsBrowserTab = 'active';
     void this.refreshRuns();
     this.syncRunsMonitorPolling();
   },
   openRecentRun(run) {
     if (!run) return;
-    this.switchTab('RUNS');
+    this.liveBottomDrawerOpen = true;
+    this.setLiveBottomDrawerTab('SYSTEM');
     this.showRunDetails(run);
   },
   openRunsDrawerSystem() {
-    this.switchTab('RUNS');
+    this.liveBottomDrawerOpen = true;
+    this.setLiveBottomDrawerTab('SYSTEM');
   },
   openFramesInRunsPanel() {
-    this.switchTab('RUNS');
+    this.liveBottomDrawerOpen = true;
+    this.liveBottomDrawerTab = 'SYSTEM';
     this.setRunsBrowserTab('frames');
     this.syncRunsMonitorPolling();
-  },
-  openRunFromRail(run) {
-    if (!run) return;
-    this.switchTab('RUNS');
-    this.showRunDetails(run);
-  },
-  runRailSummary(run) {
-    if (!run) return '';
-    const tag = run.tag || run.notes || '';
-    if (tag) return String(tag).slice(0, 48);
-    const prompt = run.prompt_positive || '';
-    if (prompt) return String(prompt).slice(0, 48);
-    return '';
   },
   applyRunsFilters() {
     let filtered = (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued');
@@ -3520,40 +3442,9 @@ export default {
       const res = await fetch(`/api/runs/${run.run_id}`);
       if (!res.ok) return;
       this.runsDetailView = await res.json();
-      this.syncCompositorAndFrameRailFromRun(this.runsDetailView);
     } catch (_e) {
       this.runsStatus = "Failed to load run details";
     }
-  },
-  closeRunsDetailView() {
-    this.runsDetailView = null;
-    this.frameRailRunId = null;
-  },
-  syncCompositorAndFrameRailFromRun(run) {
-    if (!run || run._isBatch) return;
-    this.frameRailRunId = run.run_id;
-    const hasVideo = !!(
-      run.has_video
-      || run.primary_video
-      || (Array.isArray(run.videos) && run.videos.length)
-      || (run.outputs || []).some((o) => o && o.kind === 'video')
-    );
-    const hasFrames = !!(
-      run.has_frames
-      || (Array.isArray(run.frames) && run.frames.length)
-      || (run.outputs || []).some((o) => o && o.kind === 'frames')
-    );
-    if (hasVideo && hasFrames) {
-      this.selectVideoLayer('blend', { userInitiated: false });
-    } else if (hasVideo) {
-      this.selectVideoLayer('deforum', { userInitiated: false });
-    } else if (hasFrames) {
-      this.selectVideoLayer('deforum', { userInitiated: false });
-    }
-    this.$nextTick(() => {
-      const thumbs = this.frameStripThumbs;
-      if (thumbs.length) this.selectFrame(thumbs.length - 1, { userInitiated: false });
-    });
   },
   onRunRowClick(run, event) {
     if (!run) return;
@@ -3588,7 +3479,7 @@ export default {
     const browsePath = framesOut?.browse_path || null;
     const rootId = framesOut?.rootId || "runs";
     if (!browsePath) return;
-    this.openLibraryWorkspace('browser');
+    this.currentTab = "LIBRARY";
     this.librarySubTab = "BROWSER";
     await this.initSystemFilesBrowser();
     await this.browseSystemFiles(browsePath, { rootId });
@@ -3896,39 +3787,27 @@ export default {
    this.rightPanelOpen = !this.rightPanelOpen;
    this.liveDrawerOpen = this.rightPanelOpen;
    this.saveSessionState();
-   this.$nextTick(() => this.updateVideoOverlayBounds());
  },
  toggleEngineDrawer() {
    this.liveEngineDrawerOpen = !this.liveEngineDrawerOpen;
    this.saveSessionState();
-   this.$nextTick(() => this.updateVideoOverlayBounds());
+   this.$nextTick(() => this.updateSidePanelDockBounds());
  },
- updateVideoOverlayBounds() {
+ updateSidePanelDockBounds() {
    this.$nextTick(() => {
-     const el = this.$refs.previewVideoStackRef || this.$refs.videoStageRef;
+     if (this.sidePanelUsesEdgeDock) return;
+     const el = this.$refs.videoStageRef;
      if (!el || typeof el.getBoundingClientRect !== 'function') return;
      const rect = el.getBoundingClientRect();
-     if (rect.width < 8 || rect.height < 8) return;
-     this.videoOverlayBounds = {
-       top: rect.top,
-       left: rect.left,
-       right: rect.right,
-       bottom: rect.bottom,
-       width: rect.width,
-       height: rect.height,
-     };
+     if (rect.height < 8) return;
      this.sidePanelDockBounds = { top: rect.top, left: rect.left, height: rect.height };
    });
  },
- updateSidePanelDockBounds() {
-   this.updateVideoOverlayBounds();
- },
  bindSidePanelDockTracking() {
    if (typeof window === 'undefined') return;
-   const run = () => this.updateVideoOverlayBounds();
+   const run = () => this.updateSidePanelDockBounds();
    if (!this._sidePanelDockOnResize) {
      window.addEventListener('resize', run, { passive: true });
-     window.addEventListener('scroll', run, { passive: true });
      this._sidePanelDockOnResize = run;
    }
    if (this._sidePanelDockResizeObserver) {
@@ -3936,10 +3815,10 @@ export default {
      this._sidePanelDockResizeObserver = null;
    }
    if (typeof ResizeObserver === 'function') {
-     const targets = [this.$refs.previewVideoStackRef, this.$refs.videoStageRef].filter(Boolean);
-     if (targets.length) {
+     const el = this.$refs.videoStageRef;
+     if (el) {
        this._sidePanelDockResizeObserver = new ResizeObserver(run);
-       targets.forEach((target) => this._sidePanelDockResizeObserver.observe(target));
+       this._sidePanelDockResizeObserver.observe(el);
      }
    }
    run();
@@ -3955,30 +3834,41 @@ export default {
    }
  },
  switchTab(id) {
-   if (id === 'EDITOR' || id === 'LIBRARY') {
-     this.openLibraryWorkspace(id === 'EDITOR' ? 'editor' : 'browser');
-     return;
+   if (id === 'EDITOR') {
+     id = 'LIBRARY';
    }
-   if (id === 'STREAM') {
-     this.currentTab = 'SETTINGS';
-     this.switchSubTab('SETTINGS', 'OUTPUT');
-     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'SETTINGS'); } catch (_e) {}
-     void this.refreshStreamStatus();
+   if (id === 'GENERATE') {
+     this.currentTab = 'MOTION';
+     this.currentSubTab.MOTION = 'PERFORMANCE';
+     this.motionSequencerSideOpen = true;
+     try {
+       if (typeof window !== 'undefined' && window.localStorage) {
+         window.localStorage.setItem('defora_tab', 'MOTION');
+         window.localStorage.setItem('defora_subtab_MOTION', 'PERFORMANCE');
+       }
+     } catch (_e) {}
      this.saveSessionState();
      return;
    }
-   this.currentTab = id;
    if (id === 'AUDIO') {
+     this.currentTab = 'MODULATION';
      this.currentSubTab.MODULATION = 'AUDIO_REACTIVE';
-   }
-   if (id === 'GENERATE') {
-     this.motionSequencerSideOpen = true;
+     try {
+       if (typeof window !== 'undefined' && window.localStorage) {
+         window.localStorage.setItem('defora_tab', 'MODULATION');
+         window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO_REACTIVE');
+       }
+     } catch (_e) {}
+     return;
    }
    if (id === 'RUNS') {
-     this.runsBrowserTab = this.runsBrowserTab || 'active';
-     void this.refreshRuns();
-     this.syncRunsMonitorPolling();
+     this.openRunsDrawerSystem();
+     return;
    }
+   if (id !== 'LIBRARY') {
+     this.libraryEditorOpen = false;
+   }
+   this.currentTab = id;
    if (id === 'MOTION') {
      this.$nextTick(() => {
        this.refreshSequencerList();
@@ -3986,6 +3876,12 @@ export default {
      });
    }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
+  if (id === 'LIBRARY') {
+    void this.initSystemFilesBrowser();
+  }
+  if (id === 'STREAM') {
+    void this.refreshStreamStatus();
+  }
  },
  normalizeModulationSubTab(sub) {
    if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
@@ -4007,10 +3903,13 @@ export default {
   return sub === 'PERFORMANCE' ? sub : 'PERFORMANCE';
  },
  switchSubTab(tab, sub) {
+  if (tab === 'SETTINGS' && sub === 'RUNS') {
+    this.openRunsSettings();
+    return;
+  }
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
-  if (tab === 'SETTINGS' && sub === 'SYSTEM') sub = 'RUNS';
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
   if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
   if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
@@ -4042,20 +3941,32 @@ export default {
     void this.initSystemFilesBrowser();
   }
   if (tab === 'SETTINGS') {
-    if (sub === 'RUNS') void this.refreshRuns();
+    if (sub === 'SYSTEM') void this.refreshRuns();
     this.syncRunsMonitorPolling();
   }
  },
  setRunsBrowserTab(tab) {
   if (tab !== 'active' && tab !== 'past' && tab !== 'frames') return;
   this.runsBrowserTab = tab;
-  if (tab === 'active') this.ensureRunsJobLogReady();
   if (tab === 'frames') {
     this.showFrames = true;
     void this.refreshFrames();
   } else if (tab === 'active' || tab === 'past') {
     void this.refreshRuns();
   }
+  this.saveSessionState();
+ },
+ setLiveBottomDrawerTab(tab) {
+  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
+  this.liveBottomDrawerTab = tab;
+  if (tab === 'SYSTEM') {
+    void this.refreshRuns();
+  } else if (tab !== 'CROSSFADER') {
+    this.loraCrossfaderPickerGroup = null;
+  } else if (!this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
+  this.syncRunsMonitorPolling();
   this.saveSessionState();
  },
  toggleLoraCrossfaderPicker(group) {
@@ -4350,11 +4261,6 @@ normalizeDefaultAnimationSettings(input = {}) {
     preferDeforumVideo: !!next.preferDeforumVideo,
     showStandbyClip: !!next.showStandbyClip,
     autoTransitionToDeforum: next.autoTransitionToDeforum !== false,
-    rememberCompositorLayerOnStartup: !!next.rememberCompositorLayerOnStartup,
-    previewCompositorCrossfadeMs: Math.max(
-      0,
-      Math.min(5000, Math.round(Number(next.previewCompositorCrossfadeMs) || 800)),
-    ),
     mode,
     instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
@@ -4392,21 +4298,6 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
     forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
-    forgeLayerOpacityLfoLink: (() => {
-      const id = Number(next.forgeLayerOpacityLfoLink || 0);
-      return id >= 1 && id <= 6 ? id : null;
-    })(),
-    forgeLayerOpacityLfoBase: Math.max(
-      0,
-      Math.min(
-        1,
-        Number.isFinite(Number(next.forgeLayerOpacityLfoBase))
-          ? Number(next.forgeLayerOpacityLfoBase)
-          : Number.isFinite(Number(next.forgeLayerOpacity))
-            ? Number(next.forgeLayerOpacity)
-            : 0.88,
-      ),
-    ),
   };
 },
 onDefaultAnimationInput() {
@@ -4493,133 +4384,10 @@ syncHudMotionFromParam(hudKey, value) {
 },
 modulationTargetByKey(key) {
   if (!key) return null;
-  const parsed = parseCommonVisualModKey(key);
-  if (parsed) {
-    const pluginTarget = this.pluginModulationTargets.find((t) => t.key === key);
-    if (pluginTarget) return pluginTarget;
-  }
-  if (String(key).includes('.')) {
-    const pluginTarget = this.pluginModulationTargets.find((t) => t.key === key);
-    if (pluginTarget) return pluginTarget;
-  }
-  const legacy = legacyModKeyAliases();
-  if (legacy[key]) {
-    const resolved = this.pluginModulationTargets.find((t) => t.key === legacy[key]);
-    if (resolved) return resolved;
-  }
   const canonical = this.liveParamCanonicalKey(key);
   return this.lfoTargets.find((t) => t.key === canonical || t.key === key)
     || this.animationTargets.find((t) => t.key === canonical || t.key === key)
     || null;
-},
-readCommonVisualValue(pluginId, paramId) {
-  const binding = bindingFor(pluginId, paramId);
-  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
-  const fallback = param?.default ?? 0;
-  if (binding.type === 'disabled') return fallback;
-  if (binding.type === 'animation') {
-    const v = Number(this.defaultAnimation?.[binding.field]);
-    return Number.isFinite(v) ? v : fallback;
-  }
-  if (binding.type === 'schedule') {
-    const frame = this.motionSmoothnessStartFrame();
-    return readScheduleValueAtFrame(this.deforumSettings?.[binding.key], frame);
-  }
-  if (binding.type === 'wan') {
-    const v = Number(this.wanEngine?.[binding.key]);
-    return Number.isFinite(v) ? v : fallback;
-  }
-  if (binding.type === 'animatelcm') {
-    const v = Number(this.animateLcmEngine?.[binding.key]);
-    return Number.isFinite(v) ? v : fallback;
-  }
-  return fallback;
-},
-writeCommonVisualValue(pluginId, paramId, rawValue) {
-  const binding = bindingFor(pluginId, paramId);
-  if (binding.type === 'disabled') return;
-  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
-  const num = this.clampVal(Number(rawValue), param?.min ?? 0, param?.max ?? 1);
-  if (!Number.isFinite(num)) return;
-  if (binding.type === 'animation') {
-    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
-      ...this.defaultAnimation,
-      [binding.field]: num,
-    });
-    this.saveSessionState();
-    return;
-  }
-  if (binding.type === 'schedule') {
-    const schedule = formatScheduleKeyframes([{ frame: 0, value: num }]);
-    this.onDeforumFieldInput(binding.key, schedule, 'text');
-    if (!this.deforumPlaying) this.schedulePreviewFrame();
-    return;
-  }
-  if (binding.type === 'wan') {
-    this.onWanEngineFieldChange(binding.key, num, 'number');
-    return;
-  }
-  if (binding.type === 'animatelcm') {
-    this.onAnimateLcmFieldChange(binding.key, num, 'number');
-  }
-},
-onCommonVisualInput(paramId, rawValue, pluginIdOverride) {
-  const pluginId = pluginIdOverride || this.activeAnimationPluginId;
-  if (!pluginId) return;
-  this.writeCommonVisualValue(pluginId, paramId, rawValue);
-},
-commonVisualItemsForPlugin(pluginId) {
-  if (!pluginId) return [];
-  return COMMON_VISUAL_PARAMS.map((p) => {
-    const disabled = !isCommonVisualEnabled(pluginId, p.id);
-    const value = disabled ? p.default : this.readCommonVisualValue(pluginId, p.id);
-    const readout = Number.isFinite(value)
-      ? (Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2))
-      : '—';
-    return { ...p, paramId: p.id, value, readout, disabled };
-  });
-},
-onAnimateLcmFieldChange(key, rawValue, type = 'text') {
-  if (!key || !this.animateLcmEngine) return;
-  let next = rawValue;
-  if (type === 'boolean') {
-    next = !!rawValue;
-  } else if (type === 'number') {
-    const num = Number(rawValue);
-    if (!Number.isFinite(num)) return;
-    next = num;
-  } else {
-    next = String(rawValue ?? '');
-  }
-  this.animateLcmEngine = normalizeAnimateLcmEngine({ ...this.animateLcmEngine, [key]: next });
-  this.syncDeforumSettingsJson();
-  this.saveSessionState();
-  this.queueDeforumSettingsSave();
-  if (!this.deforumPlaying) this.scheduleDeforumPreview();
-},
-setAnimateLcmMotionType(typeId) {
-  if (!this.animateLcmEngine) return;
-  this.animateLcmEngine = normalizeAnimateLcmEngine({
-    ...this.animateLcmEngine,
-    motion_type: String(typeId || 'pan'),
-  });
-  this.saveSessionState();
-  this.queueDeforumSettingsSave();
-},
-applyAnimateLcmMotionPreset(name) {
-  if (!name || !this.motionPresets?.[name]) return;
-  const preset = this.motionPresets[name];
-  this.animateLcmEngine = normalizeAnimateLcmEngine({
-    ...this.animateLcmEngine,
-    motion_preset: name,
-    alcm_pan_x: Number(preset.translation_x) || 0,
-    alcm_pan_y: Number(preset.translation_y) || 0,
-    alcm_zoom: Number(preset.translation_z) ? 1 + Number(preset.translation_z) * 0.1 : 1,
-    alcm_motion_amount: name === 'Static' ? 0 : 1,
-  });
-  this.saveSessionState();
-  this.queueDeforumSettingsSave();
-  if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
 isAnimationModKey(key) {
   return typeof key === 'string' && key.startsWith('anim_');
@@ -4632,21 +4400,6 @@ applyAnimationModulation(field, value) {
   });
 },
 routeModulationValue(key, value, payload, cnUpdates) {
-  const pluginParsed = parseCommonVisualModKey(key);
-  if (pluginParsed) {
-    this.writeCommonVisualValue(pluginParsed.pluginId, pluginParsed.paramId, value);
-    return;
-  }
-  if (String(key).startsWith('wan.')) {
-    const wanKey = String(key).slice(4);
-    this.onWanEngineFieldChange(wanKey, value, 'number');
-    return;
-  }
-  if (String(key).startsWith('animatelcm.')) {
-    const alcmKey = String(key).slice('animatelcm.'.length);
-    this.onAnimateLcmFieldChange(alcmKey, value, 'number');
-    return;
-  }
   const anim = this.animationTargets.find((t) => t.key === key);
   if (anim) {
     this.applyAnimationModulation(anim.field, value);
@@ -4717,6 +4470,9 @@ setHlsPreviewStreamValid(valid) {
 },
 enableHlsWatch() {
   if (!this.hlsPreviewStreamValid) return;
+  if (this.currentTab !== "STREAM") {
+    this.switchTab("STREAM");
+  }
   if (this.hlsWatchEnabled) return;
   this.hlsWatchEnabled = true;
   this.videoReady = false;
@@ -4763,7 +4519,6 @@ rebuildVideoLayers() {
     { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl') },
     { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum') },
     { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan') },
-    { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true, previewVisible: prevVisible('animatelcm') },
     { id: 'blend', kind: 'blend', label: 'Both', builtin: true, previewVisible: prevVisible('blend') },
     {
       id: 'input',
@@ -4946,52 +4701,14 @@ updateHeldPreviewFromLatestFrame() {
   if (path) this.heldPreviewFramePath = path;
 },
 applyStartupVideoPreview() {
-  const remember = !!this.defaultAnimation?.rememberCompositorLayerOnStartup;
-  if (!remember) {
-    this._userPickedPreviewLayer = false;
-    this.activeVideoLayerId = 'webgl';
-  }
+  this._userPickedPreviewLayer = false;
+  this.activeVideoLayerId = 'webgl';
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
-    preferDeforumVideo: remember ? this.defaultAnimation.preferDeforumVideo : false,
+    preferDeforumVideo: false,
     autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
   });
   this.$nextTick(() => this.kickstandbyAnimation());
-},
-promoteToDeforum() {
-  this.selectVideoLayer('deforum', { userInitiated: true });
-},
-applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {}) {
-  const next = this.clampVal(Number(value) || 0, 0, 1);
-  this.defaultAnimation.forgeLayerOpacity = next;
-  if (commitBase || !fromModulation) {
-    this.defaultAnimation.forgeLayerOpacityLfoBase = next;
-  }
-  if (!fromModulation) this.onDefaultAnimationInput();
-},
-setForgeLayerOpacityLfoLink(lfoId) {
-  const nextId = Number(lfoId || 0);
-  const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
-  this.defaultAnimation.forgeLayerOpacityLfoLink = this.defaultAnimation.forgeLayerOpacityLfoLink === allowed
-    ? null
-    : allowed;
-  this.defaultAnimation.forgeLayerOpacityLfoBase = this.defaultAnimation.forgeLayerOpacity;
-  if (this.defaultAnimation.forgeLayerOpacityLfoLink) {
-    const linked = this.lfos.find((lfo) => lfo.id === this.defaultAnimation.forgeLayerOpacityLfoLink);
-    if (linked) linked.on = true;
-    if (!this.isBlendLayerActive && !this.isForgeAnimationLayerActive) {
-      this.selectVideoLayer('blend', { userInitiated: false });
-    }
-  }
-  this.onDefaultAnimationInput();
-},
-buildRunsPromptDiff(runA, runB) {
-  return {
-    runA: runA.run_id,
-    runB: runB.run_id,
-    positive: diffPromptLines(runA.prompt_positive, runB.prompt_positive),
-    negative: diffPromptLines(runA.prompt_negative, runB.prompt_negative),
-  };
 },
 maybePromoteDeforumPreview() {
   const anim = this.defaultAnimation || {};
@@ -5053,7 +4770,7 @@ selectVideoLayer(id, opts = {}) {
     this.saveSessionState();
     return;
   }
-  if (layer?.kind === 'animatelcm') {
+  if (layer?.kind === 'wan') {
     this.defaultAnimation = this.normalizeDefaultAnimationSettings({
       ...this.defaultAnimation,
       preferDeforumVideo: true,
@@ -5061,7 +4778,6 @@ selectVideoLayer(id, opts = {}) {
     this.videoReady = false;
     if (this.hlsWatchEnabled) this.attachPlayer();
     this.queueDeforumSettingsSave();
-    if (!this.deforumPlaying) this.scheduleDeforumPreview();
     this.saveSessionState();
     return;
   }
@@ -5083,7 +4799,7 @@ toggleVideoLayerAdd(open) {
   this.saveSessionState();
 },
 closeVideoLayer(id) {
-  if (id === 'webgl' || id === 'deforum' || id === 'wan' || id === 'animatelcm' || id === 'blend' || id === 'input') return;
+  if (id === 'webgl' || id === 'deforum' || id === 'wan' || id === 'blend' || id === 'input') return;
   this.removeLiveSource(id);
   if (this.activeVideoLayerId === id) {
     this.selectVideoLayer('input');
@@ -5160,10 +4876,10 @@ layerStatus(layer) {
     if (this.deforumPlaying || this.videoReady) return 'yellow';
     return 'green';
   }
-  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan') {
     if (this.videoReady) return 'green';
     if (this.deforumPlaying || (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo)) return 'yellow';
-    if (layer.kind === 'wan' || layer.kind === 'animatelcm') return 'yellow';
+    if (layer.kind === 'wan') return 'yellow';
     return 'red';
   }
   if (layer.kind === 'input') {
@@ -5196,12 +4912,6 @@ animationLayerDescription(layer) {
     if (this.videoReady) return `WAN Video · ${model} · live`;
     return `WAN Video · ${model} · idle`;
   }
-  if (layer.kind === 'animatelcm') {
-    const motion = String(this.animateLcmEngine?.motion_type || 'pan');
-    if (this.deforumPlaying) return `AnimateLCM · ${motion} · generating`;
-    if (this.videoReady) return `AnimateLCM · ${motion} · live`;
-    return `AnimateLCM · ${motion} · idle`;
-  }
   if (layer.kind === 'blend') return 'Composite · WebGL under Deforum';
   if (layer.kind === 'input') {
     return this.inputLayerPlaybackUrl
@@ -5229,40 +4939,25 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
-toggleLibraryWorkspace() {
-  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
-  else this.openLibraryWorkspace('browser');
-},
-openLibraryWorkspace(pane = 'browser') {
-  this.libraryWorkspaceOpen = true;
-  this.libraryWorkspacePane = pane === 'editor' ? 'editor' : 'browser';
+openLibraryVideoEditor() {
+  this.currentTab = 'LIBRARY';
+  this.libraryEditorOpen = true;
+  this.rightPanelOpen = true;
+  this.liveDrawerOpen = true;
   void this.initSystemFilesBrowser();
   this.saveSessionState();
 },
-closeLibraryWorkspace() {
-  this.libraryWorkspaceOpen = false;
-  this.libraryWorkspacePane = 'browser';
-  this.saveSessionState();
-},
-setLibraryWorkspacePane(pane) {
-  const next = pane === 'editor' ? 'editor' : 'browser';
-  if (this.libraryWorkspacePane === next) return;
-  this.libraryWorkspacePane = next;
-  if (next === 'browser') void this.initSystemFilesBrowser();
-  this.saveSessionState();
-},
-openLibraryVideoEditor() {
-  this.openLibraryWorkspace('editor');
-},
 closeLibraryEditor() {
-  this.setLibraryWorkspacePane('browser');
+  this.libraryEditorOpen = false;
+  this.saveSessionState();
 },
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
     this.editorStatusLive = false;
-    this.openLibraryWorkspace('browser');
+    this.currentTab = 'LIBRARY';
+    this.libraryEditorOpen = false;
     this.saveSessionState();
     return;
   }
@@ -5272,12 +4967,7 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.openLibraryWorkspace('editor');
-},
-ensureRunsJobLogReady() {
-  if (!this.runsMonitorActive) return;
-  if (this.runsJobLog.length) return;
-  this.appendRunsJobLog('Runs monitor ready — launch a test job or wait for activity.', 'info');
+  this.openLibraryVideoEditor();
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -5296,25 +4986,34 @@ cloudProviderLabel(provider) {
   return map[String(provider || '').toLowerCase()] || 'Cloud';
 },
 async initSystemFilesBrowser() {
-  if (this.systemFiles._rootsLoaded) return;
   try {
-    const res = await fetch('/api/video-swarm/roots');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not load library roots');
-    this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
-    this.systemFiles.cloudSources = Array.isArray(data.cloudSources) ? data.cloudSources : [];
-    this.systemFiles._rootsLoaded = true;
-    const preferred =
-      this.systemFiles.roots.find((r) => r.id === this.systemFiles.rootId)
-      || this.systemFiles.roots.find((r) => r.id === 'frames')
-      || this.systemFiles.roots[0];
-    if (preferred) {
-      this.systemFiles.rootId = preferred.id;
-      await this.browseSystemFiles(preferred.path, { rootId: preferred.id });
+    if (!this.systemFiles._rootsLoaded) {
+      const res = await fetch('/api/video-swarm/roots');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load library roots');
+      this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
+      this.systemFiles.cloudSources = Array.isArray(data.cloudSources) ? data.cloudSources : [];
+      this.systemFiles._rootsLoaded = true;
     }
+    await this.refreshLibraryBrowse();
   } catch (err) {
     this.systemFiles.status = err.message || 'Library unavailable';
   }
+},
+async refreshLibraryBrowse() {
+  const roots = this.systemFiles.roots || [];
+  const preferred =
+    roots.find((r) => r.id === this.systemFiles.rootId)
+    || roots.find((r) => r.id === 'uploads')
+    || roots.find((r) => r.id === 'frames')
+    || roots[0];
+  if (!preferred) return;
+  this.systemFiles.rootId = preferred.id;
+  if (preferred.kind === 'cloud') {
+    await this.browseSystemFiles('', { rootId: preferred.id });
+    return;
+  }
+  await this.browseSystemFiles(preferred.path, { rootId: preferred.id });
 },
 async refreshCloudSources() {
   try {
@@ -5930,10 +5629,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         && Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id
         && lfo.id >= 1
         && lfo.id <= 6;
-      const drivesCompositorOpacity = Number(this.defaultAnimation?.forgeLayerOpacityLfoLink || 0) === lfo.id
-        && lfo.id >= 1
-        && lfo.id <= 6;
-      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader && !drivesCompositorOpacity)) return;
+      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader)) return;
       const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
       const inc = dtSec * this.lfoRateRadPerSec(lfo);
       const phase = (lfo.phase || 0) + inc;
@@ -5961,17 +5657,6 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         const amp = depth * 0.5;
         const value = this.clampVal(base + wave * amp, 0, 1);
         this.applyLoraCrossfader(value, { fromModulation: true });
-      }
-
-      if (drivesCompositorOpacity) {
-        const base = this.clampVal(
-          Number(this.defaultAnimation?.forgeLayerOpacityLfoBase ?? this.defaultAnimation?.forgeLayerOpacity ?? 0.88) || 0.88,
-          0,
-          1,
-        );
-        const amp = depth * 0.5;
-        const value = this.clampVal(base + wave * amp, 0, 1);
-        this.applyForgeLayerOpacity(value, { fromModulation: true });
       }
 
       lfo.targets.forEach((targetKey) => {
@@ -10576,22 +10261,19 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (s.sidePanelDock === 'auto' || s.sidePanelDock === 'edge' || s.sidePanelDock === 'video') {
        this.sidePanelDock = s.sidePanelDock;
      }
-     if (s.liveBottomDrawerOpen === true) {
-       if (s.liveBottomDrawerTab === 'SYSTEM' || s.liveBottomDrawerTab === 'RUNS') {
-         this.currentTab = 'RUNS';
-       }
-     }
+     if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
      if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
+     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
+       this.liveBottomDrawerTab = s.liveBottomDrawerTab;
+     } else if (s.liveBottomDrawerTab === 'RUNS') {
+       this.liveBottomDrawerTab = 'SYSTEM';
+     }
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
     if (s.currentSubTab && s.currentSubTab.MOTION) {
       this.currentSubTab.MOTION = this.normalizeMotionSubTab(s.currentSubTab.MOTION);
     }
-    if (s.currentSubTab && s.currentSubTab.SETTINGS) {
-      this.currentSubTab.SETTINGS = s.currentSubTab.SETTINGS === 'SYSTEM' ? 'RUNS' : s.currentSubTab.SETTINGS;
-    }
-    if (typeof s.motionFineTuneOpen === 'boolean') this.motionFineTuneOpen = s.motionFineTuneOpen;
     if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
     if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
     if (typeof s.activeVideoLayerId === 'string') this.activeVideoLayerId = s.activeVideoLayerId;
@@ -10652,19 +10334,14 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
     if (typeof s.hlsWatchEnabled === 'boolean') {
       this.hlsWatchEnabled = s.hlsWatchEnabled;
-      if (this.hlsWatchEnabled) {
+      if (this.hlsWatchEnabled && this.currentTab === 'STREAM') {
         this.$nextTick(() => this.attachPlayer());
       }
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
-    if (typeof s.libraryWorkspaceOpen === 'boolean') {
-      this.libraryWorkspaceOpen = s.libraryWorkspaceOpen;
-      if (s.libraryWorkspacePane === 'editor' || s.libraryWorkspacePane === 'browser') {
-        this.libraryWorkspacePane = s.libraryWorkspacePane;
-      }
-    } else if (typeof s.libraryEditorOpen === 'boolean' && s.libraryEditorOpen) {
-      this.libraryWorkspaceOpen = true;
-      this.libraryWorkspacePane = 'editor';
+    if (typeof s.libraryEditorOpen === 'boolean') {
+      this.libraryEditorOpen = s.libraryEditorOpen;
+      if (this.libraryEditorOpen) this.currentTab = 'LIBRARY';
     }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
@@ -10737,9 +10414,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.wanEngine && typeof s.wanEngine === 'object') {
       this.wanEngine = normalizeWanEngine(s.wanEngine);
     }
-    if (s.animateLcmEngine && typeof s.animateLcmEngine === 'object') {
-      this.animateLcmEngine = normalizeAnimateLcmEngine(s.animateLcmEngine);
-    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
@@ -10761,6 +10435,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -10788,8 +10464,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
-      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
-      libraryWorkspacePane: this.libraryWorkspacePane,
+      libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -10803,7 +10478,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
-      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -10823,7 +10497,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
-      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -10849,6 +10522,8 @@ getCurrentSessionSnapshotRaw() {
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -10876,8 +10551,7 @@ getCurrentSessionSnapshotRaw() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
-      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
-      libraryWorkspacePane: this.libraryWorkspacePane,
+      libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -10889,7 +10563,6 @@ getCurrentSessionSnapshotRaw() {
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
-      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -10909,7 +10582,6 @@ getCurrentSessionSnapshotRaw() {
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
-      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -11717,9 +11389,6 @@ openPromptStyleEditor(id) {
   if (!style) return;
   this.promptStyleEditorId = id;
   this.promptStyleDraft = { ...style };
-  if (!style.exampleImage) {
-    void this.generatePromptStyleExample(id, { auto: true });
-  }
 },
 startNewPromptStyle() {
   const id = `custom_${Date.now()}`;
@@ -11727,8 +11396,6 @@ startNewPromptStyle() {
   this.promptStyleDraft = {
     id,
     name: "New style",
-    description: "",
-    previewPrompt: stylePreviewPromptFor(null),
     positive: "",
     negative: "",
     source: "custom",
@@ -11745,8 +11412,6 @@ async savePromptStyleDraft() {
   const payload = {
     id: draft.id,
     name: draft.name,
-    description: draft.description,
-    previewPrompt: draft.previewPrompt,
     positive: draft.positive,
     negative: draft.negative,
   };
@@ -11786,59 +11451,6 @@ async deletePromptStyle(id) {
     this.promptStylesStatus = "Style deleted";
   } catch (err) {
     this.promptStylesStatus = `Delete failed: ${err.message || err}`;
-  }
-},
-async generatePromptStyleExample(styleId, { auto = false } = {}) {
-  if (!styleId || this.promptStylePreviewGeneratingId) return;
-  const style = this.promptStyleById(styleId);
-  if (!style || style.exampleImage) return;
-
-  const styleForPreview =
-    this.promptStyleDraft?.id === styleId ? this.promptStyleDraft : style;
-  const basePrompt = stylePreviewPromptFor(styleForPreview);
-
-  this.promptStylePreviewGeneratingId = styleId;
-  if (!auto) {
-    this.promptStylesStatus = `Generating preview: "${basePrompt}"…`;
-  }
-
-  const { positive, negative } = applyPromptStyleToPrompts(
-    { positive: basePrompt, negative: '' },
-    styleForPreview,
-  );
-  const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
-  const steps = Math.min(24, Math.max(8, Number(this.deforumSettings?.steps) || 12));
-
-  try {
-    const res = await fetch('/api/txt2img', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: positive,
-        negative_prompt: negative,
-        steps,
-        cfg_scale: cfg ? cfg.val : 7,
-        width: 512,
-        height: 512,
-        seed: this.deforumSettings?.seed != null ? this.deforumSettings.seed : -1,
-        sampler_name: this.deforumSettings?.sampler || 'Euler a',
-        settings: this.deforumSettings,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.path) {
-      throw new Error(data.error || data.detail || 'txt2img failed');
-    }
-    await this.setPromptStyleExampleFromPath(styleId, data.path);
-    if (!auto) this.promptStylesStatus = 'Style preview saved';
-  } catch (err) {
-    if (!auto) {
-      this.promptStylesStatus = `Preview failed: ${err.message || err}`;
-    }
-  } finally {
-    if (this.promptStylePreviewGeneratingId === styleId) {
-      this.promptStylePreviewGeneratingId = null;
-    }
   }
 },
 async setPromptStyleExampleFromPreview(styleId) {
@@ -11928,7 +11540,7 @@ effectiveNegativePrompt(base) {
 },
 effectiveDeforumSettingsForRender() {
   const settings = JSON.parse(JSON.stringify(this.activeDeforumSettings()));
-  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive)
+  const basePositive = this.isWanLayerActive
     ? (this.buildMorphedPrompt() || String(this.prompts.pos || "").trim())
     : (
       getNestedValue(settings, "prompts.0")
@@ -11939,7 +11551,7 @@ effectiveDeforumSettingsForRender() {
   const positive = this.effectivePositivePrompt(basePositive);
   setNestedValue(settings, "prompts.0", positive);
   settings.negative_prompts = this.effectiveNegativePrompt(baseNegative);
-  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive) {
+  if (this.lcmEngineEnabled && !this.isWanLayerActive) {
     const steps = Math.max(1, Math.round(Number(this.lcmEngine.steps) || 1));
     settings.steps = steps;
     settings.steps_schedule = `0: (${steps})`;
@@ -11947,13 +11559,7 @@ effectiveDeforumSettingsForRender() {
   if (this.isWanLayerActive) {
     return mergeWanEngineIntoDeforumSettings(settings, this.wanEngine, { positivePrompt: positive });
   }
-  if (this.isAnimateLcmLayerActive) {
-    return mergeAnimateLcmIntoDeforumSettings(settings, this.animateLcmEngine, { positivePrompt: positive });
-  }
   if (settings.animation_mode === WAN_ANIMATION_MODE) {
-    settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
-  }
-  if (settings.animation_mode === ANIMATELCM_ANIMATION_MODE) {
     settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
   }
   return settings;
@@ -12162,7 +11768,6 @@ flushQueuedPreview() {
   }, 0);
 },
  schedulePreviewFrame() {
-  if (this.isQuietStartup()) return;
   this.queuePreviewRequest('auto', 180);
  },
  scheduleDeforumPreview() {
@@ -12171,36 +11776,6 @@ flushQueuedPreview() {
  getDeforumField(keyPath) {
    return getNestedValue(this.deforumSettings, keyPath);
  },
-deforumMacroKnobValue(knob) {
-  if (!knob || !knob.key) return 0;
-  if (knob.scalar) {
-    const raw = this.getDeforumField(knob.key);
-    const num = Number(raw);
-    return Number.isFinite(num) ? num : 0;
-  }
-  const frame = this.motionSmoothnessStartFrame();
-  return readScheduleValueAtFrame(this.getDeforumField(knob.key), frame);
-},
-formatDeforumMacroKnobValue(knob) {
-  const v = this.deforumMacroKnobValue(knob);
-  if (!Number.isFinite(v)) return '—';
-  const step = Number(knob?.step) || 0.01;
-  const decimals = (String(step).split('.')[1] || '').length;
-  return decimals > 0 ? v.toFixed(decimals) : String(Math.round(v));
-},
-onDeforumMacroKnobInput(knob, raw) {
-  if (!knob || !knob.key) return;
-  const num = Number(raw);
-  if (!Number.isFinite(num)) return;
-  const clamped = this.clampVal(num, Number(knob.min ?? 0), Number(knob.max ?? 1));
-  if (knob.scalar) {
-    this.onDeforumFieldInput(knob.key, clamped, 'number');
-    return;
-  }
-  const schedule = formatScheduleKeyframes([{ frame: 0, value: clamped }]);
-  this.onDeforumFieldInput(knob.key, schedule, 'text');
-  if (!this.deforumPlaying) this.schedulePreviewFrame();
-},
 formatDeforumFieldValue(field, rawValue) {
   if (!field) return String(rawValue ?? '');
   const value = rawValue == null ? '' : rawValue;

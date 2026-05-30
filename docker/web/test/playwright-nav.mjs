@@ -71,10 +71,47 @@ async function closeLibraryWorkspaceIfOpen(page) {
   }
 }
 
-/** Top-level RUNS tab or Settings → RUNS runs monitor (completed runs under Past runs). */
+async function openLiveSystemDrawer(page) {
+  await closeLibraryWorkspaceIfOpen(page);
+  await ensureRightPanelOpen(page);
+  await clickTab(page, 'LIVE');
+  const drawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]').first();
+  if ((await drawerToggle.count()) > 0) {
+    const expanded = await drawerToggle.getAttribute('aria-expanded');
+    if (expanded !== 'true') {
+      await drawerToggle.click();
+      await page.waitForFunction(
+        () => {
+          const t = document.querySelector('[data-testid="bottom-drawer-toggle"]');
+          return t && t.getAttribute('aria-expanded') === 'true';
+        },
+        { timeout: 10000 },
+      );
+    }
+    const systemPill = page.locator('.live-top-drawer__tabs .sub-pill').filter({ hasText: /^SYSTEM$/ }).first();
+    if ((await systemPill.count()) > 0) {
+      await systemPill.waitFor({ state: 'visible', timeout: 10000 });
+      await systemPill.click();
+      await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
+      return;
+    }
+  }
+  await clickTab(page, 'SETTINGS');
+  await page.locator('.settings-subtabs .sub-pill').filter({ hasText: /^RUNS$/ }).first().click();
+  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
+}
+
+/** RUNS tab, or LIVE → bottom drawer → SYSTEM runs monitor. */
 export async function openRunsMonitor(page, { tab = 'active' } = {}) {
   await closeLibraryWorkspaceIfOpen(page);
-  await clickTab(page, 'RUNS');
+  const runsTab = page.locator(NAV_TAB_SELECTOR).filter({
+    has: page.locator('.tab__label').filter({ hasText: /^RUNS$/ }),
+  }).first();
+  if ((await runsTab.count()) > 0) {
+    await clickTab(page, 'RUNS');
+  } else {
+    await openLiveSystemDrawer(page);
+  }
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
   if (tab === 'past') {
     await page.locator('[data-testid="runs-browser-tab-past"]').click();
@@ -108,16 +145,21 @@ export async function waitForPastRunRow(page, runId, timeoutMs = 45000) {
   return row;
 }
 
-/** Top-nav library button → fullscreen browser workspace. */
+/** Legacy overlay or LIBRARY tab → VideoSwarm storage browser. */
 export async function openLibraryBrowser(page) {
   const libraryBtn = page.locator('[data-testid="top-nav-library"]').first();
-  await libraryBtn.waitFor({ state: 'visible', timeout: 30000 });
-  const expanded = await libraryBtn.getAttribute('aria-expanded');
-  if (expanded !== 'true') {
-    await libraryBtn.click();
+  if ((await libraryBtn.count()) > 0) {
+    await libraryBtn.waitFor({ state: 'visible', timeout: 30000 });
+    const expanded = await libraryBtn.getAttribute('aria-expanded');
+    if (expanded !== 'true') {
+      await libraryBtn.click();
+    }
+    await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 30000 });
+    await page.locator('[data-testid="library-workspace-tab-browser"]').click();
+  } else {
+    await ensureRightPanelOpen(page);
+    await clickTab(page, 'LIBRARY');
   }
-  await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 30000 });
-  await page.locator('[data-testid="library-workspace-tab-browser"]').click();
   await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
   const browserRoot = page.locator('.video-swarm-browser[data-testid="video-swarm-browser"]').first();
   await browserRoot.waitFor({ state: 'visible', timeout: 30000 });
@@ -130,10 +172,25 @@ export async function openLibraryEditorTab(page) {
   await page.waitForSelector('[data-testid="editor-workspace"]', { timeout: 15000 });
 }
 
-/** RUNS tab → Frames rail (replaces legacy LIVE bottom drawer → System). */
+/** LIVE system drawer (or RUNS tab) → Frames rail with generation thumbnails. */
 export async function openLiveFramesPanel(page) {
-  await clickTab(page, 'RUNS');
+  const runsTab = page.locator(NAV_TAB_SELECTOR).filter({
+    has: page.locator('.tab__label').filter({ hasText: /^RUNS$/ }),
+  }).first();
+  if ((await runsTab.count()) > 0) {
+    await clickTab(page, 'RUNS');
+  } else {
+    await openLiveSystemDrawer(page);
+  }
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 15000 });
   await page.locator('[data-testid="runs-browser-tab-frames"]').click();
   await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15000 });
+}
+
+export async function dismissSessionModalIfOpen(page) {
+  const modal = page.locator('.restore-session-modal');
+  if ((await modal.count()) > 0) {
+    await page.locator('.restore-session-modal button').filter({ hasText: /^Discard$/ }).first().click();
+    await modal.waitFor({ state: 'hidden', timeout: 10000 });
+  }
 }

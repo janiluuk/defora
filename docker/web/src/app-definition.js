@@ -1526,314 +1526,6 @@ function visibleWanControlFields(wanEngine) {
     return true;
   });
 }
-// --- inlined from animation-plugins/common-visual.mjs (ESM source; do not edit) ---
-/**
- * Shared 8-macro visual strip — per-plugin field mapping.
- * Modulation keys: `{pluginId}.common.{paramId}` e.g. `deforum.common.strength`
- */
-
-const COMMON_VISUAL_PARAMS = [
-  { id: 'strength', label: 'Strength', min: 0, max: 1.5, step: 0.01, default: 0.65 },
-  { id: 'motion', label: 'Motion', min: 0, max: 2.5, step: 0.01, default: 0.75 },
-  { id: 'noise', label: 'Noise', min: 0, max: 1, step: 0.01, default: 0.2 },
-  { id: 'contrast', label: 'Contrast', min: 0, max: 2, step: 0.01, default: 1 },
-  { id: 'cfg', label: 'CFG', min: 0, max: 30, step: 0.1, default: 6 },
-  { id: 'zoom', label: 'Zoom', min: -5, max: 5, step: 0.05, default: 0 },
-  { id: 'pan_x', label: 'Pan X', min: -10, max: 10, step: 0.05, default: 0 },
-  { id: 'pan_y', label: 'Pan Y', min: -10, max: 10, step: 0.05, default: 0 },
-];
-
-/** @typedef {{ type: 'animation', field: string } | { type: 'schedule', key: string } | { type: 'scalar', key: string } | { type: 'wan', key: string } | { type: 'animatelcm', key: string } | { type: 'disabled' }} CommonVisualBinding */
-
-/** @type {Record<string, Record<string, CommonVisualBinding>>} */
-const COMMON_VISUAL_BINDINGS = {
-  webgl: {
-    strength: { type: 'animation', field: 'glow' },
-    motion: { type: 'animation', field: 'speed' },
-    noise: { type: 'animation', field: 'spread' },
-    contrast: { type: 'animation', field: 'pulse' },
-    cfg: { type: 'animation', field: 'hue' },
-    zoom: { type: 'animation', field: 'orbit' },
-    pan_x: { type: 'disabled' },
-    pan_y: { type: 'disabled' },
-  },
-  deforum: {
-    strength: { type: 'schedule', key: 'strength_schedule' },
-    motion: { type: 'schedule', key: 'translation_z' },
-    noise: { type: 'schedule', key: 'noise_schedule' },
-    contrast: { type: 'schedule', key: 'contrast_schedule' },
-    cfg: { type: 'schedule', key: 'cfg_scale_schedule' },
-    zoom: { type: 'schedule', key: 'zoom' },
-    pan_x: { type: 'schedule', key: 'translation_x' },
-    pan_y: { type: 'schedule', key: 'translation_y' },
-  },
-  wan: {
-    strength: { type: 'wan', key: 'wan_fixed_strength' },
-    motion: { type: 'wan', key: 'wan_motion_strength' },
-    noise: { type: 'wan', key: 'wan_movement_sensitivity' },
-    contrast: { type: 'wan', key: 'wan_interpolation_strength' },
-    cfg: { type: 'wan', key: 'wan_guidance_scale' },
-    zoom: { type: 'disabled' },
-    pan_x: { type: 'disabled' },
-    pan_y: { type: 'disabled' },
-  },
-  animatelcm: {
-    strength: { type: 'animatelcm', key: 'alcm_strength' },
-    motion: { type: 'animatelcm', key: 'alcm_motion_amount' },
-    noise: { type: 'animatelcm', key: 'alcm_noise' },
-    contrast: { type: 'animatelcm', key: 'alcm_contrast' },
-    cfg: { type: 'animatelcm', key: 'alcm_cfg' },
-    zoom: { type: 'animatelcm', key: 'alcm_zoom' },
-    pan_x: { type: 'animatelcm', key: 'alcm_pan_x' },
-    pan_y: { type: 'animatelcm', key: 'alcm_pan_y' },
-  },
-};
-
-function commonVisualModKey(pluginId, paramId) {
-  return `${pluginId}.common.${paramId}`;
-}
-
-function parseCommonVisualModKey(key) {
-  const m = String(key || '').match(/^([a-z]+)\.common\.([a-z_]+)$/);
-  if (!m) return null;
-  return { pluginId: m[1], paramId: m[2] };
-}
-
-function bindingFor(pluginId, paramId) {
-  return COMMON_VISUAL_BINDINGS[pluginId]?.[paramId] || { type: 'disabled' };
-}
-
-function isCommonVisualEnabled(pluginId, paramId) {
-  const b = bindingFor(pluginId, paramId);
-  return b.type !== 'disabled';
-}
-
-function buildCommonVisualModulationTargets(pluginId, pluginLabel) {
-  return COMMON_VISUAL_PARAMS.map((p) => {
-    const binding = bindingFor(pluginId, p.id);
-    if (binding.type === 'disabled') return null;
-    return {
-      key: commonVisualModKey(pluginId, p.id),
-      label: `${pluginLabel} · ${p.label}`,
-      min: p.min,
-      max: p.max,
-      step: p.step,
-      default: p.default,
-      group: `${pluginLabel} · Common`,
-      pluginId,
-      paramId: p.id,
-    };
-  }).filter(Boolean);
-}
-// --- inlined from animation-plugins/animatelcm-engine-config.mjs (ESM source; do not edit) ---
-/** AnimateLCM video engine (Forge Deforum animation_mode). */
-
-const ANIMATELCM_ANIMATION_MODE = 'AnimateLCM';
-
-const ANIMATELCM_MOTION_TYPES = [
-  { id: 'static', label: 'Static' },
-  { id: 'pan', label: 'Pan' },
-  { id: 'zoom', label: 'Zoom' },
-  { id: 'orbit', label: 'Orbit' },
-  { id: 'handheld', label: 'Handheld' },
-  { id: 'custom', label: 'Custom' },
-];
-
-const DEFAULT_ANIMATELCM_ENGINE = {
-  motion_type: 'pan',
-  motion_preset: 'Static',
-  alcm_motion_amount: 1.0,
-  alcm_strength: 0.75,
-  alcm_cfg: 7.0,
-  alcm_steps: 4,
-  alcm_noise: 0.05,
-  alcm_contrast: 1.0,
-  alcm_zoom: 1.0,
-  alcm_pan_x: 0,
-  alcm_pan_y: 0,
-  alcm_seed: -1,
-};
-
-const ANIMATELCM_CONTROL_FIELDS = [
-  { key: 'motion_type', label: 'Motion type', type: 'select', options: ANIMATELCM_MOTION_TYPES.map((t) => t.id) },
-  { key: 'motion_preset', label: 'Motion preset', type: 'text' },
-  { key: 'alcm_motion_amount', label: 'Motion amount', type: 'number', min: 0, max: 2, step: 0.05 },
-  { key: 'alcm_strength', label: 'Strength', type: 'number', min: 0, max: 1.5, step: 0.01 },
-  { key: 'alcm_cfg', label: 'CFG', type: 'number', min: 0, max: 30, step: 0.1 },
-  { key: 'alcm_steps', label: 'AnimateLCM steps', type: 'number', min: 1, max: 20, step: 1 },
-  { key: 'alcm_noise', label: 'Noise', type: 'number', min: 0, max: 0.5, step: 0.005 },
-  { key: 'alcm_contrast', label: 'Contrast', type: 'number', min: 0, max: 2, step: 0.01 },
-  { key: 'alcm_zoom', label: 'Zoom', type: 'number', min: 0.5, max: 2, step: 0.01 },
-  { key: 'alcm_pan_x', label: 'Pan X', type: 'number', min: -10, max: 10, step: 0.05 },
-  { key: 'alcm_pan_y', label: 'Pan Y', type: 'number', min: -10, max: 10, step: 0.05 },
-  { key: 'alcm_seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
-];
-
-function normalizeAnimateLcmEngine(raw = {}) {
-  const out = { ...DEFAULT_ANIMATELCM_ENGINE };
-  for (const field of ANIMATELCM_CONTROL_FIELDS) {
-    if (raw[field.key] === undefined) continue;
-    if (field.type === 'number') {
-      const num = Number(raw[field.key]);
-      if (Number.isFinite(num)) out[field.key] = num;
-    } else {
-      out[field.key] = String(raw[field.key]);
-    }
-  }
-  return out;
-}
-
-function mergeAnimateLcmIntoDeforumSettings(settings, animateLcmEngine, { positivePrompt = '' } = {}) {
-  const alcm = { ...DEFAULT_ANIMATELCM_ENGINE, ...(animateLcmEngine || {}) };
-  const promptSchedule =
-    settings?.prompts && typeof settings.prompts === 'object' && !Array.isArray(settings.prompts)
-      ? { ...settings.prompts }
-      : {};
-  const primary = String(positivePrompt || '').trim();
-  if (primary) promptSchedule['0'] = primary;
-  const merged = {
-    ...settings,
-    animation_mode: ANIMATELCM_ANIMATION_MODE,
-    skip_video_creation: false,
-  };
-  if (Object.keys(promptSchedule).length) {
-    merged.prompts = promptSchedule;
-  }
-  for (const key of Object.keys(DEFAULT_ANIMATELCM_ENGINE)) {
-    if (alcm[key] !== undefined) merged[key] = alcm[key];
-  }
-  if (alcm.alcm_seed != null && Number.isFinite(Number(alcm.alcm_seed))) {
-    merged.seed = Number(alcm.alcm_seed);
-  }
-  if (Number.isFinite(Number(alcm.alcm_steps))) {
-    merged.steps = Math.max(1, Math.round(Number(alcm.alcm_steps)));
-    merged.steps_schedule = `0: (${merged.steps})`;
-  }
-  return merged;
-}
-// --- inlined from animation-plugins/registry.mjs (ESM source; do not edit) ---
-/**
- * Animation engine plugins — one layer each, mixable via compositor.
- */
-
-/** @type {import('./types').AnimationPluginDef[]} */
-const ANIMATION_PLUGINS = [
-  {
-    id: 'webgl',
-    label: 'WebGL',
-    layerKind: 'webgl',
-    layerId: 'webgl',
-    backend: 'webgl',
-    builtin: true,
-    mixable: true,
-    panel: 'WebGLPluginPanel',
-  },
-  {
-    id: 'deforum',
-    label: 'Deforum',
-    layerKind: 'deforum',
-    layerId: 'deforum',
-    backend: 'forge-deforum',
-    builtin: true,
-    mixable: true,
-    panel: 'DeforumPluginPanel',
-  },
-  {
-    id: 'wan',
-    label: 'WAN Video',
-    layerKind: 'wan',
-    layerId: 'wan',
-    backend: 'forge-wan',
-    builtin: true,
-    mixable: true,
-    panel: 'WanPluginPanel',
-  },
-  {
-    id: 'animatelcm',
-    label: 'AnimateLCM',
-    layerKind: 'animatelcm',
-    layerId: 'animatelcm',
-    backend: 'forge-animatelcm',
-    builtin: true,
-    mixable: true,
-    panel: 'AnimateLcmPluginPanel',
-  },
-];
-
-/** Compositor / input layers — not animation plugins but listed in layer picker */
-const COMPOSITOR_LAYERS = [
-  { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
-  { id: 'input', kind: 'input', label: 'Input', builtin: true },
-];
-
-function pluginById(id) {
-  return ANIMATION_PLUGINS.find((p) => p.id === id) || null;
-}
-
-function pluginByLayerKind(kind) {
-  return ANIMATION_PLUGINS.find((p) => p.layerKind === kind) || null;
-}
-
-function pluginByLayerId(layerId) {
-  return ANIMATION_PLUGINS.find((p) => p.layerId === layerId) || null;
-}
-
-function isAnimationPluginLayer(layer) {
-  return !!(layer && pluginByLayerKind(layer.kind));
-}
-
-function wanModTargets() {
-  return WAN_ENGINE_CONTROL_FIELDS.filter((f) => f.type === 'number').map((f) => ({
-    key: `wan.${f.key}`,
-    label: `WAN · ${f.label}`,
-    min: f.min ?? 0,
-    max: f.max ?? 1,
-    step: f.step ?? 0.01,
-    default: f.type === 'number' ? (f.min ?? 0) : 0,
-    group: 'WAN Video',
-    pluginId: 'wan',
-  }));
-}
-
-function animatelcmModTargets() {
-  return ANIMATELCM_CONTROL_FIELDS.filter((f) => f.type === 'number').map((f) => ({
-    key: `animatelcm.${f.key}`,
-    label: `AnimateLCM · ${f.label}`,
-    min: f.min ?? 0,
-    max: f.max ?? 1,
-    step: f.step ?? 0.01,
-    default: 0,
-    group: 'AnimateLCM',
-    pluginId: 'animatelcm',
-  }));
-}
-
-/** All plugin-scoped modulation targets for LFO / macros / MIDI */
-function allPluginModulationTargets() {
-  const out = [];
-  for (const plugin of ANIMATION_PLUGINS) {
-    out.push(...buildCommonVisualModulationTargets(plugin.id, plugin.label));
-  }
-  out.push(...wanModTargets());
-  out.push(...animatelcmModTargets());
-  return out;
-}
-
-function legacyModKeyAliases() {
-  const aliases = {};
-  for (const t of allPluginModulationTargets()) {
-    if (t.key.startsWith('deforum.common.')) {
-      const paramId = t.key.replace('deforum.common.', '');
-      if (paramId === 'strength') aliases.strength = t.key;
-      if (paramId === 'cfg') aliases.cfg = t.key;
-      if (paramId === 'noise') aliases.noise_multiplier = t.key;
-    }
-    if (t.key === 'deforum.common.pan_x') aliases.panx = t.key;
-    if (t.key === 'deforum.common.pan_y') aliases.pany = t.key;
-    if (t.key === 'deforum.common.zoom') aliases.zoom = t.key;
-  }
-  return aliases;
-}
 
 function __hasOwnProp(props, key) {
   return Object.prototype.hasOwnProperty.call(props, key);
@@ -1893,20 +1585,7 @@ const ThreeBackground = { props: ['app'], template: '<div></div>' };
 const Crossfader = { props: ['app'], template: '<div></div>' };
 const CrossfaderPanel = { props: {
     app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, computed: {
-    crossfadeAWeight() {
-      return Math.min(1, Math.max(0, 1 - (Number(this.performance?.crossfader) || 0)))
-    },
-    crossfadeBWeight() {
-      return Math.min(1, Math.max(0, Number(this.performance?.crossfader) || 0))
-    },
-    crossfadeWeightStyle() {
-      return {
-        '--crossfade-a-weight': this.crossfadeAWeight,
-        '--crossfade-b-weight': this.crossfadeBWeight,
-      }
-    },
-  }, components: { UiIcon: UiIcon, Crossfader: Crossfader }, template: "<div\n    class=\"crossfader-panel lora-crossfader-panel\"\n    :class=\"{ 'lora-crossfader-panel--off': !prompts.loraCrossfaderOn }\"\n    :style=\"crossfadeWeightStyle\"\n    data-testid=\"crossfader-panel\"\n  >\n    <div class=\"framesync-header crossfader-panel__header\">\n      <div class=\"framesync-title\">\n        <UiIcon class=\"framesync-title-icon\" name=\"sliders\" />\n        <span class=\"framesync-accent\">Crossfader</span>\n      </div>\n      <div class=\"prompt-toolbar\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ 'framesync-button--live': prompts.loraCrossfaderOn }\"\n          data-testid=\"crossfader-enable\"\n          @click=\"setLoraCrossfaderOn(true)\"\n        >\n          Enabled\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderOn }\"\n          data-testid=\"crossfader-disable\"\n          @click=\"setLoraCrossfaderOn(false)\"\n        >\n          Disabled\n        </button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"refreshLoras\">Refresh LoRAs</button>\n      </div>\n    </div>\n\n    <div class=\"crossfader-panel__generic\">\n      <div class=\"framesync-subtitle\">Generic prompt</div>\n      <div class=\"prompt-input-row\">\n        <textarea\n          class=\"framesync-input prompt-input-row__input\"\n          v-model=\"performance.genericPrompt\"\n          rows=\"2\"\n          placeholder=\"Base prompt for this session — blended with morph slots below\"\n          data-testid=\"crossfader-generic-prompt\"\n          @input=\"onPerformanceInput\"\n        ></textarea>\n        <div class=\"prompt-input-row__actions\">\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :class=\"{ 'framesync-button--live': speechPromptListening }\"\n            :title=\"speechPromptListening ? 'Stop microphone' : (speechPromptSupported ? 'Speak prompt' : 'Microphone not supported')\"\n            :disabled=\"!speechPromptSupported\"\n            @click=\"toggleSpeechPrompt\"\n          >\n            <UiIcon name=\"mic\" />\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            title=\"Clear prompt\"\n            :disabled=\"!(performance.genericPrompt || '').trim()\"\n            @click=\"clearGenericPrompt\"\n          >\n            <UiIcon name=\"close\" />\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :class=\"{ active: promptHistoryOpen }\"\n            :title=\"promptHistoryOpen ? 'Close prompt history' : 'Open prompt history'\"\n            @click=\"togglePromptHistory\"\n          >\n            <UiIcon name=\"history\" />\n          </button>\n        </div>\n      </div>\n      <div v-if=\"speechPromptError\" class=\"framesync-subtitle crossfader-panel__warn\">{{ speechPromptError }}</div>\n      <div v-if=\"promptHistoryOpen\" class=\"prompt-history-panel\">\n        <div class=\"prompt-history-panel__header\">\n          <div class=\"framesync-subtitle\" style=\"margin:0;\">History</div>\n          <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"togglePromptHistory(false)\">Close</button>\n        </div>\n        <div v-if=\"!promptHistory.length\" class=\"prompt-history-panel__empty\">No prompts yet.</div>\n        <div v-else class=\"prompt-history-panel__list\">\n          <button\n            v-for=\"(p, idx) in promptHistory\"\n            :key=\"'prompt-hist-' + idx\"\n            type=\"button\"\n            class=\"prompt-history-panel__item\"\n            @click=\"restorePromptFromHistory(p)\"\n            :title=\"p\"\n          >\n            {{ p }}\n          </button>\n        </div>\n      </div>\n    </div>\n\n    <div class=\"crossfader-panel__mixer\">\n      <div class=\"framesync-subtitle lora-crossfader-summary__status\">{{ loraCrossfaderSummary }}</div>\n\n      <Crossfader\n        :model-value=\"performance.crossfader\"\n        :disabled=\"!prompts.loraCrossfaderOn\"\n        testid=\"crossfader-slider\"\n        @update:model-value=\"onCrossfaderSlider\"\n      />\n\n      <div class=\"lora-crossfader-links\" :class=\"{ 'lora-crossfader-links--disabled': !prompts.loraCrossfaderOn }\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderLfoLink }\"\n          @click=\"setLoraCrossfaderLfoLink(null)\"\n        >\n          Manual\n        </button>\n        <button\n          v-for=\"lfo in lfos.slice(0, 6)\"\n          :key=\"'crossfader-lfo-' + lfo.id\"\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: prompts.loraCrossfaderLfoLink === lfo.id }\"\n          @click=\"setLoraCrossfaderLfoLink(lfo.id)\"\n        >\n          LFO {{ lfo.id }}\n        </button>\n      </div>\n      <div class=\"lora-crossfader-status\">{{ loraCrossfaderLinkStatus }}</div>\n    </div>\n\n    <section class=\"crossfader-panel__section\" data-testid=\"crossfader-morph-slots\">\n      <div class=\"crossfade-deck-head\">\n        <span class=\"framesync-subtitle crossfader-panel__section-title\">Morph slots</span>\n        <select class=\"framesync-select crossfader-panel__slot-type\" v-model=\"performance.newSlotType\">\n          <option v-for=\"st in crossfadeSlotTypes\" :key=\"st.id\" :value=\"st.id\">{{ st.label }}</option>\n        </select>\n        <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"addCrossfadeSlot\">+ Add slot</button>\n      </div>\n      <p class=\"framesync-subtitle crossfader-panel__hint\">\n        Blend prompts, styles, parameters, single LoRAs, or ControlNet weights between A and B.\n      </p>\n\n      <div v-if=\"!performance.slots.length\" class=\"crossfade-empty\">\n        Add morph slots to crossfade prompts, styles, parameters, LoRAs, or ControlNet.\n      </div>\n\n      <div v-for=\"slot in performance.slots\" :key=\"slot.id\" class=\"crossfade-slot-row\">\n        <div class=\"crossfade-side crossfade-side-a\">\n          <span class=\"crossfade-side-label\">A</span>\n          <template v-if=\"slot.type === 'prompt'\">\n            <input class=\"framesync-input\" v-model=\"slot.valueA\" placeholder=\"Prompt A\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'param'\">\n            <select class=\"framesync-select\" v-model=\"slot.paramKey\" @change=\"onPerformanceInput\">\n              <option v-for=\"t in modulationTargets\" :key=\"'a-'+slot.id+t.key\" :value=\"t.key\">{{ t.label }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" step=\"any\" placeholder=\"Value A\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'style'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueA\" data-testid=\"crossfade-style-a\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"style in promptStyles\" :key=\"'style-a-'+slot.id+style.id\" :value=\"style.id\">{{ style.name }}</option>\n            </select>\n          </template>\n          <template v-else-if=\"slot.type === 'lora'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueA\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"l in loras.available\" :key=\"'la-'+slot.id+l.id\" :value=\"l.name\">{{ l.name }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.loraStrengthA\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Str A\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'controlnet'\">\n            <select class=\"framesync-select\" v-model=\"slot.cnSlotId\" @change=\"onPerformanceInput\">\n              <option v-for=\"s in cn.slots\" :key=\"'cna-'+slot.id+s.id\" :value=\"s.id\">{{ s.label }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Weight A\" @input=\"onPerformanceInput\">\n          </template>\n        </div>\n\n        <div class=\"crossfade-slot-meta\">\n          <span class=\"crossfade-type-pill\">{{ slotTypeLabel(slot.type) }}</span>\n          <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"removeCrossfadeSlot(slot.id)\" title=\"Remove slot\">✕</button>\n        </div>\n\n        <div class=\"crossfade-side crossfade-side-b\">\n          <span class=\"crossfade-side-label\">B</span>\n          <template v-if=\"slot.type === 'prompt'\">\n            <input class=\"framesync-input\" v-model=\"slot.valueB\" placeholder=\"Prompt B\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'param'\">\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" step=\"any\" placeholder=\"Value B\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'style'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueB\" data-testid=\"crossfade-style-b\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"style in promptStyles\" :key=\"'style-b-'+slot.id+style.id\" :value=\"style.id\">{{ style.name }}</option>\n            </select>\n          </template>\n          <template v-else-if=\"slot.type === 'lora'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueB\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"l in loras.available\" :key=\"'lb-'+slot.id+l.id\" :value=\"l.name\">{{ l.name }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.loraStrengthB\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Str B\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'controlnet'\">\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Weight B\" @input=\"onPerformanceInput\">\n          </template>\n        </div>\n\n        <div v-if=\"slotMorphedPreview(slot) !== null\" class=\"crossfade-morphed\">\n          <span class=\"framesync-subtitle\" style=\"margin:0;font-size:9px;\">→</span>\n          <code class=\"crossfade-morphed-val\">{{ formatMorphedPreview(slot) }}</code>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"crossfader-panel__section\" data-testid=\"crossfader-lora-groups\">\n      <div class=\"framesync-subtitle crossfader-panel__section-title\">LoRA groups</div>\n      <p class=\"framesync-subtitle crossfader-panel__hint\">\n        Stack multiple LoRAs on each side — strengths scale with the crossfader when enabled.\n      </p>\n\n      <div class=\"prompt-ab-summary lora-crossfader-panel__deck\">\n        <div\n          class=\"prompt-ab-column prompt-ab-column--a lora-crossfader-panel__side lora-crossfader-panel__side--a\"\n          :class=\"{ 'lora-crossfader-panel__side--dominant': crossfadeAWeight >= crossfadeBWeight }\"\n        >\n          <div class=\"prompt-ab-column__head\">\n            <div class=\"prompt-ab-column__title\">A Group</div>\n            <button\n              type=\"button\"\n              class=\"framesync-button lora-picker-trigger\"\n              :title=\"loraCrossfaderPickerGroup === 'A' ? 'Close LoRA picker' : 'Add LoRA to A group'\"\n              @click=\"toggleLoraCrossfaderPicker('A')\"\n            >\n              {{ loraCrossfaderPickerGroup === 'A' ? '×' : '+' }}\n            </button>\n          </div>\n          <div v-if=\"loraCrossfaderPickerGroup === 'A'\" class=\"lora-picker-panel lora-picker-panel--column\">\n            <div class=\"framesync-subtitle lora-browser-summary\">Add LoRAs to the A group.</div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'xfpick-a-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"'xfpick-a-row-' + lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button\n                        type=\"button\"\n                        class=\"framesync-button prompt-group-button prompt-group-button--a\"\n                        :class=\"{ active: lora.group === 'A' }\"\n                        @click.stop=\"assignLoraToGroup(lora, 'A')\"\n                      >\n                        {{ lora.group === 'A' ? 'In A' : 'Add' }}\n                      </button>\n                      <button type=\"button\" class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              No LoRA models found. Refresh or check SD-Forge connection.\n            </div>\n          </div>\n          <div v-for=\"lora in loras.groupA.slice(0, 4)\" :key=\"'xfa-' + lora.id\" class=\"prompt-ab-card\">\n            <div class=\"prompt-ab-card__name\">{{ lora.name }}</div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength = parseFloat($event.target.value)\" class=\"framesync-input prompt-ab-card__slider\">\n            <div class=\"prompt-ab-card__value\">{{ lora.strength.toFixed(2) }}</div>\n          </div>\n          <div v-if=\"loras.groupA.length === 0\" class=\"prompt-ab-column__empty\">No LoRAs in A group</div>\n          <div v-else-if=\"loras.groupA.length > 4\" class=\"prompt-ab-column__more\">+{{ loras.groupA.length - 4 }} more</div>\n        </div>\n\n        <div\n          class=\"prompt-ab-column prompt-ab-column--b lora-crossfader-panel__side lora-crossfader-panel__side--b\"\n          :class=\"{ 'lora-crossfader-panel__side--dominant': crossfadeBWeight > crossfadeAWeight }\"\n        >\n          <div class=\"prompt-ab-column__head\">\n            <div class=\"prompt-ab-column__title\">B Group</div>\n            <button\n              type=\"button\"\n              class=\"framesync-button lora-picker-trigger\"\n              :title=\"loraCrossfaderPickerGroup === 'B' ? 'Close LoRA picker' : 'Add LoRA to B group'\"\n              @click=\"toggleLoraCrossfaderPicker('B')\"\n            >\n              {{ loraCrossfaderPickerGroup === 'B' ? '×' : '+' }}\n            </button>\n          </div>\n          <div v-if=\"loraCrossfaderPickerGroup === 'B'\" class=\"lora-picker-panel lora-picker-panel--column\">\n            <div class=\"framesync-subtitle lora-browser-summary\">Add LoRAs to the B group.</div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'xfpick-b-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"'xfpick-b-row-' + lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button\n                        type=\"button\"\n                        class=\"framesync-button prompt-group-button prompt-group-button--b\"\n                        :class=\"{ active: lora.group === 'B' }\"\n                        @click.stop=\"assignLoraToGroup(lora, 'B')\"\n                      >\n                        {{ lora.group === 'B' ? 'In B' : 'Add' }}\n                      </button>\n                      <button type=\"button\" class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              No LoRA models found. Refresh or check SD-Forge connection.\n            </div>\n          </div>\n          <div v-for=\"lora in loras.groupB.slice(0, 4)\" :key=\"'xfb-' + lora.id\" class=\"prompt-ab-card\">\n            <div class=\"prompt-ab-card__name\">{{ lora.name }}</div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength = parseFloat($event.target.value)\" class=\"framesync-input prompt-ab-card__slider\">\n            <div class=\"prompt-ab-card__value\">{{ lora.strength.toFixed(2) }}</div>\n          </div>\n          <div v-if=\"loras.groupB.length === 0\" class=\"prompt-ab-column__empty\">No LoRAs in B group</div>\n          <div v-else-if=\"loras.groupB.length > 4\" class=\"prompt-ab-column__more\">+{{ loras.groupB.length - 4 }} more</div>\n        </div>\n      </div>\n    </section>\n\n    <div v-if=\"performance.status\" class=\"crossfader-panel__status framesync-subtitle\">\n      <span v-if=\"previewGenerating\" class=\"lazy-loading-indicator lazy-loading-indicator--subtle\">\n        <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n        <span>{{ performance.status }}</span>\n        <span class=\"lazy-loading-indicator__dots\" aria-hidden=\"true\"><span></span><span></span><span></span></span>\n      </span>\n      <template v-else>{{ performance.status }}</template>\n    </div>\n\n    <div class=\"framesync-footer crossfader-panel__footer\">\n      <button type=\"button\" class=\"framesync-button\" @click=\"applyLoras\">Apply LoRAs</button>\n    </div>\n  </div>" };
+  }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, Crossfader: Crossfader }, template: "<div\n    class=\"crossfader-panel lora-crossfader-panel\"\n    :class=\"{ 'lora-crossfader-panel--off': !prompts.loraCrossfaderOn }\"\n    :style=\"crossfadeWeightStyle\"\n    data-testid=\"crossfader-panel\"\n  >\n    <div class=\"framesync-header crossfader-panel__header\">\n      <div class=\"framesync-title\">\n        <UiIcon class=\"framesync-title-icon\" name=\"sliders\" />\n        <span class=\"framesync-accent\">Crossfader</span>\n      </div>\n      <div class=\"prompt-toolbar\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ 'framesync-button--live': prompts.loraCrossfaderOn }\"\n          data-testid=\"crossfader-enable\"\n          @click=\"setLoraCrossfaderOn(true)\"\n        >\n          Enabled\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderOn }\"\n          data-testid=\"crossfader-disable\"\n          @click=\"setLoraCrossfaderOn(false)\"\n        >\n          Disabled\n        </button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"refreshLoras\">Refresh LoRAs</button>\n      </div>\n    </div>\n\n    <div class=\"crossfader-panel__generic\">\n      <div class=\"framesync-subtitle\">Generic prompt</div>\n      <div class=\"prompt-input-row\">\n        <textarea\n          class=\"framesync-input prompt-input-row__input\"\n          v-model=\"performance.genericPrompt\"\n          rows=\"2\"\n          placeholder=\"Base prompt for this session — blended with morph slots below\"\n          data-testid=\"crossfader-generic-prompt\"\n          @input=\"onPerformanceInput\"\n        ></textarea>\n        <div class=\"prompt-input-row__actions\">\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :class=\"{ 'framesync-button--live': speechPromptListening }\"\n            :title=\"speechPromptListening ? 'Stop microphone' : (speechPromptSupported ? 'Speak prompt' : 'Microphone not supported')\"\n            :disabled=\"!speechPromptSupported\"\n            @click=\"toggleSpeechPrompt\"\n          >\n            <UiIcon name=\"mic\" />\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            title=\"Clear prompt\"\n            :disabled=\"!(performance.genericPrompt || '').trim()\"\n            @click=\"clearGenericPrompt\"\n          >\n            <UiIcon name=\"close\" />\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :class=\"{ active: promptHistoryOpen }\"\n            :title=\"promptHistoryOpen ? 'Close prompt history' : 'Open prompt history'\"\n            @click=\"togglePromptHistory\"\n          >\n            <UiIcon name=\"history\" />\n          </button>\n        </div>\n      </div>\n      <div v-if=\"speechPromptError\" class=\"framesync-subtitle crossfader-panel__warn\">{{ speechPromptError }}</div>\n      <div v-if=\"promptHistoryOpen\" class=\"prompt-history-panel\">\n        <div class=\"prompt-history-panel__header\">\n          <div class=\"framesync-subtitle\" style=\"margin:0;\">History</div>\n          <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"togglePromptHistory(false)\">Close</button>\n        </div>\n        <div v-if=\"!promptHistory.length\" class=\"prompt-history-panel__empty\">No prompts yet.</div>\n        <div v-else class=\"prompt-history-panel__list\">\n          <button\n            v-for=\"(p, idx) in promptHistory\"\n            :key=\"'prompt-hist-' + idx\"\n            type=\"button\"\n            class=\"prompt-history-panel__item\"\n            @click=\"restorePromptFromHistory(p)\"\n            :title=\"p\"\n          >\n            {{ p }}\n          </button>\n        </div>\n      </div>\n    </div>\n\n    <div class=\"crossfader-panel__mixer\">\n      <div class=\"framesync-subtitle lora-crossfader-summary__status\">{{ loraCrossfaderSummary }}</div>\n\n      <Crossfader\n        :model-value=\"performance.crossfader\"\n        :disabled=\"!prompts.loraCrossfaderOn\"\n        testid=\"crossfader-slider\"\n        @update:model-value=\"onCrossfaderSlider\"\n      />\n\n      <div class=\"lora-crossfader-links\" :class=\"{ 'lora-crossfader-links--disabled': !prompts.loraCrossfaderOn }\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderLfoLink }\"\n          @click=\"setLoraCrossfaderLfoLink(null)\"\n        >\n          Manual\n        </button>\n        <button\n          v-for=\"lfo in lfos.slice(0, 6)\"\n          :key=\"'crossfader-lfo-' + lfo.id\"\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: prompts.loraCrossfaderLfoLink === lfo.id }\"\n          @click=\"setLoraCrossfaderLfoLink(lfo.id)\"\n        >\n          LFO {{ lfo.id }}\n        </button>\n      </div>\n      <div class=\"lora-crossfader-status\">{{ loraCrossfaderLinkStatus }}</div>\n    </div>\n\n    <section class=\"crossfader-panel__section\" data-testid=\"crossfader-morph-slots\">\n      <div class=\"crossfade-deck-head\">\n        <span class=\"framesync-subtitle crossfader-panel__section-title\">Morph slots</span>\n        <select class=\"framesync-select crossfader-panel__slot-type\" v-model=\"performance.newSlotType\">\n          <option v-for=\"st in crossfadeSlotTypes\" :key=\"st.id\" :value=\"st.id\">{{ st.label }}</option>\n        </select>\n        <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"addCrossfadeSlot\">+ Add slot</button>\n      </div>\n      <p class=\"framesync-subtitle crossfader-panel__hint\">\n        Blend prompts, styles, parameters, single LoRAs, or ControlNet weights between A and B.\n      </p>\n\n      <div v-if=\"!performance.slots.length\" class=\"crossfade-empty\">\n        Add morph slots to crossfade prompts, styles, parameters, LoRAs, or ControlNet.\n      </div>\n\n      <div v-for=\"slot in performance.slots\" :key=\"slot.id\" class=\"crossfade-slot-row\">\n        <div class=\"crossfade-side crossfade-side-a\">\n          <span class=\"crossfade-side-label\">A</span>\n          <template v-if=\"slot.type === 'prompt'\">\n            <input class=\"framesync-input\" v-model=\"slot.valueA\" placeholder=\"Prompt A\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'param'\">\n            <select class=\"framesync-select\" v-model=\"slot.paramKey\" @change=\"onPerformanceInput\">\n              <option v-for=\"t in modulationTargets\" :key=\"'a-'+slot.id+t.key\" :value=\"t.key\">{{ t.label }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" step=\"any\" placeholder=\"Value A\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'style'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueA\" data-testid=\"crossfade-style-a\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"style in promptStyles\" :key=\"'style-a-'+slot.id+style.id\" :value=\"style.id\">{{ style.name }}</option>\n            </select>\n          </template>\n          <template v-else-if=\"slot.type === 'lora'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueA\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"l in loras.available\" :key=\"'la-'+slot.id+l.id\" :value=\"l.name\">{{ l.name }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.loraStrengthA\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Str A\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'controlnet'\">\n            <select class=\"framesync-select\" v-model=\"slot.cnSlotId\" @change=\"onPerformanceInput\">\n              <option v-for=\"s in cn.slots\" :key=\"'cna-'+slot.id+s.id\" :value=\"s.id\">{{ s.label }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Weight A\" @input=\"onPerformanceInput\">\n          </template>\n        </div>\n\n        <div class=\"crossfade-slot-meta\">\n          <span class=\"crossfade-type-pill\">{{ slotTypeLabel(slot.type) }}</span>\n          <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"removeCrossfadeSlot(slot.id)\" title=\"Remove slot\">✕</button>\n        </div>\n\n        <div class=\"crossfade-side crossfade-side-b\">\n          <span class=\"crossfade-side-label\">B</span>\n          <template v-if=\"slot.type === 'prompt'\">\n            <input class=\"framesync-input\" v-model=\"slot.valueB\" placeholder=\"Prompt B\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'param'\">\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" step=\"any\" placeholder=\"Value B\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'style'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueB\" data-testid=\"crossfade-style-b\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"style in promptStyles\" :key=\"'style-b-'+slot.id+style.id\" :value=\"style.id\">{{ style.name }}</option>\n            </select>\n          </template>\n          <template v-else-if=\"slot.type === 'lora'\">\n            <select class=\"framesync-select\" v-model=\"slot.valueB\" @change=\"onPerformanceInput\">\n              <option :value=\"null\">— none —</option>\n              <option v-for=\"l in loras.available\" :key=\"'lb-'+slot.id+l.id\" :value=\"l.name\">{{ l.name }}</option>\n            </select>\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.loraStrengthB\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Str B\" @input=\"onPerformanceInput\">\n          </template>\n          <template v-else-if=\"slot.type === 'controlnet'\">\n            <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" min=\"0\" max=\"2\" step=\"0.01\" placeholder=\"Weight B\" @input=\"onPerformanceInput\">\n          </template>\n        </div>\n\n        <div v-if=\"slotMorphedPreview(slot) !== null\" class=\"crossfade-morphed\">\n          <span class=\"framesync-subtitle\" style=\"margin:0;font-size:9px;\">→</span>\n          <code class=\"crossfade-morphed-val\">{{ formatMorphedPreview(slot) }}</code>\n        </div>\n      </div>\n    </section>\n\n    <section class=\"crossfader-panel__section\" data-testid=\"crossfader-lora-groups\">\n      <div class=\"framesync-subtitle crossfader-panel__section-title\">LoRA groups</div>\n      <p class=\"framesync-subtitle crossfader-panel__hint\">\n        Stack multiple LoRAs on each side — strengths scale with the crossfader when enabled.\n      </p>\n\n      <div class=\"prompt-ab-summary lora-crossfader-panel__deck\">\n        <div\n          class=\"prompt-ab-column prompt-ab-column--a lora-crossfader-panel__side lora-crossfader-panel__side--a\"\n          :class=\"{ 'lora-crossfader-panel__side--dominant': crossfadeAWeight >= crossfadeBWeight }\"\n        >\n          <div class=\"prompt-ab-column__head\">\n            <div class=\"prompt-ab-column__title\">A Group</div>\n            <button\n              type=\"button\"\n              class=\"framesync-button lora-picker-trigger\"\n              :title=\"loraCrossfaderPickerGroup === 'A' ? 'Close LoRA picker' : 'Add LoRA to A group'\"\n              @click=\"toggleLoraCrossfaderPicker('A')\"\n            >\n              {{ loraCrossfaderPickerGroup === 'A' ? '×' : '+' }}\n            </button>\n          </div>\n          <div v-if=\"loraCrossfaderPickerGroup === 'A'\" class=\"lora-picker-panel lora-picker-panel--column\">\n            <div class=\"framesync-subtitle lora-browser-summary\">Add LoRAs to the A group.</div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'xfpick-a-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"'xfpick-a-row-' + lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button\n                        type=\"button\"\n                        class=\"framesync-button prompt-group-button prompt-group-button--a\"\n                        :class=\"{ active: lora.group === 'A' }\"\n                        @click.stop=\"assignLoraToGroup(lora, 'A')\"\n                      >\n                        {{ lora.group === 'A' ? 'In A' : 'Add' }}\n                      </button>\n                      <button type=\"button\" class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              No LoRA models found. Refresh or check SD-Forge connection.\n            </div>\n          </div>\n          <div v-for=\"lora in loras.groupA.slice(0, 4)\" :key=\"'xfa-' + lora.id\" class=\"prompt-ab-card\">\n            <div class=\"prompt-ab-card__name\">{{ lora.name }}</div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength = parseFloat($event.target.value)\" class=\"framesync-input prompt-ab-card__slider\">\n            <div class=\"prompt-ab-card__value\">{{ lora.strength.toFixed(2) }}</div>\n          </div>\n          <div v-if=\"loras.groupA.length === 0\" class=\"prompt-ab-column__empty\">No LoRAs in A group</div>\n          <div v-else-if=\"loras.groupA.length > 4\" class=\"prompt-ab-column__more\">+{{ loras.groupA.length - 4 }} more</div>\n        </div>\n\n        <div\n          class=\"prompt-ab-column prompt-ab-column--b lora-crossfader-panel__side lora-crossfader-panel__side--b\"\n          :class=\"{ 'lora-crossfader-panel__side--dominant': crossfadeBWeight > crossfadeAWeight }\"\n        >\n          <div class=\"prompt-ab-column__head\">\n            <div class=\"prompt-ab-column__title\">B Group</div>\n            <button\n              type=\"button\"\n              class=\"framesync-button lora-picker-trigger\"\n              :title=\"loraCrossfaderPickerGroup === 'B' ? 'Close LoRA picker' : 'Add LoRA to B group'\"\n              @click=\"toggleLoraCrossfaderPicker('B')\"\n            >\n              {{ loraCrossfaderPickerGroup === 'B' ? '×' : '+' }}\n            </button>\n          </div>\n          <div v-if=\"loraCrossfaderPickerGroup === 'B'\" class=\"lora-picker-panel lora-picker-panel--column\">\n            <div class=\"framesync-subtitle lora-browser-summary\">Add LoRAs to the B group.</div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'xfpick-b-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"'xfpick-b-row-' + lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button\n                        type=\"button\"\n                        class=\"framesync-button prompt-group-button prompt-group-button--b\"\n                        :class=\"{ active: lora.group === 'B' }\"\n                        @click.stop=\"assignLoraToGroup(lora, 'B')\"\n                      >\n                        {{ lora.group === 'B' ? 'In B' : 'Add' }}\n                      </button>\n                      <button type=\"button\" class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              No LoRA models found. Refresh or check SD-Forge connection.\n            </div>\n          </div>\n          <div v-for=\"lora in loras.groupB.slice(0, 4)\" :key=\"'xfb-' + lora.id\" class=\"prompt-ab-card\">\n            <div class=\"prompt-ab-card__name\">{{ lora.name }}</div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" @input=\"lora.strength = parseFloat($event.target.value)\" class=\"framesync-input prompt-ab-card__slider\">\n            <div class=\"prompt-ab-card__value\">{{ lora.strength.toFixed(2) }}</div>\n          </div>\n          <div v-if=\"loras.groupB.length === 0\" class=\"prompt-ab-column__empty\">No LoRAs in B group</div>\n          <div v-else-if=\"loras.groupB.length > 4\" class=\"prompt-ab-column__more\">+{{ loras.groupB.length - 4 }} more</div>\n        </div>\n      </div>\n    </section>\n\n    <div v-if=\"performance.status\" class=\"crossfader-panel__status framesync-subtitle\">\n      <span v-if=\"previewGenerating\" class=\"lazy-loading-indicator lazy-loading-indicator--subtle\">\n        <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n        <span>{{ performance.status }}</span>\n        <span class=\"lazy-loading-indicator__dots\" aria-hidden=\"true\"><span></span><span></span><span></span></span>\n      </span>\n      <template v-else>{{ performance.status }}</template>\n    </div>\n\n    <div class=\"framesync-footer crossfader-panel__footer\">\n      <button type=\"button\" class=\"framesync-button\" @click=\"applyLoras\">Apply LoRAs</button>\n    </div>\n  </div>" };
 const VideoSwarmBrowser = { props: {
     app: { type: Object, required: true },
   }, data() { return {
@@ -1953,6 +1632,23 @@ const VideoSwarmBrowser = { props: {
       set(v) {
         this.app.videoSwarmVisibleEnd = v
       },
+    },
+    libraryOutputHint() {
+      const id = String(this.systemFiles?.rootId || 'frames')
+      const roots = this.systemFiles?.roots || []
+      const active = roots.find((r) => r.id === id)
+      if (active?.kind === 'cloud') {
+        return 'Cloud-linked folder — open the drive link, then add direct video URLs for playback.'
+      }
+      const hints = {
+        uploads:
+          'Converted outputs: img2img / txt2img (preview_*.png), stage recordings (defora_rec_*.mp4), demo-output.mp4, uploaded audio — also at /uploads/…',
+        frames: 'Live Deforum preview frames (frame_*.png) as they render; also in RUNS → Frames rail.',
+        runs: 'One folder per job (run.json, defora-job.json). Exported MP4s may sit inside the run folder or under Uploads.',
+        hls: 'HLS encoder output — .m3u8 playlist and .ts segments for stream preview (Settings → Output).',
+        videoswarm: 'Manual exports and editor handoff staging — use + Folder / + Video or Open in editor.',
+      }
+      return hints[id] || 'Browse folders and videos under the selected library root.'
     },
   }, methods: {
     initSystemFilesBrowser(...args) { return this.app.initSystemFilesBrowser(...args) },
@@ -2151,66 +1847,15 @@ const VideoSwarmBrowser = { props: {
         else el.pause()
       }
     },
-  }, template: "<div class=\"video-swarm-browser\" data-testid=\"video-swarm-browser\">\n    <div class=\"video-swarm-browser__toolbar framesync-panel\">\n      <div class=\"video-swarm-browser__toolbar-row\">\n        <div class=\"video-swarm-browser__roots\">\n          <select\n            class=\"framesync-select\"\n            :value=\"systemFiles.rootId\"\n            :disabled=\"systemFiles.loading\"\n            data-testid=\"video-swarm-root-select\"\n            @change=\"onRootChange($event.target.value)\"\n          >\n            <option v-for=\"root in systemFiles.roots\" :key=\"'vfs-root-' + root.id\" :value=\"root.id\">\n              {{ root.label }}\n            </option>\n          </select>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :disabled=\"!systemFiles.parent || systemFiles.loading || videoSwarmIsCloudRoot || videoSwarmIsVideosOnly\"\n            title=\"Parent folder\"\n            @click=\"browseSystemFiles(systemFiles.parent)\"\n          >\n            ↑ Up\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :disabled=\"systemFiles.loading || videoSwarmIsCloudRoot\"\n            data-testid=\"video-swarm-new-folder\"\n            title=\"New folder\"\n            @click=\"openNewFolderDialog()\"\n          >\n            + Folder\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact framesync-button--live\"\n            :disabled=\"systemFiles.loading || videoSwarmIsCloudRoot\"\n            data-testid=\"video-swarm-upload-video\"\n            title=\"Upload video file\"\n            @click=\"openUploadPicker()\"\n          >\n            + Video\n          </button>\n          <input\n            ref=\"uploadInputEl\"\n            type=\"file\"\n            accept=\"video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-m4v,video/*,.mp4,.webm,.mov,.mkv,.m4v,.avi\"\n            multiple\n            class=\"video-swarm-browser__upload-input\"\n            data-testid=\"video-swarm-upload-input\"\n            @change=\"onUploadInputChange\"\n          >\n        </div>\n        <div class=\"video-swarm-browser__chips chips\">\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: !videoSwarmIsVideosOnly }\"\n            :disabled=\"systemFiles.loading\"\n            data-testid=\"video-swarm-view-browse\"\n            @click=\"setViewMode('browse')\"\n          >\n            Browse\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: videoSwarmIsVideosOnly }\"\n            :disabled=\"systemFiles.loading || videoSwarmIsCloudRoot\"\n            data-testid=\"video-swarm-view-videos-only\"\n            @click=\"setViewMode('videos-only')\"\n          >\n            Videos only\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: systemFiles.recursive }\"\n            :disabled=\"systemFiles.loading || videoSwarmIsVideosOnly || videoSwarmIsCloudRoot\"\n            @click=\"toggleSystemFilesRecursive\"\n          >\n            Subfolders\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: systemFiles.showFilenames }\"\n            :disabled=\"systemFiles.loading\"\n            @click=\"toggleSystemFilesShowNames\"\n          >\n            Names\n          </button>\n        </div>\n        <select\n          class=\"framesync-select video-swarm-browser__sort\"\n          :value=\"systemFiles.sortKey\"\n          :disabled=\"systemFiles.loading\"\n          @change=\"setSystemFilesSort($event.target.value)\"\n        >\n          <option value=\"name-asc\">Name ↑</option>\n          <option value=\"name-desc\">Name ↓</option>\n          <option value=\"mtime-desc\">Modified ↓</option>\n          <option value=\"mtime-asc\">Modified ↑</option>\n          <option value=\"size-desc\">Size ↓</option>\n          <option value=\"size-asc\">Size ↑</option>\n        </select>\n        <label class=\"video-swarm-browser__zoom\">\n          <span class=\"framesync-subtitle\">Zoom</span>\n          <input\n            type=\"range\"\n            min=\"0\"\n            max=\"4\"\n            step=\"1\"\n            :value=\"systemFiles.zoomLevel\"\n            :disabled=\"systemFiles.loading\"\n            @input=\"setSystemFilesZoom(Number($event.target.value))\"\n          >\n        </label>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :class=\"{ active: systemFiles.cloudConnectOpen }\"\n          data-testid=\"video-swarm-connect-cloud\"\n          @click=\"systemFiles.cloudConnectOpen = !systemFiles.cloudConnectOpen\"\n        >\n          Connect cloud\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :disabled=\"systemFiles.loading\"\n          @click=\"refreshSystemFilesBrowse(true)\"\n        >\n          Refresh\n        </button>\n      </div>\n\n      <div v-if=\"systemFiles.cloudConnectOpen\" class=\"video-swarm-browser__cloud-connect\" data-testid=\"video-swarm-cloud-connect\">\n        <div class=\"video-swarm-browser__cloud-connect-title\">Connect cloud storage</div>\n        <div class=\"video-swarm-browser__cloud-connect-row\">\n          <select v-model=\"cloudDriveDraft.provider\" class=\"framesync-select\">\n            <option value=\"google_drive\">Google Drive</option>\n            <option value=\"dropbox\">Dropbox</option>\n            <option value=\"onedrive\">OneDrive</option>\n            <option value=\"other\">Other</option>\n          </select>\n          <input\n            v-model.trim=\"cloudDriveDraft.url\"\n            type=\"url\"\n            class=\"framesync-input\"\n            placeholder=\"https://drive.google.com/… folder or file share link\"\n            data-testid=\"video-swarm-cloud-url\"\n            @keyup.enter=\"connectCloudStorage()\"\n          >\n          <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"connectCloudStorage()\">Connect</button>\n        </div>\n        <div class=\"framesync-subtitle video-swarm-browser__cloud-hint\">\n          Saves the share link in the browser. Open the drive in a new tab, then add direct video URLs below for playback.\n        </div>\n        <div v-if=\"(systemFiles.cloudSources || []).length\" class=\"video-swarm-browser__cloud-list\">\n          <div\n            v-for=\"source in systemFiles.cloudSources\"\n            :key=\"'cloud-src-' + source.id\"\n            class=\"video-swarm-browser__cloud-item\"\n          >\n            <button type=\"button\" class=\"video-swarm-browser__cloud-item-main\" @click=\"selectCloudRoot(source)\">\n              <strong>{{ cloudProviderLabel(source.provider) }}</strong>\n              <span>{{ source.label }}</span>\n            </button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openCloudStorageLink(source)\">Open</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"disconnectCloudStorage(source.id)\">Remove</button>\n          </div>\n        </div>\n      </div>\n\n      <div v-if=\"systemFiles.newFolderOpen\" class=\"video-swarm-browser__newfolder\" data-testid=\"video-swarm-new-folder-dialog\">\n        <input\n          v-model.trim=\"systemFiles.newFolderName\"\n          type=\"text\"\n          class=\"framesync-input\"\n          placeholder=\"New folder name\"\n          data-testid=\"video-swarm-new-folder-name\"\n          @keyup.enter=\"createSystemFolder()\"\n        >\n        <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"createSystemFolder()\">Create</button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"cancelNewFolderDialog()\">Cancel</button>\n      </div>\n\n      <div class=\"video-swarm-browser__path\">\n        <code v-if=\"!videoSwarmIsCloudRoot\">{{ systemFiles.currentPath || '—' }}</code>\n        <code v-else>{{ videoSwarmCloudPathLabel }}</code>\n        <span v-if=\"videoSwarmIsVideosOnly\" class=\"video-swarm-browser__count\">Videos only · all subfolders</span>\n        <span v-else-if=\"systemFiles.folderCount != null && systemFiles.folderCount > 0\" class=\"video-swarm-browser__count\">\n          {{ systemFiles.folderCount }} folders\n        </span>\n        <span v-if=\"systemFiles.videoCount != null\" class=\"video-swarm-browser__count\">\n          {{ systemFiles.videoCount }} videos\n        </span>\n      </div>\n      <div v-if=\"systemFiles.status\" class=\"framesync-subtitle video-swarm-browser__status\">{{ systemFiles.status }}</div>\n    </div>\n\n    <div v-if=\"videoSwarmIsCloudRoot && systemFiles.cloudSource\" class=\"video-swarm-browser__cloud-panel framesync-panel\" data-testid=\"video-swarm-cloud-panel\">\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">\n          <span class=\"framesync-accent\">{{ cloudProviderLabel(systemFiles.cloudSource.provider) }}</span>\n        </div>\n        <div class=\"video-swarm-browser__cloud-panel-actions\">\n          <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openCloudStorageLink(systemFiles.cloudSource)\">Open in browser</button>\n          <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"disconnectCloudStorage(systemFiles.cloudSource.id)\">Disconnect</button>\n        </div>\n      </div>\n      <div class=\"framesync-subtitle\">{{ systemFiles.cloudSource.url }}</div>\n      <div class=\"video-swarm-browser__cloud-video-form\">\n        <input\n          v-model.trim=\"systemFiles.cloudVideoDraft.name\"\n          type=\"text\"\n          class=\"framesync-input\"\n          placeholder=\"Label (optional)\"\n        >\n        <input\n          v-model.trim=\"systemFiles.cloudVideoDraft.url\"\n          type=\"url\"\n          class=\"framesync-input\"\n          placeholder=\"Direct video URL (https://…mp4)\"\n          data-testid=\"video-swarm-cloud-video-url\"\n          @keyup.enter=\"addCloudStorageVideo(systemFiles.cloudSource.id)\"\n        >\n        <button type=\"button\" class=\"framesync-button\" @click=\"addCloudStorageVideo(systemFiles.cloudSource.id)\">Add video</button>\n      </div>\n    </div>\n\n    <div\n      class=\"video-swarm-browser__dropzone\"\n      :class=\"{ 'video-swarm-browser__dropzone--active': dropzoneActive, 'video-swarm-browser__dropzone--disabled': videoSwarmIsCloudRoot }\"\n      data-testid=\"video-swarm-dropzone\"\n      @dragenter=\"onDropEnter\"\n      @dragover=\"onDropOver\"\n      @dragleave=\"onDropLeave\"\n      @drop=\"onDropFiles\"\n    >\n      <div v-if=\"dropzoneActive && !videoSwarmIsCloudRoot\" class=\"video-swarm-browser__dropzone-hint\">\n        Drop video files to upload\n      </div>\n\n    <div v-if=\"systemFiles.loading\" class=\"video-swarm-browser__empty\">Scanning folder…</div>\n    <div v-else-if=\"!videoSwarmDisplayFolders.length && !videoSwarmDisplayVideos.length\" class=\"video-swarm-browser__empty\">\n      {{ videoSwarmIsCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}\n    </div>\n    <div\n      v-else\n      ref=\"gridEl\"\n      class=\"video-swarm-browser__grid\"\n      :class=\"'video-swarm-browser__grid--zoom-' + systemFiles.zoomLevel\"\n      @scroll=\"onGridScroll\"\n    >\n      <button\n        v-for=\"folder in videoSwarmDisplayFolders\"\n        :key=\"'folder-' + folder.path\"\n        type=\"button\"\n        class=\"video-swarm-browser__tile video-swarm-browser__tile--folder\"\n        data-testid=\"video-swarm-folder\"\n        :data-folder-path=\"folder.path\"\n        :title=\"folder.name\"\n        @click=\"openSystemFolder(folder)\"\n      >\n        <div class=\"video-swarm-browser__folder-icon\" aria-hidden=\"true\">📁</div>\n        <div v-if=\"systemFiles.showFilenames\" class=\"video-swarm-browser__label\">{{ folder.name }}</div>\n      </button>\n      <button\n        v-for=\"(video, index) in videoSwarmDisplayVideos\"\n        :key=\"video.path\"\n        type=\"button\"\n        class=\"video-swarm-browser__tile\"\n        :class=\"{\n          'video-swarm-browser__tile--selected': systemFiles.selectedPaths.includes(video.path),\n          'video-swarm-browser__tile--hover': hoveredPath === video.path,\n        }\"\n        :data-video-path=\"video.path\"\n        @click=\"onTileClick($event, video, index)\"\n        @dblclick=\"onTileDblClick($event, index)\"\n        @contextmenu=\"onTileContextMenu($event, video)\"\n        @mouseenter=\"onTileEnter(video)\"\n        @mouseleave=\"onTileLeave(video)\"\n      >\n        <video\n          v-if=\"shouldLoadVideo(video)\"\n          :ref=\"(el) => registerTileVideo(video.path, el)\"\n          class=\"video-swarm-browser__video\"\n          muted\n          loop\n          playsinline\n          preload=\"metadata\"\n          :src=\"systemFileMediaUrl(video.path)\"\n          @loadeddata=\"onVideoLoaded(video.path)\"\n        />\n        <div v-else class=\"video-swarm-browser__placeholder\">▶</div>\n        <div v-if=\"systemFiles.showFilenames\" class=\"video-swarm-browser__label\">{{ video.name }}</div>\n        <div class=\"video-swarm-browser__meta\">{{ formatVideoSwarmFileSize(video.size) }}</div>\n      </button>\n    </div>\n    </div>\n\n    <div\n      v-if=\"systemFiles.fullscreenIndex >= 0 && videoSwarmFullscreenVideo\"\n      class=\"video-swarm-browser__modal\"\n      data-testid=\"video-swarm-fullscreen\"\n      @click=\"onFullscreenBackdropClick\"\n    >\n      <div class=\"video-swarm-browser__modal-inner\">\n        <div class=\"video-swarm-browser__modal-head\">\n          <strong>{{ videoSwarmFullscreenVideo.name }}</strong>\n          <div class=\"video-swarm-browser__modal-actions\">\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"stepSystemFileFullscreen(-1)\">← Prev</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"stepSystemFileFullscreen(1)\">Next →</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"copySystemFilePath(videoSwarmFullscreenVideo.path)\">Copy path</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openInVideoEditor(videoSwarmFullscreenVideo)\">Open in editor</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteSystemFile(videoSwarmFullscreenVideo.path)\">Delete</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"closeSystemFileFullscreen\">Close</button>\n          </div>\n        </div>\n        <video\n          ref=\"modalVideoEl\"\n          class=\"video-swarm-browser__modal-video\"\n          controls\n          autoplay\n          playsinline\n          :src=\"systemFileMediaUrl(videoSwarmFullscreenVideo.path)\"\n        />\n      </div>\n    </div>\n\n    <div\n      v-if=\"contextMenu.open\"\n      class=\"video-swarm-browser__menu\"\n      :style=\"{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }\"\n    >\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openContextFullscreen\">Open</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openInVideoEditor(contextMenu.video)\">Open in editor</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"copySystemFilePath(contextMenu.video?.path)\">Copy path</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteContextVideo\">Delete</button>\n    </div>\n  </div>" };
-const CommonVisualStrip = { props: {
-    app: { type: Object, required: true },
-    pluginId: { type: String, default: '' },
-  }, setup(props) { return __proxyAppView(props); }, computed: {
-    resolvedPluginId() {
-      return this.pluginId || this.activeAnimationPluginId || '';
-    },
-    resolvedPlugin() {
-      return pluginById(this.resolvedPluginId);
-    },
-    stripItems() {
-      return this.commonVisualItemsForPlugin(this.resolvedPluginId);
-    },
-  }, template: "<section class=\"common-visual-strip\" data-testid=\"common-visual-strip\">\n    <div class=\"deforum-control-panel__section-head\">\n      <span class=\"framesync-subtitle deforum-control-panel__section-title\">Common visuals</span>\n      <span v-if=\"resolvedPlugin\" class=\"common-visual-strip__plugin\">{{ resolvedPlugin.label }}</span>\n    </div>\n    <div class=\"deforum-macro-knobs__grid\">\n      <label\n        v-for=\"item in stripItems\"\n        :key=\"'common-visual-' + item.paramId\"\n        class=\"deforum-macro-knob\"\n        :class=\"{ 'deforum-macro-knob--disabled': item.disabled }\"\n        :data-testid=\"'common-visual-' + item.paramId\"\n      >\n        <span class=\"deforum-macro-knob__label\">{{ item.label }}</span>\n        <input\n          type=\"range\"\n          class=\"framesync-input deforum-macro-knob__input\"\n          :min=\"item.min\"\n          :max=\"item.max\"\n          :step=\"item.step\"\n          :value=\"item.value\"\n          :disabled=\"item.disabled\"\n          @input=\"onCommonVisualInput(item.paramId, $event.target.value, resolvedPluginId)\"\n        >\n        <code class=\"deforum-macro-knob__readout\">{{ item.readout }}</code>\n      </label>\n    </div>\n  </section>" };
-const PresetSelectorBar = { props: ['app'], template: '<div></div>' };
-const LiveEngineControls = { props: {
-    app: { type: Object, default: null },
-    compact: { type: Boolean, default: false },
-    forceWebgl: { type: Boolean, default: false },
-    forcePerformance: { type: Boolean, default: false },
-    showCompositor: { type: Boolean, default: true },
-    showWebgl: { type: Boolean, default: true },
-  }, setup(props) { return __proxyAppView(props); }, components: { PresetSelectorBar: PresetSelectorBar }, template: "<div\n    class=\"live-engine-controls\"\n    :class=\"{ 'live-engine-controls--compact': compact }\"\n    data-testid=\"live-engine-controls\"\n  >\n    <PresetSelectorBar v-if=\"showWebgl && !compact\" :app=\"app\" />\n\n    <div\n      v-if=\"showCompositor\"\n      class=\"live-engine-controls__section live-engine-controls__section--compositor\"\n      data-testid=\"preview-compositor-controls\"\n    >\n      <div class=\"live-engine-controls__section-head\">\n        <span class=\"framesync-subtitle live-engine-controls__section-title\">Preview compositor</span>\n      </div>\n      <label class=\"live-engine-controls__toggle\">\n        <input\n          type=\"checkbox\"\n          :checked=\"defaultAnimation.autoTransitionToDeforum !== false\"\n          data-testid=\"auto-transition-deforum\"\n          @change=\"defaultAnimation.autoTransitionToDeforum = $event.target.checked; onDefaultAnimationInput()\"\n        >\n        <span>Auto-switch to Deforum when frames arrive</span>\n      </label>\n      <label class=\"live-engine-controls__toggle\">\n        <input\n          type=\"checkbox\"\n          :checked=\"!!defaultAnimation.rememberCompositorLayerOnStartup\"\n          data-testid=\"remember-compositor-layer\"\n          @change=\"defaultAnimation.rememberCompositorLayerOnStartup = $event.target.checked; onDefaultAnimationInput()\"\n        >\n        <span>Remember last preview layer on reload</span>\n      </label>\n      <div class=\"slider-row\">\n        <span class=\"framesync-subtitle\" style=\"margin:0;\">Crossfade duration</span>\n        <input\n          class=\"framesync-input\"\n          type=\"range\"\n          min=\"0\"\n          max=\"5000\"\n          step=\"50\"\n          v-model.number=\"defaultAnimation.previewCompositorCrossfadeMs\"\n          data-testid=\"preview-compositor-crossfade-ms\"\n          @input=\"onDefaultAnimationInput\"\n        >\n      </div>\n      <button\n        v-if=\"defaultAnimation.autoTransitionToDeforum === false\"\n        type=\"button\"\n        class=\"framesync-button framesync-button--compact\"\n        data-testid=\"promote-to-deforum\"\n        @click=\"promoteToDeforum()\"\n      >\n        Promote to Deforum now\n      </button>\n      <div class=\"live-engine-controls__compositor-row\" data-testid=\"compositor-lfo-links\">\n        <span class=\"framesync-subtitle\" style=\"margin:0;\">Forge mix LFO</span>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :class=\"{ active: !defaultAnimation.forgeLayerOpacityLfoLink }\"\n          @click=\"setForgeLayerOpacityLfoLink(null)\"\n        >\n          Manual\n        </button>\n        <button\n          v-for=\"lfo in lfos.slice(0, 6)\"\n          :key=\"'compositor-lfo-' + lfo.id\"\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :class=\"{ active: defaultAnimation.forgeLayerOpacityLfoLink === lfo.id }\"\n          :data-testid=\"'compositor-lfo-link-' + lfo.id\"\n          @click=\"setForgeLayerOpacityLfoLink(lfo.id)\"\n        >\n          {{ 'LFO ' + lfo.id }}\n        </button>\n      </div>\n      <p class=\"framesync-subtitle live-engine-controls__hint\">\n        LFO modulates forge opacity on WebGL + Deforum (Both). Use MODULATION to route audio into LFO depth.\n      </p>\n    </div>\n\n    <div\n      v-if=\"showWebgl && (forceWebgl || (!forcePerformance && (isWebglLayerActive || isBlendLayerActive)))\"\n      class=\"live-engine-controls__section live-engine-controls__section--webgl\"\n      data-testid=\"live-webgl-controls\"\n    >\n      <div class=\"live-engine-controls__section-head\">\n        <span class=\"framesync-subtitle live-engine-controls__section-title\">WebGL visual</span>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          data-testid=\"reset-webgl-visual\"\n          @click=\"resetDefaultAnimationSettings\"\n        >\n          ↺ Reset visual\n        </button>\n      </div>\n      <div class=\"framesync-stack\" :style=\"compact ? 'margin-top:6px;' : 'margin-top:10px;'\">\n        <div class=\"framesync-subtitle\">Animation style</div>\n        <select class=\"framesync-select\" :value=\"defaultAnimation.mode\" @change=\"setDefaultAnimationMode($event.target.value)\">\n          <option value=\"instancing\">GPU instancing</option>\n          <option value=\"volume\">Volume lighting</option>\n          <option value=\"orbital\">Orbital pulse</option>\n          <option value=\"nebula\">Nebula drift</option>\n          <option value=\"raycast\">Fat lines raycast</option>\n          <option value=\"marching\">Marching cubes</option>\n          <option value=\"ocean\">Shader ocean</option>\n        </select>\n      </div>\n      <template v-if=\"defaultAnimation.mode === 'instancing'\">\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Instance count</span><input class=\"framesync-input\" type=\"range\" min=\"1000\" max=\"50000\" step=\"500\" v-model.number=\"defaultAnimation.instCount\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Spread</span><input class=\"framesync-input\" type=\"range\" min=\"0.2\" max=\"2.5\" step=\"0.01\" v-model.number=\"defaultAnimation.spread\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Motion rate</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"2.5\" step=\"0.01\" v-model.number=\"defaultAnimation.speed\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Color shift</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.hue\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Shimmer</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"1.4\" step=\"0.01\" v-model.number=\"defaultAnimation.glow\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Camera depth</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.orbit\" @input=\"onDefaultAnimationInput\"></div>\n      </template>\n      <div v-else-if=\"defaultAnimation.mode === 'volume'\" class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Beam count</span><input class=\"framesync-input\" type=\"range\" min=\"3\" max=\"12\" step=\"1\" v-model.number=\"defaultAnimation.beamCount\" @input=\"onDefaultAnimationInput\"></div>\n      <div v-else-if=\"defaultAnimation.mode === 'orbital'\" class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Orbit size</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"2.0\" step=\"0.01\" v-model.number=\"defaultAnimation.orbit\" @input=\"onDefaultAnimationInput\"></div>\n      <div v-else-if=\"defaultAnimation.mode === 'nebula'\" class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Mist</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.mist\" @input=\"onDefaultAnimationInput\"></div>\n      <template v-else-if=\"defaultAnimation.mode === 'raycast'\">\n        <div v-if=\"!compact\" class=\"framesync-stack\" style=\"margin-top:10px;\"><div class=\"framesync-subtitle\">Line type</div><select class=\"framesync-select\" v-model=\"defaultAnimation.lineType\" @change=\"onDefaultAnimationInput\"><option value=\"segments\">LineSegmentsGeometry</option><option value=\"line\">LineGeometry</option></select></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Width</span><input class=\"framesync-input\" type=\"range\" min=\"1\" max=\"10\" step=\"0.1\" v-model.number=\"defaultAnimation.lineWidth\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Threshold</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"10\" step=\"0.1\" v-model.number=\"defaultAnimation.lineThreshold\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Translation</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"10\" step=\"0.1\" v-model.number=\"defaultAnimation.lineTranslation\" @input=\"onDefaultAnimationInput\"></div>\n        <div v-if=\"!compact\" class=\"framesync-stack\" style=\"margin-top:10px;\">\n          <div class=\"framesync-subtitle\">Line material</div>\n          <div class=\"chips\">\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.lineWorldUnits }\" @click=\"defaultAnimation.lineWorldUnits = true; onDefaultAnimationInput()\">World units</button>\n            <button type=\"button\" class=\"chip\" :class=\"{ active: !defaultAnimation.lineWorldUnits }\" @click=\"defaultAnimation.lineWorldUnits = false; onDefaultAnimationInput()\">Pixels</button>\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.lineAlphaToCoverage }\" @click=\"defaultAnimation.lineAlphaToCoverage = !defaultAnimation.lineAlphaToCoverage; onDefaultAnimationInput()\">Alpha coverage</button>\n          </div>\n        </div>\n        <div v-if=\"!compact\" class=\"framesync-stack\" style=\"margin-top:10px;\">\n          <div class=\"framesync-subtitle\">Behavior</div>\n          <div class=\"chips\">\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.lineVisualizeThreshold }\" @click=\"defaultAnimation.lineVisualizeThreshold = !defaultAnimation.lineVisualizeThreshold; onDefaultAnimationInput()\">Visualize threshold</button>\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.lineAnimate }\" @click=\"defaultAnimation.lineAnimate = !defaultAnimation.lineAnimate; onDefaultAnimationInput()\">Animate</button>\n          </div>\n        </div>\n      </template>\n      <template v-else-if=\"defaultAnimation.mode === 'marching'\">\n        <div v-if=\"!compact\" class=\"framesync-stack\" style=\"margin-top:10px;\"><div class=\"framesync-subtitle\">Material</div><select class=\"framesync-select\" v-model=\"defaultAnimation.mcMaterial\" @change=\"onDefaultAnimationInput\"><option value=\"shiny\">Shiny</option><option value=\"chrome\">Chrome</option><option value=\"liquid\">Liquid</option><option value=\"matte\">Matte</option><option value=\"flat\">Flat</option><option value=\"plastic\">Plastic</option><option value=\"colors\">Colors</option><option value=\"multiColors\">Multi colors</option></select></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Speed</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"8\" step=\"0.05\" v-model.number=\"defaultAnimation.speed\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Blob count</span><input class=\"framesync-input\" type=\"range\" min=\"1\" max=\"50\" step=\"1\" v-model.number=\"defaultAnimation.mcNumBlobs\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Resolution</span><input class=\"framesync-input\" type=\"range\" min=\"14\" max=\"100\" step=\"1\" v-model.number=\"defaultAnimation.mcResolution\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Isolation</span><input class=\"framesync-input\" type=\"range\" min=\"10\" max=\"300\" step=\"1\" v-model.number=\"defaultAnimation.mcIsolation\" @input=\"onDefaultAnimationInput\"></div>\n        <div v-if=\"!compact\" class=\"framesync-stack\" style=\"margin-top:10px;\">\n          <div class=\"framesync-subtitle\">Field helpers</div>\n          <div class=\"chips\">\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.mcFloor }\" @click=\"defaultAnimation.mcFloor = !defaultAnimation.mcFloor; onDefaultAnimationInput()\">Floor</button>\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.mcWallX }\" @click=\"defaultAnimation.mcWallX = !defaultAnimation.mcWallX; onDefaultAnimationInput()\">Wall X</button>\n            <button type=\"button\" class=\"chip\" :class=\"{ active: defaultAnimation.mcWallZ }\" @click=\"defaultAnimation.mcWallZ = !defaultAnimation.mcWallZ; onDefaultAnimationInput()\">Wall Z</button>\n          </div>\n        </div>\n      </template>\n      <template v-else-if=\"defaultAnimation.mode === 'ocean'\">\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Sun elevation</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"90\" step=\"0.1\" v-model.number=\"defaultAnimation.ocElevation\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Sun azimuth</span><input class=\"framesync-input\" type=\"range\" min=\"-180\" max=\"180\" step=\"0.1\" v-model.number=\"defaultAnimation.ocAzimuth\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Exposure</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.0001\" v-model.number=\"defaultAnimation.ocExposure\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Distortion scale</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"8\" step=\"0.1\" v-model.number=\"defaultAnimation.ocDistortion\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Wave size</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"10\" step=\"0.1\" v-model.number=\"defaultAnimation.ocSize\" @input=\"onDefaultAnimationInput\"></div>\n        <div v-if=\"!compact\" class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Cloud coverage</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.ocCloudCoverage\" @input=\"onDefaultAnimationInput\"></div>\n        <div v-if=\"!compact\" class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Cloud density</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.ocCloudDensity\" @input=\"onDefaultAnimationInput\"></div>\n        <div v-if=\"!compact\" class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Cloud elevation</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.ocCloudElevation\" @input=\"onDefaultAnimationInput\"></div>\n      </template>\n      <template v-else-if=\"!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)\">\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Speed</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"2.5\" step=\"0.01\" v-model.number=\"defaultAnimation.speed\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Spread</span><input class=\"framesync-input\" type=\"range\" min=\"0.2\" max=\"1.4\" step=\"0.01\" v-model.number=\"defaultAnimation.spread\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Glow</span><input class=\"framesync-input\" type=\"range\" min=\"0.1\" max=\"1.4\" step=\"0.01\" v-model.number=\"defaultAnimation.glow\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Hue</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.hue\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Pulse</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.pulse\" @input=\"onDefaultAnimationInput\"></div>\n        <div class=\"slider-row\"><span class=\"framesync-subtitle\" style=\"margin:0;\">Drift</span><input class=\"framesync-input\" type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"defaultAnimation.drift\" @input=\"onDefaultAnimationInput\"></div>\n      </template>\n    </div>\n\n    <div\n      v-if=\"showCompositor && !forcePerformance && showForgeOverWebgl\"\n      class=\"live-engine-controls__section live-engine-controls__section--composite\"\n      data-testid=\"forge-overlay-controls\"\n    >\n      <div class=\"live-engine-controls__section-head\">\n        <span class=\"framesync-subtitle live-engine-controls__section-title\">Layer over WebGL</span>\n      </div>\n      <div class=\"slider-row\">\n        <span class=\"framesync-subtitle\" style=\"margin:0;\">Forge opacity</span>\n        <input\n          class=\"framesync-input\"\n          type=\"range\"\n          min=\"0\"\n          max=\"1\"\n          step=\"0.01\"\n          v-model.number=\"defaultAnimation.forgeLayerOpacity\"\n          data-testid=\"forge-layer-opacity\"\n          @input=\"defaultAnimation.forgeLayerOpacityLfoBase = defaultAnimation.forgeLayerOpacity; onDefaultAnimationInput()\"\n        >\n      </div>\n      <p class=\"framesync-subtitle live-engine-controls__hint\">\n        Set to 0 to hide Deforum/WAN preview frames over the WebGL stage. Blend mode uses screen compositing.\n      </p>\n    </div>\n\n  </div>" };
-const WebGLPluginPanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { LiveEngineControls: LiveEngineControls }, template: "<LiveEngineControls :app=\"app\" :show-compositor=\"false\" :show-webgl=\"true\" force-webgl />" };
-const DeforumMotionPads = { props: {
-    app: { type: Object, required: true },
-    hero: { type: Boolean, default: false },
-    showReadout: { type: Boolean, default: true },
-    showAxisSliders: { type: Boolean, default: true },
-  }, setup(props) { return __proxyAppView(props); }, template: "<section\n    class=\"deforum-motion-pads\"\n    :class=\"{ 'deforum-motion-pads--hero': hero }\"\n    data-testid=\"deforum-motion-pads\"\n  >\n    <div class=\"deforum-control-panel__section-head\">\n      <span class=\"framesync-subtitle deforum-control-panel__section-title\">Camera XY</span>\n      <code v-if=\"showReadout\" class=\"deforum-motion-pads__readout\">\n        <template v-if=\"isDeforumMotion2d\">\n          Move {{ motionPadReadout.x.toFixed(2) }}, {{ motionPadReadout.y.toFixed(2) }}\n          · Zoom {{ motionPadReadout.zoom.toFixed(2) }}\n          · Tilt {{ motionPadReadout.lookX.toFixed(2) }}\n        </template>\n        <template v-else>\n          X {{ motionPadReadout.x.toFixed(2) }}\n          · Y {{ motionPadReadout.y.toFixed(2) }}\n          · Z {{ motionPadReadout.z.toFixed(2) }}\n          · Zoom {{ motionPadReadout.zoom.toFixed(2) }}\n          · Tilt {{ motionPadReadout.tilt.toFixed(2) }}\n        </template>\n      </code>\n    </div>\n\n    <div v-if=\"isDeforumMotion2d\" class=\"motion-controls-2d\">\n      <div class=\"motion-controls-2d__block\">\n        <div class=\"motion-controls-2d__label\">Pan X / Y</div>\n        <div\n          class=\"motion-pad-hero motion-pad-hero--move\"\n          data-testid=\"motion-pad-move\"\n          @mousedown=\"motionPadMouseDown($event, 'move')\"\n          @mousemove=\"motionPadMouseMove($event, 'move')\"\n          @mouseup=\"motionPadMouseUp\"\n          @mouseleave=\"motionPadMouseUp\"\n          @touchstart.prevent=\"motionPadMouseDown($event, 'move')\"\n          @touchmove.prevent=\"motionPadMouseMove($event, 'move')\"\n          @touchend.prevent=\"motionPadMouseUp\"\n        >\n          <div class=\"motion-pad-hero__axis motion-pad-hero__axis--x\">X</div>\n          <div class=\"motion-pad-hero__axis motion-pad-hero__axis--y\">Y</div>\n          <div class=\"motion-pad-hero__crosshair motion-pad-hero__crosshair--x\"></div>\n          <div class=\"motion-pad-hero__crosshair motion-pad-hero__crosshair--y\"></div>\n          <div class=\"motion-pad-hero__puck\" :style=\"motionPadPuckStyle\"></div>\n          <code class=\"motion-pad-hero__readout\">\n            {{ motionPadReadout.x.toFixed(2) }}, {{ motionPadReadout.y.toFixed(2) }}\n          </code>\n        </div>\n      </div>\n      <div class=\"motion-controls-2d__block\">\n        <div class=\"motion-controls-2d__label\">Angle / Zoom</div>\n        <div\n          class=\"motion-pad-hero motion-pad-hero--look\"\n          data-testid=\"motion-pad-look\"\n          @mousedown=\"motionPadMouseDown($event, 'look')\"\n          @mousemove=\"motionPadMouseMove($event, 'look')\"\n          @mouseup=\"motionPadMouseUp\"\n          @mouseleave=\"motionPadMouseUp\"\n          @touchstart.prevent=\"motionPadMouseDown($event, 'look')\"\n          @touchmove.prevent=\"motionPadMouseMove($event, 'look')\"\n          @touchend.prevent=\"motionPadMouseUp\"\n        >\n          <div class=\"motion-pad-hero__axis motion-pad-hero__axis--x\">Angle</div>\n          <div class=\"motion-pad-hero__axis motion-pad-hero__axis--y\">Zoom</div>\n          <div class=\"motion-pad-hero__crosshair motion-pad-hero__crosshair--x\"></div>\n          <div class=\"motion-pad-hero__crosshair motion-pad-hero__crosshair--y\"></div>\n          <div class=\"motion-pad-hero__puck motion-pad-hero__puck--look\" :style=\"motionLookPadPuckStyle\"></div>\n          <code class=\"motion-pad-hero__readout\">\n            {{ motionPadReadout.lookX.toFixed(2) }}, {{ motionPadReadout.lookY.toFixed(2) }}\n          </code>\n        </div>\n      </div>\n      <div v-if=\"showAxisSliders\" class=\"motion-axis-sliders motion-axis-sliders--2d\">\n        <label class=\"motion-axis-slider\">\n          <span class=\"motion-axis-slider__label\">Zoom</span>\n          <input\n            class=\"framesync-input motion-axis-slider__input\"\n            type=\"range\"\n            min=\"-1\"\n            max=\"1\"\n            step=\"0.01\"\n            data-testid=\"motion-zoom-slider\"\n            :value=\"motionPadValues.zoom\"\n            @input=\"motionSmoothnessActive() ? previewMotionAxis('zoom', $event.target.value) : setMotionAxis('zoom', $event.target.value)\"\n            @change=\"motionSmoothnessActive() && setMotionAxis('zoom', $event.target.value)\"\n          >\n          <code class=\"motion-axis-slider__value\">{{ motionPadReadout.zoom.toFixed(2) }}</code>\n        </label>\n        <label class=\"motion-axis-slider\">\n          <span class=\"motion-axis-slider__label\">Tilt</span>\n          <input\n            class=\"framesync-input motion-axis-slider__input\"\n            type=\"range\"\n            min=\"-1\"\n            max=\"1\"\n            step=\"0.01\"\n            data-testid=\"motion-tilt-slider\"\n            :value=\"motionPadValues.look_x\"\n            @input=\"motionSmoothnessActive() ? previewMotionAxis('angle', $event.target.value) : setMotionAxis('angle', $event.target.value)\"\n            @change=\"motionSmoothnessActive() && setMotionAxis('angle', $event.target.value)\"\n          >\n          <code class=\"motion-axis-slider__value\">{{ motionPadReadout.lookX.toFixed(2) }}</code>\n        </label>\n      </div>\n    </div>\n\n    <div v-else class=\"motion-controls-row\">\n      <div\n        class=\"motion-pad-hero motion-pad-hero--move\"\n        data-testid=\"motion-pad-move\"\n        @mousedown=\"motionPadMouseDown($event, 'move')\"\n        @mousemove=\"motionPadMouseMove($event, 'move')\"\n        @mouseup=\"motionPadMouseUp\"\n        @mouseleave=\"motionPadMouseUp\"\n        @touchstart.prevent=\"motionPadMouseDown($event, 'move')\"\n        @touchmove.prevent=\"motionPadMouseMove($event, 'move')\"\n        @touchend.prevent=\"motionPadMouseUp\"\n      >\n        <div class=\"motion-pad-hero__axis motion-pad-hero__axis--x\">Pan X</div>\n        <div class=\"motion-pad-hero__axis motion-pad-hero__axis--y\">Pan Y</div>\n        <div class=\"motion-pad-hero__crosshair motion-pad-hero__crosshair--x\"></div>\n        <div class=\"motion-pad-hero__crosshair motion-pad-hero__crosshair--y\"></div>\n        <div class=\"motion-pad-hero__puck\" :style=\"motionPadPuckStyle\"></div>\n        <code class=\"motion-pad-hero__readout\">\n          X {{ motionPadReadout.x.toFixed(2) }} · Y {{ motionPadReadout.y.toFixed(2) }}\n        </code>\n      </div>\n\n      <div v-if=\"showAxisSliders\" class=\"motion-axis-sliders\">\n        <label class=\"motion-axis-slider\">\n          <span class=\"motion-axis-slider__label\">Z</span>\n          <input\n            class=\"framesync-input motion-axis-slider__input\"\n            type=\"range\"\n            min=\"-10\"\n            max=\"10\"\n            step=\"0.05\"\n            :value=\"motionPadValues.translation_z\"\n            @input=\"motionSmoothnessActive() ? previewMotionAxis('translation_z', $event.target.value) : setMotionAxis('translation_z', $event.target.value)\"\n            @change=\"motionSmoothnessActive() && setMotionAxis('translation_z', $event.target.value)\"\n          >\n          <code class=\"motion-axis-slider__value\">{{ motionPadReadout.z.toFixed(2) }}</code>\n        </label>\n        <label class=\"motion-axis-slider\">\n          <span class=\"motion-axis-slider__label\">Zoom</span>\n          <input\n            class=\"framesync-input motion-axis-slider__input\"\n            type=\"range\"\n            min=\"0.5\"\n            max=\"2\"\n            step=\"0.01\"\n            data-testid=\"motion-zoom-slider\"\n            :value=\"motionPadValues.zoom\"\n            @input=\"motionSmoothnessActive() ? previewMotionAxis('zoom', $event.target.value) : setMotionAxis('zoom', $event.target.value)\"\n            @change=\"motionSmoothnessActive() && setMotionAxis('zoom', $event.target.value)\"\n          >\n          <code class=\"motion-axis-slider__value\">{{ motionPadReadout.zoom.toFixed(2) }}</code>\n        </label>\n        <label class=\"motion-axis-slider\">\n          <span class=\"motion-axis-slider__label\">Tilt</span>\n          <input\n            class=\"framesync-input motion-axis-slider__input\"\n            type=\"range\"\n            min=\"-180\"\n            max=\"180\"\n            step=\"0.5\"\n            data-testid=\"motion-tilt-slider\"\n            :value=\"motionPadValues.rotation_z\"\n            @input=\"motionSmoothnessActive() ? previewMotionAxis('rotation_z', $event.target.value) : setMotionAxis('rotation_z', $event.target.value)\"\n            @change=\"motionSmoothnessActive() && setMotionAxis('rotation_z', $event.target.value)\"\n          >\n          <code class=\"motion-axis-slider__value\">{{ motionPadReadout.tilt.toFixed(2) }}</code>\n        </label>\n      </div>\n    </div>\n  </section>" };
-const MotionPathPreview = { props: ['deforumSettings', 'motionValues', 'preferLiveValues', 'playing'], template: '<div class="motion-path-preview" data-testid="motion-path-preview"><div class="motion-path-preview__header"><div class="framesync-subtitle motion-path-preview__title">3D motion preview</div></div><div class="motion-path-preview__stage"></div></div>' };
-const DeforumSettingsBody = { props: {
-    app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, components: { MotionPathPreview: MotionPathPreview }, template: "<section class=\"deforum-settings-body-wrap\" data-testid=\"deforum-settings-body\">\n    <div class=\"deforum-settings-groups\">\n      <div\n        class=\"deforum-mode-toggle\"\n        role=\"group\"\n        aria-label=\"Deforum animation mode\"\n        data-testid=\"deforum-mode-toggle\"\n      >\n        <button\n          type=\"button\"\n          class=\"deforum-mode-toggle__btn\"\n          :class=\"{ active: deforumMode2d3d === '2D' }\"\n          data-testid=\"deforum-mode-2d\"\n          @click=\"setDeforumMode2d3d('2D')\"\n        >\n          2D\n        </button>\n        <button\n          type=\"button\"\n          class=\"deforum-mode-toggle__btn\"\n          :class=\"{ active: deforumMode2d3d === '3D' }\"\n          data-testid=\"deforum-mode-3d\"\n          @click=\"setDeforumMode2d3d('3D')\"\n        >\n          3D\n        </button>\n      </div>\n      <p v-if=\"!deforumMode3dActive\" class=\"deforum-mode-toggle__hint\">\n        3D motion schedules are disabled in 2D mode.\n      </p>\n      <div class=\"sub-pills deforum-settings-tabs\">\n        <button\n          v-for=\"group in deforumFieldGroups\"\n          :key=\"'deforum-tab-' + group.id\"\n          type=\"button\"\n          class=\"sub-pill\"\n          :class=\"{\n            active: deforumActiveTab === group.id,\n            'sub-pill--disabled': isDeforumFieldGroupDisabledByAnimationMode(group.id),\n          }\"\n          :disabled=\"isDeforumFieldGroupDisabledByAnimationMode(group.id)\"\n          @click=\"deforumActiveTab = group.id; saveSessionState()\"\n        >\n          {{ group.label }}\n        </button>\n      </div>\n\n      <div v-if=\"activeDeforumFieldGroup\" class=\"framesync-panel deforum-settings-panel\">\n        <MotionPathPreview\n          v-if=\"deforumMode3dActive && (deforumActiveTab === 'motion' || deforumActiveTab === 'motion3d')\"\n          :deforum-settings=\"deforumSettings\"\n          :motion-values=\"{}\"\n          :prefer-live-values=\"false\"\n        />\n        <div class=\"deforum-settings-grid\">\n          <template v-for=\"field in activeDeforumFieldGroup.fields\" :key=\"field.key\">\n            <label\n              v-if=\"field.key !== 'sd_model_name'\"\n              class=\"deforum-field\"\n              :class=\"[\n                'deforum-field-' + (field.type || 'text'),\n                {\n                  'deforum-field--disabled': !isDeforumFieldEnabled(field.key),\n                  'deforum-field--mode-locked': isDeforumFieldDisabledByAnimationMode(field.key),\n                }\n              ]\"\n            >\n              <span class=\"deforum-field-head\">\n                <span class=\"deforum-field-label\">{{ field.label }}</span>\n                <span v-if=\"isDeforumFieldToggleable(field.key)\" class=\"deforum-field-toggle\">\n                  <button\n                    type=\"button\"\n                    class=\"chip chip--compact\"\n                    :class=\"{ active: isDeforumFieldEnabled(field.key) }\"\n                    @click.prevent=\"setDeforumFieldEnabled(field.key, !isDeforumFieldEnabled(field.key))\"\n                  >\n                    {{ isDeforumFieldEnabled(field.key) ? 'On' : 'Off' }}\n                  </button>\n                </span>\n              </span>\n              <div v-if=\"field.type === 'slider'\" class=\"deforum-field-slider\">\n                <input\n                  type=\"range\"\n                  class=\"framesync-input\"\n                  :min=\"field.min\"\n                  :max=\"field.max\"\n                  :step=\"field.step || 1\"\n                  :value=\"getDeforumField(field.key)\"\n                  :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                  @input=\"onDeforumFieldInput(field.key, $event.target.value, 'number')\"\n                >\n                <span class=\"deforum-field-slider__value\">{{ formatDeforumFieldValue(field, getDeforumField(field.key)) }}</span>\n              </div>\n              <select\n                v-else-if=\"field.type === 'select'\"\n                class=\"framesync-select\"\n                :data-testid=\"'deforum-field-' + field.key\"\n                :value=\"getDeforumField(field.key) ?? ''\"\n                :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                @change=\"onDeforumSelectInput(field, $event.target.value)\"\n              >\n                <option\n                  v-for=\"opt in deforumFieldOptions(field)\"\n                  :key=\"field.key + '-opt-' + opt\"\n                  :value=\"opt\"\n                >\n                  {{ opt }}\n                </option>\n              </select>\n              <div v-else-if=\"field.key === 'seed'\" class=\"deforum-seed-control\" data-testid=\"deforum-seed-control\">\n                <button\n                  type=\"button\"\n                  class=\"chip chip--compact\"\n                  :class=\"{ active: seedRandomEnabled }\"\n                  :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                  data-testid=\"seed-random-toggle\"\n                  @click=\"setSeedRandomEnabled(!seedRandomEnabled)\"\n                >\n                  Random\n                </button>\n                <input\n                  v-if=\"!seedRandomEnabled\"\n                  type=\"number\"\n                  class=\"framesync-input deforum-seed-control__input\"\n                  data-testid=\"deforum-field-seed\"\n                  min=\"0\"\n                  :max=\"field.max\"\n                  :step=\"field.step || 1\"\n                  :value=\"getDeforumField(field.key)\"\n                  :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                  @input=\"onDeforumSeedInput($event.target.value)\"\n                >\n                <span v-else class=\"deforum-seed-control__hint\">Random (−1)</span>\n              </div>\n              <input\n                v-else-if=\"field.type === 'number'\"\n                type=\"number\"\n                class=\"framesync-input\"\n                :data-testid=\"'deforum-field-' + field.key\"\n                :min=\"field.min\"\n                :max=\"field.max\"\n                :step=\"field.step || 1\"\n                :value=\"getDeforumField(field.key)\"\n                :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                @input=\"onDeforumFieldInput(field.key, $event.target.value, 'number')\"\n              >\n              <div v-else-if=\"field.type === 'bool'\" class=\"chips deforum-field-bool\">\n                <button type=\"button\" class=\"chip\" :class=\"{ active: !!getDeforumField(field.key) }\" :disabled=\"!isDeforumFieldEnabled(field.key)\" @click=\"onDeforumFieldInput(field.key, true, 'bool')\">On</button>\n                <button type=\"button\" class=\"chip\" :class=\"{ active: !getDeforumField(field.key) }\" :disabled=\"!isDeforumFieldEnabled(field.key)\" @click=\"onDeforumFieldInput(field.key, false, 'bool')\">Off</button>\n              </div>\n              <textarea\n                v-else-if=\"field.type === 'textarea'\"\n                class=\"framesync-input\"\n                :rows=\"field.rows || 3\"\n                :value=\"getDeforumField(field.key) ?? ''\"\n                :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                @input=\"onDeforumFieldInput(field.key, $event.target.value, 'text')\"\n              ></textarea>\n              <input\n                v-else\n                type=\"text\"\n                class=\"framesync-input\"\n                :value=\"getDeforumField(field.key) ?? ''\"\n                :disabled=\"!isDeforumFieldEnabled(field.key)\"\n                @input=\"onDeforumFieldInput(field.key, $event.target.value, 'text')\"\n              >\n            </label>\n          </template>\n        </div>\n      </div>\n    </div>\n  </section>" };
-const DeforumControlPanel = { props: {
-    app: { type: Object, required: true },
-    /** When set, macros target this plugin; otherwise CommonVisualStrip uses the active layer. */
-    visualPluginId: { type: String, default: '' },
-    showMacroKnobs: { type: Boolean, default: true },
-    showMotionPads: { type: Boolean, default: true },
-    showSettings: { type: Boolean, default: true },
-    motionPadsShowReadout: { type: Boolean, default: false },
-    motionPadsShowAxisSliders: { type: Boolean, default: true },
-  }, setup(props) { return __proxyAppView(props); }, components: { CommonVisualStrip: CommonVisualStrip, DeforumMotionPads: DeforumMotionPads, DeforumSettingsBody: DeforumSettingsBody }, template: "<div class=\"deforum-control-panel\" data-testid=\"deforum-control-panel\">\n    <CommonVisualStrip\n      v-if=\"showMacroKnobs\"\n      :app=\"app\"\n      :plugin-id=\"visualPluginId\"\n    />\n    <DeforumMotionPads\n      v-if=\"showMotionPads\"\n      :app=\"app\"\n      :show-readout=\"motionPadsShowReadout\"\n      :show-axis-sliders=\"motionPadsShowAxisSliders\"\n    />\n    <DeforumSettingsBody v-if=\"showSettings\" :app=\"app\" />\n  </div>" };
-const DeforumJobPanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, DeforumControlPanel: DeforumControlPanel }, template: "<div class=\"rack deforum-job-panel\" data-testid=\"deforum-settings-panel\">\n      <div class=\"framesync-panel deforum-job-panel__head\">\n        <div class=\"framesync-header\">\n          <div class=\"framesync-title\">\n            <UiIcon class=\"framesync-title-icon\" name=\"film\" />\n            <span class=\"framesync-accent\">Deforum</span>\n          </div>\n          <span\n            class=\"perf-mode-badge\"\n            :class=\"deforumPlaying ? 'mode-animate' : 'mode-preview'\"\n          >\n            {{ deforumPlaying ? 'Animating' : 'Ready' }}\n          </span>\n        </div>\n        <p class=\"framesync-subtitle deforum-job-panel__summary\">\n          Batch <strong>{{ deforumSettings.batch_name || '—' }}</strong>\n          · {{ deforumSettings.max_frames || 0 }} frames @ {{ deforumSettings.fps || 24 }} fps\n        </p>\n        <div class=\"deforum-job-panel__transport\">\n          <button type=\"button\" class=\"framesync-button\" :class=\"{ active: deforumPlaying }\" @click=\"toggleDeforumPlay\">\n            {{ deforumPlaying ? 'Pause job' : 'Play job' }}\n          </button>\n          <button type=\"button\" class=\"framesync-button\" @click=\"stopDeforumPlay\">Stop</button>\n        </div>\n        <div v-if=\"deforumSettingsStatus\" class=\"framesync-subtitle deforum-job-panel__status\">{{ deforumSettingsStatus }}</div>\n      </div>\n      <div class=\"param-drawer-body deforum-settings-body\">\n        <div class=\"deforum-settings-toolbar\">\n          <button type=\"button\" class=\"framesync-button\" :disabled=\"deforumSettingsLoading\" @click=\"loadDeforumSettings\">\n            <span v-if=\"deforumSettingsLoading\" class=\"lazy-loading-indicator lazy-loading-indicator--button\">\n              <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n              <span>Reload</span>\n            </span>\n            <template v-else>↻ Reload</template>\n          </button>\n          <button type=\"button\" class=\"framesync-button\" :disabled=\"deforumSettingsSaving\" @click=\"saveDeforumSettings\">\n            <span v-if=\"deforumSettingsSaving\" class=\"lazy-loading-indicator lazy-loading-indicator--button\">\n              <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n              <span>Save</span>\n            </span>\n            <template v-else>💾 Save</template>\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button\"\n            :class=\"{ 'framesync-button--loading': previewGenerating }\"\n            :disabled=\"previewGenerating\"\n            @click=\"generateDeforumPreviewFrame\"\n          >\n            <span v-if=\"previewGenerating\" class=\"lazy-loading-indicator lazy-loading-indicator--button\">\n              <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n              <span>Regenerate frame</span>\n            </span>\n            <template v-else>🖼 Regenerate frame</template>\n          </button>\n          <label class=\"deforum-advanced-toggle\">\n            <input type=\"checkbox\" v-model=\"deforumAdvancedOpen\"> JSON\n          </label>\n          <button\n            type=\"button\"\n            class=\"framesync-button\"\n            data-testid=\"deforum-settings-verify\"\n            title=\"Check settings for errors and optimization hints\"\n            @click=\"runDeforumSettingsVerify\"\n          >\n            Verify\n          </button>\n        </div>\n\n        <div v-if=\"deforumAdvancedOpen\" class=\"deforum-advanced-json\">\n          <textarea\n            class=\"framesync-input deforum-json-editor\"\n            v-model=\"deforumSettingsJson\"\n            rows=\"12\"\n            spellcheck=\"false\"\n            @blur=\"applyDeforumSettingsJson\"\n          ></textarea>\n          <p v-if=\"deforumSettingsJsonError\" class=\"deforum-json-error\">{{ deforumSettingsJsonError }}</p>\n        </div>\n\n        <div\n          v-else-if=\"deforumVerifyResults && (deforumVerifyResults.errors.length || deforumVerifyResults.warnings.length)\"\n          class=\"deforum-verify-results\"\n          data-testid=\"deforum-verify-results\"\n        >\n          <div class=\"deforum-verify-results__head\">\n            <span class=\"framesync-subtitle\" style=\"margin:0;\">Verification</span>\n            <span class=\"deforum-verify-results__counts\">\n              <span v-if=\"deforumVerifyResults.errors.length\" class=\"deforum-verify-results__badge deforum-verify-results__badge--error\">\n                {{ deforumVerifyResults.errors.length }} error{{ deforumVerifyResults.errors.length === 1 ? '' : 's' }}\n              </span>\n              <span v-if=\"deforumVerifyResults.warnings.length\" class=\"deforum-verify-results__badge deforum-verify-results__badge--warn\">\n                {{ deforumVerifyResults.warnings.length }} hint{{ deforumVerifyResults.warnings.length === 1 ? '' : 's' }}\n              </span>\n            </span>\n          </div>\n          <ul v-if=\"deforumVerifyResults.errors.length\" class=\"deforum-verify-results__list deforum-verify-results__list--error\">\n            <li v-for=\"(issue, idx) in deforumVerifyResults.errors\" :key=\"'deforum-verr-' + idx\">\n              <strong>{{ issue.field }}</strong> — {{ issue.message }}\n              <span v-if=\"issue.hint\" class=\"deforum-verify-results__hint\">{{ issue.hint }}</span>\n            </li>\n          </ul>\n          <ul v-if=\"deforumVerifyResults.warnings.length\" class=\"deforum-verify-results__list deforum-verify-results__list--warn\">\n            <li v-for=\"(issue, idx) in deforumVerifyResults.warnings\" :key=\"'deforum-vwarn-' + idx\">\n              <strong>{{ issue.field }}</strong> — {{ issue.message }}\n              <span v-if=\"issue.hint\" class=\"deforum-verify-results__hint\">{{ issue.hint }}</span>\n            </li>\n          </ul>\n        </div>\n        <p\n          v-else-if=\"deforumVerifyResults && !deforumVerifyResults.errors.length && !deforumVerifyResults.warnings.length\"\n          class=\"deforum-verify-results deforum-verify-results--ok\"\n          data-testid=\"deforum-verify-results\"\n        >\n          Settings look good — no issues found.\n        </p>\n\n        <DeforumControlPanel v-else :app=\"app\" visual-plugin-id=\"deforum\" />\n      </div>\n  </div>" };
-const DeforumPluginPanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { DeforumJobPanel: DeforumJobPanel }, template: "<DeforumJobPanel :app=\"app\" />" };
-const WanPluginPanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, template: "<div class=\"wan-engine-controls animation-plugin-panel\" data-testid=\"wan-plugin-panel\">\n    <div class=\"framesync-subtitle\">WAN Video · steer generation</div>\n    <p class=\"framesync-subtitle wan-engine-controls__hint\">\n      Uses Deforum <code>animation_mode: Wan Video</code> on the Forge node. Prompts come from the Prompts tab.\n    </p>\n    <div class=\"wan-engine-controls__grid\">\n      <template v-for=\"field in wanEngineControlFields\" :key=\"'wan-field-' + field.key\">\n        <div v-if=\"field.type === 'boolean'\" class=\"wan-engine-controls__toggle\">\n          <label>\n            <input\n              type=\"checkbox\"\n              :checked=\"!!wanEngine[field.key]\"\n              :data-testid=\"'wan-field-' + field.key\"\n              @change=\"onWanEngineFieldChange(field.key, $event.target.checked, 'boolean')\"\n            >\n            <span>{{ field.label }}</span>\n          </label>\n        </div>\n        <div v-else class=\"framesync-stack wan-engine-controls__field\">\n          <div class=\"framesync-subtitle\">{{ field.label }}</div>\n          <select\n            v-if=\"field.type === 'select'\"\n            class=\"framesync-select\"\n            :data-testid=\"'wan-field-' + field.key\"\n            :value=\"wanEngine[field.key]\"\n            @change=\"onWanEngineFieldChange(field.key, $event.target.value, 'select')\"\n          >\n            <option v-for=\"opt in field.options\" :key=\"field.key + '-' + opt\" :value=\"opt\">{{ opt }}</option>\n          </select>\n          <input\n            v-else-if=\"field.type === 'number'\"\n            type=\"number\"\n            class=\"framesync-input\"\n            :data-testid=\"'wan-field-' + field.key\"\n            :min=\"field.min\"\n            :max=\"field.max\"\n            :step=\"field.step\"\n            :value=\"wanEngine[field.key]\"\n            @input=\"onWanEngineFieldChange(field.key, $event.target.value, 'number')\"\n          >\n          <input\n            v-else\n            type=\"text\"\n            class=\"framesync-input\"\n            :data-testid=\"'wan-field-' + field.key\"\n            :value=\"wanEngine[field.key]\"\n            @input=\"onWanEngineFieldChange(field.key, $event.target.value, 'text')\"\n          >\n        </div>\n      </template>\n    </div>\n  </div>" };
-const AnimateLcmPluginPanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, computed: {
-    motionQuickPresets() {
-      return ['Static', 'Orbit', 'Tunnel', 'Handheld', 'Chaos'];
-    },
-  }, template: "<div class=\"animatelcm-plugin-panel animation-plugin-panel\" data-testid=\"animatelcm-plugin-panel\">\n    <div class=\"framesync-subtitle\">AnimateLCM · fast temporal generation</div>\n    <p class=\"framesync-subtitle animatelcm-plugin-panel__hint\">\n      Runs as its own Forge animation mode. Independent from Settings → LCM Engine (global sampling shortcut).\n    </p>\n\n    <div class=\"animatelcm-plugin-panel__motion-type\">\n      <div class=\"framesync-subtitle\">Motion type</div>\n      <div class=\"chips\">\n        <button\n          v-for=\"t in animateLcmMotionTypes\"\n          :key=\"'alcm-type-' + t.id\"\n          type=\"button\"\n          class=\"chip\"\n          :class=\"{ active: animateLcmEngine.motion_type === t.id }\"\n          :data-testid=\"'animatelcm-motion-type-' + t.id\"\n          @click=\"setAnimateLcmMotionType(t.id)\"\n        >\n          {{ t.label }}\n        </button>\n      </div>\n    </div>\n\n    <div class=\"motion-preset-row\">\n      <button\n        v-for=\"name in motionQuickPresets\"\n        :key=\"'alcm-preset-' + name\"\n        type=\"button\"\n        class=\"chip\"\n        :class=\"{ active: animateLcmEngine.motion_preset === name }\"\n        @click=\"applyAnimateLcmMotionPreset(name)\"\n      >\n        {{ name }}\n      </button>\n    </div>\n\n    <div class=\"wan-engine-controls__grid\">\n      <template v-for=\"field in animateLcmControlFields\" :key=\"'alcm-field-' + field.key\">\n        <div v-if=\"field.key === 'motion_type' || field.key === 'motion_preset'\" />\n        <div v-else class=\"framesync-stack wan-engine-controls__field\">\n          <div class=\"framesync-subtitle\">{{ field.label }}</div>\n          <input\n            type=\"number\"\n            class=\"framesync-input\"\n            :data-testid=\"'animatelcm-field-' + field.key\"\n            :min=\"field.min\"\n            :max=\"field.max\"\n            :step=\"field.step\"\n            :value=\"animateLcmEngine[field.key]\"\n            @input=\"onAnimateLcmFieldChange(field.key, $event.target.value, 'number')\"\n          >\n        </div>\n      </template>\n    </div>\n  </div>" };
-const AnimationEnginePluginPanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { WebGLPluginPanel: WebGLPluginPanel, DeforumPluginPanel: DeforumPluginPanel, WanPluginPanel: WanPluginPanel, AnimateLcmPluginPanel: AnimateLcmPluginPanel }, template: "<WebGLPluginPanel v-if=\"activeAnimationPluginId === 'webgl'\" :app=\"app\" />\n  <DeforumPluginPanel v-else-if=\"activeAnimationPluginId === 'deforum'\" :app=\"app\" />\n  <WanPluginPanel v-else-if=\"activeAnimationPluginId === 'wan'\" :app=\"app\" />\n  <AnimateLcmPluginPanel v-else-if=\"activeAnimationPluginId === 'animatelcm'\" :app=\"app\" />\n  <div v-else-if=\"activeVideoLayer?.kind === 'blend'\" class=\"animation-plugin-panel animation-plugin-panel--hint\">\n    <p class=\"framesync-subtitle\">\n      <strong>Both</strong> composites WebGL under a Forge layer. Adjust forge opacity in Compositor below.\n    </p>\n  </div>\n  <div v-else-if=\"activeVideoLayer?.kind === 'input'\" class=\"animation-plugin-panel animation-plugin-panel--hint\">\n    <p class=\"framesync-subtitle\">Input layer — link a library or cloud video source.</p>\n  </div>" };
-const CompositorControls = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { LiveEngineControls: LiveEngineControls }, template: "<LiveEngineControls :app=\"app\" :show-compositor=\"true\" :show-webgl=\"false\" force-performance />" };
-const LiveEngineControlsDock = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, CommonVisualStrip: CommonVisualStrip, AnimationEnginePluginPanel: AnimationEnginePluginPanel, CompositorControls: CompositorControls }, template: "<section class=\"live-engine-dock framesync-panel\" data-testid=\"live-engine-dock\">\n    <div class=\"live-engine-dock__head\">\n      <div class=\"framesync-title\">\n        <UiIcon class=\"framesync-title-icon\" name=\"film\" />\n        <span class=\"framesync-accent\">Engine</span>\n        <span\n          v-if=\"lcmEngineEnabled\"\n          class=\"lcm-engine-badge\"\n          data-testid=\"lcm-engine-badge\"\n          title=\"LCM Engine mode — fast steps with LCM LoRA (Settings → Engine)\"\n        >\n          <UiIcon class=\"lcm-engine-badge__icon\" name=\"lightning\" />\n          LCM\n        </span>\n      </div>\n    </div>\n\n    <div class=\"live-engine-dock__body\" data-testid=\"live-engine-dock-body\">\n      <div class=\"animation-engine-picker__toolbar\">\n        <div class=\"framesync-subtitle\" style=\"margin:0;\">Active layer</div>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact animation-engine-picker__size\"\n          :title=\"videoStageSize === 'small' ? 'Small stage' : videoStageSize === 'medium' ? 'Medium stage' : 'Full stage'\"\n          @click=\"toggleVideoStageSize()\"\n        >\n          <UiIcon\n            :name=\"videoStageSize === 'small' ? 'size-small' : videoStageSize === 'medium' ? 'size-medium' : 'size-full'\"\n            aria-hidden=\"true\"\n          />\n          Stage size\n        </button>\n      </div>\n\n      <CommonVisualStrip v-if=\"activeAnimationPluginId\" :app=\"app\" />\n\n      <AnimationEnginePluginPanel :app=\"app\" />\n\n      <CompositorControls :app=\"app\" />\n    </div>\n\n    <p v-if=\"deforumPreloadStatus && isForgeAnimationLayerActive\" class=\"live-engine-dock__preload-hint framesync-subtitle\">\n      {{ deforumPreloadStatus }}\n    </p>\n  </section>" };
+  }, template: "<div class=\"video-swarm-browser\" data-testid=\"video-swarm-browser\">\n    <div class=\"video-swarm-browser__toolbar framesync-panel\">\n      <div class=\"video-swarm-browser__toolbar-row\">\n        <div class=\"video-swarm-browser__roots\">\n          <select\n            class=\"framesync-select\"\n            :value=\"systemFiles.rootId\"\n            :disabled=\"systemFiles.loading\"\n            data-testid=\"video-swarm-root-select\"\n            @change=\"onRootChange($event.target.value)\"\n          >\n            <option v-for=\"root in systemFiles.roots\" :key=\"'vfs-root-' + root.id\" :value=\"root.id\">\n              {{ root.label }}\n            </option>\n          </select>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :disabled=\"!systemFiles.parent || systemFiles.loading || videoSwarmIsCloudRoot || videoSwarmIsVideosOnly\"\n            title=\"Parent folder\"\n            @click=\"browseSystemFiles(systemFiles.parent)\"\n          >\n            ↑ Up\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            :disabled=\"systemFiles.loading || videoSwarmIsCloudRoot\"\n            data-testid=\"video-swarm-new-folder\"\n            title=\"New folder\"\n            @click=\"openNewFolderDialog()\"\n          >\n            + Folder\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact framesync-button--live\"\n            :disabled=\"systemFiles.loading || videoSwarmIsCloudRoot\"\n            data-testid=\"video-swarm-upload-video\"\n            title=\"Upload video file\"\n            @click=\"openUploadPicker()\"\n          >\n            + Video\n          </button>\n          <input\n            ref=\"uploadInputEl\"\n            type=\"file\"\n            accept=\"video/mp4,video/webm,video/quicktime,video/x-matroska,video/x-m4v,video/*,.mp4,.webm,.mov,.mkv,.m4v,.avi\"\n            multiple\n            class=\"video-swarm-browser__upload-input\"\n            data-testid=\"video-swarm-upload-input\"\n            @change=\"onUploadInputChange\"\n          >\n        </div>\n        <div class=\"video-swarm-browser__chips chips\">\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: !videoSwarmIsVideosOnly }\"\n            :disabled=\"systemFiles.loading\"\n            data-testid=\"video-swarm-view-browse\"\n            @click=\"setViewMode('browse')\"\n          >\n            Browse\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: videoSwarmIsVideosOnly }\"\n            :disabled=\"systemFiles.loading || videoSwarmIsCloudRoot\"\n            data-testid=\"video-swarm-view-videos-only\"\n            @click=\"setViewMode('videos-only')\"\n          >\n            Videos only\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: systemFiles.recursive }\"\n            :disabled=\"systemFiles.loading || videoSwarmIsVideosOnly || videoSwarmIsCloudRoot\"\n            @click=\"toggleSystemFilesRecursive\"\n          >\n            Subfolders\n          </button>\n          <button\n            type=\"button\"\n            class=\"chip\"\n            :class=\"{ active: systemFiles.showFilenames }\"\n            :disabled=\"systemFiles.loading\"\n            @click=\"toggleSystemFilesShowNames\"\n          >\n            Names\n          </button>\n        </div>\n        <select\n          class=\"framesync-select video-swarm-browser__sort\"\n          :value=\"systemFiles.sortKey\"\n          :disabled=\"systemFiles.loading\"\n          @change=\"setSystemFilesSort($event.target.value)\"\n        >\n          <option value=\"name-asc\">Name ↑</option>\n          <option value=\"name-desc\">Name ↓</option>\n          <option value=\"mtime-desc\">Modified ↓</option>\n          <option value=\"mtime-asc\">Modified ↑</option>\n          <option value=\"size-desc\">Size ↓</option>\n          <option value=\"size-asc\">Size ↑</option>\n        </select>\n        <label class=\"video-swarm-browser__zoom\">\n          <span class=\"framesync-subtitle\">Zoom</span>\n          <input\n            type=\"range\"\n            min=\"0\"\n            max=\"4\"\n            step=\"1\"\n            :value=\"systemFiles.zoomLevel\"\n            :disabled=\"systemFiles.loading\"\n            @input=\"setSystemFilesZoom(Number($event.target.value))\"\n          >\n        </label>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :class=\"{ active: systemFiles.cloudConnectOpen }\"\n          data-testid=\"video-swarm-connect-cloud\"\n          @click=\"systemFiles.cloudConnectOpen = !systemFiles.cloudConnectOpen\"\n        >\n          Connect cloud\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :disabled=\"systemFiles.loading\"\n          @click=\"refreshSystemFilesBrowse(true)\"\n        >\n          Refresh\n        </button>\n      </div>\n\n      <div v-if=\"systemFiles.cloudConnectOpen\" class=\"video-swarm-browser__cloud-connect\" data-testid=\"video-swarm-cloud-connect\">\n        <div class=\"video-swarm-browser__cloud-connect-title\">Connect cloud storage</div>\n        <div class=\"video-swarm-browser__cloud-connect-row\">\n          <select v-model=\"cloudDriveDraft.provider\" class=\"framesync-select\">\n            <option value=\"google_drive\">Google Drive</option>\n            <option value=\"dropbox\">Dropbox</option>\n            <option value=\"onedrive\">OneDrive</option>\n            <option value=\"other\">Other</option>\n          </select>\n          <input\n            v-model.trim=\"cloudDriveDraft.url\"\n            type=\"url\"\n            class=\"framesync-input\"\n            placeholder=\"https://drive.google.com/… folder or file share link\"\n            data-testid=\"video-swarm-cloud-url\"\n            @keyup.enter=\"connectCloudStorage()\"\n          >\n          <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"connectCloudStorage()\">Connect</button>\n        </div>\n        <div class=\"framesync-subtitle video-swarm-browser__cloud-hint\">\n          Saves the share link in the browser. Open the drive in a new tab, then add direct video URLs below for playback.\n        </div>\n        <div v-if=\"(systemFiles.cloudSources || []).length\" class=\"video-swarm-browser__cloud-list\">\n          <div\n            v-for=\"source in systemFiles.cloudSources\"\n            :key=\"'cloud-src-' + source.id\"\n            class=\"video-swarm-browser__cloud-item\"\n          >\n            <button type=\"button\" class=\"video-swarm-browser__cloud-item-main\" @click=\"selectCloudRoot(source)\">\n              <strong>{{ cloudProviderLabel(source.provider) }}</strong>\n              <span>{{ source.label }}</span>\n            </button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openCloudStorageLink(source)\">Open</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"disconnectCloudStorage(source.id)\">Remove</button>\n          </div>\n        </div>\n      </div>\n\n      <div v-if=\"systemFiles.newFolderOpen\" class=\"video-swarm-browser__newfolder\" data-testid=\"video-swarm-new-folder-dialog\">\n        <input\n          v-model.trim=\"systemFiles.newFolderName\"\n          type=\"text\"\n          class=\"framesync-input\"\n          placeholder=\"New folder name\"\n          data-testid=\"video-swarm-new-folder-name\"\n          @keyup.enter=\"createSystemFolder()\"\n        >\n        <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"createSystemFolder()\">Create</button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"cancelNewFolderDialog()\">Cancel</button>\n      </div>\n\n      <div class=\"video-swarm-browser__path\">\n        <code v-if=\"!videoSwarmIsCloudRoot\">{{ systemFiles.currentPath || '—' }}</code>\n        <code v-else>{{ videoSwarmCloudPathLabel }}</code>\n        <span v-if=\"videoSwarmIsVideosOnly\" class=\"video-swarm-browser__count\">Videos only · all subfolders</span>\n        <span v-else-if=\"systemFiles.folderCount != null && systemFiles.folderCount > 0\" class=\"video-swarm-browser__count\">\n          {{ systemFiles.folderCount }} folders\n        </span>\n        <span v-if=\"systemFiles.videoCount != null\" class=\"video-swarm-browser__count\">\n          {{ systemFiles.videoCount }} videos\n        </span>\n      </div>\n      <div\n        v-if=\"libraryOutputHint\"\n        class=\"video-swarm-browser__outputs-hint framesync-subtitle\"\n        data-testid=\"video-swarm-outputs-hint\"\n      >\n        {{ libraryOutputHint }}\n      </div>\n      <div v-if=\"systemFiles.status\" class=\"framesync-subtitle video-swarm-browser__status\">{{ systemFiles.status }}</div>\n    </div>\n\n    <div v-if=\"videoSwarmIsCloudRoot && systemFiles.cloudSource\" class=\"video-swarm-browser__cloud-panel framesync-panel\" data-testid=\"video-swarm-cloud-panel\">\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">\n          <span class=\"framesync-accent\">{{ cloudProviderLabel(systemFiles.cloudSource.provider) }}</span>\n        </div>\n        <div class=\"video-swarm-browser__cloud-panel-actions\">\n          <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openCloudStorageLink(systemFiles.cloudSource)\">Open in browser</button>\n          <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"disconnectCloudStorage(systemFiles.cloudSource.id)\">Disconnect</button>\n        </div>\n      </div>\n      <div class=\"framesync-subtitle\">{{ systemFiles.cloudSource.url }}</div>\n      <div class=\"video-swarm-browser__cloud-video-form\">\n        <input\n          v-model.trim=\"systemFiles.cloudVideoDraft.name\"\n          type=\"text\"\n          class=\"framesync-input\"\n          placeholder=\"Label (optional)\"\n        >\n        <input\n          v-model.trim=\"systemFiles.cloudVideoDraft.url\"\n          type=\"url\"\n          class=\"framesync-input\"\n          placeholder=\"Direct video URL (https://…mp4)\"\n          data-testid=\"video-swarm-cloud-video-url\"\n          @keyup.enter=\"addCloudStorageVideo(systemFiles.cloudSource.id)\"\n        >\n        <button type=\"button\" class=\"framesync-button\" @click=\"addCloudStorageVideo(systemFiles.cloudSource.id)\">Add video</button>\n      </div>\n    </div>\n\n    <div\n      class=\"video-swarm-browser__dropzone\"\n      :class=\"{ 'video-swarm-browser__dropzone--active': dropzoneActive, 'video-swarm-browser__dropzone--disabled': videoSwarmIsCloudRoot }\"\n      data-testid=\"video-swarm-dropzone\"\n      @dragenter=\"onDropEnter\"\n      @dragover=\"onDropOver\"\n      @dragleave=\"onDropLeave\"\n      @drop=\"onDropFiles\"\n    >\n      <div v-if=\"dropzoneActive && !videoSwarmIsCloudRoot\" class=\"video-swarm-browser__dropzone-hint\">\n        Drop video files to upload\n      </div>\n\n    <div v-if=\"systemFiles.loading\" class=\"video-swarm-browser__empty\">Scanning folder…</div>\n    <div v-else-if=\"!videoSwarmDisplayFolders.length && !videoSwarmDisplayVideos.length\" class=\"video-swarm-browser__empty\">\n      {{ videoSwarmIsCloudRoot ? 'No videos linked yet — add a direct URL above.' : 'No folders or videos — use + Video or drag files here.' }}\n    </div>\n    <div\n      v-else\n      ref=\"gridEl\"\n      class=\"video-swarm-browser__grid\"\n      :class=\"'video-swarm-browser__grid--zoom-' + systemFiles.zoomLevel\"\n      @scroll=\"onGridScroll\"\n    >\n      <button\n        v-for=\"folder in videoSwarmDisplayFolders\"\n        :key=\"'folder-' + folder.path\"\n        type=\"button\"\n        class=\"video-swarm-browser__tile video-swarm-browser__tile--folder\"\n        data-testid=\"video-swarm-folder\"\n        :data-folder-path=\"folder.path\"\n        :title=\"folder.name\"\n        @click=\"openSystemFolder(folder)\"\n      >\n        <div class=\"video-swarm-browser__folder-icon\" aria-hidden=\"true\">📁</div>\n        <div v-if=\"systemFiles.showFilenames\" class=\"video-swarm-browser__label\">{{ folder.name }}</div>\n      </button>\n      <button\n        v-for=\"(video, index) in videoSwarmDisplayVideos\"\n        :key=\"video.path\"\n        type=\"button\"\n        class=\"video-swarm-browser__tile\"\n        :class=\"{\n          'video-swarm-browser__tile--selected': systemFiles.selectedPaths.includes(video.path),\n          'video-swarm-browser__tile--hover': hoveredPath === video.path,\n        }\"\n        :data-video-path=\"video.path\"\n        @click=\"onTileClick($event, video, index)\"\n        @dblclick=\"onTileDblClick($event, index)\"\n        @contextmenu=\"onTileContextMenu($event, video)\"\n        @mouseenter=\"onTileEnter(video)\"\n        @mouseleave=\"onTileLeave(video)\"\n      >\n        <video\n          v-if=\"shouldLoadVideo(video)\"\n          :ref=\"(el) => registerTileVideo(video.path, el)\"\n          class=\"video-swarm-browser__video\"\n          muted\n          loop\n          playsinline\n          preload=\"metadata\"\n          :src=\"systemFileMediaUrl(video.path)\"\n          @loadeddata=\"onVideoLoaded(video.path)\"\n        />\n        <div v-else class=\"video-swarm-browser__placeholder\">▶</div>\n        <div v-if=\"systemFiles.showFilenames\" class=\"video-swarm-browser__label\">{{ video.name }}</div>\n        <div class=\"video-swarm-browser__meta\">{{ formatVideoSwarmFileSize(video.size) }}</div>\n      </button>\n    </div>\n    </div>\n\n    <div\n      v-if=\"systemFiles.fullscreenIndex >= 0 && videoSwarmFullscreenVideo\"\n      class=\"video-swarm-browser__modal\"\n      data-testid=\"video-swarm-fullscreen\"\n      @click=\"onFullscreenBackdropClick\"\n    >\n      <div class=\"video-swarm-browser__modal-inner\">\n        <div class=\"video-swarm-browser__modal-head\">\n          <strong>{{ videoSwarmFullscreenVideo.name }}</strong>\n          <div class=\"video-swarm-browser__modal-actions\">\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"stepSystemFileFullscreen(-1)\">← Prev</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"stepSystemFileFullscreen(1)\">Next →</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"copySystemFilePath(videoSwarmFullscreenVideo.path)\">Copy path</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openInVideoEditor(videoSwarmFullscreenVideo)\">Open in editor</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteSystemFile(videoSwarmFullscreenVideo.path)\">Delete</button>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"closeSystemFileFullscreen\">Close</button>\n          </div>\n        </div>\n        <video\n          ref=\"modalVideoEl\"\n          class=\"video-swarm-browser__modal-video\"\n          controls\n          autoplay\n          playsinline\n          :src=\"systemFileMediaUrl(videoSwarmFullscreenVideo.path)\"\n        />\n      </div>\n    </div>\n\n    <div\n      v-if=\"contextMenu.open\"\n      class=\"video-swarm-browser__menu\"\n      :style=\"{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }\"\n    >\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openContextFullscreen\">Open</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openInVideoEditor(contextMenu.video)\">Open in editor</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"copySystemFilePath(contextMenu.video?.path)\">Copy path</button>\n      <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteContextVideo\">Delete</button>\n    </div>\n  </div>" };
+const CommonVisualStrip = { props: ['app'], template: '<div></div>' };
+const AnimationEnginePluginPanel = { props: ['app'], template: '<div></div>' };
+const CompositorControls = { props: ['app'], template: '<div></div>' };
+const LiveEngineControlsDock = { props: ['app'], setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, CommonVisualStrip: CommonVisualStrip, AnimationEnginePluginPanel: AnimationEnginePluginPanel, CompositorControls: CompositorControls }, template: "<section class=\"live-engine-dock framesync-panel\" data-testid=\"live-engine-dock\">\n    <div class=\"live-engine-dock__head\">\n      <div class=\"framesync-title\">\n        <UiIcon class=\"framesync-title-icon\" name=\"film\" />\n        <span class=\"framesync-accent\">Engine</span>\n        <span\n          v-if=\"lcmEngineEnabled\"\n          class=\"lcm-engine-badge\"\n          data-testid=\"lcm-engine-badge\"\n          title=\"LCM Engine mode — fast steps with LCM LoRA (Settings → Engine)\"\n        >\n          <UiIcon class=\"lcm-engine-badge__icon\" name=\"lightning\" />\n          LCM\n        </span>\n      </div>\n    </div>\n\n    <div class=\"live-engine-dock__body\" data-testid=\"live-engine-dock-body\">\n      <div class=\"animation-engine-picker__toolbar\">\n        <div class=\"framesync-subtitle\" style=\"margin:0;\">Active layer</div>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact animation-engine-picker__size\"\n          :title=\"videoStageSize === 'small' ? 'Small stage' : videoStageSize === 'medium' ? 'Medium stage' : 'Full stage'\"\n          @click=\"toggleVideoStageSize()\"\n        >\n          <UiIcon\n            :name=\"videoStageSize === 'small' ? 'size-small' : videoStageSize === 'medium' ? 'size-medium' : 'size-full'\"\n            aria-hidden=\"true\"\n          />\n          Stage size\n        </button>\n      </div>\n\n      <CommonVisualStrip v-if=\"activeAnimationPluginId\" :app=\"app\" />\n\n      <AnimationEnginePluginPanel :app=\"app\" />\n\n      <CompositorControls :app=\"app\" />\n    </div>\n\n    <p v-if=\"deforumPreloadStatus && isForgeAnimationLayerActive\" class=\"live-engine-dock__preload-hint framesync-subtitle\">\n      {{ deforumPreloadStatus }}\n    </p>\n  </section>" };
 const LiveView = { props: {
     app: { type: Object, required: true },
   }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, LiveEngineControlsDock: LiveEngineControlsDock }, template: "<div class=\"live-view\" data-testid=\"live-view\">\n    <LiveEngineControlsDock :app=\"app\" />\n\n    <div class=\"live-view__scroll\">\n    <div class=\"rack param-drawer\">\n      <button type=\"button\" class=\"param-drawer-toggle\" @click=\"paramPanelOpen = !paramPanelOpen; saveSessionState()\">\n        <span class=\"param-drawer-label\">\n          <UiIcon class=\"param-drawer-label-icon\" name=\"sliders\" />\n          <span>Parameters</span>\n        </span>\n        <UiIcon class=\"param-drawer-chevron\" :name=\"paramPanelOpen ? 'chevron-up' : 'chevron-down'\" />\n      </button>\n      <div v-show=\"paramPanelOpen\" class=\"param-drawer-body\">\n          <div v-if=\"pinnedParamItems.length\" class=\"param-group param-group--pinned\">\n          <div class=\"framesync-subtitle param-group__pinned-label\">\n            <UiIcon name=\"pin\" class=\"param-group__pinned-icon\" />\n            <span>Pinned</span>\n          </div>\n          <div class=\"param-group-grid\">\n            <div class=\"framesync-stack\" v-for=\"p in pinnedParamItems\" :key=\"'pin-'+p.key\" :class=\"{'param-locked': isParamLocked(p.key)}\">\n              <div class=\"framesync-subtitle\" style=\"font-size:10px; display:flex; align-items:center; gap:4px;\">\n                <span>{{ p.label }}</span>\n                <button type=\"button\" class=\"param-pin-btn active\" title=\"Unpin\" @click.stop=\"toggleParamPin(p.key)\"><UiIcon name=\"pin\" /></button>\n                <button type=\"button\" class=\"param-lock-btn\" :class=\"{active: isParamLockedByMe(p.key)}\" :title=\"paramLockTitle(p.key)\" @click.stop=\"toggleParamLock(p.key)\"><UiIcon name=\"lock\" /></button>\n              </div>\n              <input type=\"range\" :min=\"p.min\" :max=\"p.max\" :step=\"p.step\" :value=\"p.val\" :disabled=\"isParamLocked(p.key) && !isParamLockedByMe(p.key)\" @input=\"updateParam(p,$event)\" class=\"framesync-input\">\n            </div>\n          </div>\n        </div>\n\n        <div v-for=\"group in paramPanelGroups\" :key=\"group.label\" class=\"param-group\">\n          <div class=\"framesync-subtitle\">{{ group.label }}</div>\n          <div class=\"param-group-grid\">\n            <div class=\"framesync-stack\" v-for=\"p in group.items\" :key=\"p.key\" :class=\"{'param-locked': isParamLocked(p.key)}\">\n              <div class=\"framesync-subtitle\" style=\"font-size:10px; display:flex; align-items:center; gap:4px;\">\n                <span>{{ p.label }}</span>\n                <button type=\"button\" class=\"param-pin-btn\" :class=\"{active: isParamPinned(p.key)}\" title=\"Pin to top\" @click.stop=\"toggleParamPin(p.key)\"><UiIcon name=\"pin\" /></button>\n                <button type=\"button\" class=\"param-lock-btn\" :class=\"{active: isParamLockedByMe(p.key)}\" :title=\"paramLockTitle(p.key)\" @click.stop=\"toggleParamLock(p.key)\"><UiIcon name=\"lock\" /></button>\n              </div>\n              <input type=\"range\" :min=\"p.min\" :max=\"p.max\" :step=\"p.step\" :value=\"p.val\" :disabled=\"isParamLocked(p.key) && !isParamLockedByMe(p.key)\" @input=\"updateParam(p,$event)\" class=\"framesync-input\">\n            </div>\n          </div>\n        </div>\n\n        <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n          <button class=\"framesync-button\" @click=\"resetVibeParams\">↺ Reset vibe</button>\n          <button class=\"framesync-button\" @click=\"resetCameraParams\">↺ Reset camera</button>\n        </div>\n      </div>\n    </div>\n    </div>\n  </div>" };
-const AnimationEnginePanel = { props: { app: { type: Object, required: true } }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, VideoSwarmBrowser: VideoSwarmBrowser }, template: "<div class=\"animation-engine-panel\" data-testid=\"animation-engine-panel\">\n    <div\n      v-if=\"showFrameProcessingInChrome\"\n      class=\"live-frame-processing-banner\"\n      data-testid=\"live-frame-processing-banner\"\n      aria-live=\"polite\"\n    >\n      <span class=\"lazy-loading-indicator lazy-loading-indicator--inline\">\n        <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n        <span>{{ frameProcessingLabel }}</span>\n        <span class=\"lazy-loading-indicator__dots\" aria-hidden=\"true\"><span></span><span></span><span></span></span>\n      </span>\n      <span class=\"live-frame-processing-banner__hint\">{{ frameProcessingHint }}</span>\n    </div>\n\n    <div class=\"animation-engine-panel__head\">\n      <div class=\"framesync-title\">\n        <UiIcon class=\"framesync-title-icon\" name=\"film\" />\n        <span class=\"framesync-accent\">Layers</span>\n      </div>\n      <div class=\"animation-engine-panel__head-actions\">\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          data-testid=\"animation-engine-promote-deforum\"\n          title=\"Switch preview to Deforum layer\"\n          @click=\"promoteToDeforum()\"\n        >\n          Deforum →\n        </button>\n        <button\n          v-if=\"!rightPanelOpen\"\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          data-testid=\"animation-engine-open-controls\"\n          @click=\"openEngineControlsInRightPanel\"\n        >\n          Controls →\n        </button>\n      </div>\n    </div>\n\n    <ul class=\"animation-engine-layer-list\" data-testid=\"animation-engine-layer-list\">\n      <li\n        v-for=\"layer in builtinEngineLayers\"\n        :key=\"'engine-layer-row-' + layer.id\"\n        class=\"animation-engine-layer-row\"\n        :class=\"{\n          'animation-engine-layer-row--active': activeVideoLayerId === layer.id,\n          'animation-engine-layer-row--hidden': !isVideoLayerPreviewVisible(layer),\n        }\"\n        :data-testid=\"'animation-engine-row-' + layer.id\"\n      >\n        <button\n          type=\"button\"\n          class=\"animation-engine-layer-row__select\"\n          :class=\"{ 'animation-engine-layer-row__select--active': activeVideoLayerId === layer.id }\"\n          :aria-pressed=\"activeVideoLayerId === layer.id ? 'true' : 'false'\"\n          :data-testid=\"'animation-engine-' + layer.id\"\n          @click=\"selectVideoLayer(layer.id)\"\n        >\n          <span\n            class=\"animation-engine-card__dot\"\n            :class=\"'animation-engine-card__dot--' + layerStatus(layer)\"\n            aria-hidden=\"true\"\n          ></span>\n          <span class=\"animation-engine-layer-row__label\">{{ layer.label }}</span>\n          <span class=\"animation-engine-layer-row__status\">{{ videoLayerStatusShort(layer) }}</span>\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact animation-engine-layer-row__visibility\"\n          :class=\"{ 'framesync-button--live': isVideoLayerPreviewVisible(layer) }\"\n          :title=\"isVideoLayerPreviewVisible(layer) ? 'Hide layer in preview' : 'Show layer in preview'\"\n          :data-testid=\"'animation-engine-visibility-' + layer.id\"\n          @click.stop=\"toggleVideoLayerPreview(layer.id)\"\n        >\n          {{ isVideoLayerPreviewVisible(layer) ? 'Hide' : 'Show' }}\n        </button>\n      </li>\n    </ul>\n\n    <div class=\"animation-engine-panel__sources\">\n      <button\n        type=\"button\"\n        class=\"framesync-button framesync-button--compact\"\n        :class=\"{ active: videoLayerAddOpen }\"\n        data-testid=\"video-layer-add-toggle\"\n        @click=\"toggleVideoLayerAdd()\"\n      >\n        + Add source\n      </button>\n      <div\n        v-if=\"currentTab === 'LIVE' && videoLayerAddOpen\"\n        class=\"video-layer-add\"\n        data-testid=\"video-layer-add\"\n      >\n        <div class=\"chips video-layer-add__mode\">\n          <button type=\"button\" class=\"chip\" :class=\"{ active: liveSourcePanel === 'library' }\" @click=\"liveSourcePanel = 'library'; saveSessionState()\">Video library</button>\n          <button type=\"button\" class=\"chip\" :class=\"{ active: liveSourcePanel === 'cloud' }\" @click=\"liveSourcePanel = 'cloud'; saveSessionState()\">Cloud drive</button>\n        </div>\n        <div v-if=\"liveSourcePanel === 'library'\" style=\"margin-top:8px;\">\n          <VideoSwarmBrowser :app=\"app\" />\n        </div>\n        <div v-else style=\"margin-top:8px;\">\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 0.8fr; gap:10px;\">\n            <input class=\"framesync-input\" v-model.trim=\"cloudDriveDraft.url\" placeholder=\"https://drive.google.com/...\">\n            <select class=\"framesync-select\" v-model=\"cloudDriveDraft.provider\">\n              <option value=\"google_drive\">Google Drive</option>\n              <option value=\"dropbox\">Dropbox</option>\n              <option value=\"onedrive\">OneDrive</option>\n            </select>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n            <button type=\"button\" class=\"framesync-button\" @click=\"linkCloudDriveSource\">Link cloud drive</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  </div>" };
+const AnimationEnginePanel = { props: ['app'], setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, VideoSwarmBrowser: VideoSwarmBrowser }, template: "<div class=\"animation-engine-panel\" data-testid=\"animation-engine-panel\">\n    <div\n      v-if=\"showFrameProcessingInChrome\"\n      class=\"live-frame-processing-banner\"\n      data-testid=\"live-frame-processing-banner\"\n      aria-live=\"polite\"\n    >\n      <span class=\"lazy-loading-indicator lazy-loading-indicator--inline\">\n        <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n        <span>{{ frameProcessingLabel }}</span>\n        <span class=\"lazy-loading-indicator__dots\" aria-hidden=\"true\"><span></span><span></span><span></span></span>\n      </span>\n      <span class=\"live-frame-processing-banner__hint\">{{ frameProcessingHint }}</span>\n    </div>\n\n    <div class=\"animation-engine-panel__head\">\n      <div class=\"framesync-title\">\n        <UiIcon class=\"framesync-title-icon\" name=\"film\" />\n        <span class=\"framesync-accent\">Layers</span>\n      </div>\n      <div class=\"animation-engine-panel__head-actions\">\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          data-testid=\"animation-engine-promote-deforum\"\n          title=\"Switch preview to Deforum layer\"\n          @click=\"promoteToDeforum()\"\n        >\n          Deforum →\n        </button>\n        <button\n          v-if=\"!rightPanelOpen\"\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          data-testid=\"animation-engine-open-controls\"\n          @click=\"openEngineControlsInRightPanel\"\n        >\n          Controls →\n        </button>\n      </div>\n    </div>\n\n    <ul class=\"animation-engine-layer-list\" data-testid=\"animation-engine-layer-list\">\n      <li\n        v-for=\"layer in builtinEngineLayers\"\n        :key=\"'engine-layer-row-' + layer.id\"\n        class=\"animation-engine-layer-row\"\n        :class=\"{\n          'animation-engine-layer-row--active': activeVideoLayerId === layer.id,\n          'animation-engine-layer-row--hidden': !isVideoLayerPreviewVisible(layer),\n        }\"\n        :data-testid=\"'animation-engine-row-' + layer.id\"\n      >\n        <button\n          type=\"button\"\n          class=\"animation-engine-layer-row__select\"\n          :class=\"{ 'animation-engine-layer-row__select--active': activeVideoLayerId === layer.id }\"\n          :aria-pressed=\"activeVideoLayerId === layer.id ? 'true' : 'false'\"\n          :data-testid=\"'animation-engine-' + layer.id\"\n          @click=\"selectVideoLayer(layer.id)\"\n        >\n          <span\n            class=\"animation-engine-card__dot\"\n            :class=\"'animation-engine-card__dot--' + layerStatus(layer)\"\n            aria-hidden=\"true\"\n          ></span>\n          <span class=\"animation-engine-layer-row__label\">{{ layer.label }}</span>\n          <span class=\"animation-engine-layer-row__status\">{{ videoLayerStatusShort(layer) }}</span>\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact animation-engine-layer-row__visibility\"\n          :class=\"{ 'framesync-button--live': isVideoLayerPreviewVisible(layer) }\"\n          :title=\"isVideoLayerPreviewVisible(layer) ? 'Hide layer in preview' : 'Show layer in preview'\"\n          :data-testid=\"'animation-engine-visibility-' + layer.id\"\n          @click.stop=\"toggleVideoLayerPreview(layer.id)\"\n        >\n          {{ isVideoLayerPreviewVisible(layer) ? 'Hide' : 'Show' }}\n        </button>\n      </li>\n    </ul>\n\n    <div class=\"animation-engine-panel__sources\">\n      <button\n        type=\"button\"\n        class=\"framesync-button framesync-button--compact\"\n        :class=\"{ active: videoLayerAddOpen }\"\n        data-testid=\"video-layer-add-toggle\"\n        @click=\"toggleVideoLayerAdd()\"\n      >\n        + Add source\n      </button>\n      <div\n        v-if=\"currentTab === 'LIVE' && videoLayerAddOpen\"\n        class=\"video-layer-add\"\n        data-testid=\"video-layer-add\"\n      >\n        <div class=\"chips video-layer-add__mode\">\n          <button type=\"button\" class=\"chip\" :class=\"{ active: liveSourcePanel === 'library' }\" @click=\"liveSourcePanel = 'library'; saveSessionState()\">Video library</button>\n          <button type=\"button\" class=\"chip\" :class=\"{ active: liveSourcePanel === 'cloud' }\" @click=\"liveSourcePanel = 'cloud'; saveSessionState()\">Cloud drive</button>\n        </div>\n        <div v-if=\"liveSourcePanel === 'library'\" style=\"margin-top:8px;\">\n          <VideoSwarmBrowser :app=\"app\" />\n        </div>\n        <div v-else style=\"margin-top:8px;\">\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 0.8fr; gap:10px;\">\n            <input class=\"framesync-input\" v-model.trim=\"cloudDriveDraft.url\" placeholder=\"https://drive.google.com/...\">\n            <select class=\"framesync-select\" v-model=\"cloudDriveDraft.provider\">\n              <option value=\"google_drive\">Google Drive</option>\n              <option value=\"dropbox\">Dropbox</option>\n              <option value=\"onedrive\">OneDrive</option>\n            </select>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n            <button type=\"button\" class=\"framesync-button\" @click=\"linkCloudDriveSource\">Link cloud drive</button>\n          </div>\n        </div>\n      </div>\n    </div>\n  </div>" };
 const LibraryView = { props: {
     app: { type: Object, required: true },
     workspace: { type: Boolean, default: false },
@@ -2218,47 +1863,19 @@ const LibraryView = { props: {
 const EditorShell = { props: ['app'], template: '<div></div>' };
 const EditorView = { props: {
     app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, computed: {
-    freecutFrameSrc() {
-      const route = String(this.editorFreecutRoute || 'projects').trim()
-      if (route.startsWith('editor/')) {
-        const projectId = route.slice('editor/'.length)
-        return freecutEditorUrl(projectId)
-      }
-      return freecutProjectsUrl()
-    },
-    editorImportUrl() {
-      const raw = String(this.editorPendingImportUrl || '').trim()
-      if (raw) return raw
-      const path = String(this.editorPendingImportPath || '').trim()
-      if (!path) return ''
-      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      return deforaMediaFileUrl(origin, path, this.editorPendingImportRootId)
-    },
-  }, components: { EditorShell: EditorShell }, template: "<div class=\"editor-view\" data-testid=\"editor-view\">\n    <EditorShell\n      title-accent=\"Video\"\n      title-rest=\"Editor\"\n      subtitle=\"FreeCut — multi-track timeline, keyframes, WebGPU preview, and export\"\n      :status=\"editorStatus\"\n      :status-live=\"editorStatusLive\"\n      test-id=\"video-editor-shell\"\n    >\n      <template #actions>\n        <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"navigateFreecut('projects')\">\n          Projects\n        </button>\n        <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openFreecutNewTab\">\n          Open tab\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact framesync-button--live\"\n          :disabled=\"!editorImportUrl\"\n          @click=\"copyImportUrl\"\n        >\n          Copy import URL\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :disabled=\"!editorImportUrl\"\n          @click=\"importFromLibrary\"\n        >\n          Import from library\n        </button>\n      </template>\n\n      <div class=\"editor-view__import\" v-if=\"editorImportUrl\">\n        <span class=\"framesync-subtitle\">Library handoff</span>\n        <code class=\"editor-view__import-url\">{{ editorImportUrl }}</code>\n        <span class=\"framesync-subtitle editor-view__import-hint\">\n          Paste into FreeCut media library → Import from URL, or use Import from library once the editor is ready.\n        </span>\n      </div>\n\n      <iframe\n        ref=\"freecutFrame\"\n        class=\"editor-view__frame\"\n        data-testid=\"freecut-editor-frame\"\n        :src=\"freecutFrameSrc\"\n        title=\"FreeCut video editor\"\n        allow=\"clipboard-write; storage-access *\"\n        @load=\"onFreecutLoad\"\n      />\n    </EditorShell>\n  </div>" };
-const LibraryWorkspaceOverlay = { props: {
-    app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, LibraryView: LibraryView, EditorView: EditorView }, template: "<Transition name=\"library-workspace-slide\">\n    <div\n      v-if=\"libraryWorkspaceOpen\"\n      class=\"library-workspace\"\n      data-testid=\"library-workspace\"\n      role=\"dialog\"\n      aria-modal=\"true\"\n      aria-label=\"Library and video editor\"\n    >\n      <div class=\"library-workspace__chrome\">\n        <div class=\"library-workspace__tabs\" role=\"tablist\">\n          <button\n            type=\"button\"\n            role=\"tab\"\n            class=\"library-workspace__tab\"\n            :class=\"{ 'library-workspace__tab--active': libraryWorkspacePane === 'browser' }\"\n            :aria-selected=\"libraryWorkspacePane === 'browser' ? 'true' : 'false'\"\n            data-testid=\"library-workspace-tab-browser\"\n            @click=\"setLibraryWorkspacePane('browser')\"\n          >\n            <UiIcon name=\"folder\" />\n            <span>Browser</span>\n          </button>\n          <button\n            type=\"button\"\n            role=\"tab\"\n            class=\"library-workspace__tab\"\n            :class=\"{ 'library-workspace__tab--active': libraryWorkspacePane === 'editor' }\"\n            :aria-selected=\"libraryWorkspacePane === 'editor' ? 'true' : 'false'\"\n            data-testid=\"library-workspace-tab-editor\"\n            @click=\"setLibraryWorkspacePane('editor')\"\n          >\n            <UiIcon name=\"film\" />\n            <span>Video editor</span>\n          </button>\n        </div>\n        <button\n          type=\"button\"\n          class=\"library-workspace__close framesync-button framesync-button--compact\"\n          data-testid=\"close-library-workspace\"\n          title=\"Close library\"\n          @click=\"closeLibraryWorkspace()\"\n        >\n          <UiIcon name=\"chevron-up\" />\n          <span>Close</span>\n        </button>\n      </div>\n      <div class=\"library-workspace__body\">\n        <LibraryView\n          v-show=\"libraryWorkspacePane === 'browser'\"\n          class=\"library-workspace__pane\"\n          :app=\"app\"\n          workspace\n        />\n        <div\n          v-show=\"libraryWorkspacePane === 'editor'\"\n          class=\"library-workspace__pane library-workspace__pane--editor\"\n          data-testid=\"editor-workspace\"\n        >\n          <EditorView :app=\"app\" />\n        </div>\n      </div>\n    </div>\n  </Transition>" };
+  }, setup(props) { return __proxyAppView(props); }, components: { EditorShell: EditorShell }, template: "<div class=\"editor-view\" data-testid=\"editor-view\">\n    <EditorShell\n      title-accent=\"Video\"\n      title-rest=\"Editor\"\n      subtitle=\"FreeCut — multi-track timeline, keyframes, WebGPU preview, and export\"\n      :status=\"editorStatus\"\n      :status-live=\"editorStatusLive\"\n      test-id=\"video-editor-shell\"\n    >\n      <template #actions>\n        <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"navigateFreecut('projects')\">\n          Projects\n        </button>\n        <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"openFreecutNewTab\">\n          Open tab\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact framesync-button--live\"\n          :disabled=\"!editorImportUrl\"\n          @click=\"copyImportUrl\"\n        >\n          Copy import URL\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :disabled=\"!editorImportUrl\"\n          @click=\"importFromLibrary\"\n        >\n          Import from library\n        </button>\n      </template>\n\n      <div class=\"editor-view__import\" v-if=\"editorImportUrl\">\n        <span class=\"framesync-subtitle\">Library handoff</span>\n        <code class=\"editor-view__import-url\">{{ editorImportUrl }}</code>\n        <span class=\"framesync-subtitle editor-view__import-hint\">\n          Paste into FreeCut media library → Import from URL, or use Import from library once the editor is ready.\n        </span>\n      </div>\n\n      <iframe\n        ref=\"freecutFrame\"\n        class=\"editor-view__frame\"\n        data-testid=\"freecut-editor-frame\"\n        :src=\"freecutFrameSrc\"\n        title=\"FreeCut video editor\"\n        allow=\"clipboard-write; storage-access *\"\n        @load=\"onFreecutLoad\"\n      />\n    </EditorShell>\n  </div>" };
 const StreamView = { props: {
     app: { type: Object, required: true },
   }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon }, template: "<div class=\"stream-shell\">\n    <div class=\"framesync-panel stream-card stream-card--preview\">\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">Stream <span class=\"framesync-accent\">Preview</span></div>\n        <span class=\"stream-status-pill\" :class=\"`stream-status-pill--${statusTone}`\">\n          {{ streamStatusLabel }}\n        </span>\n      </div>\n      <div class=\"framesync-subtitle\" style=\"margin-top:10px;\">\n        Configure the live HLS feed and enable main-stage streaming from <strong>Settings → Output</strong> or the status strip once the preview is valid.\n      </div>\n\n      <div class=\"stream-hls-controls\">\n        <span\n          class=\"stream-preview-status\"\n          :class=\"previewValid ? 'stream-preview-status--live' : 'stream-preview-status--idle'\"\n          data-testid=\"stream-preview-status\"\n        >\n          {{ previewValid ? 'HLS feed ready' : 'Waiting for HLS feed…' }}\n        </span>\n        <span v-if=\"app.hlsWatchEnabled\" class=\"framesync-subtitle\" style=\"margin:0;\">\n          Main stage is showing the live HLS feed.\n        </span>\n      </div>\n\n      <div class=\"stream-preview\" data-testid=\"stream-hls-preview\">\n        <video\n          ref=\"previewEl\"\n          class=\"stream-preview__video\"\n          muted\n          autoplay\n          playsinline\n          controls\n        ></video>\n      </div>\n\n      <div class=\"stream-endpoints\">\n        <a class=\"stream-endpoint\" :href=\"app.hlsStreamHref\" target=\"_blank\" rel=\"noreferrer\">\n          <UiIcon class=\"stream-endpoint__icon\" name=\"broadcast\" />\n          <span class=\"stream-endpoint__label\">HLS</span>\n          <code class=\"stream-endpoint__value\">{{ app.hlsStreamHref }}</code>\n        </a>\n        <a class=\"stream-endpoint\" :href=\"app.rtmpStreamHref\" target=\"_blank\" rel=\"noreferrer\">\n          <UiIcon class=\"stream-endpoint__icon\" name=\"broadcast\" />\n          <span class=\"stream-endpoint__label\">RTMP</span>\n          <code class=\"stream-endpoint__value\">{{ app.rtmpStreamHref }}</code>\n        </a>\n      </div>\n\n      <div v-if=\"app.streaming.status\" class=\"stream-card__status\">{{ app.streaming.status }}</div>\n    </div>\n\n    <div class=\"stream-active-section\">\n      <div class=\"stream-active-header\">\n        <div class=\"framesync-title\">Active <span class=\"framesync-accent\">streams</span></div>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--live\"\n          data-testid=\"stream-add-destination-btn\"\n          @click=\"openAddDestinationForm()\"\n        >\n          Add destination\n        </button>\n      </div>\n\n      <div v-if=\"!activeDestinations.length && !addDestinationOpen\" class=\"stream-empty\" data-testid=\"stream-active-empty\">\n        No destinations yet. Add one to forward the live feed.\n      </div>\n\n      <div v-if=\"activeDestinations.length\" class=\"stream-active-list\" data-testid=\"stream-active-list\">\n        <div\n          v-for=\"destination in activeDestinations\"\n          :key=\"destination.id\"\n          class=\"stream-active-row\"\n          :class=\"{ 'stream-active-row--live': isActive(destination) }\"\n        >\n          <div class=\"stream-active-row__main\">\n            <div class=\"stream-active-row__title\">{{ destination.name || 'Stream' }}</div>\n            <code class=\"stream-active-row__target\">{{ destination.target || '—' }}</code>\n          </div>\n          <div class=\"stream-active-row__metrics\">\n            <div class=\"stream-metric\">\n              <span class=\"stream-metric__label\">kbps</span>\n              <strong>{{ formatKbps(destination) }}</strong>\n            </div>\n            <div class=\"stream-metric\">\n              <span class=\"stream-metric__label\">fps</span>\n              <strong>{{ formatFps(destination) }}</strong>\n            </div>\n            <div class=\"stream-metric\">\n              <span class=\"stream-metric__label\">health</span>\n              <span class=\"stream-health-pill\" :class=\"`stream-health-pill--${healthTone(destination)}`\">\n                {{ healthLabel(destination) }}\n              </span>\n            </div>\n          </div>\n          <div class=\"stream-active-row__actions\">\n            <a\n              class=\"framesync-button stream-view-link\"\n              :href=\"viewUrlFor(destination)\"\n              target=\"_blank\"\n              rel=\"noreferrer\"\n              data-testid=\"stream-view-link\"\n            >\n              View\n            </a>\n            <button\n              type=\"button\"\n              class=\"framesync-button\"\n              @click=\"app.startStreamDestination(destination.id)\"\n            >\n              {{ isActive(destination) ? 'Restart' : 'Start' }}\n            </button>\n            <button\n              type=\"button\"\n              class=\"framesync-button\"\n              :disabled=\"!isActive(destination)\"\n              @click=\"app.stopOutboundStream()\"\n            >\n              Stop\n            </button>\n            <button type=\"button\" class=\"framesync-button\" @click=\"app.removeStreamDestination(destination.id)\">\n              Remove\n            </button>\n          </div>\n        </div>\n      </div>\n    </div>\n\n    <div\n      v-if=\"addDestinationOpen\"\n      class=\"framesync-panel stream-card stream-card--destinations\"\n      data-testid=\"stream-destination-form\"\n    >\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">Possible <span class=\"framesync-accent\">destinations</span></div>\n        <button type=\"button\" class=\"framesync-button\" @click=\"closeAddDestinationForm()\">Cancel</button>\n      </div>\n\n      <div class=\"stream-quick-add\">\n        <span class=\"framesync-subtitle\" style=\"margin:0;\">Protocol</span>\n        <button type=\"button\" class=\"framesync-button\" @click=\"draft.protocol = 'rtmp'\">RTMP</button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"draft.protocol = 'srt'\">SRT</button>\n        <button type=\"button\" class=\"framesync-button\" @click=\"draft.protocol = 'whip'\">WHIP</button>\n      </div>\n\n      <div class=\"stream-destination__grid\">\n        <label class=\"stream-field stream-field--wide\">\n          <span class=\"framesync-subtitle\">Name</span>\n          <input v-model=\"draft.name\" class=\"framesync-input\" type=\"text\" placeholder=\"Destination name\">\n        </label>\n\n        <label class=\"stream-field stream-field--wide\">\n          <span class=\"framesync-subtitle\">Target URL</span>\n          <input\n            v-model=\"draft.target\"\n            class=\"framesync-input\"\n            type=\"text\"\n            :placeholder=\"placeholderFor(draft.protocol)\"\n          >\n        </label>\n\n        <label class=\"stream-field\">\n          <span class=\"framesync-subtitle\">FPS</span>\n          <input v-model.number=\"draft.fps\" class=\"framesync-input\" type=\"number\" min=\"1\" max=\"60\" step=\"1\">\n        </label>\n\n        <label class=\"stream-field\">\n          <span class=\"framesync-subtitle\">Resolution</span>\n          <input v-model=\"draft.resolution\" class=\"framesync-input\" type=\"text\" placeholder=\"1024x576\">\n        </label>\n\n        <label class=\"stream-field\">\n          <span class=\"framesync-subtitle\">Transition</span>\n          <select v-model=\"draft.transition\" class=\"framesync-select\">\n            <option value=\"\">None</option>\n            <option value=\"fade\">Fade</option>\n            <option value=\"wipe\">Wipe</option>\n            <option value=\"dissolve\">Dissolve</option>\n          </select>\n        </label>\n\n        <label class=\"stream-field stream-field--wide\">\n          <span class=\"framesync-subtitle\">Overlay image path</span>\n          <input v-model=\"draft.overlay\" class=\"framesync-input\" type=\"text\" placeholder=\"/absolute/path/to/overlay.png\">\n        </label>\n      </div>\n\n      <div class=\"stream-destination__actions\">\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--live\"\n          data-testid=\"stream-save-destination\"\n          :disabled=\"!String(draft.target || '').trim()\"\n          @click=\"saveDestination()\"\n        >\n          Save destination\n        </button>\n      </div>\n    </div>\n  </div>" };
 const PromptsView = { props: {
     app: { type: Object, required: true },
   }, setup(props) { return __proxyAppView(props); }, template: "<div>\n    <div class=\"sub-pills\">\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='PROMPTS'}\" @click=\"switchSubTab('PROMPTS','PROMPTS')\">PROMPTS</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='IMAGE'}\" @click=\"switchSubTab('PROMPTS','IMAGE')\">IMAGE</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='LORA'}\" @click=\"switchSubTab('PROMPTS','LORA')\">LORA</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='CONTROLNET'}\" @click=\"switchSubTab('PROMPTS','CONTROLNET')\">CONTROLNET</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.PROMPTS==='STORY'}\" @click=\"switchSubTab('PROMPTS','STORY')\">STORY</button>\n    </div>\n    <div v-if=\"currentSubTab.PROMPTS==='PROMPTS'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel prompt-style-bar\" data-testid=\"prompt-style-bar\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Style <span class=\"framesync-accent\">modifier</span></div>\n            <button\n              type=\"button\"\n              class=\"framesync-button framesync-button--compact\"\n              @click=\"switchTab('SETTINGS'); switchSubTab('SETTINGS', 'STYLES')\"\n            >\n              Manage styles\n            </button>\n          </div>\n          <div class=\"prompt-style-bar__row\">\n            <select\n              class=\"framesync-select prompt-style-bar__select\"\n              data-testid=\"prompt-style-select\"\n              :value=\"activePromptStyleId || ''\"\n              @change=\"selectActivePromptStyle($event.target.value || null)\"\n            >\n              <option value=\"\">No style (base prompts only)</option>\n              <option v-for=\"style in promptStyles\" :key=\"'prompt-style-opt-' + style.id\" :value=\"style.id\">\n                {{ style.name }}\n              </option>\n            </select>\n            <label class=\"framesync-checkbox prompt-style-bar__auto\">\n              <input v-model=\"promptStyleAutoExample\" type=\"checkbox\" @change=\"saveSessionState()\" />\n              Save preview as style example\n            </label>\n          </div>\n          <p v-if=\"activePromptStyle\" class=\"framesync-subtitle prompt-style-bar__hint\">\n            Appends to prompts:\n            <span v-if=\"activePromptStyle.positive\">+{{ activePromptStyle.positive.slice(0, 120) }}{{ activePromptStyle.positive.length > 120 ? '…' : '' }}</span>\n            <span v-if=\"activePromptStyle.negative\"> · neg +{{ activePromptStyle.negative.slice(0, 80) }}{{ activePromptStyle.negative.length > 80 ? '…' : '' }}</span>\n          </p>\n        </div>\n      </div>\n\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Prompt <span class=\"framesync-accent\">Morphing</span></div>\n            <div class=\"prompt-toolbar\">\n              <button class=\"framesync-button\" :class=\"{ 'framesync-button--live': prompts.morphOn }\" @click=\"setMorph(true)\">Enabled</button>\n              <button class=\"framesync-button\" :class=\"{active: !prompts.morphOn}\" @click=\"setMorph(false)\">Disabled</button>\n              <button class=\"framesync-button\" @click=\"morphCollapsed = !morphCollapsed\">{{ morphCollapsed ? 'Expand' : 'Collapse' }}</button>\n            </div>\n          </div>\n\n          <div v-if=\"morphCollapsed && prompts.morphOn\" class=\"morph-crossfader-mini\" data-testid=\"prompt-morph-mini\">\n            <div class=\"framesync-subtitle\" style=\"margin:0;\">Morph Crossfader</div>\n            <div class=\"framesync-gradient-bar\"></div>\n            <input\n              type=\"range\"\n              min=\"0\"\n              max=\"1\"\n              step=\"0.01\"\n              :value=\"prompts.morphBlend\"\n              class=\"framesync-input\"\n              data-testid=\"prompt-morph-blend\"\n              @input=\"applyPromptMorphBlend($event.target.value, { commitBase: true })\"\n            />\n            <div class=\"morph-blend-labels\">\n              <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>\n              <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>\n            </div>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"morphCollapsed = false\">Expand</button>\n          </div>\n\n          <div v-else-if=\"!morphCollapsed\">\n            <div class=\"morph-crossfader-panel\">\n              <div class=\"framesync-header\">\n                <div class=\"framesync-title\">Morph <span class=\"framesync-accent\">Crossfader</span></div>\n                <div class=\"prompt-toolbar morph-crossfader-links\">\n                  <button\n                    class=\"framesync-button\"\n                    :class=\"{ active: !promptMorphBlendLinkedLfo }\"\n                    @click=\"setPromptMorphBlendLfoLink(null)\"\n                  >\n                    Manual\n                  </button>\n                  <button\n                    v-for=\"lfo in lfos.slice(0, 4)\"\n                    :key=\"'morph-lfo-link-' + lfo.id\"\n                    class=\"framesync-button\"\n                    :class=\"{ active: prompts.morphBlendLfoLink === lfo.id }\"\n                    @click=\"setPromptMorphBlendLfoLink(lfo.id)\"\n                  >\n                    {{ 'LFO ' + lfo.id }}\n                  </button>\n                </div>\n              </div>\n              <div class=\"morph-blend-bar\" style=\"margin-top:14px;\">\n                <div class=\"framesync-subtitle\">Prompt morph blend</div>\n                <div class=\"framesync-gradient-bar\"></div>\n                <input\n                  type=\"range\"\n                  min=\"0\"\n                  max=\"1\"\n                  step=\"0.01\"\n                  :value=\"prompts.morphBlend\"\n                  class=\"framesync-input\"\n                  data-testid=\"prompt-morph-blend\"\n                  :disabled=\"!prompts.morphOn\"\n                  @input=\"applyPromptMorphBlend($event.target.value, { commitBase: true })\"\n                />\n                <div class=\"morph-blend-labels\">\n                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>\n                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>\n                </div>\n              </div>\n              <div class=\"framesync-subtitle morph-crossfader-status\">{{ promptMorphBlendLinkStatus }}</div>\n            </div>\n            <div v-if=\"prompts.morphOn\" class=\"morph-slot-weights\" style=\"margin-top:12px;\">\n              <div\n                v-for=\"slot in morphSlots\"\n                :key=\"'mw-' + slot.id\"\n                class=\"morph-slot-weight-row\"\n                :class=\"{\n                  inactive: !slot.on,\n                  'morph-slot-weight-row--flowing': slot.on && morphSlotInRange(slot),\n                  'morph-slot-weight-row--waiting': slot.on && !morphSlotInRange(slot)\n                }\"\n                :style=\"{ '--morph-flow-progress': `${(morphBlendInSlotRange(slot) * 100).toFixed(1)}%` }\"\n              >\n                <div class=\"morph-slot-head\">\n                  <label class=\"framesync-checkbox morph-slot-weight-name\">\n                    <input type=\"checkbox\" v-model=\"slot.on\" @change=\"applyPromptMorphing\" />\n                    {{ slot.name }}\n                  </label>\n                  <div class=\"morph-slot-meta\">\n                    <span class=\"morph-slot-chip morph-slot-chip--range\">{{ slot.range }}</span>\n                    <span class=\"morph-slot-chip morph-slot-chip--weight\">Weight {{ slot.weight.toFixed(2) }}</span>\n                    <span class=\"morph-slot-chip\" :class=\"slot.on && morphSlotInRange(slot) ? 'morph-slot-chip--active' : 'morph-slot-chip--idle'\">\n                      {{ slot.on ? (morphSlotInRange(slot) ? 'Flowing' : 'Waiting') : 'Muted' }}\n                    </span>\n                  </div>\n                </div>\n                <div class=\"morph-slot-flow\">\n                  <label class=\"morph-slot-lane morph-slot-lane--a\">\n                    <span class=\"morph-slot-editor__label\">A phrase</span>\n                    <input\n                      type=\"text\"\n                      v-model.trim=\"slot.a\"\n                      class=\"framesync-input morph-slot-editor__input\"\n                      :disabled=\"!slot.on\"\n                      @input=\"onMorphSlotPhraseInput(slot)\"\n                    />\n                  </label>\n                  <div class=\"morph-slot-flow__bridge\">\n                    <div class=\"morph-slot-flow__track\">\n                      <span class=\"morph-slot-flow__glow\"></span>\n                      <span class=\"morph-slot-flow__marker\"></span>\n                    </div>\n                    <div class=\"morph-slot-flow__readout\">\n                      <span class=\"morph-slot-flow__mix\">A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>\n                      <span class=\"morph-slot-flow__preview\">{{ morphSlotPreview(slot) }}</span>\n                      <span class=\"morph-slot-flow__mix morph-slot-flow__mix--b\">B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>\n                    </div>\n                    <input\n                      type=\"range\"\n                      min=\"0\"\n                      max=\"1\"\n                      step=\"0.01\"\n                      v-model.number=\"slot.weight\"\n                      class=\"framesync-input morph-slot-weight-slider\"\n                      :disabled=\"!slot.on\"\n                      @input=\"onMorphSlotWeightInput(slot)\"\n                    />\n                  </div>\n                  <label class=\"morph-slot-lane morph-slot-lane--b\">\n                    <span class=\"morph-slot-editor__label\">B phrase</span>\n                    <input\n                      type=\"text\"\n                      v-model.trim=\"slot.b\"\n                      class=\"framesync-input morph-slot-editor__input\"\n                      :disabled=\"!slot.on\"\n                      @input=\"onMorphSlotPhraseInput(slot)\"\n                    />\n                  </label>\n                </div>\n                <code class=\"morph-slot-preview\">{{ morphSlotPreview(slot) }}</code>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Plugins <span class=\"framesync-accent\">Registry</span></div>\n            <button class=\"framesync-button\" @click=\"refreshPlugins\">Refresh</button>\n          </div>\n          <ul v-if=\"pluginsRegistry.length\" class=\"framesync-list\" style=\"margin-top:4px; font-size:11px; padding-left:16px;\">\n            <li v-for=\"p in pluginsRegistry\" :key=\"p.id || p.name\">{{ p.name || p.id }}<span v-if=\"p.description\"> — {{ p.description }}</span></li>\n          </ul>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.PROMPTS==='IMAGE'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">img2img <span class=\"framesync-accent\">(Forge)</span></div>\n            <button class=\"framesync-button\" @click=\"img2img.show = !img2img.show\">{{ img2img.show ? 'Hide' : 'Show' }}</button>\n          </div>\n          <div v-if=\"img2img.show\" class=\"img2img-panel\">\n            <div class=\"framesync-subtitle img2img-panel__summary\">\n              Use an <strong>input image</strong> with optional <strong>mask</strong> for inpainting. Drag files into the boxes below or click to browse.\n            </div>\n            <div class=\"img2img-dropgrid\">\n              <label\n                class=\"img2img-dropzone\"\n                :class=\"{ 'img2img-dropzone--filled': !!img2img.dataUrl }\"\n                @dragover.prevent\n                @dragenter.prevent\n                @drop.prevent=\"handleImg2imgDrop($event, 'input')\"\n              >\n                <input type=\"file\" accept=\"image/*\" class=\"img2img-dropzone__input\" @change=\"handleImg2imgFile\">\n                <div v-if=\"img2img.dataUrl\" class=\"img2img-dropzone__preview\">\n                  <img :src=\"img2img.dataUrl\" alt=\"Input preview\" class=\"img2img-dropzone__image\">\n                </div>\n                <div v-else class=\"img2img-dropzone__empty\">\n                  <div class=\"img2img-dropzone__title\">Input image</div>\n                  <div class=\"img2img-dropzone__hint\">Drag and drop an image here</div>\n                  <div class=\"img2img-dropzone__meta\">or click to browse</div>\n                </div>\n              </label>\n              <label\n                class=\"img2img-dropzone img2img-dropzone--mask\"\n                :class=\"{ 'img2img-dropzone--filled': !!img2img.maskDataUrl }\"\n                @dragover.prevent\n                @dragenter.prevent\n                @drop.prevent=\"handleImg2imgDrop($event, 'mask')\"\n              >\n                <input type=\"file\" accept=\"image/*\" class=\"img2img-dropzone__input\" @change=\"handleImg2imgMask\">\n                <div v-if=\"img2img.maskDataUrl\" class=\"img2img-dropzone__preview\">\n                  <img :src=\"img2img.maskDataUrl\" alt=\"Mask preview\" class=\"img2img-dropzone__image\">\n                </div>\n                <div v-else class=\"img2img-dropzone__empty\">\n                  <div class=\"img2img-dropzone__title\">Mask image</div>\n                  <div class=\"img2img-dropzone__hint\">Optional inpaint mask</div>\n                  <div class=\"img2img-dropzone__meta\">white repaints, black keeps</div>\n                </div>\n              </label>\n            </div>\n            <div class=\"img2img-dropgrid__actions\">\n              <button class=\"framesync-button\" :disabled=\"!img2img.dataUrl\" @click=\"clearImg2imgInput\">Clear input</button>\n              <button class=\"framesync-button\" :disabled=\"!img2img.maskDataUrl\" @click=\"clearImg2imgMask\">Clear mask</button>\n            </div>\n            <div class=\"img2img-controls-grid\">\n              <div class=\"img2img-control-card img2img-control-card--primary\">\n                <div class=\"framesync-subtitle\">Denoising strength</div>\n                <div class=\"img2img-control-card__value\">{{ img2img.denoisingStrength.toFixed(2) }}</div>\n                <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" :value=\"img2img.denoisingStrength\" class=\"framesync-input img2img-control-card__slider\" @input=\"img2img.denoisingStrength=parseFloat($event.target.value)\">\n              </div>\n              <div class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Width</div>\n                <input type=\"number\" class=\"framesync-input img2img-control-card__input\" v-model.number=\"img2img.width\" min=\"64\" max=\"2048\" step=\"64\">\n              </div>\n              <div class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Height</div>\n                <input type=\"number\" class=\"framesync-input img2img-control-card__input\" v-model.number=\"img2img.height\" min=\"64\" max=\"2048\" step=\"64\">\n              </div>\n              <div v-if=\"img2img.maskDataUrl\" class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Mask blur</div>\n                <div class=\"img2img-control-card__value\">{{ img2img.maskBlur }}</div>\n                <input type=\"range\" min=\"0\" max=\"64\" step=\"1\" :value=\"img2img.maskBlur\" class=\"framesync-input img2img-control-card__slider\" @input=\"img2img.maskBlur=parseInt($event.target.value, 10)\">\n              </div>\n              <div v-if=\"img2img.maskDataUrl\" class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Inpainting fill</div>\n                <select class=\"framesync-select img2img-control-card__input\" v-model.number=\"img2img.inpaintingFill\">\n                  <option value=\"0\">Fill</option>\n                  <option value=\"1\">Original</option>\n                  <option value=\"2\">Latent noise</option>\n                  <option value=\"3\">Latent nothing</option>\n                </select>\n              </div>\n              <div v-if=\"img2img.maskDataUrl\" class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Masked area</div>\n                <div class=\"framesync-buttons\">\n                  <button class=\"framesync-button\" :class=\"{active: img2img.inpaintFullRes}\" @click=\"img2img.inpaintFullRes = true\">Full res</button>\n                  <button class=\"framesync-button\" :class=\"{active: !img2img.inpaintFullRes}\" @click=\"img2img.inpaintFullRes = false\">Whole image</button>\n                </div>\n              </div>\n            </div>\n            <div class=\"framesync-footer img2img-panel__actions\">\n              <button class=\"framesync-button\" @click=\"runImg2img\">{{ img2img.loading ? 'Running…' : 'Run img2img' }}</button>\n            </div>\n            <div v-if=\"img2img.status\" class=\"framesync-subtitle img2img-panel__status\">{{ img2img.status }}</div>\n            <div v-if=\"img2img.lastPath\" class=\"framesync-subtitle img2img-panel__output\">\n              Output: <a :href=\"img2img.lastPath\" target=\"_blank\" style=\"color:var(--warn);\">{{ img2img.lastPath }}</a>\n            </div>\n          </div>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.PROMPTS==='STORY'\">\n      <div class=\"rack generate-story\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Story <span class=\"framesync-accent\">Generator</span></div>\n            <span\n              class=\"generate-sequencer__status\"\n              :class=\"{ 'generate-sequencer__status--live': storyGeneratorStatusLive }\"\n            >\n              {{ storyGeneratorStatusLabel }}\n            </span>\n          </div>\n\n          <div class=\"generate-story__ollama-row\">\n            <span\n              class=\"generate-story__ollama-status\"\n              :class=\"{\n                'generate-story__ollama-status--ready': storyOllamaStatusTone === 'ready',\n                'generate-story__ollama-status--warn': storyOllamaStatusTone === 'warn',\n                'generate-story__ollama-status--off': storyOllamaStatusTone === 'off',\n              }\"\n            >\n              {{ storyOllamaStatusLabel }}\n            </span>\n            <button\n              v-if=\"storyOllamaNeedsConfigure\"\n              type=\"button\"\n              class=\"framesync-button framesync-button--compact\"\n              @click=\"openGpuSettings\"\n            >\n              Configure\n            </button>\n          </div>\n\n          <div class=\"generate-sequencer__hero-grid\">\n            <div class=\"generate-sequencer__hero-card\">\n              <div class=\"framesync-subtitle\">Scenes</div>\n              <div class=\"generate-sequencer__hero-value\">{{ storyGeneratorSceneCount }}</div>\n              <div class=\"generate-sequencer__hero-meta\">{{ storyGeneratorSceneMeta }}</div>\n            </div>\n            <div class=\"generate-sequencer__hero-card\">\n              <div class=\"framesync-subtitle\">Frames</div>\n              <div class=\"generate-sequencer__hero-value\">{{ storyGeneratorFrameCount }}</div>\n              <div class=\"generate-sequencer__hero-meta\">{{ storyGeneratorTimelineMeta }}</div>\n            </div>\n            <div class=\"generate-sequencer__hero-card\">\n              <div class=\"framesync-subtitle\">Resolution</div>\n              <div class=\"generate-sequencer__hero-value generate-sequencer__hero-value--compact\">{{ storyGeneratorResolutionLabel }}</div>\n              <div class=\"generate-sequencer__hero-meta\">From Deforum timeline settings</div>\n            </div>\n            <div class=\"generate-sequencer__hero-card\">\n              <div class=\"framesync-subtitle\">Engine</div>\n              <div class=\"generate-sequencer__hero-value generate-sequencer__hero-value--status generate-sequencer__hero-value--compact\">{{ storyGeneratorSourceLabel }}</div>\n              <div class=\"generate-sequencer__hero-meta\">{{ availableOllamaNodes.length ? `${availableOllamaNodes.length} Ollama node(s) ready` : 'Local template fallback' }}</div>\n            </div>\n          </div>\n\n          <div class=\"generate-story__config\">\n            <label class=\"framesync-stack generate-story__theme-field\">\n              <div class=\"framesync-subtitle\">Theme / story concept</div>\n              <input\n                class=\"framesync-input generate-story__theme-input\"\n                v-model=\"generator.theme\"\n                placeholder=\"e.g. A Space Traveler, Ancient Forest, Cyberpunk City…\"\n              >\n            </label>\n\n            <div class=\"img2img-controls-grid generate-story__controls-grid\">\n              <div class=\"img2img-control-card img2img-control-card--primary\">\n                <div class=\"framesync-subtitle\">Style preset</div>\n                <select class=\"framesync-select img2img-control-card__input\" v-model=\"generator.stylePreset\">\n                  <option value=\"Masterpiece, Realistic\">Masterpiece Realistic</option>\n                  <option value=\"Masterpiece, Cinematic\">Cinematic</option>\n                  <option value=\"Masterpiece, best quality, anime\">Anime</option>\n                  <option value=\"oil painting, impressionism\">Oil Painting</option>\n                  <option value=\"digital art, concept art, surrealistic\">Surrealist</option>\n                  <option value=\"watercolor, illustration\">Watercolor</option>\n                  <option value=\"custom\">Custom…</option>\n                </select>\n              </div>\n              <div v-if=\"generator.stylePreset === 'custom'\" class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Custom style</div>\n                <input class=\"framesync-input img2img-control-card__input\" v-model=\"generator.customStyle\" placeholder=\"Your style keywords\">\n              </div>\n              <div class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Scene count</div>\n                <div class=\"img2img-control-card__value\">{{ storyGeneratorSceneCount }}</div>\n                <input\n                  type=\"range\"\n                  min=\"2\"\n                  max=\"12\"\n                  step=\"1\"\n                  :value=\"generator.numScenes\"\n                  class=\"framesync-input img2img-control-card__slider\"\n                  @input=\"generator.numScenes = parseInt($event.target.value, 10)\"\n                >\n              </div>\n              <div class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">FPS</div>\n                <input type=\"number\" class=\"framesync-input img2img-control-card__input\" v-model.number=\"generator.fps\" min=\"1\" max=\"60\" step=\"1\">\n              </div>\n              <div class=\"img2img-control-card\">\n                <div class=\"framesync-subtitle\">Total frames</div>\n                <input type=\"number\" class=\"framesync-input img2img-control-card__input\" v-model.number=\"generator.totalFrames\" min=\"24\" max=\"9999\" step=\"1\">\n              </div>\n            </div>\n          </div>\n\n          <div class=\"prompt-toolbar generate-story__actions\">\n            <button\n              type=\"button\"\n              class=\"framesync-button framesync-button--live\"\n              :disabled=\"generator.isGenerating\"\n              @click=\"generateStory\"\n            >\n              {{ generator.isGenerating ? 'Generating…' : 'Generate Story' }}\n            </button>\n            <button type=\"button\" class=\"framesync-button\" :disabled=\"generator.isGenerating\" @click=\"generateImage\">Generate Image</button>\n          </div>\n\n          <div v-if=\"generator.status\" class=\"generate-sequencer__status-text\">{{ generator.status }}</div>\n\n          <div v-if=\"generator.result\" class=\"generate-story__story-result\">\n            <div class=\"framesync-header\">\n              <div class=\"framesync-subtitle generate-story__section-title\">Story plan</div>\n              <span class=\"pill\" v-if=\"generator.result.source && generator.result.source.model\">{{ generator.result.source.model }}</span>\n            </div>\n            <pre class=\"generate-story__story-text\">{{ generator.result.formatted }}</pre>\n            <div class=\"prompt-toolbar generate-story__actions\">\n              <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"approveStory\">Apply to prompts</button>\n              <button type=\"button\" class=\"framesync-button\" @click=\"rejectStory\">Discard</button>\n            </div>\n          </div>\n\n          <div v-if=\"generator.lastPath\" class=\"generate-story__preview\">\n            <div class=\"framesync-header\">\n              <div class=\"framesync-subtitle generate-story__section-title\">Preview image</div>\n              <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"storyResultCollapsed = !storyResultCollapsed\">\n                {{ storyResultCollapsed ? 'Show' : 'Hide' }}\n              </button>\n            </div>\n            <div v-if=\"!storyResultCollapsed\" class=\"generate-story__image-wrap\">\n              <img :src=\"generator.lastPath\" alt=\"Story preview\" class=\"generate-story__image\">\n            </div>\n          </div>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.PROMPTS==='LORA'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Active <span class=\"framesync-accent\">LoRAs</span></div>\n            <div class=\"prompt-toolbar\">\n              <span class=\"lora-family-pill\">{{ currentLoraModelFamilyLabel }}</span>\n              <span class=\"source\" v-if=\"loras.source\" style=\"font-size:10px;\">\n                <span v-if=\"loras.source==='sd-forge'\" style=\"color:var(--success);\">● Forge</span>\n                <span v-else-if=\"loras.source==='cache'\" style=\"color:var(--warn);\">● Cache</span>\n                <span v-else-if=\"loras.source==='placeholder'\" style=\"color:var(--error);\">● Placeholder</span>\n                <span v-else style=\"color:var(--text-dim);\">● {{ loras.source }}</span>\n              </span>\n              <button class=\"framesync-button\" @click=\"refreshLoras\">Refresh</button>\n              <button class=\"framesync-button lora-picker-trigger\" @click=\"loraPickerOpen = !loraPickerOpen\">{{ loraPickerOpen ? 'Close' : '+' }}</button>\n            </div>\n          </div>\n          <div v-if=\"loraPickerOpen\" class=\"lora-picker-panel\">\n            <div class=\"framesync-subtitle lora-browser-summary\">\n              <span v-if=\"currentLoraModelFamily\">Select from {{ currentLoraModelFamilyLabel }}-compatible LoRAs and assign them to Common, A, or B.</span>\n              <span v-else>Select from the compatible LoRA list and assign them to Common, A, or B.</span>\n            </div>\n            <div class=\"lora-picker-families\">\n              <section v-for=\"family in compatibleLoraFamilies\" :key=\"'picker-' + family.key\" class=\"lora-picker-family\">\n                <div class=\"lora-picker-family__title\">{{ family.label }}</div>\n                <div class=\"lora-picker-list\">\n                  <div v-for=\"lora in family.items\" :key=\"lora.id\" class=\"lora-picker-row\">\n                    <div class=\"lora-picker-row__copy\">\n                      <div class=\"lora-picker-row__name\">{{ lora.name }}</div>\n                      <div class=\"lora-picker-row__path\">{{ lora.path }}</div>\n                    </div>\n                    <div class=\"lora-picker-row__actions\">\n                      <button class=\"framesync-button prompt-group-button prompt-group-button--common\" :class=\"{active: lora.group==='COMMON'}\" @click.stop=\"assignLoraToGroup(lora,'COMMON')\">Common</button>\n                      <button class=\"framesync-button prompt-group-button prompt-group-button--a\" :class=\"{active: lora.group==='A'}\" @click.stop=\"assignLoraToGroup(lora,'A')\">A</button>\n                      <button class=\"framesync-button prompt-group-button prompt-group-button--b\" :class=\"{active: lora.group==='B'}\" @click.stop=\"assignLoraToGroup(lora,'B')\">B</button>\n                      <button class=\"framesync-button\" v-if=\"lora.group\" @click.stop=\"unassignLora(lora)\">Remove</button>\n                    </div>\n                  </div>\n                </div>\n              </section>\n            </div>\n            <div v-if=\"!compatibleLoraFamilies.length\" class=\"lora-picker-empty\">\n              <span v-if=\"currentLoraModelFamily\">No {{ currentLoraModelFamilyLabel }} LoRAs found. Refresh or check SD-Forge connection.</span>\n              <span v-else>No LoRA models found. Refresh or check SD-Forge connection.</span>\n            </div>\n          </div>\n          <div class=\"lora-active-groups\">\n            <div class=\"lora-active-group lora-active-group--common\">\n              <div class=\"lora-active-group__title\">Common Group ({{ loras.common.length }})</div>\n              <div class=\"lora-active-group__body\">\n                <div v-for=\"lora in loras.common\" :key=\"lora.id\"\n                     class=\"lora-active-group__row\">\n                  <div class=\"lora-active-group__copy\">\n                    <span class=\"lora-active-group__name\">{{ lora.name }}</span>\n                    <span class=\"lora-active-group__value\">{{ lora.strength.toFixed(2) }}</span>\n                  </div>\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" class=\"framesync-input lora-active-group__slider\" @input=\"updateGroupedLoraStrength('COMMON', lora, $event.target.value)\">\n                  <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact lora-active-group__remove\" @click=\"unassignLora(lora)\">Remove</button>\n                </div>\n                <div v-if=\"loras.common.length === 0\" class=\"lora-active-group__empty\">\n                  No LoRAs in Common group\n                </div>\n              </div>\n            </div>\n            <div class=\"lora-active-group lora-active-group--a\">\n              <div class=\"lora-active-group__title\">A Group ({{ loras.groupA.length }})</div>\n              <div class=\"lora-active-group__body\">\n                <div v-for=\"lora in loras.groupA\" :key=\"lora.id\"\n                     class=\"lora-active-group__row\">\n                  <div class=\"lora-active-group__copy\">\n                    <span class=\"lora-active-group__name\">{{ lora.name }}</span>\n                    <span class=\"lora-active-group__value\">{{ lora.strength.toFixed(2) }}</span>\n                  </div>\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" class=\"framesync-input lora-active-group__slider\" @input=\"updateGroupedLoraStrength('A', lora, $event.target.value)\">\n                  <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact lora-active-group__remove\" @click=\"unassignLora(lora)\">Remove</button>\n                </div>\n                <div v-if=\"loras.groupA.length === 0\" class=\"lora-active-group__empty\">\n                  No LoRAs in A group\n                </div>\n              </div>\n            </div>\n            <div class=\"lora-active-group lora-active-group--b\">\n              <div class=\"lora-active-group__title\">B Group ({{ loras.groupB.length }})</div>\n              <div class=\"lora-active-group__body\">\n                <div v-for=\"lora in loras.groupB\" :key=\"lora.id\"\n                     class=\"lora-active-group__row\">\n                  <div class=\"lora-active-group__copy\">\n                    <span class=\"lora-active-group__name\">{{ lora.name }}</span>\n                    <span class=\"lora-active-group__value\">{{ lora.strength.toFixed(2) }}</span>\n                  </div>\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"lora.strength\" class=\"framesync-input lora-active-group__slider\" @input=\"updateGroupedLoraStrength('B', lora, $event.target.value)\">\n                  <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact lora-active-group__remove\" @click=\"unassignLora(lora)\">Remove</button>\n                </div>\n                <div v-if=\"loras.groupB.length === 0\" class=\"lora-active-group__empty\">\n                  No LoRAs in B group\n                </div>\n              </div>\n            </div>\n          </div>\n          <div class=\"lora-crossfader-hint\" data-testid=\"lora-crossfader-hint\">\n            <div class=\"framesync-subtitle lora-crossfader-hint__copy\">\n              LoRA morph blend is on the <strong>LIVE</strong> stage (Morph HUD, bottom-right). Assign LoRAs to Common, A, and B below — crossfade weights are controlled from LIVE.\n            </div>\n            <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"switchTab('LIVE')\">\n              Open LIVE morph\n            </button>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n            <button class=\"framesync-button\" @click=\"applyLoras\">Apply LoRAs</button>\n            <button class=\"framesync-button\" @click=\"exportLoraPreset\">Export preset</button>\n          </div>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.PROMPTS==='CONTROLNET'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">ControlNet <span class=\"framesync-accent\">Slots</span></div>\n            <div class=\"prompt-toolbar\">\n              <span class=\"source\" v-if=\"cn.source\" style=\"font-size:10px;\">\n                <span v-if=\"cn.source==='sd-forge'\" style=\"color:var(--success);\">● Forge</span>\n                <span v-else-if=\"cn.source==='cache'\" style=\"color:var(--warn);\">● Cache</span>\n                <span v-else-if=\"cn.source==='placeholder'\" style=\"color:var(--error);\">● Placeholder</span>\n                <span v-else style=\"color:var(--text-dim);\">● {{ cn.source }}</span>\n              </span>\n              <button class=\"framesync-button\" @click=\"loadControlNetModels\">Refresh</button>\n            </div>\n          </div>\n          <div class=\"controlnet-slot-strip\" style=\"margin-top:12px; display:flex; flex-direction:column; gap:6px;\">\n            <div v-for=\"slot in cn.slots\" :key=\"slot.id\" class=\"controlnet-slot-row\" style=\"display:flex; gap:6px; align-items:center;\">\n              <button class=\"framesync-button\" style=\"flex:1;\" :class=\"{active: cn.active===slot.id}\" @click=\"cn.active=slot.id\">{{ slot.label }}</button>\n              <button class=\"framesync-button controlnet-slot-row__toggle\" :class=\"{active: slot.enabled}\" @click=\"slot.enabled=!slot.enabled; updateControlNet(slot)\">{{ slot.enabled ? 'On' : 'Off' }}</button>\n            </div>\n          </div>\n        </div>\n      </div>\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\"><span class=\"framesync-accent\">{{ activeSlot.label }}</span> Settings</div>\n          </div>\n          <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div class=\"framesync-subtitle\">Model</div>\n            <select class=\"framesync-select\" v-model=\"activeSlot.model\" @change=\"updateControlNet(activeSlot)\">\n              <option v-for=\"m in activeControlNetModelChoices\" :key=\"m.id\" :value=\"m.name\">{{ m.name }}{{ m.current && m.incompatible ? ' (current, incompatible)' : m.current ? ' (current)' : '' }}</option>\n            </select>\n            <div class=\"framesync-subtitle\" style=\"margin-top:4px;\">{{ controlNetModelSummary }}</div>\n          </div>\n          <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div class=\"framesync-subtitle\">Image source</div>\n            <div style=\"display:flex; gap:8px; flex-wrap:wrap;\">\n              <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.imageSource==='file'}\" @click=\"activeSlot.imageSource='file'\">File</button>\n              <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.imageSource==='webcam'}\" @click=\"activeSlot.imageSource='webcam'\">Webcam</button>\n              <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.imageSource==='screen'}\" @click=\"activeSlot.imageSource='screen'\">Screen</button>\n            </div>\n            <input ref=\"cnImageInput\" type=\"file\" accept=\"image/*\" style=\"display:none;\" @change=\"onControlNetFileSelected\">\n          </div>\n          <div v-if=\"activeSlot.imageSource==='webcam'\" class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div class=\"framesync-subtitle\">Webcam input</div>\n            <video ref=\"webcamVideo\" autoplay playsinline style=\"width:100%; max-width:320px; border-radius:6px; border:1px solid var(--border); display:none;\"></video>\n            <canvas ref=\"webcamCanvas\" style=\"display:none;\"></canvas>\n            <div style=\"display:flex; gap:8px; margin-top:8px;\">\n              <button type=\"button\" class=\"framesync-button\" :class=\"{active: cn.webcamActive}\" @click=\"toggleWebcam\">{{ cn.webcamActive ? 'Stop' : 'Start' }} Webcam</button>\n              <select class=\"framesync-input\" v-model.number=\"webcamCaptureRate\" style=\"max-width:120px; font-size:11px;\">\n                <option :value=\"1000\">1 fps</option>\n                <option :value=\"500\">2 fps</option>\n                <option :value=\"200\">5 fps</option>\n                <option :value=\"100\">10 fps</option>\n              </select>\n            </div>\n          </div>\n          <div v-if=\"activeSlot.imageSource==='screen'\" class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div class=\"framesync-subtitle\">Screen capture</div>\n            <button type=\"button\" class=\"framesync-button\" @click=\"startScreenCapture\">Start screen capture</button>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n            <button type=\"button\" class=\"framesync-button\" @click=\"uploadControlNetImage(activeSlot)\">Upload image</button>\n            <button type=\"button\" class=\"framesync-button\" :class=\"{active: activeSlot.enabled}\" @click=\"activeSlot.enabled=!activeSlot.enabled; updateControlNet(activeSlot)\">{{ activeSlot.enabled ? 'Enabled' : 'Disabled' }}</button>\n          </div>\n          <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div style=\"display:flex; justify-content:space-between; align-items:center;\">\n              <div class=\"framesync-subtitle\">Weight</div>\n              <span style=\"color:var(--text-primary); font-size:12px;\">{{ activeSlot.weight.toFixed(2) }}</span>\n            </div>\n            <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" v-model.number=\"activeSlot.weight\" @input=\"updateControlNet(activeSlot)\" class=\"framesync-input\">\n            <div class=\"controlnet-weight-card\" style=\"margin-top:4px; font-size:11px; color:var(--text-secondary);\">{{ controlNetWeightLabel }}</div>\n          </div>\n          <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div style=\"display:flex; justify-content:space-between; align-items:center;\">\n              <div class=\"framesync-subtitle\">Start step</div>\n              <span style=\"color:var(--text-primary); font-size:12px;\">{{ activeSlot.start.toFixed(2) }}</span>\n            </div>\n            <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"activeSlot.start\" @input=\"updateControlNet(activeSlot)\" class=\"framesync-input\">\n          </div>\n          <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div style=\"display:flex; justify-content:space-between; align-items:center;\">\n              <div class=\"framesync-subtitle\">End step</div>\n              <span style=\"color:var(--text-primary); font-size:12px;\">{{ activeSlot.end.toFixed(2) }}</span>\n            </div>\n            <input type=\"range\" min=\"0\" max=\"1\" step=\"0.01\" v-model.number=\"activeSlot.end\" @input=\"updateControlNet(activeSlot)\" class=\"framesync-input\">\n          </div>\n        </div>\n      </div>\n    </div>\n  </div>" };
+const MotionPathPreview = { props: ['deforumSettings', 'motionValues', 'preferLiveValues', 'playing'], template: '<div class="motion-path-preview" data-testid="motion-path-preview"><div class="motion-path-preview__header"><div class="framesync-subtitle motion-path-preview__title">3D motion preview</div></div><div class="motion-path-preview__stage"></div></div>' };
+const DeforumControlPanel = { props: ['app'], template: '<div></div>' };
+const DeforumMotionPads = { props: ['app'], template: '<div></div>' };
 const MotionView = { props: {
     app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, computed: {
-    motionQuickPresets() {
-      return ['Static', 'Orbit', 'Tunnel', 'Handheld', 'Chaos'];
-    },
-    motionPathLiveValues() {
-      return {
-        translation_x: Number(this.motionPadValues?.translation_x) || 0,
-        translation_y: Number(this.motionPadValues?.translation_y) || 0,
-        translation_z: Number(this.motionPadValues?.translation_z) || 0,
-      };
-    },
-  }, components: { UiIcon: UiIcon, MotionPathPreview: MotionPathPreview, DeforumControlPanel: DeforumControlPanel, DeforumMotionPads: DeforumMotionPads }, template: "<div class=\"rack motion-view motion-view--hero\" data-testid=\"motion-controls-panel\">\n    <div class=\"framesync-panel motion-panel\">\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">Motion <span class=\"framesync-accent\">Performance</span></div>\n        <div class=\"motion-panel__header-actions\">\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            data-testid=\"reset-motion-default\"\n            title=\"Reset all motion axes to zero\"\n            @click=\"resetMotionToDefault\"\n          >\n            ↺ Reset to default\n          </button>\n        </div>\n      </div>\n\n      <div class=\"motion-preset-row motion-preset-row--hero\">\n        <button\n          v-for=\"name in motionQuickPresets\"\n          :key=\"name\"\n          type=\"button\"\n          class=\"chip\"\n          :class=\"{ active: motionSelectedPreset === name }\"\n          @click=\"applyMotionPresetAndSelect(name)\"\n        >\n          {{ name }}\n        </button>\n      </div>\n\n      <div class=\"motion-preset-toolbar motion-preset-toolbar--compact\">\n        <select\n          class=\"framesync-select motion-preset-select\"\n          v-model=\"motionSelectedPreset\"\n        >\n          <optgroup label=\"Built-in\">\n            <option v-for=\"presetName in Object.keys(motionPresets)\" :key=\"presetName\" :value=\"presetName\">\n              {{ presetName }}\n            </option>\n          </optgroup>\n          <optgroup v-if=\"savedMotionPresetNames.length\" label=\"Saved\">\n            <option v-for=\"presetName in savedMotionPresetNames\" :key=\"`saved-${presetName}`\" :value=\"presetName\">\n              {{ presetName }}\n            </option>\n          </optgroup>\n        </select>\n        <button\n          type=\"button\"\n          class=\"framesync-button motion-preset-icon-btn\"\n          title=\"Load preset\"\n          aria-label=\"Load preset\"\n          @click=\"loadSelectedMotionPreset\"\n        >\n          <UiIcon name=\"load\" />\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button motion-preset-icon-btn\"\n          title=\"Save current motion\"\n          aria-label=\"Save current motion\"\n          @click=\"saveCurrentMotionStyle\"\n        >\n          <UiIcon name=\"save\" />\n        </button>\n      </div>\n\n      <div class=\"motion-hero-stage\" data-testid=\"motion-hero-stage\">\n        <DeforumMotionPads\n          :app=\"app\"\n          hero\n          show-readout\n          :show-axis-sliders=\"motionFineTuneOpen\"\n        />\n      </div>\n\n      <button\n        type=\"button\"\n        class=\"framesync-button framesync-button--compact motion-fine-tune-toggle\"\n        :class=\"{ active: motionFineTuneOpen }\"\n        data-testid=\"motion-fine-tune-toggle\"\n        @click=\"motionFineTuneOpen = !motionFineTuneOpen; saveSessionState()\"\n      >\n        {{ motionFineTuneOpen ? 'Hide axis sliders' : 'Fine-tune axes' }}\n      </button>\n\n      <DeforumControlPanel\n        :app=\"app\"\n        :show-settings=\"false\"\n        :show-motion-pads=\"false\"\n        motion-pads-show-readout\n      />\n\n      <details class=\"motion-advanced-panel\" :open=\"!isDeforumMotion2d\">\n        <summary class=\"motion-advanced-panel__summary\">Smoothness &amp; path preview</summary>\n        <div class=\"motion-smoothness\" data-testid=\"motion-smoothness\">\n          <label class=\"motion-smoothness__toggle\">\n            <input\n              type=\"checkbox\"\n              data-testid=\"motion-smoothness-enabled\"\n              v-model=\"motionSmoothness.enabled\"\n              @change=\"saveSessionState\"\n            >\n            <span>Smoothness</span>\n          </label>\n          <label\n            v-if=\"motionSmoothness.enabled\"\n            class=\"motion-smoothness__frames\"\n          >\n            <span>Frames</span>\n            <input\n              class=\"framesync-input motion-smoothness__frames-input\"\n              type=\"number\"\n              min=\"1\"\n              max=\"999\"\n              step=\"1\"\n              data-testid=\"motion-smoothness-frames\"\n              :value=\"motionSmoothness.frames\"\n              @change=\"onMotionSmoothnessFramesChange($event.target.value)\"\n            >\n          </label>\n          <span v-if=\"motionSmoothness.enabled\" class=\"motion-smoothness__hint\">\n            Ramp schedule changes over the frame count from the current playhead or selected frame.\n          </span>\n        </div>\n\n        <MotionPathPreview\n          v-if=\"!isDeforumMotion2d\"\n          :deforum-settings=\"deforumSettings\"\n          :motion-values=\"motionPathLiveValues\"\n          :prefer-live-values=\"true\"\n        />\n      </details>\n    </div>\n  </div>" };
+  }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, MotionPathPreview: MotionPathPreview, DeforumControlPanel: DeforumControlPanel, DeforumMotionPads: DeforumMotionPads }, template: "<div class=\"rack motion-view motion-view--hero\" data-testid=\"motion-controls-panel\">\n    <div class=\"framesync-panel motion-panel\">\n      <div class=\"framesync-header\">\n        <div class=\"framesync-title\">Motion <span class=\"framesync-accent\">Performance</span></div>\n        <div class=\"motion-panel__header-actions\">\n          <button\n            type=\"button\"\n            class=\"framesync-button framesync-button--compact\"\n            data-testid=\"reset-motion-default\"\n            title=\"Reset all motion axes to zero\"\n            @click=\"resetMotionToDefault\"\n          >\n            ↺ Reset to default\n          </button>\n        </div>\n      </div>\n\n      <div class=\"motion-preset-row motion-preset-row--hero\">\n        <button\n          v-for=\"name in motionQuickPresets\"\n          :key=\"name\"\n          type=\"button\"\n          class=\"chip\"\n          :class=\"{ active: motionSelectedPreset === name }\"\n          @click=\"applyMotionPresetAndSelect(name)\"\n        >\n          {{ name }}\n        </button>\n      </div>\n\n      <div class=\"motion-preset-toolbar motion-preset-toolbar--compact\">\n        <select\n          class=\"framesync-select motion-preset-select\"\n          v-model=\"motionSelectedPreset\"\n        >\n          <optgroup label=\"Built-in\">\n            <option v-for=\"presetName in Object.keys(motionPresets)\" :key=\"presetName\" :value=\"presetName\">\n              {{ presetName }}\n            </option>\n          </optgroup>\n          <optgroup v-if=\"savedMotionPresetNames.length\" label=\"Saved\">\n            <option v-for=\"presetName in savedMotionPresetNames\" :key=\"`saved-${presetName}`\" :value=\"presetName\">\n              {{ presetName }}\n            </option>\n          </optgroup>\n        </select>\n        <button\n          type=\"button\"\n          class=\"framesync-button motion-preset-icon-btn\"\n          title=\"Load preset\"\n          aria-label=\"Load preset\"\n          @click=\"loadSelectedMotionPreset\"\n        >\n          <UiIcon name=\"load\" />\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button motion-preset-icon-btn\"\n          title=\"Save current motion\"\n          aria-label=\"Save current motion\"\n          @click=\"saveCurrentMotionStyle\"\n        >\n          <UiIcon name=\"save\" />\n        </button>\n      </div>\n\n      <div class=\"motion-hero-stage\" data-testid=\"motion-hero-stage\">\n        <DeforumMotionPads\n          :app=\"app\"\n          hero\n          show-readout\n          :show-axis-sliders=\"motionFineTuneOpen\"\n        />\n      </div>\n\n      <button\n        type=\"button\"\n        class=\"framesync-button framesync-button--compact motion-fine-tune-toggle\"\n        :class=\"{ active: motionFineTuneOpen }\"\n        data-testid=\"motion-fine-tune-toggle\"\n        @click=\"motionFineTuneOpen = !motionFineTuneOpen; saveSessionState()\"\n      >\n        {{ motionFineTuneOpen ? 'Hide axis sliders' : 'Fine-tune axes' }}\n      </button>\n\n      <DeforumControlPanel\n        :app=\"app\"\n        :show-settings=\"false\"\n        :show-motion-pads=\"false\"\n        motion-pads-show-readout\n      />\n\n      <details class=\"motion-advanced-panel\" :open=\"!isDeforumMotion2d\">\n        <summary class=\"motion-advanced-panel__summary\">Smoothness &amp; path preview</summary>\n        <div class=\"motion-smoothness\" data-testid=\"motion-smoothness\">\n          <label class=\"motion-smoothness__toggle\">\n            <input\n              type=\"checkbox\"\n              data-testid=\"motion-smoothness-enabled\"\n              v-model=\"motionSmoothness.enabled\"\n              @change=\"saveSessionState\"\n            >\n            <span>Smoothness</span>\n          </label>\n          <label\n            v-if=\"motionSmoothness.enabled\"\n            class=\"motion-smoothness__frames\"\n          >\n            <span>Frames</span>\n            <input\n              class=\"framesync-input motion-smoothness__frames-input\"\n              type=\"number\"\n              min=\"1\"\n              max=\"999\"\n              step=\"1\"\n              data-testid=\"motion-smoothness-frames\"\n              :value=\"motionSmoothness.frames\"\n              @change=\"onMotionSmoothnessFramesChange($event.target.value)\"\n            >\n          </label>\n          <span v-if=\"motionSmoothness.enabled\" class=\"motion-smoothness__hint\">\n            Ramp schedule changes over the frame count from the current playhead or selected frame.\n          </span>\n        </div>\n\n        <MotionPathPreview\n          v-if=\"!isDeforumMotion2d\"\n          :deforum-settings=\"deforumSettings\"\n          :motion-values=\"motionPathLiveValues\"\n          :prefer-live-values=\"true\"\n        />\n      </details>\n    </div>\n  </div>" };
 const GenerateView = { props: {
     app: { type: Object, required: true },
     storyOnly: { type: Boolean, default: false },
@@ -2284,31 +1901,6 @@ const StylesSettingsPanel = { props: {
 const SettingsView = { props: {
     app: { type: Object, required: true },
   }, setup(props) { return __proxyAppView(props); }, components: { RunsBrowserPanel: RunsBrowserPanel, StreamView: StreamView, StylesSettingsPanel: StylesSettingsPanel, GlassPanel: GlassPanel }, template: "<div class=\"settings-tab-shell\">\n    <div class=\"sub-pills settings-subtabs\">\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='ENGINE'}\" @click=\"switchSubTab('SETTINGS','ENGINE')\">ENGINE</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='OUTPUT'}\" @click=\"switchSubTab('SETTINGS','OUTPUT')\">OUTPUT</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='GPUS'}\" @click=\"switchSubTab('SETTINGS','GPUS')\">GPUS</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'}\" @click=\"switchSubTab('SETTINGS','RUNS')\">RUNS</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='MIDI'}\" @click=\"switchSubTab('SETTINGS','MIDI')\">CONTROLLERS / MIDI</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='STYLES'}\" @click=\"switchSubTab('SETTINGS','STYLES')\">STYLES</button>\n      <button class=\"sub-pill\" :class=\"{active: currentSubTab.SETTINGS==='COLLAB'}\" @click=\"switchSubTab('SETTINGS','COLLAB')\">COLLAB</button>\n    </div>\n\n    <div v-if=\"currentSubTab.SETTINGS==='ENGINE'\">\n      <div class=\"rack\">\n        <GlassPanel size=\"lg\" class=\"engine-model-glass\">\n          <template #header>Checkpoint</template>\n          <div class=\"engine-main-summary engine-main-summary--glass\">\n            <button\n              type=\"button\"\n              class=\"engine-main-card engine-main-card--wide engine-main-card--picker\"\n              :disabled=\"forge.switching\"\n              :title=\"engineCurrentModelName ? 'Change checkpoint' : 'Select checkpoint'\"\n              data-testid=\"engine-model-picker\"\n              @click=\"openEngineModelPicker()\"\n            >\n              <div class=\"framesync-subtitle\">Current model</div>\n              <div class=\"engine-main-card__value engine-main-card__value--model\">{{ engineCurrentModelName || 'Select checkpoint' }}</div>\n              <div class=\"engine-main-card__meta\">{{ engineOptimizedProfileLabel }} · {{ engineCurrentModelFamilyLabel }}</div>\n              <div class=\"engine-main-card__hint\">Click to browse checkpoints</div>\n            </button>\n            <div class=\"engine-main-card engine-main-card--stat\">\n              <div class=\"framesync-subtitle\">CFG</div>\n              <div class=\"engine-main-card__value\">{{ engineCurrentCfgScale.toFixed(1) }}</div>\n            </div>\n            <div class=\"engine-main-card engine-main-card--stat\">\n              <div class=\"framesync-subtitle\">Steps</div>\n              <div class=\"engine-main-card__value\">{{ engineCurrentSteps }}</div>\n            </div>\n            <div class=\"engine-main-card engine-main-card--stat\">\n              <div class=\"framesync-subtitle\">Sampler</div>\n              <div class=\"engine-main-card__value engine-main-card__value--small\">{{ deforumSettings.sampler || '—' }}</div>\n            </div>\n          </div>\n          <div class=\"engine-main-inline-status-row\">\n            <span class=\"model-status-pill\" :class=\"'model-' + modelStatusKind\">\n              <span class=\"model-status-dot\"></span>\n              {{ modelStatusLabel }}\n            </span>\n            <span class=\"engine-main-inline-status\">{{ deforumSettingsStatus || 'Idle' }}</span>\n          </div>\n        </GlassPanel>\n\n        <details class=\"engine-advanced-panel framesync-panel\">\n          <summary class=\"engine-advanced-panel__summary\">Advanced sampling &amp; resolution</summary>\n          <div class=\"framesync-row engine-main-grid\" style=\"grid-template-columns: 1fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Sampler</div>\n              <select class=\"framesync-select\" :value=\"deforumSettings.sampler\" @change=\"onEngineSamplerChange($event.target.value)\">\n                <option v-for=\"sampler in engineSamplerOptions\" :key=\"'engine-sampler-' + sampler\" :value=\"sampler\">{{ sampler }}</option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Scheduler</div>\n              <select class=\"framesync-select\" :value=\"deforumSettings.scheduler\" @change=\"onEngineSchedulerChange($event.target.value)\">\n                <option v-for=\"scheduler in engineSchedulerOptions\" :key=\"'engine-scheduler-' + scheduler\" :value=\"scheduler\">{{ scheduler }}</option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Steps</div>\n              <input\n                type=\"number\"\n                class=\"framesync-input\"\n                :value=\"engineCurrentSteps\"\n                min=\"1\"\n                max=\"150\"\n                step=\"1\"\n                :disabled=\"lcmEngineEnabled\"\n                :title=\"lcmEngineEnabled ? 'Steps are controlled by LCM Engine' : ''\"\n                data-testid=\"engine-steps-input\"\n                @input=\"onEngineStepsChange($event.target.value)\"\n              >\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">CFG</div>\n              <input type=\"number\" class=\"framesync-input\" :value=\"engineCurrentCfgScale\" min=\"0\" max=\"30\" step=\"0.1\" @input=\"onEngineCfgScaleChange($event.target.value)\">\n            </div>\n          </div>\n          <div class=\"framesync-row\" style=\"grid-template-columns: repeat(4, 1fr); gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Resolution</div>\n              <select class=\"framesync-select\" :value=\"deforumSettings.W + 'x' + deforumSettings.H\" @change=\"onEngineResolutionChange($event.target.value)\">\n                <option value=\"512x512\">512×512</option>\n                <option value=\"960x540\">960×540</option>\n                <option value=\"1024x1024\">1024×1024</option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Global FPS</div>\n              <select class=\"framesync-select\" :value=\"deforumSettings.fps\" @change=\"setGlobalFps(+$event.target.value)\">\n                <option :value=\"8\">8</option>\n                <option :value=\"12\">12</option>\n                <option :value=\"24\">24</option>\n                <option :value=\"30\">30</option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Model source</div>\n              <span class=\"model-source-pill\" :class=\"'src-' + (forge.modelsSource || 'placeholder')\">\n                {{ forge.modelsSource || 'unknown' }}\n              </span>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Status</div>\n              <div class=\"engine-main-inline-status\">{{ deforumSettingsStatus || 'Idle' }}</div>\n            </div>\n          </div>\n          <div class=\"lcm-engine-panel\" data-testid=\"lcm-engine-panel\">\n            <label class=\"lcm-engine-panel__toggle\">\n              <input\n                type=\"checkbox\"\n                :checked=\"lcmEngineEnabled\"\n                data-testid=\"lcm-engine-toggle\"\n                @change=\"setLcmEngineEnabled($event.target.checked)\"\n              >\n              <span>LCM Engine</span>\n            </label>\n            <template v-if=\"lcmEngineEnabled\">\n              <div class=\"lcm-engine-panel__fields\">\n                <div class=\"framesync-stack\">\n                  <div class=\"framesync-subtitle\">LCM steps</div>\n                  <input\n                    type=\"number\"\n                    class=\"framesync-input\"\n                    data-testid=\"lcm-engine-steps\"\n                    min=\"1\"\n                    max=\"20\"\n                    step=\"1\"\n                    :value=\"lcmEngine.steps\"\n                    @input=\"onLcmEngineStepsChange($event.target.value)\"\n                  >\n                </div>\n                <div class=\"framesync-stack lcm-engine-panel__lora\">\n                  <div class=\"framesync-subtitle\">LCM LoRA tag</div>\n                  <input\n                    type=\"text\"\n                    class=\"framesync-input\"\n                    data-testid=\"lcm-engine-lora\"\n                    :value=\"lcmEngine.loraTag\"\n                    @input=\"onLcmEngineLoraChange($event.target.value)\"\n                  >\n                </div>\n              </div>\n            </template>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n            <button class=\"framesync-button\" :disabled=\"forge.switching || !engineCurrentModelName\" @click=\"reapplyEngineModelDefaults()\">Optimize for model</button>\n            <div class=\"engine-seed-control\" data-testid=\"engine-seed-control\">\n              <span class=\"engine-seed-control__label\">Seed</span>\n              <button\n                type=\"button\"\n                class=\"chip chip--compact\"\n                :class=\"{ active: seedRandomEnabled }\"\n                data-testid=\"seed-random-toggle\"\n                @click=\"setSeedRandomEnabled(!seedRandomEnabled)\"\n              >\n                Random\n              </button>\n              <input\n                v-if=\"!seedRandomEnabled\"\n                type=\"number\"\n                class=\"framesync-input engine-seed-control__input\"\n                data-testid=\"seed-value-input\"\n                min=\"0\"\n                max=\"2147483647\"\n                step=\"1\"\n                :value=\"deforumSettings.seed\"\n                @input=\"onDeforumSeedInput($event.target.value)\"\n              />\n              <span v-else class=\"engine-seed-control__random-hint\">−1 · random each run</span>\n            </div>\n            <span class=\"framesync-button\" style=\"cursor:default;\">{{ deforumSettings.W }}×{{ deforumSettings.H }} @ {{ deforumSettings.fps }} fps</span>\n            <span class=\"framesync-button\" style=\"cursor:default;\">Profile: {{ engineOptimizedProfileLabel }}</span>\n          </div>\n        </details>\n\n      <div v-if=\"engineModelPickerOpen\" class=\"engine-model-picker\" @click=\"onEngineModelPickerBackdropClick\">\n        <div class=\"engine-model-picker__dialog\" role=\"dialog\" aria-modal=\"true\" aria-label=\"Checkpoint selector\">\n          <div class=\"engine-model-picker__header\">\n            <div>\n              <div class=\"framesync-title\">Select <span class=\"framesync-accent\">Checkpoint</span></div>\n              <div class=\"framesync-subtitle engine-model-picker__subtitle\">\n                {{ forge.modelsSource ? ('Source: ' + (forge.modelsSource || 'unknown')) : 'Loading checkpoints from Forge' }}\n              </div>\n            </div>\n            <div class=\"engine-model-picker__header-actions\">\n              <button type=\"button\" class=\"framesync-button\" :disabled=\"forge.loading\" @click=\"refreshForgeModels()\">Refresh</button>\n              <button type=\"button\" class=\"framesync-button\" @click=\"closeEngineModelPicker()\">Close</button>\n            </div>\n          </div>\n\n          <div class=\"sub-pills engine-model-picker__tabs\">\n            <button\n              v-for=\"family in engineModelFamilyTabs\"\n              :key=\"'engine-model-tab-' + family.key\"\n              type=\"button\"\n              class=\"sub-pill\"\n              :class=\"{ active: engineModelPickerTab === family.key }\"\n              @click=\"setEngineModelPickerTab(family.key)\"\n            >\n              {{ family.label }}\n              <span class=\"engine-model-picker__tab-count\">{{ (groupedEngineModels[family.key] || []).length }}</span>\n            </button>\n          </div>\n\n          <div v-if=\"forge.switching\" class=\"framesync-subtitle engine-model-picker__status\">Switching checkpoint…</div>\n          <div v-else-if=\"forge.loading && !forge.models.length\" class=\"framesync-subtitle engine-model-picker__status\">Loading checkpoints…</div>\n          <div v-else-if=\"!activeEngineModelList.length\" class=\"engine-model-picker__empty\">\n            No checkpoints in this family. Try another tab or refresh the model list.\n          </div>\n          <div v-else class=\"engine-model-picker__list\">\n            <button\n              v-for=\"model in activeEngineModelList\"\n              :key=\"model.model_name || model.title\"\n              type=\"button\"\n              class=\"engine-model-picker__item\"\n              :class=\"{ active: normalizeModelName(model.model_name || model.title) === engineCurrentModelName }\"\n              :disabled=\"forge.switching\"\n              @click=\"selectEngineModel(model)\"\n            >\n              <span class=\"engine-model-picker__item-title\">{{ model.title || model.model_name }}</span>\n              <span class=\"engine-model-picker__item-meta\">{{ model.model_name || model.title }}</span>\n            </button>\n          </div>\n        </div>\n      </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.SETTINGS==='MIDI'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Controllers <span class=\"framesync-accent\">/ MIDI</span></div>\n          </div>\n          <div v-if=\"!midi.supported\" style=\"color:var(--text-secondary); margin-top:12px; font-size:12px;\">WebMIDI not supported or not enabled.</div>\n          <div v-else>\n            <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n              <button class=\"framesync-button\" v-for=\"d in midi.devices\" :key=\"d.id\" :class=\"{active: midi.selected===d.id}\" @click=\"midi.selected=d.id\">{{ d.name }}</button>\n              <button class=\"framesync-button\" @click=\"scanMidi()\">Rescan</button>\n            </div>\n            <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n              <button class=\"framesync-button\">Learn mode</button>\n              <button class=\"framesync-button\" @click=\"addMidiMapping\">+ Add Mapping</button>\n              <button class=\"framesync-button\">Status: {{ midiStatus }}</button>\n            </div>\n            <div class=\"framesync-subtitle\" style=\"margin-top:10px;\">\n              Quick targets: <strong>Modulation 1–6</strong> map to the LIVE drawer performance widgets.\n            </div>\n            <div style=\"margin-top:12px; background:var(--bg-0); border:1px solid var(--border); border-radius:8px; overflow:hidden;\">\n              <table class=\"table\">\n                <thead><tr><th>Control</th><th>CC</th><th>Target</th><th>Actions</th></tr></thead>\n                <tbody>\n                  <tr v-for=\"(m, idx) in midi.mappings\" :key=\"'midi'+idx\">\n                    <td><input class=\"framesync-input\" v-model=\"m.control\" @change=\"saveMidiMappings\" style=\"width:100px; padding:4px;\"></td>\n                    <td><input class=\"framesync-input\" type=\"number\" v-model.number=\"m.cc\" @change=\"saveMidiMappings\" style=\"width:60px; padding:4px;\"></td>\n                    <td>\n                      <select class=\"framesync-select\" v-model=\"m.key\" @change=\"saveMidiMappings\" style=\"width:120px; padding:4px;\">\n                        <option value=\"\">None</option>\n                        <optgroup label=\"Modulation 1–6\">\n                          <option v-for=\"n in 6\" :key=\"'modslot-'+n\" :value=\"'mod_slot_' + n\">\n                            {{ 'Modulation ' + n }}\n                          </option>\n                        </optgroup>\n                        <option v-for=\"t in modulationTargets\" :key=\"'mopt'+t.key\" :value=\"t.key\">{{ t.label }}</option>\n                      </select>\n                    </td>\n                    <td><button class=\"framesync-button\" @click=\"deleteMidiMapping(idx)\" style=\"padding:4px 8px; cursor:pointer;\">Delete</button></td>\n                  </tr>\n                </tbody>\n              </table>\n            </div>\n          </div>\n        </div>\n      </div>\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Parameter <span class=\"framesync-accent\">Bindings</span></div>\n            <div style=\"display:flex; gap:8px; align-items:center;\">\n              <button class=\"framesync-button\" :class=\"{active: bindingLearnMode}\" @click=\"toggleBindingLearn\">{{ bindingLearnMode ? 'Stop learn' : 'Learn' }}</button>\n              <button class=\"framesync-button\" @click=\"resetBindings\">Defaults</button>\n            </div>\n          </div>\n          <div v-if=\"bindingLearnMode\" style=\"margin-top:8px; padding:8px 12px; background:rgba(127,119,221,0.08); border:1px solid var(--accent); border-radius:6px; font-size:12px; color:var(--accent-text);\">\n            Learn mode active. Press a key or move a MIDI controller, then click a parameter to bind.\n          </div>\n          <div class=\"framesync-row\" style=\"grid-template-columns: repeat(2, 1fr); gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\" v-for=\"group in bindingGroups\" :key=\"group.label\">\n              <div class=\"framesync-subtitle\">{{ group.label }}</div>\n              <div style=\"background:var(--bg-0); border:1px solid var(--border); border-radius:6px; overflow:hidden;\">\n                <table style=\"width:100%; font-size:11px; border-collapse:collapse;\">\n                  <thead><tr style=\"color:var(--text-dim); border-bottom:1px solid var(--border);\">\n                    <th style=\"text-align:left; padding:4px 8px;\">Parameter</th>\n                    <th style=\"text-align:left; padding:4px 8px;\">Key</th>\n                    <th style=\"text-align:left; padding:4px 8px;\">MIDI CC</th>\n                    <th style=\"padding:4px 8px;\">Actions</th>\n                  </tr></thead>\n                  <tbody>\n                    <tr v-for=\"t in group.items\" :key=\"t.key\" style=\"border-bottom:1px solid var(--border);\">\n                      <td style=\"padding:4px 8px; color:var(--text-primary);\">{{ t.label }}</td>\n                      <td style=\"padding:4px 8px;\">\n                        <span v-if=\"getKeyBinding(t.key)\" style=\"display:inline-flex; align-items:center; gap:4px;\">\n                          <kbd style=\"background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:var(--success);\">{{ getKeyBinding(t.key) }}</kbd>\n                          <button style=\"border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;\" @click=\"clearKeyBinding(t.key)\">✕</button>\n                        </span>\n                        <span v-else style=\"color:var(--text-dim);\">—</span>\n                      </td>\n                      <td style=\"padding:4px 8px;\">\n                        <span v-if=\"getMidiBinding(t.key)\" style=\"display:inline-flex; align-items:center; gap:4px;\">\n                          <span style=\"background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-size:10px; color:var(--warn);\">CC {{ getMidiBinding(t.key) }}</span>\n                          <button style=\"border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;\" @click=\"clearMidiBinding(t.key)\">✕</button>\n                        </span>\n                        <span v-else style=\"color:var(--text-dim);\">—</span>\n                      </td>\n                      <td style=\"padding:4px 8px; text-align:center;\">\n                        <button v-if=\"bindingLearnMode\" class=\"framesync-button framesync-button--compact\" @click=\"bindingTargetKey=t.key\">Bind here</button>\n                      </td>\n                    </tr>\n                  </tbody>\n                </table>\n              </div>\n            </div>\n          </div>\n        </div>\n      </div>\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Preset <span class=\"framesync-accent\">Management</span></div>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n            <button class=\"framesync-button\" v-for=\"p in availablePresets\" :key=\"p\" :class=\"{active: currentPreset===p}\" @click=\"loadPreset(p)\">{{ p }}</button>\n            <button class=\"framesync-button\" @click=\"refreshPresets\">Refresh</button>\n          </div>\n          <div class=\"framesync-stack\" style=\"margin-top:12px;\">\n            <div class=\"framesync-subtitle\">New preset name</div>\n            <input class=\"framesync-input\" v-model=\"newPresetName\" placeholder=\"my-preset\">\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:10px;\">\n            <button class=\"framesync-button\" @click=\"saveCurrentPreset\">Save current as preset</button>\n            <button class=\"framesync-button framesync-button--danger\" v-if=\"currentPreset\" @click=\"deletePreset(currentPreset)\">Delete {{ currentPreset }}</button>\n          </div>\n          <div v-if=\"presetStatus\" class=\"framesync-subtitle\" style=\"margin-top:8px; text-align:center;\">{{ presetStatus }}</div>\n\n          <div class=\"framesync-header\" style=\"margin-top:20px; padding-top:12px; border-top:1px solid var(--border);\">\n            <div class=\"framesync-title\">Shared <span class=\"framesync-accent\">Presets</span></div>\n            <button class=\"framesync-button\" @click=\"refreshSharedPresets\">Refresh</button>\n          </div>\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Share as</div>\n              <input class=\"framesync-input\" v-model=\"sharedPresetName\" placeholder=\"shared-preset-name\">\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Your name</div>\n              <input class=\"framesync-input\" v-model=\"collab.userName\" placeholder=\"Performer\" @change=\"saveCollabUserName\">\n            </div>\n          </div>\n          <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n            <button class=\"framesync-button\" @click=\"shareCurrentPreset\">Share current state</button>\n          </div>\n          <ul v-if=\"sharedPresets.length\" class=\"framesync-list\" style=\"margin-top:10px; font-size:11px; padding-left:16px;\">\n            <li v-for=\"sp in sharedPresets\" :key=\"sp.name\" style=\"margin-bottom:6px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;\">\n              <strong>{{ sp.name }}</strong>\n              <span style=\"color:var(--text-dim);\">by {{ sp.sharedBy }}</span>\n              <button class=\"framesync-button framesync-button--compact\" @click=\"loadSharedPreset(sp.name)\">Load</button>\n              <button class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"deleteSharedPreset(sp.name)\">Delete</button>\n            </li>\n          </ul>\n          <div v-else style=\"margin-top:10px; font-size:11px; color:var(--text-dim);\">No shared presets yet.</div>\n          <div v-if=\"sharedPresetsStatus\" class=\"framesync-subtitle\" style=\"margin-top:8px;\">{{ sharedPresetsStatus }}</div>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.SETTINGS==='GPUS'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel\" data-testid=\"service-health-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Service <span class=\"framesync-accent\">Health</span></div>\n            <button\n              class=\"framesync-button framesync-button--compact\"\n              @click=\"refreshServiceHealth\"\n              :disabled=\"serviceHealth.loading\"\n            >\n              Refresh\n            </button>\n          </div>\n\n          <div class=\"service-health-grid\">\n            <div class=\"service-health-card\">\n              <div class=\"service-health-card__head\">\n                <strong>Web</strong>\n                <span class=\"gpu-status-pill\" :class=\"serviceHealth.web && serviceHealth.web.ok ? 'st-healthy' : 'st-unhealthy'\">\n                  {{ serviceHealth.web && serviceHealth.web.ok ? 'healthy' : 'down' }}\n                </span>\n              </div>\n              <div class=\"service-health-card__meta\">HTTP <code>/health</code></div>\n            </div>\n\n            <div class=\"service-health-card\">\n              <div class=\"service-health-card__head\">\n                <strong>HLS</strong>\n                <span\n                  class=\"gpu-status-pill\"\n                  :class=\"serviceHealth.hls && serviceHealth.hls.updated ? ((serviceHealth.hls.ageMs != null && serviceHealth.hls.ageMs < 15000) ? 'st-healthy' : (serviceHealth.hls.ageMs != null && serviceHealth.hls.ageMs < 60000) ? 'st-unknown' : 'st-unhealthy') : 'st-unknown'\"\n                >\n                  {{ serviceHealth.hls && serviceHealth.hls.updated ? 'ok' : 'unknown' }}\n                </span>\n              </div>\n              <div class=\"service-health-card__meta\">\n                Playlist updated:\n                <span v-if=\"serviceHealth.hls && serviceHealth.hls.updated\">\n                  {{ Math.round((serviceHealth.hls.ageMs || 0) / 1000) }}s ago\n                </span>\n                <span v-else>—</span>\n              </div>\n            </div>\n\n            <div class=\"service-health-card\">\n              <div class=\"service-health-card__head\">\n                <strong>SD-Forge</strong>\n                <span class=\"gpu-status-pill\" :class=\"apiHealth.sdForge && apiHealth.sdForge.available ? 'st-healthy' : 'st-unhealthy'\">\n                  {{ apiHealth.sdForge && apiHealth.sdForge.available ? 'available' : 'offline' }}\n                </span>\n              </div>\n              <div class=\"service-health-card__meta\">Last checked: {{ (apiHealth.sdForge && apiHealth.sdForge.lastChecked) ? formatDate(apiHealth.sdForge.lastChecked) : '—' }}</div>\n            </div>\n\n            <div class=\"service-health-card\">\n              <div class=\"service-health-card__head\">\n                <strong>Mediator</strong>\n                <span class=\"gpu-status-pill\" :class=\"infrastructure.mediator && infrastructure.mediator.status === 'healthy' ? 'st-healthy' : 'st-unhealthy'\">\n                  {{ infrastructure.mediator ? infrastructure.mediator.status : 'unknown' }}\n                </span>\n              </div>\n              <div class=\"service-health-card__meta\">\n                <span v-if=\"infrastructure.mediator\"><code>{{ infrastructure.mediator.address }}</code></span>\n                <span v-else>—</span>\n              </div>\n            </div>\n\n            <div class=\"service-health-card\">\n              <div class=\"service-health-card__head\">\n                <strong>Streamer</strong>\n                <span class=\"gpu-status-pill\" :class=\"serviceHealth.stream && serviceHealth.stream.status === 'running' ? 'st-healthy' : serviceHealth.stream && serviceHealth.stream.status === 'stopped' ? 'st-unknown' : 'st-unknown'\">\n                  {{ serviceHealth.stream ? serviceHealth.stream.status : 'unknown' }}\n                </span>\n              </div>\n              <div class=\"service-health-card__meta\"><code>/api/stream/status</code></div>\n            </div>\n          </div>\n\n          <div class=\"framesync-subtitle\" style=\"margin-top:10px;\">\n            Last refresh: {{ serviceHealth.lastChecked ? formatDate(serviceHealth.lastChecked) : '—' }}\n          </div>\n        </div>\n\n        <div class=\"framesync-panel infra-panel\" data-testid=\"infrastructure-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">Stack <span class=\"framesync-accent\">Services</span></div>\n            <button class=\"framesync-button framesync-button--compact\" @click=\"refreshGpuPool(true)\" :disabled=\"infrastructure.loading || gpuPool.loading\">\n              Refresh\n            </button>\n          </div>\n\n          <div class=\"infra-section\">\n            <div class=\"framesync-subtitle\">Active mediator server</div>\n            <div v-if=\"infrastructure.loading && !infrastructure.mediator\" class=\"infra-panel__empty\">Loading mediator…</div>\n            <div v-else-if=\"infrastructure.mediator\" class=\"infra-mediator-card\" data-testid=\"infra-mediator-card\">\n              <div class=\"infra-mediator-card__head\">\n                <span class=\"gpu-status-pill\" :class=\"infrastructure.mediator.status === 'healthy' ? 'st-healthy' : 'st-unhealthy'\">\n                  {{ infrastructure.mediator.status }}\n                </span>\n                <strong>{{ infrastructure.mediator.address }}</strong>\n                <span class=\"infra-mediator-card__source\">{{ infrastructure.mediator.source }}</span>\n              </div>\n              <div class=\"infra-mediator-card__meta\">\n                <span>Deforumation <code>{{ infrastructure.mediator.wsUrl }}</code></span>\n                <span>Deforum <code>{{ infrastructure.mediator.deforumWsUrl }}</code> · {{ infrastructure.mediator.deforumStatus }}</span>\n              </div>\n            </div>\n            <div v-else class=\"infra-panel__empty\">Mediator configuration unavailable.</div>\n          </div>\n\n          <div class=\"infra-section\">\n            <div class=\"framesync-subtitle\">FFmpeg transcoder nodes</div>\n            <div v-if=\"infrastructure.loading && !infrastructure.transcoders.length\" class=\"infra-panel__empty\">Loading transcoders…</div>\n            <div v-else-if=\"!infrastructure.transcoders.length\" class=\"infra-panel__empty\">No transcoder nodes configured.</div>\n            <div v-else class=\"gpu-pool-table-wrap\" data-testid=\"infra-transcoder-table\">\n              <table class=\"gpu-pool-table infra-transcoder-table\">\n                <thead>\n                  <tr>\n                    <th>Name</th>\n                    <th>Address</th>\n                    <th>CPU</th>\n                    <th>Jobs</th>\n                    <th>Status</th>\n                  </tr>\n                </thead>\n                <tbody>\n                  <tr v-for=\"node in infrastructure.transcoders\" :key=\"node.id\">\n                    <td><strong>{{ node.name }}</strong></td>\n                    <td>\n                      <code class=\"infra-address\">{{ node.address }}</code>\n                      <span v-if=\"node.rtmpTarget && node.rtmpTarget !== node.address\" class=\"infra-address-sub\">{{ node.rtmpTarget }}</span>\n                    </td>\n                    <td>{{ node.cpuLabel }}</td>\n                    <td>{{ node.jobsLabel }}</td>\n                    <td>\n                      <span class=\"gpu-status-pill\" :class=\"'st-' + (node.status === 'streaming' ? 'healthy' : node.status === 'idle' ? 'unknown' : 'unhealthy')\">\n                        {{ node.status }}\n                      </span>\n                    </td>\n                  </tr>\n                </tbody>\n              </table>\n            </div>\n            <p class=\"infra-panel__hint\">\n              Configure extra nodes with <code>TRANSCODER_NODES</code> (format: <code>name|host:port|rtmp://target|statusUrl</code>).\n              Optional <code>statusUrl</code> returns JSON <code>{ \"cpu\": 12.5, \"activeJobs\": 1 }</code>.\n            </p>\n          </div>\n        </div>\n\n        <div class=\"framesync-panel\" data-testid=\"gpu-pool-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\">GPU <span class=\"framesync-accent\">Pool</span></div>\n            <label class=\"framesync-checkbox gpu-pool-enable\">\n              <input type=\"checkbox\" v-model=\"gpuPool.enabled\" @change=\"saveGpuPoolSettings\">\n              Load balancing\n            </label>\n          </div>\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Strategy</div>\n              <select class=\"framesync-select\" v-model=\"gpuPool.strategy\" @change=\"saveGpuPoolSettings\" :disabled=\"gpuPool.loading\">\n                <option value=\"round_robin\">Round robin</option>\n                <option value=\"least_busy\">Least busy</option>\n                <option value=\"priority\">Priority</option>\n                <option value=\"random\">Random</option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Healthy / total</div>\n              <div class=\"gpu-pool-healthy-count\">{{ gpuPool.healthyNodes }} / {{ gpuPool.nodes.length }}</div>\n            </div>\n            <div class=\"framesync-stack\" style=\"justify-content:flex-end;\">\n              <button class=\"framesync-button\" @click=\"refreshGpuPool(true)\" :disabled=\"gpuPool.loading\">Refresh stats</button>\n            </div>\n          </div>\n          <div class=\"framesync-row\" style=\"grid-template-columns: 2fr 1fr; gap:10px; margin-top:10px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Default SD-Forge model</div>\n              <select class=\"framesync-select\" v-model=\"gpuPool.defaultForgeModel\" :disabled=\"gpuPool.loading || forge.switching || !forge.models || !forge.models.length\">\n                <option value=\"\">(no default)</option>\n                <option v-for=\"m in (forge.models || [])\" :key=\"'gpu-default-model-' + (m.title || m.model_name)\" :value=\"m.title || m.model_name\">\n                  {{ m.title || m.model_name }}\n                </option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\" style=\"justify-content:flex-end;\">\n              <button\n                class=\"framesync-button\"\n                @click=\"saveDefaultForgeModel({ preload: true })\"\n                :disabled=\"gpuPool.loading || forge.switching || !gpuPool.defaultForgeModel\"\n                title=\"Switch model on healthy SD-Forge nodes now so new jobs start instantly\"\n              >\n                Save + preload\n              </button>\n            </div>\n          </div>\n          <div v-if=\"gpuPool.defaultForgeModelStatus\" class=\"framesync-subtitle\" style=\"margin-top:10px;\">\n            {{ gpuPool.defaultForgeModelStatus }}\n          </div>\n          <p style=\"font-size:11px; color:var(--text-dim); margin:12px 0 0;\">\n            Add SD-Forge (A1111 API), ComfyUI, or Ollama instances. Disable a node to edit or remove it.\n            Generation load balancing uses enabled <strong>SD-Forge</strong> nodes for img2img/txt2img/Deforum, while the story generator uses configured <strong>Ollama</strong> nodes.\n          </p>\n          <div class=\"gpu-pool-add\" style=\"margin-top:14px; padding:12px; border:1px solid var(--border); border-radius:10px;\">\n            <div class=\"framesync-subtitle\">Add instance (saved disabled — enable after editing)</div>\n            <div class=\"framesync-row\" style=\"grid-template-columns: 2fr 1fr 1fr; gap:8px; margin-top:8px;\">\n              <input class=\"framesync-input\" v-model=\"gpuPool.draft.url\" placeholder=\"http://host:7860, :8188, or :11434\" :disabled=\"gpuPool.loading\">\n              <input class=\"framesync-input\" v-model=\"gpuPool.draft.name\" placeholder=\"Name\" :disabled=\"gpuPool.loading\">\n              <select class=\"framesync-select\" v-model=\"gpuPool.draft.backend\" :disabled=\"gpuPool.loading\">\n                <option value=\"sd-forge\">SD-Forge</option>\n                <option value=\"comfyui\">ComfyUI</option>\n                <option value=\"ollama\">Ollama</option>\n              </select>\n            </div>\n            <div v-if=\"gpuPool.draft.backend === 'ollama'\" class=\"framesync-footer\" style=\"margin-top:8px; align-items:center; gap:8px; flex-wrap:wrap;\">\n              <select class=\"framesync-select\" v-model=\"gpuPool.draft.model\" :disabled=\"gpuPool.loading\" style=\"min-width:220px;\">\n                <option value=\"\">Select Ollama model…</option>\n                <option v-for=\"model in ollamaModelOptions(gpuPool.draft.url)\" :key=\"'draft-'+model\" :value=\"model\">{{ model }}</option>\n              </select>\n              <button class=\"framesync-button\" @click=\"refreshGpuDraftModels\" :disabled=\"gpuPool.loading || !gpuPool.draft.url\">Load models</button>\n            </div>\n            <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n              <button class=\"framesync-button\" @click=\"addGpuNode\" :disabled=\"gpuPool.loading || !gpuPool.draft.url\">+ Add instance</button>\n            </div>\n          </div>\n\n          <div v-if=\"gpuPool.nodes.length\" style=\"margin-top:14px; display:grid; gap:10px;\">\n            <div v-for=\"n in gpuPool.nodes\" :key=\"n.id\" class=\"gpu-node-card\" :class=\"{ 'gpu-row-disabled': !n.enabled }\">\n              <div class=\"gpu-node-card__header\">\n                <div class=\"gpu-node-card__identity\">\n                  <span class=\"gpu-status-pill\" :class=\"'st-' + (n.enabled ? n.status : 'disabled')\">{{ n.enabled ? n.status : 'disabled' }}</span>\n                  <template v-if=\"gpuPool.editId === n.id\">\n                    <input class=\"framesync-input\" v-model=\"gpuPool.editDraft.name\" style=\"font-size:11px; width:120px;\">\n                    <input class=\"framesync-input\" v-model=\"gpuPool.editDraft.url\" style=\"font-size:10px; flex:1; min-width:160px;\">\n                    <select class=\"framesync-select\" v-model=\"gpuPool.editDraft.backend\" style=\"font-size:11px; width:100px;\">\n                      <option value=\"sd-forge\">SD-Forge</option>\n                      <option value=\"comfyui\">ComfyUI</option>\n                      <option value=\"ollama\">Ollama</option>\n                    </select>\n                  </template>\n                  <template v-else>\n                    <strong style=\"font-size:12px;\">{{ n.name }}</strong>\n                    <span style=\"font-size:10px; color:var(--text-dim);\">{{ n.url }}</span>\n                    <span style=\"font-size:10px; color:var(--text-dim);\">{{ n.backend }}</span>\n                    <span v-if=\"n.backend === 'ollama' && (n.model || n.currentModel)\" style=\"font-size:10px; color:var(--text-dim);\">model: {{ n.model || n.currentModel }}</span>\n                  </template>\n                </div>\n                <div class=\"gpu-node-card__stats\">\n                  <span title=\"Current model\" style=\"font-size:10px; color:var(--text-secondary); max-width:140px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;\">{{ n.model || n.currentModel || '—' }}</span>\n                  <span title=\"VRAM\" style=\"font-size:10px; color:var(--text-dim);\">{{ formatGpuMemory(n) }}</span>\n                  <span title=\"GPU utilization\" style=\"font-size:10px; color:var(--text-dim);\">{{ n.gpuUtilization != null ? n.gpuUtilization + '%' : '—' }}</span>\n                  <span title=\"Active jobs\" style=\"font-size:10px; color:var(--text-dim);\">{{ n.activeJobs }} jobs</span>\n                  <span v-if=\"n.backend === 'sd-forge'\" title=\"Forge queue (running/pending)\" style=\"font-size:10px; color:var(--text-dim);\">\n                    q {{ n.queueRunning != null ? n.queueRunning : '—' }}/{{ n.queuePending != null ? n.queuePending : '—' }}\n                  </span>\n                  <span v-if=\"n.backend === 'sd-forge'\" title=\"Forge progress\" style=\"font-size:10px; color:var(--text-dim);\">\n                    {{ n.progress != null ? Math.round(n.progress * 100) + '%' : '—' }}\n                  </span>\n                </div>\n                <div class=\"framesync-footer\" style=\"flex-wrap:wrap; gap:4px; margin:0;\">\n                  <template v-if=\"n.enabled\">\n                    <button class=\"framesync-button framesync-button--compact\" @click=\"disableGpuNode(n)\">Disable</button>\n                  </template>\n                  <template v-else>\n                    <button class=\"framesync-button framesync-button--compact\" @click=\"enableGpuNode(n)\">Enable</button>\n                    <button v-if=\"gpuPool.editId !== n.id\" class=\"framesync-button framesync-button--compact\" @click=\"startEditGpuNode(n)\">Edit</button>\n                    <button v-else class=\"framesync-button framesync-button--compact\" @click=\"saveGpuNodeEdit(n)\">Save</button>\n                    <button class=\"framesync-button framesync-button--danger framesync-button--compact\" @click=\"removeGpuNode(n)\">Remove</button>\n                  </template>\n                  <button class=\"framesync-button framesync-button--compact\" @click=\"gpuPool.expandedLog = gpuPool.expandedLog === n.id ? null : n.id\">\n                    {{ gpuPool.expandedLog === n.id ? 'Hide log' : 'Log' }}{{ n.requestLog && n.requestLog.length ? ' (' + n.requestLog.length + ')' : '' }}\n                  </button>\n                </div>\n              </div>\n              <div v-if=\"gpuPool.editId === n.id && gpuPool.editDraft.backend === 'ollama'\" class=\"framesync-footer\" style=\"margin:8px 0 0; align-items:center; gap:8px; flex-wrap:wrap;\">\n                <select class=\"framesync-select\" v-model=\"gpuPool.editDraft.model\" style=\"min-width:220px;\">\n                  <option value=\"\">Select Ollama model…</option>\n                  <option v-for=\"model in ollamaModelOptions(gpuPool.editDraft.url)\" :key=\"'edit-'+n.id+'-'+model\" :value=\"model\">{{ model }}</option>\n                </select>\n                <button class=\"framesync-button framesync-button--compact\" @click=\"refreshGpuEditModels\">Load models</button>\n              </div>\n              <div v-if=\"gpuPool.expandedLog === n.id\" class=\"gpu-node-log\">\n                <div v-if=\"!n.requestLog || !n.requestLog.length\" class=\"gpu-node-log__empty\">No requests logged yet.</div>\n                <div v-for=\"(entry, idx) in (n.requestLog || [])\" :key=\"idx\" class=\"gpu-node-log__entry\" :class=\"{ 'gpu-node-log__entry--error': !entry.ok }\">\n                  <span class=\"gpu-node-log__badge\" :class=\"'gpu-node-log__badge--' + entry.type\">{{ entry.type }}</span>\n                  <span class=\"gpu-node-log__path\">{{ entry.path }}</span>\n                  <span class=\"gpu-node-log__status\" :style=\"entry.ok ? 'color:var(--live-text)' : 'color:var(--error)'\">\n                    {{ entry.statusCode || (entry.ok ? 'ok' : 'err') }}\n                  </span>\n                  <span class=\"gpu-node-log__duration\">{{ entry.durationMs }}ms</span>\n                  <span v-if=\"entry.error\" class=\"gpu-node-log__error\">{{ entry.error }}</span>\n                  <span class=\"gpu-node-log__time\">{{ new Date(entry.ts).toLocaleTimeString() }}</span>\n                </div>\n              </div>\n            </div>\n          </div>\n          <div v-else style=\"margin-top:14px; font-size:12px; color:var(--text-dim);\">No GPU instances configured.</div>\n          <div v-if=\"gpuPool.status\" class=\"framesync-subtitle\" style=\"margin-top:10px;\">{{ gpuPool.status }}</div>\n        </div>\n      </div>\n      <div v-if=\"gpuPool.forgeModal.open\" class=\"gpu-forge-modal\" @click=\"onGpuForgeModalBackdropClick\">\n        <div class=\"gpu-forge-modal__dialog\">\n          <div class=\"gpu-forge-modal__header\">\n            <div>\n              <div class=\"framesync-title\">Edit <span class=\"framesync-accent\">SD-Forge</span> instance</div>\n              <div class=\"framesync-subtitle gpu-forge-modal__subtitle\">{{ gpuPool.forgeModal.nodeName || 'Forge node' }}</div>\n            </div>\n            <button class=\"framesync-button\" @click=\"closeGpuForgeModal()\">Close</button>\n          </div>\n\n          <div class=\"framesync-row gpu-forge-modal__identity\" style=\"grid-template-columns: 1fr 1.6fr 0.6fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Name</div>\n              <input class=\"framesync-input\" v-model.trim=\"gpuPool.forgeModal.nodeName\" :disabled=\"gpuPool.forgeModal.saving || gpuPool.forgeModal.applying\">\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">URL</div>\n              <input class=\"framesync-input\" v-model.trim=\"gpuPool.forgeModal.url\" :disabled=\"gpuPool.forgeModal.saving || gpuPool.forgeModal.applying\">\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Priority</div>\n              <input type=\"number\" class=\"framesync-input\" v-model.number=\"gpuPool.forgeModal.priority\" min=\"1\" max=\"99\" :disabled=\"gpuPool.forgeModal.saving || gpuPool.forgeModal.applying\">\n            </div>\n          </div>\n\n          <div class=\"framesync-footer\" style=\"margin-top:12px;\">\n            <button class=\"framesync-button\" :disabled=\"gpuPool.forgeModal.loading\" @click=\"refreshGpuForgeModalOptions()\">Refresh Forge</button>\n            <button class=\"framesync-button\" :disabled=\"gpuPool.forgeModal.applying || gpuPool.forgeModal.saving\" @click=\"applyGpuForgeModalOptions()\">Apply options</button>\n            <button class=\"framesync-button\" :disabled=\"gpuPool.forgeModal.saving || gpuPool.forgeModal.applying\" @click=\"saveGpuForgeModal()\">Save instance</button>\n          </div>\n\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Current model</div>\n              <code>{{ gpuPool.forgeModal.currentModel || '—' }}</code>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Endpoint</div>\n              <code class=\"forge-tab__endpoint\">{{ gpuPool.forgeModal.url || '—' }}</code>\n            </div>\n          </div>\n\n          <div class=\"framesync-subtitle forge-tab__note\">\n            This is the per-instance Forge configuration for <strong>{{ gpuPool.forgeModal.nodeName || 'this node' }}</strong>. Saved values reopen here next time, and <strong>Apply options</strong> pushes them to this Forge instance only.\n          </div>\n\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Sampler</div>\n              <select class=\"framesync-select\" v-model=\"gpuPool.forgeModal.options.sampler_name\">\n                <option value=\"\">Auto</option>\n                <option v-for=\"sampler in engineSamplerOptions\" :key=\"'gpu-forge-sampler-'+sampler\" :value=\"sampler\">{{ sampler }}</option>\n              </select>\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Scheduler</div>\n              <select class=\"framesync-select\" v-model=\"gpuPool.forgeModal.options.scheduler\">\n                <option value=\"\">Auto</option>\n                <option v-for=\"scheduler in engineSchedulerOptions\" :key=\"'gpu-forge-sch-'+scheduler\" :value=\"scheduler\">{{ scheduler }}</option>\n              </select>\n            </div>\n          </div>\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">VAE</div>\n              <select class=\"framesync-select\" v-model=\"gpuPool.forgeModal.options.sd_vae\">\n                <option value=\"\">Auto</option>\n                <option v-for=\"vae in gpuPool.forgeModal.vaeList\" :key=\"'gpu-forge-vae-'+vae\" :value=\"vae\">{{ vae }}</option>\n              </select>\n            </div>\n          </div>\n\n          <div class=\"framesync-row forge-tab__options-grid\" style=\"grid-template-columns: repeat(3, 1fr); gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Width</div>\n              <input type=\"number\" class=\"framesync-input\" v-model.number=\"gpuPool.forgeModal.options.width\" min=\"64\" max=\"4096\" step=\"64\">\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Height</div>\n              <input type=\"number\" class=\"framesync-input\" v-model.number=\"gpuPool.forgeModal.options.height\" min=\"64\" max=\"4096\" step=\"64\">\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Batch</div>\n              <input type=\"number\" class=\"framesync-input\" v-model.number=\"gpuPool.forgeModal.options.batch_size\" min=\"1\" max=\"16\">\n            </div>\n          </div>\n\n          <div v-if=\"gpuPool.forgeModal.modelInfo\" class=\"forge-tab__metadata\">\n            <div class=\"framesync-subtitle\">Model metadata</div>\n            <div class=\"chips\" style=\"margin-top:8px;\">\n              <span v-for=\"(value, key) in gpuPool.forgeModal.modelInfo\" :key=\"'gpu-forge-meta-'+key\" class=\"chip\">{{ key }}: {{ value }}</span>\n            </div>\n          </div>\n\n          <div v-if=\"gpuPool.forgeModal.status\" class=\"framesync-subtitle\" style=\"margin-top:12px;\">\n            {{ gpuPool.forgeModal.status }}\n          </div>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.SETTINGS==='STYLES'\">\n      <StylesSettingsPanel :app=\"app\" />\n    </div>\n\n    <div v-else-if=\"currentSubTab.SETTINGS==='COLLAB'\">\n      <div class=\"rack\">\n        <div class=\"framesync-panel\">\n          <div class=\"framesync-header\">\n            <div class=\"framesync-title\"><span class=\"framesync-accent\">Collaboration</span></div>\n            <button class=\"framesync-button\" :class=\"{ 'framesync-button--live': collabEnabled }\" @click=\"toggleCollaboration\">\n              {{ collabEnabled ? 'WS ' + wsStatus : 'WS offline' }}\n            </button>\n          </div>\n          <div v-if=\"!collabEnabled\" style=\"margin-top:12px; font-size:12px; color:var(--text-secondary);\">\n            Collaboration is offline. Press the WS button to bring the collaboration panel back and reconnect.\n          </div>\n          <template v-else>\n          <div class=\"framesync-row\" style=\"grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;\">\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Display name</div>\n              <input class=\"framesync-input\" v-model=\"collab.userName\" @change=\"saveCollabUserName; collabIdentify()\">\n            </div>\n            <div class=\"framesync-stack\">\n              <div class=\"framesync-subtitle\">Your session ID</div>\n              <input class=\"framesync-input\" :value=\"collab.userId || '—'\" readonly>\n            </div>\n          </div>\n          <div class=\"framesync-subtitle\" style=\"margin-top:14px;\">Connected users ({{ collab.users.length }})</div>\n          <ul v-if=\"collab.users.length\" class=\"framesync-list\" style=\"font-size:11px; padding-left:16px; margin-top:6px;\">\n            <li v-for=\"u in collab.users\" :key=\"u.id\">\n              {{ u.name }}\n              <span v-if=\"u.lockedParams && u.lockedParams.length\" style=\"color:var(--warn);\"> — locks: {{ u.lockedParams.join(', ') }}</span>\n            </li>\n          </ul>\n          <div v-else style=\"font-size:11px; color:var(--text-dim); margin-top:6px;\">Only you (open another browser tab to test multi-user).</div>\n          <div class=\"framesync-subtitle\" style=\"margin-top:14px;\">Session recording</div>\n          <div class=\"framesync-footer\" style=\"margin-top:8px;\">\n            <button class=\"framesync-button\" :class=\"{ 'framesync-button--live': collab.recording }\" @click=\"toggleSessionRecording\">\n              {{ collab.recording ? 'Stop recording' : 'Start recording' }}\n            </button>\n            <button class=\"framesync-button\" @click=\"listSessionRecordings\">List recordings</button>\n          </div>\n          <ul v-if=\"collab.recordings.length\" class=\"framesync-list\" style=\"margin-top:8px; font-size:11px; padding-left:16px;\">\n            <li v-for=\"r in collab.recordings\" :key=\"r.filename\" style=\"display:flex; gap:8px; align-items:center;\">\n              {{ r.filename }}\n              <button class=\"framesync-button framesync-button--compact\" @click=\"playbackSessionRecording(r.filename)\">Play</button>\n            </li>\n          </ul>\n          <div v-if=\"collab.status\" class=\"framesync-subtitle\" style=\"margin-top:10px; color:var(--success);\">{{ collab.status }}</div>\n          <div class=\"framesync-subtitle\" style=\"margin-top:14px;\">Parameter locks (click param label in LIVE drawer)</div>\n          <div v-if=\"Object.keys(collab.locks).length\" style=\"font-size:11px; margin-top:6px;\">\n            <span v-for=\"(who, param) in collab.locks\" :key=\"param\" class=\"pill\" style=\"margin:2px 4px 2px 0;\">\n              {{ param }} → {{ who }}\n              <button type=\"button\" style=\"border:none;background:transparent;color:var(--error);cursor:pointer;margin-left:4px;\" @click=\"unlockParam(param)\">✕</button>\n            </span>\n          </div>\n          <div v-else style=\"font-size:11px; color:var(--text-dim); margin-top:6px;\">No active locks.</div>\n          </template>\n        </div>\n      </div>\n    </div>\n\n    <div v-else-if=\"currentSubTab.SETTINGS==='OUTPUT'\" data-testid=\"settings-output-stream\">\n      <StreamView :app=\"app\" />\n    </div>\n\n    <div v-else-if=\"currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'\" class=\"system-runs-tab\" data-testid=\"settings-system-runs\">\n      <RunsBrowserPanel :app=\"app\" />\n    </div>\n\n  </div>" };
-const MorphCrossfaderPanel = { props: {
-    app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, computed: {
-    crossfadeAWeight() {
-      return Math.min(1, Math.max(0, 1 - (Number(this.performance?.crossfader) || 0)));
-    },
-    crossfadeBWeight() {
-      return Math.min(1, Math.max(0, Number(this.performance?.crossfader) || 0));
-    },
-    crossfadeAPercent() {
-      return Math.round(this.crossfadeAWeight * 100);
-    },
-    crossfadeBPercent() {
-      return Math.round(this.crossfadeBWeight * 100);
-    },
-    crossfadeWeightStyle() {
-      return {
-        '--crossfade-a-weight': this.crossfadeAWeight,
-        '--crossfade-b-weight': this.crossfadeBWeight,
-      };
-    },
-  }, components: { Crossfader: Crossfader }, template: "<div\n    class=\"morph-crossfader-panel\"\n    :style=\"crossfadeWeightStyle\"\n  >\n    <div class=\"morph-crossfader-hero\">\n      <div class=\"framesync-header morph-crossfader-hero__header\">\n        <div class=\"framesync-title\">Morph <span class=\"framesync-accent\">Crossfader</span></div>\n        <code class=\"morph-crossfader-hero__readout\">\n          A {{ crossfadeAPercent }}% · B {{ crossfadeBPercent }}%\n        </code>\n      </div>\n      <Crossfader\n        :model-value=\"performance.crossfader\"\n        @update:model-value=\"onMorphCrossfaderInput\"\n        testid=\"modulation-morph-crossfader\"\n      />\n      <div class=\"lora-crossfader-links morph-crossfader-links\">\n        <button\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: !prompts.loraCrossfaderLfoLink }\"\n          @click=\"setLoraCrossfaderLfoLink(null)\"\n        >\n          Manual\n        </button>\n        <button\n          v-for=\"lfo in lfos.slice(0, 6)\"\n          :key=\"'morph-crossfader-lfo-' + lfo.id\"\n          type=\"button\"\n          class=\"framesync-button\"\n          :class=\"{ active: prompts.loraCrossfaderLfoLink === lfo.id }\"\n          @click=\"setLoraCrossfaderLfoLink(lfo.id)\"\n        >\n          LFO {{ lfo.id }}\n        </button>\n      </div>\n      <div class=\"lora-crossfader-status morph-crossfader-status\">{{ loraCrossfaderLinkStatus }}</div>\n      <div class=\"framesync-subtitle morph-crossfader-panel__summary\">\n        <span class=\"live-hud-morph__slot live-hud-morph__slot--a\">{{ morphHudSummary.a }}</span>\n        <span class=\"live-hud-morph__slot live-hud-morph__slot--b\">{{ morphHudSummary.b }}</span>\n      </div>\n      <div class=\"morph-crossfader-center__add\">\n        <select class=\"framesync-select\" v-model=\"performance.newSlotType\">\n          <option v-for=\"st in crossfadeSlotTypes\" :key=\"'morph-add-' + st.id\" :value=\"st.id\">{{ st.label }}</option>\n        </select>\n        <button type=\"button\" class=\"framesync-button\" @click=\"addCrossfadeSlot\">+ Add</button>\n      </div>\n    </div>\n\n    <div class=\"prompt-ab-summary morph-crossfader-deck morph-crossfader-deck--split\">\n      <div\n        class=\"prompt-ab-column prompt-ab-column--a morph-crossfader-deck__side morph-crossfader-deck__side--a\"\n        :class=\"{ 'morph-crossfader-deck__side--dominant': crossfadeAWeight >= crossfadeBWeight }\"\n      >\n        <div class=\"prompt-ab-column__head\">\n          <div class=\"prompt-ab-column__title\">A Group</div>\n          <span class=\"morph-crossfader-deck__weight\">{{ crossfadeAPercent }}%</span>\n        </div>\n        <template v-for=\"typeDef in crossfadeSlotTypes\" :key=\"'morph-a-type-' + typeDef.id\">\n          <div v-if=\"slotsOfType(typeDef.id).length\" class=\"morph-crossfader__section\">\n            <div class=\"morph-crossfader__section-label\">{{ typeDef.label }}</div>\n            <div\n              v-for=\"slot in slotsOfType(typeDef.id)\"\n              :key=\"'morph-a-' + slot.id\"\n              class=\"prompt-ab-card morph-crossfader__card\"\n            >\n              <div class=\"morph-crossfader__card-head\">\n                <div class=\"prompt-ab-card__name\">{{ slotCardTitle(slot, 'A') }}</div>\n                <button type=\"button\" class=\"framesync-button framesync-button--danger framesync-button--compact morph-crossfader__remove\" @click=\"removeCrossfadeSlot(slot.id)\" title=\"Remove\">✕</button>\n              </div>\n              <div class=\"morph-crossfader__card-body\">\n                <template v-if=\"slot.type === 'prompt'\">\n                  <textarea class=\"framesync-input morph-crossfader__textarea\" rows=\"2\" v-model=\"slot.valueA\" placeholder=\"Prompt A\" @input=\"onPerformanceInput\"></textarea>\n                </template>\n                <template v-else-if=\"slot.type === 'param'\">\n                  <select class=\"framesync-select\" v-model=\"slot.paramKey\" @change=\"onPerformanceInput\">\n                    <option v-for=\"t in lfoTargets\" :key=\"'morph-a-param-' + slot.id + t.key\" :value=\"t.key\">{{ t.label }}</option>\n                  </select>\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueA\" step=\"any\" placeholder=\"Value A\" @input=\"onPerformanceInput\">\n                </template>\n                <template v-else-if=\"slot.type === 'lora'\">\n                  <select class=\"framesync-select\" v-model=\"slot.valueA\" @change=\"onPerformanceInput\">\n                    <option :value=\"null\">— none —</option>\n                    <option v-for=\"l in loras.available\" :key=\"'morph-a-lora-' + slot.id + l.id\" :value=\"l.name\">{{ l.name }}</option>\n                  </select>\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"slot.loraStrengthA\" @input=\"slot.loraStrengthA = parseFloat($event.target.value); onPerformanceInput()\" class=\"framesync-input prompt-ab-card__slider\">\n                  <div class=\"prompt-ab-card__value\">{{ Number(slot.loraStrengthA || 0).toFixed(2) }}</div>\n                </template>\n                <template v-else-if=\"slot.type === 'controlnet'\">\n                  <select class=\"framesync-select\" v-model=\"slot.cnSlotId\" @change=\"onPerformanceInput\">\n                    <option v-for=\"s in cn.slots\" :key=\"'morph-a-cn-' + slot.id + s.id\" :value=\"s.id\">{{ s.label }}</option>\n                  </select>\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"slot.valueA\" @input=\"slot.valueA = parseFloat($event.target.value); onPerformanceInput()\" class=\"framesync-input prompt-ab-card__slider\">\n                  <div class=\"prompt-ab-card__value\">{{ Number(slot.valueA || 0).toFixed(2) }}</div>\n                </template>\n              </div>\n            </div>\n          </div>\n        </template>\n        <div v-if=\"!performance.slots.length\" class=\"prompt-ab-column__empty\">No A-side items yet</div>\n      </div>\n\n      <div\n        class=\"prompt-ab-column prompt-ab-column--b morph-crossfader-deck__side morph-crossfader-deck__side--b\"\n        :class=\"{ 'morph-crossfader-deck__side--dominant': crossfadeBWeight > crossfadeAWeight }\"\n      >\n        <div class=\"prompt-ab-column__head\">\n          <div class=\"prompt-ab-column__title\">B Group</div>\n          <span class=\"morph-crossfader-deck__weight\">{{ crossfadeBPercent }}%</span>\n        </div>\n        <template v-for=\"typeDef in crossfadeSlotTypes\" :key=\"'morph-b-type-' + typeDef.id\">\n          <div v-if=\"slotsOfType(typeDef.id).length\" class=\"morph-crossfader__section\">\n            <div class=\"morph-crossfader__section-label\">{{ typeDef.label }}</div>\n            <div\n              v-for=\"slot in slotsOfType(typeDef.id)\"\n              :key=\"'morph-b-' + slot.id\"\n              class=\"prompt-ab-card morph-crossfader__card\"\n            >\n              <div class=\"morph-crossfader__card-head\">\n                <div class=\"prompt-ab-card__name\">{{ slotCardTitle(slot, 'B') }}</div>\n              </div>\n              <div class=\"morph-crossfader__card-body\">\n                <template v-if=\"slot.type === 'prompt'\">\n                  <textarea class=\"framesync-input morph-crossfader__textarea\" rows=\"2\" v-model=\"slot.valueB\" placeholder=\"Prompt B\" @input=\"onPerformanceInput\"></textarea>\n                </template>\n                <template v-else-if=\"slot.type === 'param'\">\n                  <input type=\"number\" class=\"framesync-input\" v-model.number=\"slot.valueB\" step=\"any\" placeholder=\"Value B\" @input=\"onPerformanceInput\">\n                </template>\n                <template v-else-if=\"slot.type === 'lora'\">\n                  <select class=\"framesync-select\" v-model=\"slot.valueB\" @change=\"onPerformanceInput\">\n                    <option :value=\"null\">— none —</option>\n                    <option v-for=\"l in loras.available\" :key=\"'morph-b-lora-' + slot.id + l.id\" :value=\"l.name\">{{ l.name }}</option>\n                  </select>\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"slot.loraStrengthB\" @input=\"slot.loraStrengthB = parseFloat($event.target.value); onPerformanceInput()\" class=\"framesync-input prompt-ab-card__slider\">\n                  <div class=\"prompt-ab-card__value\">{{ Number(slot.loraStrengthB || 0).toFixed(2) }}</div>\n                </template>\n                <template v-else-if=\"slot.type === 'controlnet'\">\n                  <input type=\"range\" min=\"0\" max=\"2\" step=\"0.01\" :value=\"slot.valueB\" @input=\"slot.valueB = parseFloat($event.target.value); onPerformanceInput()\" class=\"framesync-input prompt-ab-card__slider\">\n                  <div class=\"prompt-ab-card__value\">{{ Number(slot.valueB || 0).toFixed(2) }}</div>\n                </template>\n              </div>\n              <div v-if=\"slotMorphedPreview(slot) !== null\" class=\"morph-crossfader__morphed\">\n                <span class=\"framesync-subtitle\">→</span>\n                <code class=\"crossfade-morphed-val\">{{ formatMorphedPreview(slot) }}</code>\n              </div>\n            </div>\n          </div>\n        </template>\n        <div v-if=\"!performance.slots.length\" class=\"prompt-ab-column__empty\">No B-side items yet</div>\n      </div>\n    </div>\n  </div>" };
-const ModulationActiveModsPanel = { props: {
-    app: { type: Object, required: true },
-  }, setup(props) { return __proxyAppView(props); }, components: { LiveParamRow: LiveParamRow }, template: "<div class=\"modulation-active-mods\">\n    <div v-if=\"!liveModulating.length\" class=\"live-hud-empty\">No active modulators</div>\n    <div v-else class=\"modulation-active-mods__list\">\n      <LiveParamRow\n        v-for=\"p in liveModulating\"\n        :key=\"'mod-active-' + p.key\"\n        :label=\"p.label\"\n        :param-key=\"p.key\"\n        :value=\"p.val\"\n        :min=\"p.min\"\n        :max=\"p.max\"\n        :source=\"p.source\"\n        :modulated=\"true\"\n      />\n    </div>\n  </div>" };
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -2331,9 +1923,9 @@ const DEFORUM_DERIVED_TOGGLE_KEYS = {
 }
 
 module.exports = {
-  template: "<div id=\"app\" :style=\"videoOverlayCssVars\">\n    <div v-if=\"restoreSessionPromptOpen\" class=\"restore-session-modal\" @click=\"onRestoreSessionBackdropClick\">\n      <div class=\"restore-session-modal__dialog framesync-panel\">\n        <div class=\"framesync-header\">\n          <div class=\"framesync-title\">Restore <span class=\"framesync-accent\">last UI state</span>?</div>\n        </div>\n        <div class=\"framesync-subtitle\" style=\"margin-top:8px;\">\n          Found a saved session state that doesn’t match the current UI defaults.\n        </div>\n        <div class=\"framesync-footer\" style=\"margin-top:12px; gap:10px; justify-content:flex-end;\">\n          <button type=\"button\" class=\"framesync-button\" @click=\"dismissSessionRestore(false)\">Discard</button>\n          <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"dismissSessionRestore(true)\">Restore</button>\n        </div>\n      </div>\n    </div>\n    <nav class=\"top-nav\" aria-label=\"Main navigation\" data-testid=\"top-nav\">\n      <div class=\"top-nav__inner\">\n        <button\n          class=\"tab\"\n          v-for=\"tab in tabs\"\n          :key=\"tab.id\"\n          :class=\"[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]\"\n          @click=\"switchTab(tab.id)\"\n        >\n          <span class=\"tab__icon-wrap\" aria-hidden=\"true\">\n            <UiIcon class=\"tab__icon\" :name=\"tab.icon\" />\n          </span>\n          <span class=\"tab__copy\">\n            <span class=\"tab__label\">{{ tab.label }}</span>\n          </span>\n        </button>\n      </div>\n      <div class=\"top-nav__actions\">\n        <button\n          type=\"button\"\n          class=\"top-nav__icon-btn\"\n          :class=\"{ 'top-nav__icon-btn--active': libraryWorkspaceOpen }\"\n          :aria-expanded=\"libraryWorkspaceOpen ? 'true' : 'false'\"\n          title=\"Library — browse videos and open the editor\"\n          data-testid=\"top-nav-library\"\n          @click=\"toggleLibraryWorkspace()\"\n        >\n          <UiIcon name=\"folder\" />\n          <span class=\"sr-only\">Library</span>\n        </button>\n      </div>\n    </nav>\n\n    <header class=\"app-header\">\n      <StatusStrip\n        :playing=\"deforumPlaying\"\n        :recording=\"isRecording\"\n        :preview-generating=\"previewGenerating\"\n        :frame-processing-active=\"showFrameProcessingInChrome\"\n        :frame-processing-label=\"frameProcessingLabel\"\n        :frame-processing-hint=\"frameProcessingHint\"\n        :preview-disabled=\"deforumPlaying\"\n        :hls-watch-enabled=\"hlsWatchEnabled\"\n        :hls-preview-valid=\"hlsPreviewStreamValid\"\n        :api-health=\"apiHealth\"\n        :gpu-active-count=\"gpuActiveCount\"\n        :gpu-total-count=\"gpuTotalCount\"\n        :midi-supported=\"midi.supported\"\n        :midi-selected=\"midi.selected\"\n        :ws-status=\"wsStatus\"\n        :session=\"session\"\n        :sessions=\"sessionCatalog\"\n        @toggle-play=\"toggleDeforumPlay\"\n        @stop-play=\"stopDeforumPlay\"\n        @toggle-record=\"toggleStreamRecord\"\n        @start-hls-watch=\"enableHlsWatch\"\n        @stop-hls-watch=\"disableHlsWatch\"\n        @generate-preview=\"generatePreviewFrame\"\n        @open-gpus=\"openGpuSettings\"\n        @toggle-ws=\"toggleCollaboration\"\n        @open-midi=\"openMidiSettings\"\n        @select-session=\"selectSession\"\n        @new-session=\"createNewSession\"\n        @purge-session=\"purgeSession\"\n        @restore-session=\"restoreSession\"\n      />\n    </header>\n\n    <div\n      v-if=\"!libraryWorkspaceOpen\"\n      class=\"live-drawer-shell live-drawer-shell--dock-top live-drawer-shell--video-anchored\"\n      :class=\"{ 'live-drawer-shell--open': rightPanelOpen }\"\n      data-testid=\"right-panel-drawer\"\n    >\n      <button\n        type=\"button\"\n        class=\"live-overlay-btn live-overlay-btn--top\"\n        :class=\"{ 'live-overlay-btn--open': rightPanelOpen }\"\n        :title=\"rightPanelOpen ? 'Hide panel' : 'Show panel'\"\n        :aria-expanded=\"rightPanelOpen ? 'true' : 'false'\"\n        data-testid=\"right-panel-toggle\"\n        @click=\"toggleRightPanel\"\n      >\n        <span class=\"live-overlay-btn__arrow-wrap\">\n          <UiIcon class=\"live-overlay-btn__state\" :name=\"rightPanelOpen ? 'chevron-left' : 'chevron-right'\" />\n        </span>\n        <span class=\"live-overlay-btn__top-label\">{{ currentTab }}</span>\n      </button>\n      <div class=\"live-right-column\" :class=\"{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }\">\n        <LiveView v-if=\"currentTab === 'LIVE'\" :app=\"appViewModel\" />\n        <PromptsView v-else-if=\"currentTab === 'PROMPTS'\" :app=\"appViewModel\" />\n        <MotionView v-else-if=\"currentTab === 'MOTION'\" :app=\"appViewModel\" />\n        <GenerateView v-else-if=\"currentTab === 'GENERATE'\" :app=\"appViewModel\" />\n        <ModulationView v-else-if=\"currentTab === 'MODULATION' || currentTab === 'AUDIO'\" :app=\"appViewModel\" />\n        <SettingsView v-else-if=\"currentTab === 'SETTINGS'\" :app=\"appViewModel\" />\n        <RunsBrowserPanel v-else-if=\"currentTab === 'RUNS'\" :app=\"appViewModel\" />\n      </div>\n    </div>\n\n\n    <aside\n      v-if=\"showEngineDrawerShell\"\n      class=\"engine-drawer-shell engine-drawer-shell--video-anchored\"\n      :class=\"{ 'engine-drawer-shell--open': liveEngineDrawerOpen }\"\n      :aria-hidden=\"liveEngineDrawerOpen ? 'false' : 'true'\"\n      data-testid=\"engine-drawer\"\n    >\n      <div class=\"engine-drawer-panel\">\n        <AnimationEnginePanel :app=\"appViewModel\" />\n      </div>\n    </aside>\n\n    <LibraryWorkspaceOverlay :app=\"appViewModel\" />\n\n    <div class=\"layout layout--sidebar\" :class=\"{\n      'layout--live': currentTab === 'LIVE',\n      'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',\n      'layout--generate-dock': currentTab === 'GENERATE',\n      'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',\n      'layout--library-workspace': libraryWorkspaceOpen,\n    }\">\n      <!-- Left: video + mini timeline -->\n      <div class=\"preview\" :class=\"{\n        'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',\n        'preview--motion-dock': currentTab === 'MOTION' || currentTab === 'GENERATE',\n        'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,\n      }\">\n        <div\n          class=\"preview-stage-row\"\n          :class=\"{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }\"\n          data-testid=\"preview-stage-row\"\n        >\n          <div class=\"preview-stage-main\">\n        <div\n          class=\"preview-stage-video-stack\"\n          ref=\"previewVideoStackRef\"\n        >\n        <div\n          class=\"video-wrap video-wrap--anchored\"\n          :class=\"{\n            'video-wrap--frame-processing': showFrameProcessingOnStage,\n            'video-wrap--hls-and-preview': showMainStageHls && showStandbyPreviewVideo,\n          }\"\n        >\n          <div\n            ref=\"videoStageRef\"\n            class=\"video-wrap__stage\"\n            :style=\"previewStageStyle\"\n            :class=\"{\n              'video-wrap__stage--preview': videoStageSize === 'small',\n              'video-wrap__stage--canvas': videoStageSize === 'medium',\n              'video-wrap__stage--full': videoStageSize === 'full',\n            }\"\n          >\n            <ThreeBackground\n              ref=\"threeBackgroundRef\"\n              data-testid=\"preview-standby-animation\"\n              :class=\"[\n                'video-wrap__default-animation',\n                {\n                  'video-wrap__default-animation--visible': showDefaultAnimation,\n                  'video-wrap__default-animation--blend-dim': isBlendLayerActive && showDefaultAnimation,\n                },\n              ]\"\n              :lfos=\"lfos\"\n              :audio-metrics=\"backgroundAudioMetrics\"\n              :active-tab=\"currentTab\"\n              :morph=\"performance.crossfader\"\n              :settings=\"defaultAnimation\"\n            />\n            <video\n              v-if=\"standbyPreviewVideoUrl\"\n              ref=\"standbyPreviewEl\"\n              class=\"video-feed video-feed--standby-preview\"\n              :class=\"{ 'video-feed--visible': showStandbyPreviewVideo }\"\n              data-testid=\"standby-preview-video\"\n              :src=\"standbyPreviewVideoUrl\"\n              muted\n              loop\n              autoplay\n              playsinline\n              preload=\"auto\"\n            ></video>\n            <img\n              v-if=\"showPreviewStill\"\n              :src=\"displayedPreviewStillPath\"\n              alt=\"Generated preview\"\n              class=\"video-still-preview\"\n              :class=\"{ 'video-still-preview--over-webgl': showForgeOverWebgl }\"\n              :style=\"forgeOverlayStyle\"\n              data-testid=\"preview-still-frame\"\n            />\n            <video\n              :class=\"['video-feed', 'video-feed--hls', { 'video-feed--visible': showDeforumVideo, 'video-feed--blended': isBlendLayerActive && showDeforumVideo }]\"\n              :style=\"showDeforumVideo && isBlendLayerActive ? forgeOverlayStyle : null\"\n              id=\"player\"\n              ref=\"videoEl\"\n              muted\n              playsinline\n            ></video>\n            <video\n              ref=\"inputVideoEl\"\n              :class=\"['video-feed', 'video-layer-input-video', { 'video-feed--visible': showLayerInputVideo }]\"\n              muted\n              playsinline\n              controls\n            ></video>\n            <div\n              v-if=\"isInputLayerActive && !activeLayerPlaybackUrl\"\n              class=\"video-layer-empty\"\n              data-testid=\"video-layer-input-empty\"\n            >\n              <span class=\"video-layer-empty__title\">Input layer</span>\n              <span class=\"framesync-subtitle\">Pick a video from the library or link a cloud source.</span>\n              <button type=\"button\" class=\"framesync-button\" @click=\"toggleVideoLayerAdd(true)\">+ Add source</button>\n            </div>\n            <div\n              v-if=\"activeVideoLayer && activeVideoLayer.kind === 'cloud'\"\n              class=\"video-layer-empty video-layer-empty--cloud\"\n            >\n              <span class=\"video-layer-empty__title\">{{ activeVideoLayer.label }}</span>\n              <span class=\"framesync-subtitle\">Cloud links open externally until direct streaming is wired in.</span>\n              <button type=\"button\" class=\"framesync-button\" @click=\"openCloudLayer(activeVideoLayer)\">Open link</button>\n            </div>\n          <div\n            v-if=\"showFrameProcessingOnStage\"\n            class=\"preview-loading-overlay\"\n            data-testid=\"frame-processing-overlay\"\n            aria-live=\"polite\"\n            aria-busy=\"true\"\n          >\n            <div class=\"preview-loading-overlay__card\">\n              <span class=\"lazy-loading-indicator lazy-loading-indicator--overlay\">\n                <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n                <span>{{ frameProcessingLabel }}</span>\n                <span class=\"lazy-loading-indicator__dots\" aria-hidden=\"true\"><span></span><span></span><span></span></span>\n              </span>\n              <span class=\"preview-loading-overlay__hint\">{{ frameProcessingHint }}</span>\n            </div>\n          </div>\n          <div class=\"overlay\">\n            <div>\n              <div class=\"timecode\">{{ timecode }}</div>\n              <div style=\"font-size:11px; color:var(--text-secondary);\">Seed {{ seedRandomEnabled ? 'Random' : hud.seed }}</div>\n              <div style=\"font-size:11px; color:var(--text-secondary);\">\n                {{ currentProjectLabel }} · {{ currentBatchLabel }}\n              </div>\n              <div\n                v-if=\"isForgeAnimationLayerActive && deforumStreamFrameLabel\"\n                class=\"video-feed-frames\"\n                data-testid=\"deforum-stream-frame-count\"\n              >\n                {{ deforumStreamFrameLabel }}\n              </div>\n            </div>\n            <div style=\"display:flex; align-items:flex-start; gap:8px; text-align:right;\">\n              <div>\n                <div>{{ masterFps }} fps</div>\n                <div style=\"font-size:11px; color:var(--text-secondary);\">lat {{ stats.lat }}ms</div>\n                <div class=\"video-feed-status\" :class=\"{ 'video-feed-status--ready': videoReady && isForgeAnimationLayerActive, 'video-feed-status--selected': isForgeAnimationLayerActive }\">\n                  {{ videoLayerStatusLabel }}\n                </div>\n              </div>\n            </div>\n          </div>\n          <div v-if=\"currentTab === 'LIVE' && pinnedParamItems.length\" class=\"live-hud-strip live-hud-strip--pinned\">\n            <GlassPanel size=\"sm\" class=\"live-hud-pinned\">\n              <template #header>Pinned</template>\n              <LiveParamRow\n                v-for=\"p in pinnedParamItems.slice(0, 4)\"\n                :key=\"'hud-pin-' + p.key\"\n                :label=\"p.label\"\n                :param-key=\"p.key\"\n                :value=\"p.val\"\n                :min=\"p.min\"\n                :max=\"p.max\"\n                :source=\"paramSources[p.key] || 'Manual'\"\n                :modulated=\"!!paramSources[p.key] && paramSources[p.key] !== 'Manual'\"\n              />\n            </GlassPanel>\n          </div>\n          <div v-if=\"currentTab === 'LIVE' && liveModulating.length\" class=\"live-hud-strip live-hud-strip--mods\">\n            <GlassPanel size=\"sm\" class=\"live-hud-modulating\">\n              <template #header>Modulating now</template>\n              <ModulationActiveModsPanel :app=\"appViewModel\" />\n            </GlassPanel>\n          </div>\n          <div v-if=\"currentTab === 'LIVE'\" class=\"live-hud-strip live-hud-strip--morph\">\n            <GlassPanel size=\"sm\" class=\"live-hud-morph\">\n              <template #header>Morph</template>\n              <MorphCrossfaderPanel :app=\"appViewModel\" />\n            </GlassPanel>\n          </div>\n          <div v-if=\"currentTab === 'LIVE' && recentRunsRail.length\" class=\"live-hud-strip live-hud-strip--runs\">\n            <div class=\"recent-runs-rail\" data-testid=\"live-recent-runs-rail\">\n              <div class=\"recent-runs-rail__header\">\n                <span class=\"recent-runs-rail__title\">Recent runs</span>\n                <button type=\"button\" class=\"recent-runs-rail__link\" @click=\"switchTab('RUNS')\">All runs</button>\n              </div>\n              <div class=\"recent-runs-rail__list\">\n                <button\n                  v-for=\"run in recentRunsRail\"\n                  :key=\"'live-rail-' + run.run_id\"\n                  type=\"button\"\n                  class=\"recent-runs-rail__item\"\n                  @click=\"openRunFromRail(run)\"\n                >\n                  <img\n                    v-if=\"runListingThumbUrl(run)\"\n                    :src=\"runListingThumbUrl(run)\"\n                    :alt=\"run.run_id\"\n                    class=\"recent-runs-rail__thumb\"\n                  >\n                  <div v-else class=\"recent-runs-rail__thumb recent-runs-rail__thumb--empty\">No preview</div>\n                  <div class=\"recent-runs-rail__meta\">\n                    <div class=\"recent-runs-rail__id\">{{ run.run_id }}</div>\n                    <div class=\"recent-runs-rail__date\">{{ formatDate(run.started_at) }}</div>\n                  </div>\n                </button>\n              </div>\n            </div>\n          </div>\n          </div>\n          <button\n            v-if=\"showEngineDrawerShell\"\n            type=\"button\"\n            class=\"engine-drawer-fab engine-drawer-fab--stage\"\n            :class=\"{ 'engine-drawer-fab--active': liveEngineDrawerOpen }\"\n            :aria-expanded=\"liveEngineDrawerOpen ? 'true' : 'false'\"\n            :title=\"liveEngineDrawerOpen ? 'Hide animation engine controls' : 'Show animation engine controls'\"\n            data-testid=\"engine-drawer-toggle\"\n            @click=\"toggleEngineDrawer\"\n          >\n            <span class=\"engine-drawer-fab__icon-wrap\" aria-hidden=\"true\">\n              <UiIcon class=\"engine-drawer-fab__icon\" :name=\"liveEngineDrawerOpen ? 'chevron-right' : 'chevron-left'\" />\n            </span>\n          </button>\n        </div>\n        </div>\n\n          <div class=\"video-layer-tabs video-layer-tabs--preview\" data-testid=\"video-layer-tabs\">\n            <button\n              v-for=\"layer in runningPreviewVideoLayers\"\n              :key=\"'preview-layer-' + layer.id\"\n              type=\"button\"\n              class=\"video-layer-tab\"\n              :class=\"{\n                active: activeVideoLayerId === layer.id,\n                'video-layer-tab--builtin': layer.builtin,\n              }\"\n              @click=\"selectVideoLayer(layer.id)\"\n            >\n              <span\n                class=\"video-layer-tab__dot\"\n                :class=\"'video-layer-tab__dot--' + layerStatus(layer)\"\n                aria-hidden=\"true\"\n              ></span>\n              <span class=\"video-layer-tab__label\">{{ layer.label }}</span>\n            </button>\n            <button\n              type=\"button\"\n              class=\"video-layer-tab video-layer-tab--add\"\n              :class=\"{ active: videoLayerAddOpen }\"\n              data-testid=\"video-layer-add-toggle\"\n              title=\"Add video source\"\n              @click=\"toggleVideoLayerAdd()\"\n            >\n              + Add source\n            </button>\n          </div>\n\n          <div\n            v-if=\"currentTab === 'LIVE' && videoLayerAddOpen\"\n            class=\"video-layer-add framesync-panel\"\n            data-testid=\"video-layer-add\"\n          >\n            <div class=\"framesync-header\">\n              <div class=\"framesync-title\">\n                <UiIcon class=\"framesync-title-icon\" name=\"plus\" />\n                <span class=\"framesync-accent\">Add source</span>\n              </div>\n              <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"toggleVideoLayerAdd(false)\">Close</button>\n            </div>\n            <p class=\"framesync-subtitle video-layer-add__hint\">\n              New sources open as preview tabs. Built-in layers: WebGL, Deforum, and Input.\n            </p>\n            <div class=\"chips video-layer-add__mode\">\n              <button\n                type=\"button\"\n                class=\"chip\"\n                :class=\"{ active: liveSourcePanel === 'library' }\"\n                @click=\"liveSourcePanel = 'library'; saveSessionState()\"\n              >\n                Library (video-swarm)\n              </button>\n              <button\n                type=\"button\"\n                class=\"chip\"\n                :class=\"{ active: liveSourcePanel === 'cloud' }\"\n                @click=\"liveSourcePanel = 'cloud'; saveSessionState()\"\n              >\n                Link cloud drive\n              </button>\n            </div>\n            <div v-if=\"liveSourceStatus\" class=\"framesync-subtitle video-layer-add__status\">{{ liveSourceStatus }}</div>\n            <div v-if=\"liveSourcePanel === 'library'\" class=\"video-layer-add__library\">\n              <div class=\"video-layer-add__actions\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"addLiveSourcesFromSelection\">Open as new layer</button>\n                <button type=\"button\" class=\"framesync-button\" @click=\"assignInputFromSelection\">Assign to Input layer</button>\n              </div>\n              <VideoSwarmBrowser :app=\"appView\" />\n            </div>\n            <div v-else class=\"video-layer-add__cloud framesync-stack\">\n              <label class=\"framesync-stack\">\n                <span class=\"framesync-subtitle\">Provider</span>\n                <select class=\"framesync-select\" v-model=\"cloudDriveDraft.provider\">\n                  <option value=\"google_drive\">Google Drive</option>\n                  <option value=\"dropbox\">Dropbox</option>\n                  <option value=\"onedrive\">OneDrive</option>\n                  <option value=\"other\">Other</option>\n                </select>\n              </label>\n              <label class=\"framesync-stack\">\n                <span class=\"framesync-subtitle\">Share link</span>\n                <input\n                  type=\"url\"\n                  class=\"framesync-input\"\n                  v-model.trim=\"cloudDriveDraft.url\"\n                  placeholder=\"https://drive.google.com/…\"\n                  @keyup.enter=\"linkCloudDriveSource\"\n                >\n              </label>\n              <button type=\"button\" class=\"framesync-button\" @click=\"linkCloudDriveSource\">Link cloud drive</button>\n            </div>\n          </div>\n\n        <!-- Local blob URL only; used to align reference audio with HLS video timeline -->\n        <audio ref=\"avSyncAudio\" data-testid=\"av-sync-audio\" :src=\"audio.objectUrl || undefined\" preload=\"auto\" style=\"display:none;\"></audio>\n\n        <div\n          v-if=\"currentTab === 'MOTION' || currentTab === 'GENERATE'\"\n          class=\"preview-bottom-dock\"\n          :class=\"{ 'preview-bottom-dock--generate': currentTab === 'GENERATE' }\"\n          data-testid=\"preview-bottom-dock\"\n        >\n          <div class=\"preview-bottom-dock__pane preview-bottom-dock__pane--sequencer\">\n            <div\n              class=\"stage-sequencer-shell\"\n              :class=\"{ 'stage-sequencer-shell--side-open': motionSequencerSideOpen }\"\n              data-testid=\"motion-sequencer-dock\"\n            >\n              <aside\n                v-show=\"motionSequencerSideOpen\"\n                class=\"stage-sequencer-side\"\n                data-testid=\"motion-sequencer-side-drawer\"\n              >\n                <div class=\"stage-sequencer-side__head\">\n                  <span class=\"stage-sequencer-side__title\">Sequencer <span class=\"framesync-accent\">Editor</span></span>\n                  <button\n                    type=\"button\"\n                    class=\"framesync-button framesync-button--compact\"\n                    title=\"Close sequencer editor\"\n                    @click=\"motionSequencerSideOpen = false; saveSessionState()\"\n                  >\n                    <UiIcon name=\"arrow-left\" />\n                  </button>\n                </div>\n                <div class=\"stage-sequencer-side__body\">\n                  <SequencerControlsPanel :app=\"appViewModel\" side-drawer />\n                </div>\n              </aside>\n              <button\n                type=\"button\"\n                class=\"stage-sequencer-side-toggle\"\n                :class=\"{ 'stage-sequencer-side-toggle--open': motionSequencerSideOpen }\"\n                :aria-expanded=\"motionSequencerSideOpen ? 'true' : 'false'\"\n                :title=\"motionSequencerSideOpen ? 'Hide sequencer editor' : 'Show sequencer editor'\"\n                data-testid=\"motion-sequencer-side-toggle\"\n                @click=\"motionSequencerSideOpen = !motionSequencerSideOpen; saveSessionState()\"\n              >\n                <UiIcon :name=\"motionSequencerSideOpen ? 'arrow-left' : 'arrow-right'\" />\n              </button>\n              <div class=\"stage-sequencer-main\">\n                <SequencerControlsPanel :app=\"appViewModel\" stage show-timeline />\n                <GenerateView\n                  v-if=\"generator.result || generator.status || performance.status || sequencerStatus\"\n                  :app=\"appViewModel\"\n                  story-only\n                />\n              </div>\n            </div>\n          </div>\n        </div>\n\n          </div>\n        </div>\n\n      </div>\n    </div>\n\n  </div>",
+  template: "<div id=\"app\">\n    <div v-if=\"restoreSessionPromptOpen\" class=\"restore-session-modal\" @click=\"onRestoreSessionBackdropClick\">\n      <div class=\"restore-session-modal__dialog framesync-panel\">\n        <div class=\"framesync-header\">\n          <div class=\"framesync-title\">Restore <span class=\"framesync-accent\">last UI state</span>?</div>\n        </div>\n        <div class=\"framesync-subtitle\" style=\"margin-top:8px;\">\n          Found a saved session state that doesn’t match the current UI defaults.\n        </div>\n        <div class=\"framesync-footer\" style=\"margin-top:12px; gap:10px; justify-content:flex-end;\">\n          <button type=\"button\" class=\"framesync-button\" @click=\"dismissSessionRestore(false)\">Discard</button>\n          <button type=\"button\" class=\"framesync-button framesync-button--live\" @click=\"dismissSessionRestore(true)\">Restore</button>\n        </div>\n      </div>\n    </div>\n    <header>\n      <StatusStrip\n        :playing=\"deforumPlaying\"\n        :recording=\"isRecording\"\n        :preview-generating=\"previewGenerating\"\n        :frame-processing-active=\"showFrameProcessingInChrome\"\n        :frame-processing-label=\"frameProcessingLabel\"\n        :frame-processing-hint=\"frameProcessingHint\"\n        :preview-disabled=\"deforumPlaying\"\n        :hls-watch-enabled=\"hlsWatchEnabled\"\n        :hls-preview-valid=\"hlsPreviewStreamValid\"\n        :api-health=\"apiHealth\"\n        :gpu-active-count=\"gpuActiveCount\"\n        :gpu-total-count=\"gpuTotalCount\"\n        :midi-supported=\"midi.supported\"\n        :midi-selected=\"midi.selected\"\n        :ws-status=\"wsStatus\"\n        :session=\"session\"\n        :sessions=\"sessionCatalog\"\n        @toggle-play=\"toggleDeforumPlay\"\n        @stop-play=\"stopDeforumPlay\"\n        @toggle-record=\"toggleStreamRecord\"\n        @start-hls-watch=\"enableHlsWatch\"\n        @stop-hls-watch=\"disableHlsWatch\"\n        @generate-preview=\"generatePreviewFrame\"\n        @open-gpus=\"openGpuSettings\"\n        @toggle-ws=\"toggleCollaboration\"\n        @open-midi=\"openMidiSettings\"\n        @select-session=\"selectSession\"\n        @new-session=\"createNewSession\"\n        @purge-session=\"purgeSession\"\n        @restore-session=\"restoreSession\"\n      />\n    </header>\n\n    <nav class=\"top-nav\" aria-label=\"Main navigation\" data-testid=\"top-nav\">\n      <div class=\"top-nav__inner\">\n        <button\n          class=\"tab\"\n          v-for=\"tab in tabs\"\n          :key=\"tab.id\"\n          :class=\"[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]\"\n          @click=\"switchTab(tab.id)\"\n        >\n          <span class=\"tab__icon-wrap\" aria-hidden=\"true\">\n            <UiIcon class=\"tab__icon\" :name=\"tab.icon\" />\n          </span>\n          <span class=\"tab__copy\">\n            <span class=\"tab__label\">{{ tab.label }}</span>\n          </span>\n        </button>\n      </div>\n    </nav>\n\n    <div\n      v-if=\"!(libraryEditorOpen && currentTab === 'LIBRARY')\"\n      class=\"live-drawer-shell live-drawer-shell--dock-top\"\n      :class=\"{ 'live-drawer-shell--open': rightPanelOpen }\"\n      data-testid=\"right-panel-drawer\"\n    >\n      <button\n        type=\"button\"\n        class=\"live-overlay-btn live-overlay-btn--top\"\n        :class=\"{ 'live-overlay-btn--open': rightPanelOpen }\"\n        :title=\"rightPanelToggleTitle\"\n        :aria-expanded=\"rightPanelOpen ? 'true' : 'false'\"\n        data-testid=\"right-panel-toggle\"\n        @click=\"toggleRightPanel\"\n      >\n        <span class=\"live-overlay-btn__arrow-wrap\">\n          <UiIcon class=\"live-overlay-btn__state\" :name=\"rightPanelToggleIcon\" />\n        </span>\n        <span class=\"live-overlay-btn__top-label\">{{ rightPanelOpen ? 'Hide panel' : 'Show panel' }}</span>\n      </button>\n      <div v-show=\"rightPanelOpen\" class=\"live-right-column\" :class=\"{ 'stage-rack-overlay': currentTab === 'MOTION' }\">\n        <LiveView v-if=\"currentTab === 'LIVE'\" :app=\"appViewModel\" />\n        <LibraryView v-else-if=\"currentTab === 'LIBRARY'\" :app=\"appViewModel\" />\n        <StreamView v-else-if=\"currentTab === 'STREAM'\" :app=\"appViewModel\" />\n        <PromptsView v-else-if=\"currentTab === 'PROMPTS'\" :app=\"appViewModel\" />\n        <MotionView v-else-if=\"currentTab === 'MOTION'\" :app=\"appViewModel\" />\n        <ModulationView v-else-if=\"currentTab === 'MODULATION'\" :app=\"appViewModel\" />\n        <SettingsView v-else-if=\"currentTab === 'SETTINGS'\" :app=\"appViewModel\" />\n      </div>\n    </div>\n\n    <div class=\"layout layout--sidebar\" :class=\"{\n      'layout--live': currentTab === 'LIVE',\n      'layout--stage': currentTab === 'MOTION',\n      'layout--studio': currentTab === 'MODULATION',\n      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',\n    }\">\n      <!-- Left: video + mini timeline -->\n      <div class=\"preview\" :class=\"{\n        'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',\n        'preview--motion-dock': currentTab === 'MOTION',\n        'preview--top-dock': liveBottomDrawerOpen && !(libraryEditorOpen && currentTab === 'LIBRARY'),\n        'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,\n      }\">\n        <div\n          v-if=\"libraryEditorOpen && currentTab === 'LIBRARY'\"\n          class=\"editor-workspace-shell\"\n          data-testid=\"editor-workspace\"\n        >\n          <div class=\"editor-workspace-shell__toolbar\">\n            <button\n              type=\"button\"\n              class=\"framesync-button framesync-button--compact\"\n              data-testid=\"close-library-editor\"\n              @click=\"closeLibraryEditor()\"\n            >\n              ← Back to Library\n            </button>\n            <span v-if=\"editorStatus\" class=\"editor-workspace-shell__status\" :class=\"{ 'editor-workspace-shell__status--live': editorStatusLive }\">\n              {{ editorStatus }}\n            </span>\n          </div>\n          <EditorView :app=\"appViewModel\" />\n        </div>\n        <div\n          v-else\n          class=\"preview-stage-row\"\n          :class=\"{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }\"\n          data-testid=\"preview-stage-row\"\n        >\n          <div class=\"preview-stage-main\">\n        <div\n          v-if=\"!(libraryEditorOpen && currentTab === 'LIBRARY')\"\n          class=\"top-drawer-shell\"\n          :class=\"{ 'top-drawer-shell--open': liveBottomDrawerOpen }\"\n          data-testid=\"bottom-drawer\"\n        >\n        <div class=\"live-top-drawer__tabs\">\n          <button\n            type=\"button\"\n            class=\"sub-pill\"\n            :class=\"{ active: liveBottomDrawerTab === 'MODULATION' }\"\n            @click=\"setLiveBottomDrawerTab('MODULATION')\"\n          >\n            MODULATION\n          </button>\n          <button\n            type=\"button\"\n            class=\"sub-pill\"\n            :class=\"{ active: liveBottomDrawerTab === 'CROSSFADER' }\"\n            @click=\"setLiveBottomDrawerTab('CROSSFADER')\"\n          >\n            CROSSFADER\n          </button>\n          <button\n            type=\"button\"\n            class=\"sub-pill\"\n            :class=\"{ active: liveBottomDrawerTab === 'SYSTEM' }\"\n            @click=\"setLiveBottomDrawerTab('SYSTEM')\"\n          >\n            SYSTEM\n          </button>\n        </div>\n          <div\n            class=\"top-drawer-panel\"\n            :class=\"{\n              'top-drawer-panel--open': liveBottomDrawerOpen,\n              'top-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',\n              'top-drawer-panel--crossfader': liveBottomDrawerOpen && liveBottomDrawerTab === 'CROSSFADER',\n            }\"\n          >\n        <div v-if=\"liveBottomDrawerTab === 'MODULATION'\" class=\"live-mod-grid\">\n            <div v-for=\"(slot, idx) in liveModulationSlots\" :key=\"'live-mod-slot-' + idx\" class=\"live-mod-slot\">\n              <div class=\"live-mod-slot__head\">\n                <span class=\"framesync-subtitle\" style=\"margin:0;\">{{ slot.label }}</span>\n                <span v-if=\"slot.mappingLabel\" class=\"live-mod-slot__map\">\n                  <UiIcon name=\"arrow-left\" />\n                  <span>{{ slot.mappingLabel }}</span>\n                </span>\n                <div class=\"live-mod-slot__actions\">\n                  <button\n                    v-if=\"slot.paramKey\"\n                    type=\"button\"\n                    class=\"framesync-button framesync-button--compact\"\n                    title=\"Remove mapping\"\n                    @click=\"clearParamMapping(slot.paramKey)\"\n                  >\n                    <UiIcon name=\"close\" />\n                  </button>\n                  <button\n                    v-if=\"slot.paramKey\"\n                    type=\"button\"\n                    class=\"framesync-button framesync-button--compact\"\n                    title=\"Add mapping\"\n                    @click=\"openModulationMapping(slot.paramKey)\"\n                  >\n                    <UiIcon name=\"sliders\" />\n                  </button>\n                </div>\n              </div>\n\n              <div v-if=\"slot.kind === 'slider'\" class=\"live-mod-slot__body\">\n                <div class=\"live-mod-slider\" :style=\"{ '--shade': `${slot.shade}` }\">\n                  <input\n                    type=\"range\"\n                    class=\"framesync-input live-mod-slider__input\"\n                    :min=\"slot.min\"\n                    :max=\"slot.max\"\n                    :step=\"slot.step\"\n                    :value=\"slot.value\"\n                    @input=\"slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)\"\n                  />\n                  <div class=\"live-mod-slider__readout\">{{ slot.valueLabel }}</div>\n                </div>\n              </div>\n\n              <div v-else-if=\"slot.kind === 'xypad'\" class=\"live-mod-slot__body\">\n                <div\n                  class=\"live-mod-pad\"\n                  @mousedown=\"livePadDown($event, slot)\"\n                  @mousemove=\"livePadMove($event, slot)\"\n                  @mouseup=\"livePadUp\"\n                  @mouseleave=\"livePadUp\"\n                  @touchstart.prevent=\"livePadDown($event, slot)\"\n                  @touchmove.prevent=\"livePadMove($event, slot)\"\n                  @touchend.prevent=\"livePadUp\"\n                >\n                  <div class=\"live-mod-pad__crosshair live-mod-pad__crosshair--x\"></div>\n                  <div class=\"live-mod-pad__crosshair live-mod-pad__crosshair--y\"></div>\n                  <div class=\"live-mod-pad__puck\" :style=\"slot.puckStyle\"></div>\n                </div>\n                <div class=\"live-mod-pad__axes\">\n                  <span class=\"framesync-subtitle\" style=\"margin:0;\">X {{ slot.xLabel }}</span>\n                  <span class=\"framesync-subtitle\" style=\"margin:0;\">Y {{ slot.yLabel }}</span>\n                </div>\n              </div>\n\n              <div v-else class=\"live-mod-slot__body\">\n                <div class=\"live-mod-knob\">\n                  <input\n                    type=\"range\"\n                    class=\"framesync-input live-mod-knob__input\"\n                    :min=\"slot.min\"\n                    :max=\"slot.max\"\n                    :step=\"slot.step\"\n                    :value=\"slot.value\"\n                    @input=\"slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)\"\n                  />\n                  <div class=\"live-mod-knob__readout\">{{ slot.valueLabel }}</div>\n                </div>\n              </div>\n            </div>\n        </div>\n\n        <CrossfaderPanel v-else-if=\"liveBottomDrawerTab === 'CROSSFADER'\" :app=\"appViewModel\" />\n\n        <div\n          v-else-if=\"liveBottomDrawerTab === 'SYSTEM'\"\n          class=\"top-drawer-system system-runs-tab\"\n          data-testid=\"bottom-drawer-system\"\n        >\n          <RunsBrowserPanel :app=\"appViewModel\" />\n        </div>\n          </div>\n        </div>\n\n        <div class=\"preview-stage-video-stack\">\n        <div\n          class=\"video-wrap video-wrap--anchored\"\n          :class=\"{\n            'video-wrap--frame-processing': showFrameProcessingOnStage,\n            'video-wrap--hls-and-preview': showMainStageHls && showStandbyPreviewVideo,\n          }\"\n        >\n          <div\n            ref=\"videoStageRef\"\n            class=\"video-wrap__stage\"\n            :class=\"{\n              'video-wrap__stage--preview': videoStageSize === 'small',\n              'video-wrap__stage--canvas': videoStageSize === 'medium',\n              'video-wrap__stage--full': videoStageSize === 'full',\n            }\"\n          >\n            <ThreeBackground\n              ref=\"threeBackgroundRef\"\n              data-testid=\"preview-standby-animation\"\n              :class=\"['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]\"\n              :lfos=\"lfos\"\n              :audio-metrics=\"backgroundAudioMetrics\"\n              :active-tab=\"currentTab\"\n              :morph=\"performance.crossfader\"\n              :settings=\"defaultAnimation\"\n            />\n            <video\n              v-if=\"standbyPreviewVideoUrl\"\n              ref=\"standbyPreviewEl\"\n              class=\"video-feed video-feed--standby-preview\"\n              :class=\"{ 'video-feed--visible': showStandbyPreviewVideo }\"\n              data-testid=\"standby-preview-video\"\n              :src=\"standbyPreviewVideoUrl\"\n              muted\n              loop\n              autoplay\n              playsinline\n              preload=\"auto\"\n            ></video>\n            <img\n              v-if=\"showPreviewStill\"\n              :src=\"displayedPreviewStillPath\"\n              alt=\"Generated preview\"\n              class=\"video-still-preview\"\n              :class=\"{ 'video-still-preview--over-webgl': showForgeOverWebgl }\"\n              :style=\"forgeOverlayStyle\"\n              data-testid=\"preview-still-frame\"\n            />\n            <video\n              :class=\"['video-feed', 'video-feed--hls', { 'video-feed--visible': showDeforumVideo, 'video-feed--blended': isBlendLayerActive && showDeforumVideo }]\"\n              :style=\"showDeforumVideo && isBlendLayerActive ? forgeOverlayStyle : null\"\n              id=\"player\"\n              ref=\"videoEl\"\n              muted\n              playsinline\n            ></video>\n            <video\n              ref=\"inputVideoEl\"\n              :class=\"['video-feed', 'video-layer-input-video', { 'video-feed--visible': showLayerInputVideo }]\"\n              muted\n              playsinline\n              controls\n            ></video>\n            <div\n              v-if=\"isInputLayerActive && !activeLayerPlaybackUrl\"\n              class=\"video-layer-empty\"\n              data-testid=\"video-layer-input-empty\"\n            >\n              <span class=\"video-layer-empty__title\">Input layer</span>\n              <span class=\"framesync-subtitle\">Pick a video from the library or link a cloud source.</span>\n              <button type=\"button\" class=\"framesync-button\" @click=\"toggleVideoLayerAdd(true)\">+ Add source</button>\n            </div>\n            <div\n              v-if=\"activeVideoLayer && activeVideoLayer.kind === 'cloud'\"\n              class=\"video-layer-empty video-layer-empty--cloud\"\n            >\n              <span class=\"video-layer-empty__title\">{{ activeVideoLayer.label }}</span>\n              <span class=\"framesync-subtitle\">Cloud links open externally until direct streaming is wired in.</span>\n              <button type=\"button\" class=\"framesync-button\" @click=\"openCloudLayer(activeVideoLayer)\">Open link</button>\n            </div>\n          <div\n            v-if=\"showFrameProcessingOnStage\"\n            class=\"preview-loading-overlay\"\n            data-testid=\"frame-processing-overlay\"\n            aria-live=\"polite\"\n            aria-busy=\"true\"\n          >\n            <div class=\"preview-loading-overlay__card\">\n              <span class=\"lazy-loading-indicator lazy-loading-indicator--overlay\">\n                <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n                <span>{{ frameProcessingLabel }}</span>\n                <span class=\"lazy-loading-indicator__dots\" aria-hidden=\"true\"><span></span><span></span><span></span></span>\n              </span>\n              <span class=\"preview-loading-overlay__hint\">{{ frameProcessingHint }}</span>\n            </div>\n          </div>\n          <div class=\"overlay\">\n            <div>\n              <div class=\"timecode\">{{ timecode }}</div>\n              <div style=\"font-size:11px; color:var(--text-secondary);\">Seed {{ seedRandomEnabled ? 'Random' : hud.seed }}</div>\n              <div style=\"font-size:11px; color:var(--text-secondary);\">\n                {{ currentProjectLabel }} · {{ currentBatchLabel }}\n              </div>\n              <div\n                v-if=\"isForgeAnimationLayerActive && deforumStreamFrameLabel\"\n                class=\"video-feed-frames\"\n                data-testid=\"deforum-stream-frame-count\"\n              >\n                {{ deforumStreamFrameLabel }}\n              </div>\n            </div>\n            <div style=\"display:flex; align-items:flex-start; gap:8px; text-align:right;\">\n              <div>\n                <div>{{ masterFps }} fps</div>\n                <div style=\"font-size:11px; color:var(--text-secondary);\">lat {{ stats.lat }}ms</div>\n                <div class=\"video-feed-status\" :class=\"{ 'video-feed-status--ready': videoReady && isForgeAnimationLayerActive, 'video-feed-status--selected': isForgeAnimationLayerActive }\">\n                  {{ videoLayerStatusLabel }}\n                </div>\n              </div>\n            </div>\n          </div>\n          <div v-if=\"currentTab === 'LIVE' && pinnedParamItems.length\" class=\"live-hud-strip live-hud-strip--pinned\">\n            <GlassPanel size=\"sm\" class=\"live-hud-pinned\">\n              <template #header>Pinned</template>\n              <LiveParamRow\n                v-for=\"p in pinnedParamItems.slice(0, 4)\"\n                :key=\"'hud-pin-' + p.key\"\n                :label=\"p.label\"\n                :param-key=\"p.key\"\n                :value=\"p.val\"\n                :min=\"p.min\"\n                :max=\"p.max\"\n                :source=\"paramSources[p.key] || 'Manual'\"\n                :modulated=\"!!paramSources[p.key] && paramSources[p.key] !== 'Manual'\"\n              />\n            </GlassPanel>\n          </div>\n          <button\n            v-if=\"!(libraryEditorOpen && currentTab === 'LIBRARY')\"\n            type=\"button\"\n            class=\"top-drawer-fab top-drawer-fab--stage\"\n            :class=\"{ 'top-drawer-fab--active': liveBottomDrawerOpen }\"\n            :aria-expanded=\"liveBottomDrawerOpen ? 'true' : 'false'\"\n            :title=\"liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'\"\n            data-testid=\"bottom-drawer-toggle\"\n            @click=\"liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()\"\n          >\n            <span class=\"top-drawer-fab__icon-wrap\" aria-hidden=\"true\">\n              <UiIcon class=\"top-drawer-fab__icon\" :name=\"liveBottomDrawerOpen ? 'chevron-up' : 'chevron-down'\" />\n            </span>\n          </button>\n          </div>\n          <button\n            v-if=\"showEngineDrawerShell\"\n            type=\"button\"\n            class=\"engine-drawer-fab engine-drawer-fab--stage\"\n            :class=\"{ 'engine-drawer-fab--active': liveEngineDrawerOpen }\"\n            :aria-expanded=\"liveEngineDrawerOpen ? 'true' : 'false'\"\n            :title=\"liveEngineDrawerOpen ? 'Hide animation engine controls' : 'Show animation engine controls'\"\n            data-testid=\"engine-drawer-toggle\"\n            @click=\"toggleEngineDrawer\"\n          >\n            <span class=\"engine-drawer-fab__icon-wrap\" aria-hidden=\"true\">\n              <UiIcon class=\"engine-drawer-fab__icon\" :name=\"liveEngineDrawerOpen ? 'chevron-right' : 'chevron-left'\" />\n            </span>\n          </button>\n        </div>\n        </div>\n\n          <div class=\"video-layer-tabs video-layer-tabs--preview\" data-testid=\"video-layer-tabs\">\n            <button\n              v-for=\"layer in runningPreviewVideoLayers\"\n              :key=\"'preview-layer-' + layer.id\"\n              type=\"button\"\n              class=\"video-layer-tab\"\n              :class=\"{\n                active: activeVideoLayerId === layer.id,\n                'video-layer-tab--builtin': layer.builtin,\n              }\"\n              @click=\"selectVideoLayer(layer.id)\"\n            >\n              <span\n                class=\"video-layer-tab__dot\"\n                :class=\"'video-layer-tab__dot--' + layerStatus(layer)\"\n                aria-hidden=\"true\"\n              ></span>\n              <span class=\"video-layer-tab__label\">{{ layer.label }}</span>\n            </button>\n            <button\n              type=\"button\"\n              class=\"video-layer-tab video-layer-tab--add\"\n              :class=\"{ active: videoLayerAddOpen }\"\n              data-testid=\"video-layer-add-toggle\"\n              title=\"Add video source\"\n              @click=\"toggleVideoLayerAdd()\"\n            >\n              + Add source\n            </button>\n          </div>\n\n          <div\n            v-if=\"currentTab === 'LIVE' && videoLayerAddOpen\"\n            class=\"video-layer-add framesync-panel\"\n            data-testid=\"video-layer-add\"\n          >\n            <div class=\"framesync-header\">\n              <div class=\"framesync-title\">\n                <UiIcon class=\"framesync-title-icon\" name=\"plus\" />\n                <span class=\"framesync-accent\">Add source</span>\n              </div>\n              <button type=\"button\" class=\"framesync-button framesync-button--compact\" @click=\"toggleVideoLayerAdd(false)\">Close</button>\n            </div>\n            <p class=\"framesync-subtitle video-layer-add__hint\">\n              New sources open as preview tabs. Built-in layers: WebGL, Deforum, and Input.\n            </p>\n            <div class=\"chips video-layer-add__mode\">\n              <button\n                type=\"button\"\n                class=\"chip\"\n                :class=\"{ active: liveSourcePanel === 'library' }\"\n                @click=\"liveSourcePanel = 'library'; saveSessionState()\"\n              >\n                Library (video-swarm)\n              </button>\n              <button\n                type=\"button\"\n                class=\"chip\"\n                :class=\"{ active: liveSourcePanel === 'cloud' }\"\n                @click=\"liveSourcePanel = 'cloud'; saveSessionState()\"\n              >\n                Link cloud drive\n              </button>\n            </div>\n            <div v-if=\"liveSourceStatus\" class=\"framesync-subtitle video-layer-add__status\">{{ liveSourceStatus }}</div>\n            <div v-if=\"liveSourcePanel === 'library'\" class=\"video-layer-add__library\">\n              <div class=\"video-layer-add__actions\">\n                <button type=\"button\" class=\"framesync-button\" @click=\"addLiveSourcesFromSelection\">Open as new layer</button>\n                <button type=\"button\" class=\"framesync-button\" @click=\"assignInputFromSelection\">Assign to Input layer</button>\n              </div>\n              <VideoSwarmBrowser :app=\"appView\" />\n            </div>\n            <div v-else class=\"video-layer-add__cloud framesync-stack\">\n              <label class=\"framesync-stack\">\n                <span class=\"framesync-subtitle\">Provider</span>\n                <select class=\"framesync-select\" v-model=\"cloudDriveDraft.provider\">\n                  <option value=\"google_drive\">Google Drive</option>\n                  <option value=\"dropbox\">Dropbox</option>\n                  <option value=\"onedrive\">OneDrive</option>\n                  <option value=\"other\">Other</option>\n                </select>\n              </label>\n              <label class=\"framesync-stack\">\n                <span class=\"framesync-subtitle\">Share link</span>\n                <input\n                  type=\"url\"\n                  class=\"framesync-input\"\n                  v-model.trim=\"cloudDriveDraft.url\"\n                  placeholder=\"https://drive.google.com/…\"\n                  @keyup.enter=\"linkCloudDriveSource\"\n                >\n              </label>\n              <button type=\"button\" class=\"framesync-button\" @click=\"linkCloudDriveSource\">Link cloud drive</button>\n            </div>\n          </div>\n\n        <!-- Local blob URL only; used to align reference audio with HLS video timeline -->\n        <audio ref=\"avSyncAudio\" data-testid=\"av-sync-audio\" :src=\"audio.objectUrl || undefined\" preload=\"auto\" style=\"display:none;\"></audio>\n\n        <div\n          v-if=\"currentTab === 'MOTION'\"\n          class=\"preview-bottom-dock\"\n          data-testid=\"preview-bottom-dock\"\n        >\n          <div class=\"preview-bottom-dock__pane preview-bottom-dock__pane--sequencer\">\n            <div\n              class=\"stage-sequencer-shell\"\n              :class=\"{ 'stage-sequencer-shell--side-open': motionSequencerSideOpen }\"\n              data-testid=\"motion-sequencer-dock\"\n            >\n              <aside\n                v-show=\"motionSequencerSideOpen\"\n                class=\"stage-sequencer-side\"\n                data-testid=\"motion-sequencer-side-drawer\"\n              >\n                <div class=\"stage-sequencer-side__head\">\n                  <span class=\"stage-sequencer-side__title\">Sequencer <span class=\"framesync-accent\">Editor</span></span>\n                  <button\n                    type=\"button\"\n                    class=\"framesync-button framesync-button--compact\"\n                    title=\"Close sequencer editor\"\n                    @click=\"motionSequencerSideOpen = false; saveSessionState()\"\n                  >\n                    <UiIcon name=\"arrow-left\" />\n                  </button>\n                </div>\n                <div class=\"stage-sequencer-side__body\">\n                  <SequencerControlsPanel :app=\"appViewModel\" side-drawer />\n                </div>\n              </aside>\n              <button\n                type=\"button\"\n                class=\"stage-sequencer-side-toggle\"\n                :class=\"{ 'stage-sequencer-side-toggle--open': motionSequencerSideOpen }\"\n                :aria-expanded=\"motionSequencerSideOpen ? 'true' : 'false'\"\n                :title=\"motionSequencerSideOpen ? 'Hide sequencer editor' : 'Show sequencer editor'\"\n                data-testid=\"motion-sequencer-side-toggle\"\n                @click=\"motionSequencerSideOpen = !motionSequencerSideOpen; saveSessionState()\"\n              >\n                <UiIcon :name=\"motionSequencerSideOpen ? 'arrow-left' : 'arrow-right'\" />\n              </button>\n              <div class=\"stage-sequencer-main\">\n                <SequencerControlsPanel :app=\"appViewModel\" stage show-timeline />\n                <GenerateView\n                  v-if=\"generator.result || generator.status || performance.status || sequencerStatus\"\n                  :app=\"appViewModel\"\n                  story-only\n                />\n              </div>\n            </div>\n          </div>\n        </div>\n\n        <!-- transport moved to top bar in LIVE -->\n\n          </div>\n\n          <aside\n            v-if=\"showEngineDrawerShell\"\n            class=\"engine-drawer-shell\"\n            :class=\"{ 'engine-drawer-shell--open': liveEngineDrawerOpen }\"\n            :aria-hidden=\"liveEngineDrawerOpen ? 'false' : 'true'\"\n            data-testid=\"engine-drawer\"\n          >\n            <div class=\"engine-drawer-panel\">\n              <AnimationEnginePanel :app=\"appViewModel\" />\n            </div>\n          </aside>\n        </div>\n\n      </div>\n    </div>\n\n  </div>",
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel, MorphCrossfaderPanel, ModulationActiveModsPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -2362,7 +1954,6 @@ module.exports = {
       rightPanelOpen: true,
       sidePanelDock: 'auto', // auto | edge | video
       sidePanelDockBounds: { top: 0, left: 0, height: 0 },
-      videoOverlayBounds: null,
       _sidePanelDockOnResize: null,
       _sidePanelDockResizeObserver: null,
       videoStageSize: 'medium', // small | medium | full
@@ -2372,8 +1963,7 @@ module.exports = {
       deforumPreloadStatus: '',
       _preloadDeforumStarted: false,
       libraryFullscreen: false,
-      libraryWorkspaceOpen: false,
-      libraryWorkspacePane: 'browser',
+      libraryEditorOpen: false,
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -2509,13 +2099,12 @@ module.exports = {
       _syncingGlobalFps: false,
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
+        { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
+        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
-        { id: "AUDIO", label: "AUDIO", hint: "Reactive", icon: "mic" },
-        { id: "RUNS", label: "RUNS", hint: "History", icon: "history" },
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
-        { id: "GENERATE", label: "GENERATE", hint: "Sequencer", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
@@ -2532,12 +2121,10 @@ module.exports = {
         { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
-        { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true },
         { id: 'blend', kind: 'blend', label: 'Both', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
-      animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
@@ -2547,7 +2134,7 @@ module.exports = {
       cloudDriveDraft: { url: '', provider: 'google_drive' },
       systemFiles: {
         roots: [],
-        rootId: 'frames',
+        rootId: 'uploads',
         currentPath: '',
         parent: '',
         folders: [],
@@ -2574,6 +2161,8 @@ module.exports = {
       videoSwarmVisibleStart: 0,
       videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
+      liveBottomDrawerOpen: false,
+      liveBottomDrawerTab: 'MODULATION',
       liveEngineDrawerOpen: true,
       restoreSessionPromptOpen: false,
       pendingSessionStateRaw: '',
@@ -2628,7 +2217,6 @@ module.exports = {
       promptStyleDraft: null,
       promptStyleSearch: "",
       promptStyleAutoExample: true,
-      promptStylePreviewGeneratingId: null,
       lcmEngine: { ...DEFAULT_LCM_ENGINE },
       prompts: {
         pos: "",
@@ -2910,8 +2498,6 @@ module.exports = {
         preferDeforumVideo: false,
         showStandbyClip: false,
         autoTransitionToDeforum: true,
-        rememberCompositorLayerOnStartup: false,
-        previewCompositorCrossfadeMs: 800,
         mode: 'instancing',
         instCount: 12000,
         beamCount: 7,
@@ -2947,10 +2533,7 @@ module.exports = {
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
         forgeLayerOpacity: 0.88,
-        forgeLayerOpacityLfoLink: null,
-        forgeLayerOpacityLfoBase: 0.88,
       },
-      frameRailRunId: null,
       thumbs: [],
       frameThumbLoadingKeys: {},
       framesTimer: null,
@@ -2991,7 +2574,6 @@ module.exports = {
       sequencerSelectedClipId: null,
       generateDockExpanded: false,
       motionSequencerSideOpen: false,
-      motionFineTuneOpen: false,
       selectedFrameIndex: -1,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
@@ -3124,9 +2706,8 @@ module.exports = {
       }));
     },
     runsMonitorActive() {
-      if (this.currentTab === 'RUNS') return true;
-      if (this.currentTab === 'SETTINGS' && (this.currentSubTab.SETTINGS === 'RUNS' || this.currentSubTab.SETTINGS === 'SYSTEM')) return true;
-      return false;
+      if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
+      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'SYSTEM';
     },
     runsLastRefreshedLabel() {
       if (!this.runsLastRefreshedAt) return '';
@@ -3173,27 +2754,7 @@ module.exports = {
       return '/hls/live/deforum.m3u8';
     },
     frameStripThumbs() {
-      const runId = this.frameRailRunId;
-      const detail = this.runsDetailView;
-      if (
-        runId
-        && detail
-        && detail.run_id === runId
-        && Array.isArray(detail.frames)
-        && detail.frames.length
-      ) {
-        return detail.frames.map((name, idx) => {
-          const frameName = String(name);
-          const src = `/api/runs/${encodeURIComponent(detail.run_id)}/frames/${encodeURIComponent(frameName)}`;
-          return { name: frameName, src, url: src, path: src, frame: idx + 1 };
-        });
-      }
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
-    },
-    frameRailSourceLabel() {
-      const runId = this.frameRailRunId;
-      if (!runId) return '';
-      return `Run ${runId}`;
     },
     framesEmptyStatus() {
       const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
@@ -3325,89 +2886,23 @@ module.exports = {
       return this.rightPanelOpen;
     },
     showEngineDrawerShell() {
-      return !this.libraryWorkspaceOpen;
-    },
-    libraryEditorOpen: {
-      get() {
-        return this.libraryWorkspaceOpen && this.libraryWorkspacePane === 'editor';
-      },
-      set(value) {
-        if (value) {
-          this.libraryWorkspaceOpen = true;
-          this.libraryWorkspacePane = 'editor';
-        } else if (this.libraryWorkspacePane === 'editor') {
-          this.libraryWorkspaceOpen = false;
-        }
-      },
+      return !(this.libraryEditorOpen && this.currentTab === 'LIBRARY');
     },
     sidePanelUsesEdgeDock() {
       const mode = this.sidePanelDock || 'auto';
       if (mode === 'edge') return true;
       if (mode === 'video') return false;
-      if (this.libraryWorkspaceOpen) return true;
+      if (this.libraryEditorOpen && this.currentTab === 'LIBRARY') return true;
       return this.currentTab === 'LIVE' && this.videoStageSize === 'full';
     },
     rightPanelToggleIcon() {
-      return this.rightPanelOpen ? 'chevron-left' : 'chevron-right';
+      return this.rightPanelOpen ? 'chevron-up' : 'chevron-down';
     },
     rightPanelToggleTitle() {
-      return this.rightPanelOpen ? 'Hide tab panel' : 'Show tab panel';
-    },
-    videoOverlayCssVars() {
-      const b = this.videoOverlayBounds;
-      const compositor = this.previewStageStyle || {};
-      if (!b || !Number(b.height) || b.height < 8) return Object.keys(compositor).length ? compositor : null;
-      return {
-        '--video-overlay-top': `${b.top}px`,
-        '--video-overlay-left': `${b.left}px`,
-        '--video-overlay-width': `${b.width}px`,
-        '--video-overlay-height': `${b.height}px`,
-        '--video-overlay-right': `${b.right}px`,
-        ...compositor,
-      };
-    },
-    previewStageStyle() {
-      const ms = Math.max(
-        0,
-        Math.min(5000, Math.round(Number(this.defaultAnimation?.previewCompositorCrossfadeMs) || 800)),
-      );
-      const forgeOpacity = this.effectiveForgeLayerOpacity;
-      return {
-        '--preview-compositor-crossfade-ms': `${ms}ms`,
-        '--preview-forge-layer-opacity': String(forgeOpacity),
-      };
-    },
-    runsPromptDiff() {
-      if (!Array.isArray(this.runsSelected) || this.runsSelected.length !== 2) return null;
-      const [idA, idB] = this.runsSelected;
-      const runA = (this.runsAll || []).find((r) => r.run_id === idA);
-      const runB = (this.runsAll || []).find((r) => r.run_id === idB);
-      if (!runA || !runB) return null;
-      return this.buildRunsPromptDiff(runA, runB);
-    },
-    sidePanelDockStyle() {
-      if (this.sidePanelUsesEdgeDock) return null;
-      const b = this.sidePanelDockBounds || {};
-      const top = Number(b.top);
-      const left = Number(b.left);
-      const height = Number(b.height);
-      if (!Number.isFinite(height) || height < 8) return null;
-      return {
-        top: `${Number.isFinite(top) ? top : 0}px`,
-        left: `${Number.isFinite(left) ? left : 0}px`,
-        height: `${height}px`,
-      };
-    },
-    videoOverlayCssVars() {
-      const b = this.videoOverlayBounds;
-      if (!b || !Number(b.height) || b.height < 8) return null;
-      return {
-        '--video-overlay-top': `${b.top}px`,
-        '--video-overlay-left': `${b.left}px`,
-        '--video-overlay-width': `${b.width}px`,
-        '--video-overlay-height': `${b.height}px`,
-        '--video-overlay-right': `${b.right}px`,
-      };
+      if (this.sidePanelUsesEdgeDock) {
+        return this.rightPanelOpen ? 'Collapse panel' : 'Expand panel';
+      }
+      return this.rightPanelOpen ? 'Collapse controls' : 'Show controls';
     },
     sidePanelDockStyle() {
       if (this.sidePanelUsesEdgeDock) return null;
@@ -3426,7 +2921,13 @@ module.exports = {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
     },
     showMainStageHls() {
-      return this.hlsWatchEnabled;
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+    },
+    canStartHlsWatch() {
+      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
+    },
+    showMainStageHls() {
+      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
     },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
@@ -3439,7 +2940,7 @@ module.exports = {
       if (!this.standbyPreviewVideoUrl) return false;
       const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
       if (!showClip && !this.showMainStageHls) return false;
-      if (this.libraryWorkspaceOpen) return false;
+      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -3471,14 +2972,9 @@ module.exports = {
       return list.filter(
         (style) =>
           String(style.name || "").toLowerCase().includes(q)
-          || String(style.description || "").toLowerCase().includes(q)
-          || String(style.previewPrompt || "").toLowerCase().includes(q)
           || String(style.positive || "").toLowerCase().includes(q)
           || String(style.negative || "").toLowerCase().includes(q),
       );
-    },
-    promptStyleDraftPreviewPrompt() {
-      return stylePreviewPromptFor(this.promptStyleDraft);
     },
     builtinEngineLayers() {
       return (Array.isArray(this.videoLayers) ? this.videoLayers : []).filter((layer) => layer && layer.builtin);
@@ -3523,33 +3019,9 @@ module.exports = {
     isWanLayerActive() {
       return this.activeVideoLayer?.kind === 'wan';
     },
-    isAnimateLcmLayerActive() {
-      return this.activeVideoLayer?.kind === 'animatelcm';
-    },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
-      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm';
-    },
-    activeAnimationPlugin() {
-      return pluginByLayerKind(this.activeVideoLayer?.kind) || null;
-    },
-    activeAnimationPluginId() {
-      return this.activeAnimationPlugin?.id || null;
-    },
-    animationPluginList() {
-      return ANIMATION_PLUGINS;
-    },
-    animateLcmMotionTypes() {
-      return ANIMATELCM_MOTION_TYPES;
-    },
-    animateLcmControlFields() {
-      return ANIMATELCM_CONTROL_FIELDS;
-    },
-    commonVisualItems() {
-      return this.commonVisualItemsForPlugin(this.activeAnimationPluginId);
-    },
-    pluginModulationTargets() {
-      return allPluginModulationTargets();
+      return kind === 'deforum' || kind === 'wan';
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
@@ -3598,14 +3070,6 @@ module.exports = {
         if (this.showDeforumVideo) return `WAN live · ${model}${frameSuffix}`;
         if (this.deforumPlaying) return `WAN generating · ${model}${frameSuffix}`;
         return `WAN Video · ${model}`;
-      }
-      if (layer.kind === 'animatelcm') {
-        const frames = this.deforumGeneratedFrameCount;
-        const frameSuffix = frames ? ` · ${frames} frame${frames === 1 ? '' : 's'}` : '';
-        const motion = String(this.animateLcmEngine?.motion_type || 'pan');
-        if (this.showDeforumVideo) return `AnimateLCM live · ${motion}${frameSuffix}`;
-        if (this.deforumPlaying) return `AnimateLCM generating · ${motion}${frameSuffix}`;
-        return `AnimateLCM · ${motion}`;
       }
       if (layer.kind === 'input') {
         return this.activeLayerPlaybackUrl ? `Input · ${this.inputLayerLabel || 'Video'}` : 'Input · no source';
@@ -4362,7 +3826,7 @@ module.exports = {
       return 'Very strong';
     },
     modulationTargets() {
-      return [...this.lfoTargets, ...this.animationTargets, ...this.pluginModulationTargets];
+      return [...this.lfoTargets, ...this.animationTargets];
     },
     lfoTargetGroups() {
       const groups = {};
@@ -4619,19 +4083,23 @@ module.exports = {
     showDeforumVideo(visible) {
       if (visible) this.clearHeldPreviewFrame();
     },
+    currentTab() {
+      this.syncRunsMonitorPolling();
+    },
     'currentSubTab.SETTINGS'(sub) {
       if (this.currentTab !== 'SETTINGS') return;
       this.syncRunsMonitorPolling();
       if (sub === 'SYSTEM') void this.refreshRuns();
-      if (sub === 'RUNS') void this.refreshRuns();
-      if (sub === 'OUTPUT') void this.refreshStreamStatus();
     },
     runsAutoRefresh() {
       this.syncRunsMonitorPolling();
       this.saveSessionState();
     },
+    liveBottomDrawerOpen() {
+      this.syncRunsMonitorPolling();
+    },
     liveEngineDrawerOpen(open) {
-      this.$nextTick(() => this.updateVideoOverlayBounds());
+      this.$nextTick(() => this.updateSidePanelDockBounds());
       if (open) void this.preloadDeforumPipeline();
     },
     liveAnimationBoxOpen(open) {
@@ -4640,12 +4108,14 @@ module.exports = {
     enginePanelDetailsOpen(open) {
       if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
     },
-    currentTab(tab, prev) {
+    liveBottomDrawerTab(tab) {
+      if (tab === 'SYSTEM') void this.refreshRuns();
       this.syncRunsMonitorPolling();
-      this.updateVideoOverlayBounds();
-      this.updateSidePanelDockBounds();
-      if (tab === 'RUNS') void this.refreshRuns();
-      if (tab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'OUTPUT') void this.refreshStreamStatus();
+    },
+    currentTab(tab, prev) {
+      if (prev === "STREAM" && tab !== "STREAM") {
+        this.disableHlsWatch();
+      }
     },
     hlsPreviewStreamValid(valid) {
       if (!valid && this.hlsWatchEnabled) {
@@ -4663,27 +4133,16 @@ module.exports = {
       this.$nextTick(() => this.bindSidePanelDockTracking());
     },
     videoStageSize() {
-      this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
     },
-    libraryWorkspaceOpen() {
-      this.updateVideoOverlayBounds();
+    libraryEditorOpen() {
       this.updateSidePanelDockBounds();
     },
-    libraryWorkspacePane() {
-      this.updateVideoOverlayBounds();
+    currentTab() {
       this.updateSidePanelDockBounds();
-    },
-    runsMonitorActive(active) {
-      if (active) this.ensureRunsJobLogReady();
-      this.syncRunsMonitorPolling();
     },
     rightPanelOpen() {
-      this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
-    },
-    motionSequencerSideOpen() {
-      this.updateVideoOverlayBounds();
     },
   },
   mounted() {
@@ -4695,9 +4154,9 @@ module.exports = {
       if (typeof window !== 'undefined' && window.localStorage) {
         const savedTab = window.localStorage.getItem('defora_tab');
         if (savedTab === 'EDITOR') {
-          this.openLibraryWorkspace('editor');
-        } else if (savedTab === 'LIBRARY') {
-          this.openLibraryWorkspace('browser');
+          this.currentTab = 'LIBRARY';
+          this.libraryEditorOpen = true;
+          window.localStorage.setItem('defora_tab', 'LIBRARY');
         }
       }
     } catch (_e) {}
@@ -4710,26 +4169,21 @@ module.exports = {
     this.loadBindings();
     this.refreshPresets();
     this.refreshSharedPresets();
-    const quiet = this.isQuietStartup();
-    if (!quiet) {
-      this.refreshGpuPool(false);
-      this.loadControlNetModels();
-    }
+    this.refreshGpuPool(false);
+    this.loadControlNetModels();
     this.refreshPlugins();
     void this.loadPromptStyles();
     this.syncDeforumSettingsJson();
     const deforumSettingsPromise = this.loadDeforumSettings({ syncServerModel: false });
-    const forgeRefreshPromise = quiet ? Promise.resolve() : this.refreshForgeAll();
+    const forgeRefreshPromise = this.refreshForgeAll();
     deforumSettingsPromise.finally(() => {
-      if (!quiet && !this.deforumPlaying) this.schedulePreviewFrame();
-      if (!quiet) void this.preloadDeforumPipeline();
+      if (!this.deforumPlaying) this.schedulePreviewFrame();
+      void this.preloadDeforumPipeline();
     });
     Promise.allSettled([deforumSettingsPromise, forgeRefreshPromise]).then(() => {
-      if (!quiet) {
-        this.restoreLastModel();
-        void this.ensureDefaultForgeModelPreloaded();
-        void this.preloadDeforumPipeline();
-      }
+      this.restoreLastModel();
+      void this.ensureDefaultForgeModelPreloaded();
+      void this.preloadDeforumPipeline();
     });
     this.scanMidi();
     this.connectWebSocket();
@@ -4746,14 +4200,12 @@ module.exports = {
         });
       };
       scheduleFramesPoll();
-      if (!quiet) {
-        const scheduleHealthPoll = () => {
-          this.refreshApiHealth().finally(() => {
-            this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
-          });
-        };
-        scheduleHealthPoll();
-      }
+      const scheduleHealthPoll = () => {
+        this.refreshApiHealth().finally(() => {
+          this.apiStatusTimer = setTimeout(scheduleHealthPoll, this.apiHealthBackoffMs || 15000);
+        });
+      };
+      scheduleHealthPoll();
     }
     this.playbackTimer = setInterval(() => this.ensureLivePlayback(), 4000);
     this.lfoTimer = setInterval(() => this.runLfos(), 120);
@@ -4768,7 +4220,7 @@ module.exports = {
       this.bindSidePanelDockTracking();
     });
     this.initPromptHistory();
-    if (!quiet) this.refreshServiceHealth();
+    this.refreshServiceHealth();
     this.syncRunsMonitorPolling();
   },
   beforeUnmount() {
@@ -4798,10 +4250,6 @@ module.exports = {
     }
   },
   methods: {
-
-  isQuietStartup() {
-    return typeof window !== 'undefined' && window.__DEFORA_QUIET__ === 1;
-  },
 
   cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -5004,7 +4452,7 @@ module.exports = {
       let res = await fetch('/api/deforum/warmup', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ maxFrames: 24, fps: 24 }),
+        body: JSON.stringify({ maxFrames: 24, fps: 12 }),
       });
       let data = res.ok ? await res.json() : null;
       if (res.ok && data && data.ok && data.batchId) {
@@ -5137,36 +4585,26 @@ module.exports = {
   },
   openRunsSettings() {
     this.switchTab('SETTINGS');
-    this.switchSubTab('SETTINGS', 'RUNS');
+    this.switchSubTab('SETTINGS', 'SYSTEM');
     this.runsBrowserTab = 'active';
     void this.refreshRuns();
     this.syncRunsMonitorPolling();
   },
   openRecentRun(run) {
     if (!run) return;
-    this.switchTab('RUNS');
+    this.liveBottomDrawerOpen = true;
+    this.setLiveBottomDrawerTab('SYSTEM');
     this.showRunDetails(run);
   },
   openRunsDrawerSystem() {
-    this.switchTab('RUNS');
+    this.liveBottomDrawerOpen = true;
+    this.setLiveBottomDrawerTab('SYSTEM');
   },
   openFramesInRunsPanel() {
-    this.switchTab('RUNS');
+    this.liveBottomDrawerOpen = true;
+    this.liveBottomDrawerTab = 'SYSTEM';
     this.setRunsBrowserTab('frames');
     this.syncRunsMonitorPolling();
-  },
-  openRunFromRail(run) {
-    if (!run) return;
-    this.switchTab('RUNS');
-    this.showRunDetails(run);
-  },
-  runRailSummary(run) {
-    if (!run) return '';
-    const tag = run.tag || run.notes || '';
-    if (tag) return String(tag).slice(0, 48);
-    const prompt = run.prompt_positive || '';
-    if (prompt) return String(prompt).slice(0, 48);
-    return '';
   },
   applyRunsFilters() {
     let filtered = (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued');
@@ -5215,40 +4653,9 @@ module.exports = {
       const res = await fetch(`/api/runs/${run.run_id}`);
       if (!res.ok) return;
       this.runsDetailView = await res.json();
-      this.syncCompositorAndFrameRailFromRun(this.runsDetailView);
     } catch (_e) {
       this.runsStatus = "Failed to load run details";
     }
-  },
-  closeRunsDetailView() {
-    this.runsDetailView = null;
-    this.frameRailRunId = null;
-  },
-  syncCompositorAndFrameRailFromRun(run) {
-    if (!run || run._isBatch) return;
-    this.frameRailRunId = run.run_id;
-    const hasVideo = !!(
-      run.has_video
-      || run.primary_video
-      || (Array.isArray(run.videos) && run.videos.length)
-      || (run.outputs || []).some((o) => o && o.kind === 'video')
-    );
-    const hasFrames = !!(
-      run.has_frames
-      || (Array.isArray(run.frames) && run.frames.length)
-      || (run.outputs || []).some((o) => o && o.kind === 'frames')
-    );
-    if (hasVideo && hasFrames) {
-      this.selectVideoLayer('blend', { userInitiated: false });
-    } else if (hasVideo) {
-      this.selectVideoLayer('deforum', { userInitiated: false });
-    } else if (hasFrames) {
-      this.selectVideoLayer('deforum', { userInitiated: false });
-    }
-    this.$nextTick(() => {
-      const thumbs = this.frameStripThumbs;
-      if (thumbs.length) this.selectFrame(thumbs.length - 1, { userInitiated: false });
-    });
   },
   onRunRowClick(run, event) {
     if (!run) return;
@@ -5283,7 +4690,7 @@ module.exports = {
     const browsePath = framesOut?.browse_path || null;
     const rootId = framesOut?.rootId || "runs";
     if (!browsePath) return;
-    this.openLibraryWorkspace('browser');
+    this.currentTab = "LIBRARY";
     this.librarySubTab = "BROWSER";
     await this.initSystemFilesBrowser();
     await this.browseSystemFiles(browsePath, { rootId });
@@ -5591,39 +4998,27 @@ module.exports = {
    this.rightPanelOpen = !this.rightPanelOpen;
    this.liveDrawerOpen = this.rightPanelOpen;
    this.saveSessionState();
-   this.$nextTick(() => this.updateVideoOverlayBounds());
  },
  toggleEngineDrawer() {
    this.liveEngineDrawerOpen = !this.liveEngineDrawerOpen;
    this.saveSessionState();
-   this.$nextTick(() => this.updateVideoOverlayBounds());
+   this.$nextTick(() => this.updateSidePanelDockBounds());
  },
- updateVideoOverlayBounds() {
+ updateSidePanelDockBounds() {
    this.$nextTick(() => {
-     const el = this.$refs.previewVideoStackRef || this.$refs.videoStageRef;
+     if (this.sidePanelUsesEdgeDock) return;
+     const el = this.$refs.videoStageRef;
      if (!el || typeof el.getBoundingClientRect !== 'function') return;
      const rect = el.getBoundingClientRect();
-     if (rect.width < 8 || rect.height < 8) return;
-     this.videoOverlayBounds = {
-       top: rect.top,
-       left: rect.left,
-       right: rect.right,
-       bottom: rect.bottom,
-       width: rect.width,
-       height: rect.height,
-     };
+     if (rect.height < 8) return;
      this.sidePanelDockBounds = { top: rect.top, left: rect.left, height: rect.height };
    });
  },
- updateSidePanelDockBounds() {
-   this.updateVideoOverlayBounds();
- },
  bindSidePanelDockTracking() {
    if (typeof window === 'undefined') return;
-   const run = () => this.updateVideoOverlayBounds();
+   const run = () => this.updateSidePanelDockBounds();
    if (!this._sidePanelDockOnResize) {
      window.addEventListener('resize', run, { passive: true });
-     window.addEventListener('scroll', run, { passive: true });
      this._sidePanelDockOnResize = run;
    }
    if (this._sidePanelDockResizeObserver) {
@@ -5631,10 +5026,10 @@ module.exports = {
      this._sidePanelDockResizeObserver = null;
    }
    if (typeof ResizeObserver === 'function') {
-     const targets = [this.$refs.previewVideoStackRef, this.$refs.videoStageRef].filter(Boolean);
-     if (targets.length) {
+     const el = this.$refs.videoStageRef;
+     if (el) {
        this._sidePanelDockResizeObserver = new ResizeObserver(run);
-       targets.forEach((target) => this._sidePanelDockResizeObserver.observe(target));
+       this._sidePanelDockResizeObserver.observe(el);
      }
    }
    run();
@@ -5650,30 +5045,41 @@ module.exports = {
    }
  },
  switchTab(id) {
-   if (id === 'EDITOR' || id === 'LIBRARY') {
-     this.openLibraryWorkspace(id === 'EDITOR' ? 'editor' : 'browser');
-     return;
+   if (id === 'EDITOR') {
+     id = 'LIBRARY';
    }
-   if (id === 'STREAM') {
-     this.currentTab = 'SETTINGS';
-     this.switchSubTab('SETTINGS', 'OUTPUT');
-     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'SETTINGS'); } catch (_e) {}
-     void this.refreshStreamStatus();
+   if (id === 'GENERATE') {
+     this.currentTab = 'MOTION';
+     this.currentSubTab.MOTION = 'PERFORMANCE';
+     this.motionSequencerSideOpen = true;
+     try {
+       if (typeof window !== 'undefined' && window.localStorage) {
+         window.localStorage.setItem('defora_tab', 'MOTION');
+         window.localStorage.setItem('defora_subtab_MOTION', 'PERFORMANCE');
+       }
+     } catch (_e) {}
      this.saveSessionState();
      return;
    }
-   this.currentTab = id;
    if (id === 'AUDIO') {
+     this.currentTab = 'MODULATION';
      this.currentSubTab.MODULATION = 'AUDIO_REACTIVE';
-   }
-   if (id === 'GENERATE') {
-     this.motionSequencerSideOpen = true;
+     try {
+       if (typeof window !== 'undefined' && window.localStorage) {
+         window.localStorage.setItem('defora_tab', 'MODULATION');
+         window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO_REACTIVE');
+       }
+     } catch (_e) {}
+     return;
    }
    if (id === 'RUNS') {
-     this.runsBrowserTab = this.runsBrowserTab || 'active';
-     void this.refreshRuns();
-     this.syncRunsMonitorPolling();
+     this.openRunsDrawerSystem();
+     return;
    }
+   if (id !== 'LIBRARY') {
+     this.libraryEditorOpen = false;
+   }
+   this.currentTab = id;
    if (id === 'MOTION') {
      this.$nextTick(() => {
        this.refreshSequencerList();
@@ -5681,6 +5087,12 @@ module.exports = {
      });
    }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
+  if (id === 'LIBRARY') {
+    void this.initSystemFilesBrowser();
+  }
+  if (id === 'STREAM') {
+    void this.refreshStreamStatus();
+  }
  },
  normalizeModulationSubTab(sub) {
    if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
@@ -5702,10 +5114,13 @@ module.exports = {
   return sub === 'PERFORMANCE' ? sub : 'PERFORMANCE';
  },
  switchSubTab(tab, sub) {
+  if (tab === 'SETTINGS' && sub === 'RUNS') {
+    this.openRunsSettings();
+    return;
+  }
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
-  if (tab === 'SETTINGS' && sub === 'SYSTEM') sub = 'RUNS';
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
   if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
   if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
@@ -5737,20 +5152,32 @@ module.exports = {
     void this.initSystemFilesBrowser();
   }
   if (tab === 'SETTINGS') {
-    if (sub === 'RUNS') void this.refreshRuns();
+    if (sub === 'SYSTEM') void this.refreshRuns();
     this.syncRunsMonitorPolling();
   }
  },
  setRunsBrowserTab(tab) {
   if (tab !== 'active' && tab !== 'past' && tab !== 'frames') return;
   this.runsBrowserTab = tab;
-  if (tab === 'active') this.ensureRunsJobLogReady();
   if (tab === 'frames') {
     this.showFrames = true;
     void this.refreshFrames();
   } else if (tab === 'active' || tab === 'past') {
     void this.refreshRuns();
   }
+  this.saveSessionState();
+ },
+ setLiveBottomDrawerTab(tab) {
+  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
+  this.liveBottomDrawerTab = tab;
+  if (tab === 'SYSTEM') {
+    void this.refreshRuns();
+  } else if (tab !== 'CROSSFADER') {
+    this.loraCrossfaderPickerGroup = null;
+  } else if (!this.lorasLoading && !this.loras.available.length) {
+    this.refreshLoras();
+  }
+  this.syncRunsMonitorPolling();
   this.saveSessionState();
  },
  toggleLoraCrossfaderPicker(group) {
@@ -6045,11 +5472,6 @@ normalizeDefaultAnimationSettings(input = {}) {
     preferDeforumVideo: !!next.preferDeforumVideo,
     showStandbyClip: !!next.showStandbyClip,
     autoTransitionToDeforum: next.autoTransitionToDeforum !== false,
-    rememberCompositorLayerOnStartup: !!next.rememberCompositorLayerOnStartup,
-    previewCompositorCrossfadeMs: Math.max(
-      0,
-      Math.min(5000, Math.round(Number(next.previewCompositorCrossfadeMs) || 800)),
-    ),
     mode,
     instCount: Math.max(1000, Math.min(50000, Math.round(Number(next.instCount) || 12000))),
     beamCount: Math.max(3, Math.min(12, Math.round(Number(next.beamCount) || 7))),
@@ -6087,21 +5509,6 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
     forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
-    forgeLayerOpacityLfoLink: (() => {
-      const id = Number(next.forgeLayerOpacityLfoLink || 0);
-      return id >= 1 && id <= 6 ? id : null;
-    })(),
-    forgeLayerOpacityLfoBase: Math.max(
-      0,
-      Math.min(
-        1,
-        Number.isFinite(Number(next.forgeLayerOpacityLfoBase))
-          ? Number(next.forgeLayerOpacityLfoBase)
-          : Number.isFinite(Number(next.forgeLayerOpacity))
-            ? Number(next.forgeLayerOpacity)
-            : 0.88,
-      ),
-    ),
   };
 },
 onDefaultAnimationInput() {
@@ -6188,133 +5595,10 @@ syncHudMotionFromParam(hudKey, value) {
 },
 modulationTargetByKey(key) {
   if (!key) return null;
-  const parsed = parseCommonVisualModKey(key);
-  if (parsed) {
-    const pluginTarget = this.pluginModulationTargets.find((t) => t.key === key);
-    if (pluginTarget) return pluginTarget;
-  }
-  if (String(key).includes('.')) {
-    const pluginTarget = this.pluginModulationTargets.find((t) => t.key === key);
-    if (pluginTarget) return pluginTarget;
-  }
-  const legacy = legacyModKeyAliases();
-  if (legacy[key]) {
-    const resolved = this.pluginModulationTargets.find((t) => t.key === legacy[key]);
-    if (resolved) return resolved;
-  }
   const canonical = this.liveParamCanonicalKey(key);
   return this.lfoTargets.find((t) => t.key === canonical || t.key === key)
     || this.animationTargets.find((t) => t.key === canonical || t.key === key)
     || null;
-},
-readCommonVisualValue(pluginId, paramId) {
-  const binding = bindingFor(pluginId, paramId);
-  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
-  const fallback = param?.default ?? 0;
-  if (binding.type === 'disabled') return fallback;
-  if (binding.type === 'animation') {
-    const v = Number(this.defaultAnimation?.[binding.field]);
-    return Number.isFinite(v) ? v : fallback;
-  }
-  if (binding.type === 'schedule') {
-    const frame = this.motionSmoothnessStartFrame();
-    return readScheduleValueAtFrame(this.deforumSettings?.[binding.key], frame);
-  }
-  if (binding.type === 'wan') {
-    const v = Number(this.wanEngine?.[binding.key]);
-    return Number.isFinite(v) ? v : fallback;
-  }
-  if (binding.type === 'animatelcm') {
-    const v = Number(this.animateLcmEngine?.[binding.key]);
-    return Number.isFinite(v) ? v : fallback;
-  }
-  return fallback;
-},
-writeCommonVisualValue(pluginId, paramId, rawValue) {
-  const binding = bindingFor(pluginId, paramId);
-  if (binding.type === 'disabled') return;
-  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
-  const num = this.clampVal(Number(rawValue), param?.min ?? 0, param?.max ?? 1);
-  if (!Number.isFinite(num)) return;
-  if (binding.type === 'animation') {
-    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
-      ...this.defaultAnimation,
-      [binding.field]: num,
-    });
-    this.saveSessionState();
-    return;
-  }
-  if (binding.type === 'schedule') {
-    const schedule = formatScheduleKeyframes([{ frame: 0, value: num }]);
-    this.onDeforumFieldInput(binding.key, schedule, 'text');
-    if (!this.deforumPlaying) this.schedulePreviewFrame();
-    return;
-  }
-  if (binding.type === 'wan') {
-    this.onWanEngineFieldChange(binding.key, num, 'number');
-    return;
-  }
-  if (binding.type === 'animatelcm') {
-    this.onAnimateLcmFieldChange(binding.key, num, 'number');
-  }
-},
-onCommonVisualInput(paramId, rawValue, pluginIdOverride) {
-  const pluginId = pluginIdOverride || this.activeAnimationPluginId;
-  if (!pluginId) return;
-  this.writeCommonVisualValue(pluginId, paramId, rawValue);
-},
-commonVisualItemsForPlugin(pluginId) {
-  if (!pluginId) return [];
-  return COMMON_VISUAL_PARAMS.map((p) => {
-    const disabled = !isCommonVisualEnabled(pluginId, p.id);
-    const value = disabled ? p.default : this.readCommonVisualValue(pluginId, p.id);
-    const readout = Number.isFinite(value)
-      ? (Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2))
-      : '—';
-    return { ...p, paramId: p.id, value, readout, disabled };
-  });
-},
-onAnimateLcmFieldChange(key, rawValue, type = 'text') {
-  if (!key || !this.animateLcmEngine) return;
-  let next = rawValue;
-  if (type === 'boolean') {
-    next = !!rawValue;
-  } else if (type === 'number') {
-    const num = Number(rawValue);
-    if (!Number.isFinite(num)) return;
-    next = num;
-  } else {
-    next = String(rawValue ?? '');
-  }
-  this.animateLcmEngine = normalizeAnimateLcmEngine({ ...this.animateLcmEngine, [key]: next });
-  this.syncDeforumSettingsJson();
-  this.saveSessionState();
-  this.queueDeforumSettingsSave();
-  if (!this.deforumPlaying) this.scheduleDeforumPreview();
-},
-setAnimateLcmMotionType(typeId) {
-  if (!this.animateLcmEngine) return;
-  this.animateLcmEngine = normalizeAnimateLcmEngine({
-    ...this.animateLcmEngine,
-    motion_type: String(typeId || 'pan'),
-  });
-  this.saveSessionState();
-  this.queueDeforumSettingsSave();
-},
-applyAnimateLcmMotionPreset(name) {
-  if (!name || !this.motionPresets?.[name]) return;
-  const preset = this.motionPresets[name];
-  this.animateLcmEngine = normalizeAnimateLcmEngine({
-    ...this.animateLcmEngine,
-    motion_preset: name,
-    alcm_pan_x: Number(preset.translation_x) || 0,
-    alcm_pan_y: Number(preset.translation_y) || 0,
-    alcm_zoom: Number(preset.translation_z) ? 1 + Number(preset.translation_z) * 0.1 : 1,
-    alcm_motion_amount: name === 'Static' ? 0 : 1,
-  });
-  this.saveSessionState();
-  this.queueDeforumSettingsSave();
-  if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
 isAnimationModKey(key) {
   return typeof key === 'string' && key.startsWith('anim_');
@@ -6327,21 +5611,6 @@ applyAnimationModulation(field, value) {
   });
 },
 routeModulationValue(key, value, payload, cnUpdates) {
-  const pluginParsed = parseCommonVisualModKey(key);
-  if (pluginParsed) {
-    this.writeCommonVisualValue(pluginParsed.pluginId, pluginParsed.paramId, value);
-    return;
-  }
-  if (String(key).startsWith('wan.')) {
-    const wanKey = String(key).slice(4);
-    this.onWanEngineFieldChange(wanKey, value, 'number');
-    return;
-  }
-  if (String(key).startsWith('animatelcm.')) {
-    const alcmKey = String(key).slice('animatelcm.'.length);
-    this.onAnimateLcmFieldChange(alcmKey, value, 'number');
-    return;
-  }
   const anim = this.animationTargets.find((t) => t.key === key);
   if (anim) {
     this.applyAnimationModulation(anim.field, value);
@@ -6412,6 +5681,9 @@ setHlsPreviewStreamValid(valid) {
 },
 enableHlsWatch() {
   if (!this.hlsPreviewStreamValid) return;
+  if (this.currentTab !== "STREAM") {
+    this.switchTab("STREAM");
+  }
   if (this.hlsWatchEnabled) return;
   this.hlsWatchEnabled = true;
   this.videoReady = false;
@@ -6458,7 +5730,6 @@ rebuildVideoLayers() {
     { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl') },
     { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum') },
     { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan') },
-    { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true, previewVisible: prevVisible('animatelcm') },
     { id: 'blend', kind: 'blend', label: 'Both', builtin: true, previewVisible: prevVisible('blend') },
     {
       id: 'input',
@@ -6641,52 +5912,14 @@ updateHeldPreviewFromLatestFrame() {
   if (path) this.heldPreviewFramePath = path;
 },
 applyStartupVideoPreview() {
-  const remember = !!this.defaultAnimation?.rememberCompositorLayerOnStartup;
-  if (!remember) {
-    this._userPickedPreviewLayer = false;
-    this.activeVideoLayerId = 'webgl';
-  }
+  this._userPickedPreviewLayer = false;
+  this.activeVideoLayerId = 'webgl';
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
-    preferDeforumVideo: remember ? this.defaultAnimation.preferDeforumVideo : false,
+    preferDeforumVideo: false,
     autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
   });
   this.$nextTick(() => this.kickstandbyAnimation());
-},
-promoteToDeforum() {
-  this.selectVideoLayer('deforum', { userInitiated: true });
-},
-applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {}) {
-  const next = this.clampVal(Number(value) || 0, 0, 1);
-  this.defaultAnimation.forgeLayerOpacity = next;
-  if (commitBase || !fromModulation) {
-    this.defaultAnimation.forgeLayerOpacityLfoBase = next;
-  }
-  if (!fromModulation) this.onDefaultAnimationInput();
-},
-setForgeLayerOpacityLfoLink(lfoId) {
-  const nextId = Number(lfoId || 0);
-  const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
-  this.defaultAnimation.forgeLayerOpacityLfoLink = this.defaultAnimation.forgeLayerOpacityLfoLink === allowed
-    ? null
-    : allowed;
-  this.defaultAnimation.forgeLayerOpacityLfoBase = this.defaultAnimation.forgeLayerOpacity;
-  if (this.defaultAnimation.forgeLayerOpacityLfoLink) {
-    const linked = this.lfos.find((lfo) => lfo.id === this.defaultAnimation.forgeLayerOpacityLfoLink);
-    if (linked) linked.on = true;
-    if (!this.isBlendLayerActive && !this.isForgeAnimationLayerActive) {
-      this.selectVideoLayer('blend', { userInitiated: false });
-    }
-  }
-  this.onDefaultAnimationInput();
-},
-buildRunsPromptDiff(runA, runB) {
-  return {
-    runA: runA.run_id,
-    runB: runB.run_id,
-    positive: diffPromptLines(runA.prompt_positive, runB.prompt_positive),
-    negative: diffPromptLines(runA.prompt_negative, runB.prompt_negative),
-  };
 },
 maybePromoteDeforumPreview() {
   const anim = this.defaultAnimation || {};
@@ -6748,7 +5981,7 @@ selectVideoLayer(id, opts = {}) {
     this.saveSessionState();
     return;
   }
-  if (layer?.kind === 'animatelcm') {
+  if (layer?.kind === 'wan') {
     this.defaultAnimation = this.normalizeDefaultAnimationSettings({
       ...this.defaultAnimation,
       preferDeforumVideo: true,
@@ -6756,7 +5989,6 @@ selectVideoLayer(id, opts = {}) {
     this.videoReady = false;
     if (this.hlsWatchEnabled) this.attachPlayer();
     this.queueDeforumSettingsSave();
-    if (!this.deforumPlaying) this.scheduleDeforumPreview();
     this.saveSessionState();
     return;
   }
@@ -6778,7 +6010,7 @@ toggleVideoLayerAdd(open) {
   this.saveSessionState();
 },
 closeVideoLayer(id) {
-  if (id === 'webgl' || id === 'deforum' || id === 'wan' || id === 'animatelcm' || id === 'blend' || id === 'input') return;
+  if (id === 'webgl' || id === 'deforum' || id === 'wan' || id === 'blend' || id === 'input') return;
   this.removeLiveSource(id);
   if (this.activeVideoLayerId === id) {
     this.selectVideoLayer('input');
@@ -6855,10 +6087,10 @@ layerStatus(layer) {
     if (this.deforumPlaying || this.videoReady) return 'yellow';
     return 'green';
   }
-  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan') {
     if (this.videoReady) return 'green';
     if (this.deforumPlaying || (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo)) return 'yellow';
-    if (layer.kind === 'wan' || layer.kind === 'animatelcm') return 'yellow';
+    if (layer.kind === 'wan') return 'yellow';
     return 'red';
   }
   if (layer.kind === 'input') {
@@ -6891,12 +6123,6 @@ animationLayerDescription(layer) {
     if (this.videoReady) return `WAN Video · ${model} · live`;
     return `WAN Video · ${model} · idle`;
   }
-  if (layer.kind === 'animatelcm') {
-    const motion = String(this.animateLcmEngine?.motion_type || 'pan');
-    if (this.deforumPlaying) return `AnimateLCM · ${motion} · generating`;
-    if (this.videoReady) return `AnimateLCM · ${motion} · live`;
-    return `AnimateLCM · ${motion} · idle`;
-  }
   if (layer.kind === 'blend') return 'Composite · WebGL under Deforum';
   if (layer.kind === 'input') {
     return this.inputLayerPlaybackUrl
@@ -6924,40 +6150,25 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
-toggleLibraryWorkspace() {
-  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
-  else this.openLibraryWorkspace('browser');
-},
-openLibraryWorkspace(pane = 'browser') {
-  this.libraryWorkspaceOpen = true;
-  this.libraryWorkspacePane = pane === 'editor' ? 'editor' : 'browser';
+openLibraryVideoEditor() {
+  this.currentTab = 'LIBRARY';
+  this.libraryEditorOpen = true;
+  this.rightPanelOpen = true;
+  this.liveDrawerOpen = true;
   void this.initSystemFilesBrowser();
   this.saveSessionState();
 },
-closeLibraryWorkspace() {
-  this.libraryWorkspaceOpen = false;
-  this.libraryWorkspacePane = 'browser';
-  this.saveSessionState();
-},
-setLibraryWorkspacePane(pane) {
-  const next = pane === 'editor' ? 'editor' : 'browser';
-  if (this.libraryWorkspacePane === next) return;
-  this.libraryWorkspacePane = next;
-  if (next === 'browser') void this.initSystemFilesBrowser();
-  this.saveSessionState();
-},
-openLibraryVideoEditor() {
-  this.openLibraryWorkspace('editor');
-},
 closeLibraryEditor() {
-  this.setLibraryWorkspacePane('browser');
+  this.libraryEditorOpen = false;
+  this.saveSessionState();
 },
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
     this.editorStatusLive = false;
-    this.openLibraryWorkspace('browser');
+    this.currentTab = 'LIBRARY';
+    this.libraryEditorOpen = false;
     this.saveSessionState();
     return;
   }
@@ -6967,12 +6178,7 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.openLibraryWorkspace('editor');
-},
-ensureRunsJobLogReady() {
-  if (!this.runsMonitorActive) return;
-  if (this.runsJobLog.length) return;
-  this.appendRunsJobLog('Runs monitor ready — launch a test job or wait for activity.', 'info');
+  this.openLibraryVideoEditor();
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -6991,25 +6197,34 @@ cloudProviderLabel(provider) {
   return map[String(provider || '').toLowerCase()] || 'Cloud';
 },
 async initSystemFilesBrowser() {
-  if (this.systemFiles._rootsLoaded) return;
   try {
-    const res = await fetch('/api/video-swarm/roots');
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Could not load library roots');
-    this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
-    this.systemFiles.cloudSources = Array.isArray(data.cloudSources) ? data.cloudSources : [];
-    this.systemFiles._rootsLoaded = true;
-    const preferred =
-      this.systemFiles.roots.find((r) => r.id === this.systemFiles.rootId)
-      || this.systemFiles.roots.find((r) => r.id === 'frames')
-      || this.systemFiles.roots[0];
-    if (preferred) {
-      this.systemFiles.rootId = preferred.id;
-      await this.browseSystemFiles(preferred.path, { rootId: preferred.id });
+    if (!this.systemFiles._rootsLoaded) {
+      const res = await fetch('/api/video-swarm/roots');
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Could not load library roots');
+      this.systemFiles.roots = Array.isArray(data.roots) ? data.roots : [];
+      this.systemFiles.cloudSources = Array.isArray(data.cloudSources) ? data.cloudSources : [];
+      this.systemFiles._rootsLoaded = true;
     }
+    await this.refreshLibraryBrowse();
   } catch (err) {
     this.systemFiles.status = err.message || 'Library unavailable';
   }
+},
+async refreshLibraryBrowse() {
+  const roots = this.systemFiles.roots || [];
+  const preferred =
+    roots.find((r) => r.id === this.systemFiles.rootId)
+    || roots.find((r) => r.id === 'uploads')
+    || roots.find((r) => r.id === 'frames')
+    || roots[0];
+  if (!preferred) return;
+  this.systemFiles.rootId = preferred.id;
+  if (preferred.kind === 'cloud') {
+    await this.browseSystemFiles('', { rootId: preferred.id });
+    return;
+  }
+  await this.browseSystemFiles(preferred.path, { rootId: preferred.id });
 },
 async refreshCloudSources() {
   try {
@@ -7625,10 +6840,7 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         && Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id
         && lfo.id >= 1
         && lfo.id <= 6;
-      const drivesCompositorOpacity = Number(this.defaultAnimation?.forgeLayerOpacityLfoLink || 0) === lfo.id
-        && lfo.id >= 1
-        && lfo.id <= 6;
-      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader && !drivesCompositorOpacity)) return;
+      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader)) return;
       const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
       const inc = dtSec * this.lfoRateRadPerSec(lfo);
       const phase = (lfo.phase || 0) + inc;
@@ -7656,17 +6868,6 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         const amp = depth * 0.5;
         const value = this.clampVal(base + wave * amp, 0, 1);
         this.applyLoraCrossfader(value, { fromModulation: true });
-      }
-
-      if (drivesCompositorOpacity) {
-        const base = this.clampVal(
-          Number(this.defaultAnimation?.forgeLayerOpacityLfoBase ?? this.defaultAnimation?.forgeLayerOpacity ?? 0.88) || 0.88,
-          0,
-          1,
-        );
-        const amp = depth * 0.5;
-        const value = this.clampVal(base + wave * amp, 0, 1);
-        this.applyForgeLayerOpacity(value, { fromModulation: true });
       }
 
       lfo.targets.forEach((targetKey) => {
@@ -12271,22 +11472,19 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (s.sidePanelDock === 'auto' || s.sidePanelDock === 'edge' || s.sidePanelDock === 'video') {
        this.sidePanelDock = s.sidePanelDock;
      }
-     if (s.liveBottomDrawerOpen === true) {
-       if (s.liveBottomDrawerTab === 'SYSTEM' || s.liveBottomDrawerTab === 'RUNS') {
-         this.currentTab = 'RUNS';
-       }
-     }
+     if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
      if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
+     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
+       this.liveBottomDrawerTab = s.liveBottomDrawerTab;
+     } else if (s.liveBottomDrawerTab === 'RUNS') {
+       this.liveBottomDrawerTab = 'SYSTEM';
+     }
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
     if (s.currentSubTab && s.currentSubTab.MOTION) {
       this.currentSubTab.MOTION = this.normalizeMotionSubTab(s.currentSubTab.MOTION);
     }
-    if (s.currentSubTab && s.currentSubTab.SETTINGS) {
-      this.currentSubTab.SETTINGS = s.currentSubTab.SETTINGS === 'SYSTEM' ? 'RUNS' : s.currentSubTab.SETTINGS;
-    }
-    if (typeof s.motionFineTuneOpen === 'boolean') this.motionFineTuneOpen = s.motionFineTuneOpen;
     if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
     if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
     if (typeof s.activeVideoLayerId === 'string') this.activeVideoLayerId = s.activeVideoLayerId;
@@ -12347,19 +11545,14 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
     if (typeof s.hlsWatchEnabled === 'boolean') {
       this.hlsWatchEnabled = s.hlsWatchEnabled;
-      if (this.hlsWatchEnabled) {
+      if (this.hlsWatchEnabled && this.currentTab === 'STREAM') {
         this.$nextTick(() => this.attachPlayer());
       }
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
-    if (typeof s.libraryWorkspaceOpen === 'boolean') {
-      this.libraryWorkspaceOpen = s.libraryWorkspaceOpen;
-      if (s.libraryWorkspacePane === 'editor' || s.libraryWorkspacePane === 'browser') {
-        this.libraryWorkspacePane = s.libraryWorkspacePane;
-      }
-    } else if (typeof s.libraryEditorOpen === 'boolean' && s.libraryEditorOpen) {
-      this.libraryWorkspaceOpen = true;
-      this.libraryWorkspacePane = 'editor';
+    if (typeof s.libraryEditorOpen === 'boolean') {
+      this.libraryEditorOpen = s.libraryEditorOpen;
+      if (this.libraryEditorOpen) this.currentTab = 'LIBRARY';
     }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
@@ -12432,9 +11625,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.wanEngine && typeof s.wanEngine === 'object') {
       this.wanEngine = normalizeWanEngine(s.wanEngine);
     }
-    if (s.animateLcmEngine && typeof s.animateLcmEngine === 'object') {
-      this.animateLcmEngine = normalizeAnimateLcmEngine(s.animateLcmEngine);
-    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
@@ -12456,6 +11646,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -12483,8 +11675,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
-      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
-      libraryWorkspacePane: this.libraryWorkspacePane,
+      libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -12498,7 +11689,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
-      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -12518,7 +11708,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
-      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -12544,6 +11733,8 @@ getCurrentSessionSnapshotRaw() {
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -12571,8 +11762,7 @@ getCurrentSessionSnapshotRaw() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
-      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
-      libraryWorkspacePane: this.libraryWorkspacePane,
+      libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
       editorPendingImportPath: this.editorPendingImportPath,
@@ -12584,7 +11774,6 @@ getCurrentSessionSnapshotRaw() {
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
-      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -12604,7 +11793,6 @@ getCurrentSessionSnapshotRaw() {
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
-      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -13412,9 +12600,6 @@ openPromptStyleEditor(id) {
   if (!style) return;
   this.promptStyleEditorId = id;
   this.promptStyleDraft = { ...style };
-  if (!style.exampleImage) {
-    void this.generatePromptStyleExample(id, { auto: true });
-  }
 },
 startNewPromptStyle() {
   const id = `custom_${Date.now()}`;
@@ -13422,8 +12607,6 @@ startNewPromptStyle() {
   this.promptStyleDraft = {
     id,
     name: "New style",
-    description: "",
-    previewPrompt: stylePreviewPromptFor(null),
     positive: "",
     negative: "",
     source: "custom",
@@ -13440,8 +12623,6 @@ async savePromptStyleDraft() {
   const payload = {
     id: draft.id,
     name: draft.name,
-    description: draft.description,
-    previewPrompt: draft.previewPrompt,
     positive: draft.positive,
     negative: draft.negative,
   };
@@ -13481,59 +12662,6 @@ async deletePromptStyle(id) {
     this.promptStylesStatus = "Style deleted";
   } catch (err) {
     this.promptStylesStatus = `Delete failed: ${err.message || err}`;
-  }
-},
-async generatePromptStyleExample(styleId, { auto = false } = {}) {
-  if (!styleId || this.promptStylePreviewGeneratingId) return;
-  const style = this.promptStyleById(styleId);
-  if (!style || style.exampleImage) return;
-
-  const styleForPreview =
-    this.promptStyleDraft?.id === styleId ? this.promptStyleDraft : style;
-  const basePrompt = stylePreviewPromptFor(styleForPreview);
-
-  this.promptStylePreviewGeneratingId = styleId;
-  if (!auto) {
-    this.promptStylesStatus = `Generating preview: "${basePrompt}"…`;
-  }
-
-  const { positive, negative } = applyPromptStyleToPrompts(
-    { positive: basePrompt, negative: '' },
-    styleForPreview,
-  );
-  const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
-  const steps = Math.min(24, Math.max(8, Number(this.deforumSettings?.steps) || 12));
-
-  try {
-    const res = await fetch('/api/txt2img', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: positive,
-        negative_prompt: negative,
-        steps,
-        cfg_scale: cfg ? cfg.val : 7,
-        width: 512,
-        height: 512,
-        seed: this.deforumSettings?.seed != null ? this.deforumSettings.seed : -1,
-        sampler_name: this.deforumSettings?.sampler || 'Euler a',
-        settings: this.deforumSettings,
-      }),
-    });
-    const data = await res.json();
-    if (!res.ok || !data.path) {
-      throw new Error(data.error || data.detail || 'txt2img failed');
-    }
-    await this.setPromptStyleExampleFromPath(styleId, data.path);
-    if (!auto) this.promptStylesStatus = 'Style preview saved';
-  } catch (err) {
-    if (!auto) {
-      this.promptStylesStatus = `Preview failed: ${err.message || err}`;
-    }
-  } finally {
-    if (this.promptStylePreviewGeneratingId === styleId) {
-      this.promptStylePreviewGeneratingId = null;
-    }
   }
 },
 async setPromptStyleExampleFromPreview(styleId) {
@@ -13623,7 +12751,7 @@ effectiveNegativePrompt(base) {
 },
 effectiveDeforumSettingsForRender() {
   const settings = JSON.parse(JSON.stringify(this.activeDeforumSettings()));
-  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive)
+  const basePositive = this.isWanLayerActive
     ? (this.buildMorphedPrompt() || String(this.prompts.pos || "").trim())
     : (
       getNestedValue(settings, "prompts.0")
@@ -13634,7 +12762,7 @@ effectiveDeforumSettingsForRender() {
   const positive = this.effectivePositivePrompt(basePositive);
   setNestedValue(settings, "prompts.0", positive);
   settings.negative_prompts = this.effectiveNegativePrompt(baseNegative);
-  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive) {
+  if (this.lcmEngineEnabled && !this.isWanLayerActive) {
     const steps = Math.max(1, Math.round(Number(this.lcmEngine.steps) || 1));
     settings.steps = steps;
     settings.steps_schedule = `0: (${steps})`;
@@ -13642,13 +12770,7 @@ effectiveDeforumSettingsForRender() {
   if (this.isWanLayerActive) {
     return mergeWanEngineIntoDeforumSettings(settings, this.wanEngine, { positivePrompt: positive });
   }
-  if (this.isAnimateLcmLayerActive) {
-    return mergeAnimateLcmIntoDeforumSettings(settings, this.animateLcmEngine, { positivePrompt: positive });
-  }
   if (settings.animation_mode === WAN_ANIMATION_MODE) {
-    settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
-  }
-  if (settings.animation_mode === ANIMATELCM_ANIMATION_MODE) {
     settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
   }
   return settings;
@@ -13857,7 +12979,6 @@ flushQueuedPreview() {
   }, 0);
 },
  schedulePreviewFrame() {
-  if (this.isQuietStartup()) return;
   this.queuePreviewRequest('auto', 180);
  },
  scheduleDeforumPreview() {
@@ -13866,36 +12987,6 @@ flushQueuedPreview() {
  getDeforumField(keyPath) {
    return getNestedValue(this.deforumSettings, keyPath);
  },
-deforumMacroKnobValue(knob) {
-  if (!knob || !knob.key) return 0;
-  if (knob.scalar) {
-    const raw = this.getDeforumField(knob.key);
-    const num = Number(raw);
-    return Number.isFinite(num) ? num : 0;
-  }
-  const frame = this.motionSmoothnessStartFrame();
-  return readScheduleValueAtFrame(this.getDeforumField(knob.key), frame);
-},
-formatDeforumMacroKnobValue(knob) {
-  const v = this.deforumMacroKnobValue(knob);
-  if (!Number.isFinite(v)) return '—';
-  const step = Number(knob?.step) || 0.01;
-  const decimals = (String(step).split('.')[1] || '').length;
-  return decimals > 0 ? v.toFixed(decimals) : String(Math.round(v));
-},
-onDeforumMacroKnobInput(knob, raw) {
-  if (!knob || !knob.key) return;
-  const num = Number(raw);
-  if (!Number.isFinite(num)) return;
-  const clamped = this.clampVal(num, Number(knob.min ?? 0), Number(knob.max ?? 1));
-  if (knob.scalar) {
-    this.onDeforumFieldInput(knob.key, clamped, 'number');
-    return;
-  }
-  const schedule = formatScheduleKeyframes([{ frame: 0, value: clamped }]);
-  this.onDeforumFieldInput(knob.key, schedule, 'text');
-  if (!this.deforumPlaying) this.schedulePreviewFrame();
-},
 formatDeforumFieldValue(field, rawValue) {
   if (!field) return String(rawValue ?? '');
   const value = rawValue == null ? '' : rawValue;

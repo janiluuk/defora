@@ -78,6 +78,18 @@ describe("video-swarm storage API", () => {
     assert.ok(browse.videos.some((v) => v.name.includes("example_clip")));
   });
 
+  it("resolves nested uploads paths to uploads root, not runs", async () => {
+    const nestedDir = path.join(uploadsDir, "clips");
+    fs.mkdirSync(nestedDir, { recursive: true });
+    const browseRes = await fetch(
+      `${base}/api/video-swarm/browse?rootId=uploads&path=${encodeURIComponent(nestedDir)}&sort=name`,
+    );
+    assert.equal(browseRes.status, 200);
+    const body = await browseRes.json();
+    assert.equal(body.rootId, "uploads");
+    assert.equal(body.path, nestedDir);
+  });
+
   it("persists cloud sources and returns them in roots", async () => {
     const createRes = await fetch(`${base}/api/video-swarm/cloud-sources`, {
       method: "POST",

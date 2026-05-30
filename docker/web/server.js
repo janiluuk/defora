@@ -10,24 +10,10 @@ const { EventEmitter } = require("events");
 const { Readable } = require("stream");
 const { createGpuPool } = require("./modules/gpu-pool");
 const { createInfrastructureStatus } = require("./modules/infrastructure-status");
-const {
-  isCiOffline,
-  skipBackgroundProbes,
-  isQuietMode,
-  blockExternalFetches,
-  installCiFetchGuard,
-} = require("./modules/ci-offline");
 const { resolveStoragePaths } = require("./modules/storage-paths");
 const promptStylesStore = require("./modules/prompt-styles-store");
 
 async function start(opts = {}) {
-  const runtimeEnv = opts.env || process.env;
-  const externalBlocked = () => blockExternalFetches(runtimeEnv);
-  const quietMode = () => isQuietMode(runtimeEnv);
-  installCiFetchGuard(runtimeEnv);
-  if (externalBlocked()) {
-    console.log("[web] CI quiet mode — external Forge/LLM connections disabled");
-  }
   const port = opts.port ?? process.env.PORT ?? 3000;
   const rabbitUrl = opts.rabbitUrl || process.env.RABBIT_URL || "amqp://localhost";
   const controlToken = opts.controlToken ?? process.env.CONTROL_TOKEN ?? "";
@@ -417,12 +403,12 @@ async function start(opts = {}) {
 
   const gpuPool = createGpuPool({
     configPath: opts.gpuPoolPath || path.join(__dirname, "gpu-pool.json"),
-    env: runtimeEnv,
+    env: process.env,
   });
   await gpuPool.init();
 
   const infrastructure = createInfrastructureStatus({
-    env: runtimeEnv,
+    env: process.env,
     framesDir,
     fsp,
   });
@@ -589,9 +575,6 @@ async function start(opts = {}) {
   }
 
   async function renderDeforumPreview(settings, target, optionsOverrides = {}) {
-    if (externalBlocked()) {
-      return { ok: false, skipped: true, reason: "ci_offline" };
-    }
     const forgeUrl = target.url;
     const baselineFrame = await latestFrameInfo();
     const previewSettings = {
@@ -825,7 +808,6 @@ async function start(opts = {}) {
 
   /** Lightweight SD-Forge reachability check (updates apiStatus). */
   async function probeSdForge() {
-    if (skipBackgroundProbes(runtimeEnv)) return;
     if (typeof fetch === "undefined") return;
     const target = forgeTarget({});
     const forgeUrl = target.url;
@@ -858,30 +840,30 @@ async function start(opts = {}) {
   
   // Serve static files from public directory
   const publicDir = opts.publicDir || process.env.PUBLIC_DIR || path.join(__dirname, "public");
-  const quietBoot = quietMode();
-  const indexHtmlPath = path.join(publicDir, "index.html");
-  if (quietBoot && fs.existsSync(indexHtmlPath)) {
-    app.get(["/", "/index.html"], (_req, res) => {
-      try {
-        const html = fs.readFileSync(indexHtmlPath, "utf8");
-        const injected = html.includes("__DEFORA_QUIET__")
-          ? html
-          : html.replace("<head>", '<head>\n  <script>window.__DEFORA_QUIET__=1</script>');
-        res.type("html").send(injected);
-      } catch (err) {
-        res.sendFile(indexHtmlPath);
-      }
-    });
-  }
-  app.use(express.static(publicDir));
 
   const freecutDir =
     opts.freecutDir ||
     process.env.FREECUT_DIR ||
     path.join(publicDir, "freecut");
   if (fs.existsSync(freecutDir)) {
-    app.use("/freecut", express.static(freecutDir, { maxAge: "300s" }));
-    app.use("/freecut", (_req, res) => {
+    const freecutIsolation = (_req, res, next) => {
+      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+      next();
+    };
+    const freecutStaticHeaders = (res) => {
+      res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
+      res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+    };
+    app.use("/freecut", freecutIsolation);
+    app.use(
+      "/freecut",
+      express.static(freecutDir, {
+        maxAge: "300s",
+        setHeaders: freecutStaticHeaders,
+      }),
+    );
+    app.use("/freecut", freecutIsolation, (_req, res) => {
       res.sendFile(path.join(freecutDir, "index.html"));
     });
     const landingDir = path.join(freecutDir, "assets", "landing");
@@ -891,6 +873,8 @@ async function start(opts = {}) {
   } else {
     console.warn("[web] freecut dir missing — video editor static bundle unavailable:", freecutDir);
   }
+
+  app.use(express.static(publicDir));
 
   // Simple health check endpoint for Docker healthcheck
   app.get("/health", (_req, res) => {
@@ -1040,12 +1024,9 @@ async function start(opts = {}) {
   // API status endpoint for model availability
   app.get("/api/status", (_req, res) => {
     const sdForgePollMs = parseInt(process.env.SD_FORGE_POLL_MS || "0", 10);
-    const quiet = quietMode();
     res.json({
-      quiet,
-      externalServicesDisabled: externalBlocked(),
       sdForge: {
-        available: quiet ? false : apiStatus.sdForgeAvailable,
+        available: apiStatus.sdForgeAvailable,
         lastChecked: apiStatus.lastChecked,
         pollIntervalMs: Number.isFinite(sdForgePollMs) && sdForgePollMs > 0 ? sdForgePollMs : 0,
       },
@@ -1155,45 +1136,6 @@ async function start(opts = {}) {
     "/style-examples",
     express.static(promptStylesStore.examplesDir(webRoot), { maxAge: "3600s" }),
   );
-
-  async function resolveStandbyPreviewPath() {
-    const candidates = [
-      process.env.STANDBY_PREVIEW_VIDEO,
-      path.join(uploadsDir, "vid_preview.mp4"),
-    ].filter(Boolean);
-    for (const candidate of candidates) {
-      try {
-        const st = await fsp.stat(candidate);
-        if (st.isFile()) return path.resolve(candidate);
-      } catch (_e) {
-        /* try next */
-      }
-    }
-    return null;
-  }
-
-  app.head("/api/preview/standby-video", async (_req, res) => {
-    try {
-      const filePath = await resolveStandbyPreviewPath();
-      if (!filePath) return res.status(404).end();
-      res.set("Accept-Ranges", "bytes");
-      res.set("Content-Type", "video/mp4");
-      return res.status(200).end();
-    } catch (err) {
-      res.status(500).end();
-    }
-  });
-
-  app.get("/api/preview/standby-video", async (_req, res) => {
-    try {
-      const filePath = await resolveStandbyPreviewPath();
-      if (!filePath) return res.status(404).json({ error: "standby preview not configured" });
-      res.type("video/mp4");
-      return res.sendFile(filePath);
-    } catch (err) {
-      res.status(500).json({ error: err.message || "standby preview unavailable" });
-    }
-  });
 
   async function resolveStandbyPreviewPath() {
     const candidates = [
@@ -2127,7 +2069,7 @@ async function start(opts = {}) {
   });
 
   app.post("/api/prompt-styles", async (req, res) => {
-    const { name, positive, negative, description, previewPrompt } = req.body || {};
+    const { name, positive, negative } = req.body || {};
     if (!String(name || "").trim()) {
       return res.status(400).json({ error: "name required" });
     }
@@ -2137,8 +2079,6 @@ async function start(opts = {}) {
         {
           id: String(req.body?.id || "").trim() || undefined,
           name: String(name).trim(),
-          description: String(description || "").trim(),
-          previewPrompt: String(previewPrompt || "").trim(),
           positive: String(positive || "").trim(),
           negative: String(negative || "").trim(),
           source: "custom",
@@ -2149,19 +2089,15 @@ async function start(opts = {}) {
       if (styles.some((style) => style.id === id)) {
         return res.status(409).json({ error: "style id already exists" });
       }
-      styles.push(
-        promptStylesStore.normalizeStyleRecord({
-          id,
-          name: String(name).trim(),
-          description: String(description || "").trim(),
-          previewPrompt: String(previewPrompt || "").trim(),
-          positive: String(positive || "").trim(),
-          negative: String(negative || "").trim(),
-          source: "custom",
-          exampleImage: null,
-          updatedAt: new Date().toISOString(),
-        }),
-      );
+      styles.push({
+        id,
+        name: String(name).trim(),
+        positive: String(positive || "").trim(),
+        negative: String(negative || "").trim(),
+        source: "custom",
+        exampleImage: null,
+        updatedAt: new Date().toISOString(),
+      });
       const saved = await promptStylesStore.writeStyles(webRoot, styles);
       const style = saved.find((entry) => entry.id === id);
       res.json({ ok: true, style });
@@ -2173,17 +2109,15 @@ async function start(opts = {}) {
   app.put("/api/prompt-styles/:id", async (req, res) => {
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).json({ error: "id required" });
-    const { name, positive, negative, description, previewPrompt } = req.body || {};
+    const { name, positive, negative } = req.body || {};
     try {
       const styles = await promptStylesStore.readStyles(webRoot);
       const idx = styles.findIndex((style) => style.id === id);
       if (idx < 0) return res.status(404).json({ error: "style not found" });
       if (name != null) styles[idx].name = String(name).trim() || styles[idx].name;
-      if (description != null) styles[idx].description = String(description).trim();
-      if (previewPrompt != null) styles[idx].previewPrompt = String(previewPrompt).trim();
       if (positive != null) styles[idx].positive = String(positive).trim();
       if (negative != null) styles[idx].negative = String(negative).trim();
-      styles[idx] = promptStylesStore.normalizeStyleRecord(styles[idx]);
+      styles[idx].updatedAt = new Date().toISOString();
       const saved = await promptStylesStore.writeStyles(webRoot, styles);
       res.json({ ok: true, style: saved.find((entry) => entry.id === id) });
     } catch (err) {
@@ -2235,15 +2169,9 @@ async function start(opts = {}) {
     if (!settings) {
       return res.status(400).json({ error: "settings object required" });
     }
-    if (externalBlocked()) {
-      return res.json({ ok: false, skipped: true, reason: "ci_offline" });
-    }
     const target = previewForgeTarget(req);
     try {
       const result = await renderDeforumPreview(settings, target, body.options_overrides || {});
-      if (result && result.skipped) {
-        return res.json(result);
-      }
       if (result && result.batchId) {
         persistRunJobSnapshot(result.batchId, {
           kind: "deforum_preview",
@@ -2260,9 +2188,7 @@ async function start(opts = {}) {
       }
       res.json(result);
     } catch (err) {
-      if (!externalBlocked()) {
-        console.error("[api] deforum preview error", err);
-      }
+      console.error("[api] deforum preview error", err);
       res.status(502).json({
         error: String(err.message || err),
         status: err.status,
@@ -2283,9 +2209,6 @@ async function start(opts = {}) {
   app.post("/api/deforum/warmup", async (req, res) => {
     if (warmupRunning) {
       return res.json({ ok: true, batchId: warmupBatchId, status: "already_running" });
-    }
-    if (isCiOffline()) {
-      return res.json({ ok: false, status: "ci_offline", error: "External services disabled in CI" });
     }
     const body = req.body || {};
     const maxFrames = Math.max(1, Math.min(480, parseInt(body.maxFrames, 10) || 48));
@@ -3011,6 +2934,10 @@ async function start(opts = {}) {
 
   // ControlNet models API
   app.get("/api/controlnet/models", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    
+    // Fallback placeholder models
     const placeholderModels = [
       { id: "canny", name: "Canny Edge", category: "edge" },
       { id: "depth", name: "Depth Map", category: "depth" },
@@ -3022,14 +2949,7 @@ async function start(opts = {}) {
       { id: "normal", name: "Normal Map", category: "depth" },
       { id: "seg", name: "Segmentation", category: "semantic" },
     ];
-
-    if (externalBlocked()) {
-      return res.json({ models: placeholderModels, source: "placeholder", cached: false, ciOffline: true });
-    }
-
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
-
+    
     try {
       // Try to fetch ControlNet models from SD-Forge API
       // Use native fetch (Node.js 18+) or fallback gracefully
@@ -3165,6 +3085,10 @@ async function start(opts = {}) {
 
   // SD Models (Checkpoints) API endpoints
   app.get("/api/sd-models", async (req, res) => {
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+    try {
+    // Fallback placeholder models
     const placeholderModels = [
       {
         title: "SDXL Base",
@@ -3195,13 +3119,7 @@ async function start(opts = {}) {
         }
       },
     ];
-
-    if (externalBlocked()) {
-      return res.json({ models: placeholderModels, source: "placeholder", cached: false, ciOffline: true });
-    }
-
-    const target = forgeTarget(req);
-    const forgeUrl = target.url;
+    
     try {
       // Try to fetch models from SD-Forge API
       if (typeof fetch === 'undefined') {
@@ -3235,7 +3153,6 @@ async function start(opts = {}) {
         console.log(`[sd-models] Fetched ${enrichedModels.length} models from SD-Forge`);
         return res.json({ models: enrichedModels, source: 'sd-forge', cached: false });
       }
-      return res.json({ models: placeholderModels, source: 'placeholder', cached: false });
     } catch (err) {
       apiStatus.sdForgeAvailable = false;
       apiStatus.lastChecked = new Date().toISOString();
@@ -3245,7 +3162,9 @@ async function start(opts = {}) {
         const cacheAge = Math.floor((apiStatus.forgeCacheValidUntil - Date.now()) / 1000);
         return res.json({ models: apiStatus.sdModels, source: 'cache', cached: true, cacheAge });
       }
-      return res.json({ models: placeholderModels, source: 'placeholder', cached: false });
+    }
+    
+    res.json({ models: placeholderModels, source: 'placeholder', cached: false });
     } finally {
       target.release();
     }
@@ -3309,13 +3228,6 @@ async function start(opts = {}) {
 
   // Get current SD model
   app.get("/api/sd-models/current", async (req, res) => {
-    if (externalBlocked()) {
-      return res.json({
-        model: { model_name: "Unknown", title: "Unknown" },
-        source: "placeholder",
-        ciOffline: true,
-      });
-    }
     const target = forgeTarget(req, { allowDirectPreferred: true });
     const preferredNode = req?.query?.preferredNode || req?.body?.preferredNode;
     if (preferredNode && !target.node) {
@@ -3366,14 +3278,6 @@ async function start(opts = {}) {
 
   // Switch SD model
   app.post("/api/sd-models/switch", async (req, res) => {
-    if (externalBlocked()) {
-      return res.json({
-        success: true,
-        skipped: true,
-        message: "External services disabled in CI",
-        ciOffline: true,
-      });
-    }
     const { model_name } = req.body;
     
     if (!model_name) {
@@ -4845,25 +4749,12 @@ async function start(opts = {}) {
   app.post("/api/runs/launch-demo", async (req, res) => {
     try {
       const runId = `demo-${Date.now().toString(36)}`;
-      const fps = 24;
-      const maxFrames = 24;
-      const videoName = "demo-output.mp4";
-      const videoPath = path.join(uploadsDir, videoName);
-      try {
-        await fsp.mkdir(uploadsDir, { recursive: true });
-        if (!fs.existsSync(videoPath)) {
-          await fsp.writeFile(videoPath, Buffer.from("defora-demo-mp4"));
-        }
-      } catch (_e) {
-        /* best-effort demo video for e2e */
-      }
       const snapshot = {
         kind: "demo",
-        maxFrames,
-        fps,
+        maxFrames: 12,
+        fps: 12,
         settings: {
-          max_frames: maxFrames,
-          fps,
+          max_frames: 12,
           tag: "demo",
           sd_model_checkpoint: "demo-model",
           animation_prompts_positive: "e2e demo run",
@@ -4874,8 +4765,7 @@ async function start(opts = {}) {
         status: "running",
         tag: "demo",
         model: "demo-model",
-        frame_count: maxFrames,
-        fps,
+        frame_count: 12,
         prompt_positive: "e2e demo run",
       });
       broadcast({ type: "run_demo_started", runId });
@@ -4883,13 +4773,10 @@ async function start(opts = {}) {
         await updateRunManifest(runId, {
           status: "completed",
           completed_at: new Date().toISOString(),
-          output_video: videoPath,
-          fps,
-          frame_count: maxFrames,
         });
         broadcast({ type: "run_demo_done", runId, status: "completed" });
       }, 1200);
-      res.json({ ok: true, run_id: runId, status: "running", fps, maxFrames });
+      res.json({ ok: true, run_id: runId, status: "running" });
     } catch (err) {
       res.status(500).json({ error: err.message || "demo launch failed" });
     }
@@ -5147,8 +5034,6 @@ async function start(opts = {}) {
     "prompt_positive", "prompt_negative", "started_at",
   ];
 
-  const { diffPromptLines } = require("./shared/prompt-diff.cjs");
-
   function buildRunComparison(runIds, runs) {
     const selected = runIds
       .map((id) => runs.find((r) => r.run_id === id))
@@ -5160,17 +5045,7 @@ async function start(opts = {}) {
         matrix[field][run.run_id] = run[field] != null ? run[field] : null;
       }
     }
-    const result = { run_ids: selected.map((r) => r.run_id), fields: RUN_COMPARE_FIELDS, matrix, runs: selected };
-    if (selected.length === 2) {
-      const [runA, runB] = selected;
-      result.prompt_diffs = {
-        run_a: runA.run_id,
-        run_b: runB.run_id,
-        prompt_positive: diffPromptLines(runA.prompt_positive, runB.prompt_positive),
-        prompt_negative: diffPromptLines(runA.prompt_negative, runB.prompt_negative),
-      };
-    }
-    return result;
+    return { run_ids: selected.map((r) => r.run_id), fields: RUN_COMPARE_FIELDS, matrix, runs: selected };
   }
 
   app.post("/api/runs/compare", async (req, res) => {
