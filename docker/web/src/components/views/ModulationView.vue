@@ -40,8 +40,14 @@
               </label>
               <code class="modulation-lfo-card__meta">{{ lfo.shape }} · {{ lfo.bpm }}</code>
             </div>
-            <Waveform :shape="lfo.shape" :phase="lfo.renderPhase != null ? lfo.renderPhase : lfo.phase" :depth="lfo.depth" :active="lfo.on" :width="240" :height="72" class="modulation-lfo-card__waveform" />
-            <div class="modulation-lfo-card__controls">
+            <Waveform :shape="lfo.shape" :phase="lfo.renderPhase != null ? lfo.renderPhase : lfo.phase" :depth="lfo.depth" :active="lfo.on" :width="240" :height="selectedModulationLfo && selectedModulationLfo.id === lfo.id ? 88 : 64" class="modulation-lfo-card__waveform" />
+            <div
+              v-if="!(selectedModulationLfo && selectedModulationLfo.id === lfo.id)"
+              class="modulation-lfo-card__compact"
+            >
+              {{ lfo.bpm }} BPM · depth {{ Number(lfo.depth).toFixed(2) }} · {{ (lfo.targets || []).length ? (lfo.targets || []).length + ' route' + ((lfo.targets || []).length === 1 ? '' : 's') : 'no routes' }}
+            </div>
+            <div v-show="selectedModulationLfo && selectedModulationLfo.id === lfo.id" class="modulation-lfo-card__controls">
               <label class="modulation-lfo-card__control">
                 <span class="framesync-subtitle">Shape</span>
                 <select class="framesync-select" v-model="lfo.shape">
@@ -183,8 +189,23 @@
             Map frequency bands to live parameters. Meters animate from real audio analysis — drag bands on the spectrum to retune.
           </div>
 
+          <div v-if="activeAudioMapping || audioMappings.length" class="audio-band-presets audio-band-presets--hero">
+            <span class="audio-band-presets__label">Quick bands</span>
+            <button
+              v-for="chip in audioBandChips"
+              :key="'audio-preset-hero-' + chip.key"
+              type="button"
+              class="chip"
+              @click="applyAudioBandPreset(activeAudioMappingIndex >= 0 ? activeAudioMappingIndex : 0, chip.key)"
+            >
+              {{ chip.label }}
+            </button>
+            <button type="button" class="chip chip--ghost" @click="addAudioMapping">+ map</button>
+          </div>
+
           <AudioSpectrumEditor
-            class="audio-reactive-panel__spectrum"
+            class="audio-reactive-panel__spectrum audio-reactive-panel__spectrum--hero"
+            :canvas-height="148"
             :mappings="audioMappings"
             :levels="audioMappingLevels"
             :active-index="activeAudioMappingIndex"
@@ -230,7 +251,7 @@
           </div>
 
           <div v-if="activeAudioMapping" class="audio-reactive-detail">
-            <div class="audio-band-presets">
+            <div class="audio-band-presets audio-band-presets--detail">
               <button
                 v-for="chip in audioBandChips"
                 :key="'audio-preset-' + chip.key"
@@ -240,7 +261,6 @@
               >
                 {{ chip.label }}
               </button>
-              <button type="button" class="chip chip--ghost" @click="addAudioMapping">+ map</button>
             </div>
 
             <div

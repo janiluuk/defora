@@ -971,10 +971,9 @@ describe("Deforumation Web UI", () => {
 
     const buttonsBefore = [...document.querySelectorAll(".framesync-button")].map((el) => el.textContent.trim());
     expect(buttonsBefore.join(" ")).to.include("+");
-    expect(buttonsBefore.join(" ")).to.include("Manual");
-    expect(buttonsBefore.join(" ")).to.include("LFO 6");
     expect(document.body.textContent).to.include("Common Group (1)");
-    expect([...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim()).join(" ")).to.include("LoRA Crossfader");
+    expect(document.querySelector('[data-testid="lora-crossfader-hint"]')).to.exist;
+    expect(document.body.textContent).to.include("LIVE morph");
     expect(document.querySelectorAll(".lora-picker-row").length).to.equal(0);
 
     appVm.loraPickerOpen = true;
@@ -1077,17 +1076,21 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos[0].targets).to.not.include("translation_x");
   });
 
-  it("shows the LoRA crossfader under Prompts → LORA", async () => {
+  it("routes LoRA morph to LIVE and keeps group assignment under Prompts → LORA", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "LORA");
     await nextTick();
     await nextTick();
 
-    expect(document.body.textContent).to.include("LoRA Crossfader");
-    expect(document.querySelector(".lora-crossfader-inline")).to.exist;
+    expect(document.querySelector('[data-testid="lora-crossfader-hint"]')).to.exist;
+    expect(document.querySelector(".lora-crossfader-inline")).to.not.exist;
     appVm.setLoraCrossfaderOn(true);
     await nextTick();
     expect(appVm.prompts.loraCrossfaderOn).to.equal(true);
+
+    appVm.switchTab("LIVE");
+    await nextTick();
+    expect(document.querySelector(".live-hud-strip--morph")).to.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {

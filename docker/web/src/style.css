@@ -3802,6 +3802,22 @@
       gap: 10px;
       flex-wrap: wrap;
     }
+    .lora-crossfader-hint {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--bg-1) 88%, var(--live) 12%);
+    }
+    .lora-crossfader-hint__copy {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+    }
     .lora-crossfader-summary__status {
       display: block;
       margin-top: 0;
@@ -5308,6 +5324,11 @@
     .modulation-lfo-card__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
     .modulation-lfo-card--active .modulation-lfo-card__dot { background: var(--live); box-shadow: 0 0 6px var(--live); }
     .modulation-lfo-card__meta { font-size: 11px; color: var(--text-dim); }
+    .modulation-lfo-card__compact {
+      font-size: 10px;
+      color: var(--text-secondary);
+      letter-spacing: 0.02em;
+    }
     .modulation-lfo-card__waveform { border-radius: 4px; background: var(--bg-1); }
     .modulation-lfo-card__controls { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 2px; }
     .modulation-lfo-card__control { display: grid; gap: 2px; }
@@ -7215,6 +7236,22 @@
     border-style: dashed;
     color: var(--text-dim);
   }
+  .audio-band-presets--hero {
+    margin-top: 10px;
+    margin-bottom: 0;
+    align-items: center;
+  }
+  .audio-band-presets__label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-right: 4px;
+  }
+  .audio-band-presets--detail {
+    margin-bottom: 8px;
+  }
   .audio-reactive-hz-pair {
     display: flex;
     align-items: center;
@@ -7234,6 +7271,12 @@
   }
   .audio-reactive-panel__spectrum {
     margin-top: 12px;
+  }
+  .audio-reactive-panel__spectrum--hero {
+    margin-top: 10px;
+  }
+  .audio-reactive-panel__spectrum--hero .audio-spectrum-editor__canvas {
+    min-height: 148px;
   }
   .audio-spectrum-editor {
     position: relative;

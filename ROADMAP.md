@@ -27,10 +27,10 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | **U-21** | Step 1 — First-class AUDIO, RUNS, GENERATE nav | Add tabs to `App.vue` `tabs[]`; full-page `RunsBrowserPanel` / `GenerateView`; route AUDIO to reactive panel; move STREAM to SETTINGS → Output | **Done** — 8-tab nav (LIVE, PROMPTS, MOTION, MODULATION, AUDIO, RUNS, SETTINGS, GENERATE); STREAM → SETTINGS → OUTPUT; `switchTab('STREAM')` legacy alias routes to Output |
 | **U-22** | Step 2 — Remove Perf / bottom drawer | Drop `liveBottomDrawerOpen` state, FAB, duplicate MODULATION/CROSSFADER drawer; runs via tab only | **Done** — dead drawer state removed; `openRunsDrawerSystem()` → `switchTab('RUNS')`; HLS watch no longer tied to STREAM tab |
 | **U-23** | Step 3 — LIVE stage HUDs | GlassPanel morph (bottom-right) + modulating-now (bottom-left) + recent-runs filmstrip; UiIcon pin/lock | **Done** — morph + modulating-now GlassPanels mounted on LIVE stage; recent-runs filmstrip; UiIcon pin/lock in `LiveView.vue` (morph still also in PROMPTS until U-27) |
-| **U-24** | Step 4 — MODULATION waveform-first | Waveform hero, compact LFO meta line, teal active / dim idle cards | **Partial** — `modulation-lfo-card--active` teal border/dot ✓; inactive dim ✓; `Waveform` with `renderPhase` ✓; shape/BPM/speed/depth form stack still default-visible |
-| **U-25** | Step 5 — AUDIO meter-first mappings | Frequency band meter hero, quick-band pills (`sub · bass · …`) | **Open** — AUDIO is MODULATION sub-tab; mappings remain form-heavy |
+| **U-24** | Step 4 — MODULATION waveform-first | Waveform hero, compact LFO meta line, teal active / dim idle cards | **Done** — waveform-first cards; controls expand on select; compact BPM/depth/routes line when collapsed |
+| **U-25** | Step 5 — AUDIO meter-first mappings | Frequency band meter hero, quick-band pills (`sub · bass · …`) | **Done** — quick-band pills above spectrum hero; taller spectrum canvas; meter cards unchanged |
 | **U-26** | Step 6 — MOTION XY pad hero | Full-view pad, accent puck glow, preset pills | **Partial** — `DeforumMotionPads` + accent puck CSS ✓; pad nested in `DeforumControlPanel`, not dominant hero; common visual strip follows active layer ✓ (follow-up on branch) |
-| **U-27** | Step 7 — PROMPTS single crossfader | Remove inline LoRA blend slider; A/B card assignment only; morph on LIVE | **Open** — inline `lora-crossfader-inline` in `PromptsView.vue`; `CrossfaderPanel.vue` unused in template |
+| **U-27** | Step 7 — PROMPTS single crossfader | Remove inline LoRA blend slider; A/B card assignment only; morph on LIVE | **Done** — inline crossfader removed from Prompts → LORA; hint links to LIVE morph HUD |
 | **U-28** | Step 8 — GENERATE timeline dock | Preview above timeline; shared playhead | **Partial** — `GenerateView` + `Timeline.vue` exist; GENERATE tab opens sequencer side drawer; dedicated dock-under-preview layout open |
 | **U-29** | Step 9 — SETTINGS progressive disclosure | Reorder sub-tabs; rename SYSTEM; Output sub-tab for stream; GlassPanel model picker | **Partial** — OUTPUT sub-tab with `StreamView` ✓; sub-tab order / SYSTEM rename / model picker open |
 | **U-30** | Step 10 — Token / hex audit | Replace hardcoded hex; delete design.zip | **Open** — `--live` / `--accent` used in CSS; full vue hex sweep not done |
@@ -48,9 +48,9 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | M4–M5 | Audio reactive cards / LFO phase | **Partial** | Phase on Waveform ✓; audio cards open |
 | Mo1–Mo3 | XY pad hero / size | **Partial** | Structure ✓; layout not hero-dominant |
 | Mo4 | Readout mono | **Low / partial** | |
-| P1–P2 | Duplicate crossfader / A/B + slider | **Open** | |
+| P1–P2 | Duplicate crossfader / A/B + slider | **Done** | Morph on LIVE only |
 | P3–P4 | Story / CN card polish | **Open** | |
-| A1–A4 | AUDIO first-class + meters | **Open** | |
+| A1–A4 | AUDIO first-class + meters | **Partial** | Tab ✓; meter-first reactive layout ✓ |
 | R1–R2 | RUNS tab + drawer overlap | **Done** | RUNS tab + SETTINGS → SYSTEM |
 | S1–S4 | Settings sub-tabs / disclosure | **Open** | |
 | G1–G3 | GENERATE tab + timeline dock | **Partial** | GENERATE tab ✓; sequencer dock under preview still shared with MOTION |
@@ -64,10 +64,8 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 
 ### Recommended order
 
-1. **U-24 + U-25** — Modulation + audio card polish
-2. **U-27** — Single morph on LIVE; remove PROMPTS duplicate crossfader
-3. **U-26, U-28, U-29** — Motion hero, Generate dock layout, Settings disclosure
-4. **U-30 + remaining emoji** — Token sweep and remaining UiIcon replacements
+1. **U-26, U-28, U-29** — Motion hero, Generate dock layout, Settings disclosure
+2. **U-30 + remaining emoji** — Token sweep and remaining UiIcon replacements
 
 ---
 
