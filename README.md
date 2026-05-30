@@ -9,53 +9,67 @@ https://defora.dudeisland.eu/
 
 ## Current Browser Tour
 
+Eight top-level tabs: **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · RUNS · SETTINGS · GENERATE**. Stream output moved to **Settings → Output**. Annotated screenshots: [`docs/ui-migration/00-README.md`](docs/ui-migration/00-README.md).
+
 <table>
 <tr>
 <td width="50%">
 <h4>LIVE</h4>
 <img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
-<p>The stage fills the right half with the active render; the left panel switches between <b>Controls</b> (animation engine picker, layer selector, preview source) and <b>Deforum</b> (full settings editor). The layer bar at the bottom cycles between WebGL, Deforum, WAN Video, Both, Input, and any added sources.</p>
+<p>The stage fills the right half; the left panel switches between <b>Controls</b> (animation engine, layer selector, preview source) and <b>Deforum</b>. Stage HUDs: pinned params, modulating-now, morph crossfader, recent-runs rail. Layer bar at bottom cycles WebGL / Deforum / WAN / AnimateLCM / Both / Input.</p>
 </td>
 <td width="50%">
 <h4>PROMPTS</h4>
 <img src="screenshots/prompts-tab.png" alt="Web UI Prompts Tab" width="100%" />
-<p>Sub-tabs PROMPTS / IMAGE / LORA / CONTROLNET / STORY all live here. The main view shows <b>Style Modifier</b> (forge-compatible style presets with example preview toggle) and <b>Prompt Morphing</b> — enable it to expose the A/B morph crossfader and blend between two prompt states in real time.</p>
+<p>Sub-tabs PROMPTS / IMAGE / LORA / CONTROLNET / STORY. Style modifier, prompt morph enable, and plugin registry. A/B morph crossfader lives on the LIVE stage HUD — not duplicated here.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>MOTION</h4>
 <img src="screenshots/motion-tab.png" alt="Web UI Motion Tab" width="100%" />
-<p>Dual XY performance pads — <b>Move Controls</b> (translation X/Y) and <b>Look Controls</b> (zoom/angle) — with camera presets (Static, Orbit, Tunnel, Handheld, Chaos) and a smoothness toggle. The <b>Animation Sequencer</b> timeline docks at the bottom; frame filmstrip appears as previews arrive.</p>
+<p>Preset pills above a full-view XY hero pad with accent puck glow. Fine-tune toggle reveals macro sliders. Animation sequencer timeline docks at the bottom; 3D path preview in advanced panel.</p>
 </td>
 <td width="50%">
 <h4>MODULATION</h4>
 <img src="screenshots/modulation-tab.png" alt="Web UI Modulation Tab" width="100%" />
-<p>The <b>Modulation Patch Bay</b> holds six independent LFO slots (LFO / Audio / Reactive / Beat / Mappings tabs). Each LFO shows waveform shape, BPM sync, speed, depth, and the currently armed target. The Targets section at the bottom lists every routed parameter at a glance.</p>
+<p>Waveform-first LFO cards — compact meta when collapsed, full controls when selected. Sub-tabs LFO / Audio / Reactive / Beat / Mappings. Teal active, dim idle chrome.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
-<h4>LIBRARY</h4>
-<img src="screenshots/library-tab.png" alt="Web UI Library Tab" width="100%" />
-<p>Video and frame browser across Frames, Runs, Uploads, HLS, and VideoSwarm roots. Toggle <b>Videos only</b>, create new folders, sort by name/date/size, and connect cloud sources. The <b>Open in editor</b> button sends the selected clip straight into the trim / export editor.</p>
+<h4>AUDIO</h4>
+<img src="screenshots/audio-tab.png" alt="Web UI Audio Tab" width="100%" />
+<p>First-class reactive tab: quick-band pills (sub · bass · mid · …) above a tall spectrum hero. Frequency-to-parameter mapping cards with live meters.</p>
 </td>
 <td width="50%">
-<h4>PROMPTS — LoRA</h4>
-<img src="screenshots/lora-tab.png" alt="Web UI LoRA Tab" width="100%" />
-<p>Active LoRAs panel shows the current checkpoint family (SD-XL / Forge source). Common, A-Group, and B-Group slots let you pre-load two palettes; the <b>LoRA Crossfader</b> blends between them. Fader source can be Manual, or routed to any of the six LFOs for tempo-synced style morphing.</p>
+<h4>RUNS</h4>
+<img src="screenshots/runs-tab.png" alt="Web UI Runs Tab" width="100%" />
+<p>Full-page runs monitor — active jobs, past runs, frames rail. Kill queued batches, inspect JSON diff, re-run or continue from detail pane.</p>
 </td>
 </tr>
 <tr>
+<td width="50%">
+<h4>GENERATE</h4>
+<img src="screenshots/generate-tab.png" alt="Web UI Generate Tab" width="100%" />
+<p>Dedicated timeline dock under preview with playhead/duration/frame/FPS sync readout. Clips, keyframes, markers, and Apply-to-Deforum workflow.</p>
+</td>
 <td width="50%">
 <h4>SETTINGS — Engine</h4>
 <img src="screenshots/settings-tab.png" alt="Web UI Settings Tab" width="100%" />
-<p>ENGINE sub-tab shows the active checkpoint, CFG, steps, sampler, and scheduler in a single card. Inline controls for resolution, global FPS, model source, and seed (random or fixed). <b>LCM Engine</b> toggle switches to 1-step inference; <b>Optimize for model</b> auto-applies the right profile (SDXL fast, etc.).</p>
+<p>Checkpoint GlassPanel with CFG/steps/sampler summary. Advanced sampling, resolution, LCM, and seed in progressive disclosure panel.</p>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<h4>SETTINGS — Output</h4>
+<img src="screenshots/stream-tab.png" alt="Web UI Stream Output" width="100%" />
+<p>Stream preview, HLS/RTMP addresses, and active output destinations. Replaces the former top-level STREAM tab; HLS watch also available from the status strip on LIVE.</p>
 </td>
 <td width="50%">
-<h4>STREAM</h4>
-<img src="screenshots/stream-tab.png" alt="Web UI Stream Tab" width="100%" />
-<p><b>Stream Preview</b> monitors the live HLS feed; the status badge turns green once a valid segment arrives. HLS playlist and RTMP ingest addresses are shown for copy-paste. <b>Active streams</b> panel lists running output destinations — use <b>Add destination</b> to push to any RTMP/SRT/WHIP endpoint.</p>
+<h4>LIBRARY</h4>
+<img src="screenshots/library-tab.png" alt="Web UI Library Tab" width="100%" />
+<p>Fullscreen workspace from the header Library icon. Browse Frames, Runs, Uploads, HLS, VideoSwarm; cloud connect; Open in editor.</p>
 </td>
 </tr>
 </table>
