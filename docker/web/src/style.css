@@ -517,6 +517,15 @@
     .preview-bottom-dock__pane--sequencer .stage-sequencer-shell {
       margin-top: 0;
     }
+    .preview-bottom-dock--generate {
+      max-height: min(360px, 42vh);
+    }
+    .layout--generate-dock .preview--motion-dock {
+      padding-bottom: min(360px, 42vh);
+    }
+    .layout--generate-dock .preview-bottom-dock--generate .stage-sequencer-main {
+      min-height: 220px;
+    }
     .video-wrap { position: relative; border-radius: 8px; overflow: hidden; background: var(--media-bg); width: 100%; }
     .video-wrap__stage {
       position: relative;
@@ -3802,6 +3811,22 @@
       gap: 10px;
       flex-wrap: wrap;
     }
+    .lora-crossfader-hint {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-top: 16px;
+      padding: 12px;
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--bg-1) 88%, var(--live) 12%);
+    }
+    .lora-crossfader-hint__copy {
+      margin: 0;
+      flex: 1;
+      min-width: 0;
+    }
     .lora-crossfader-summary__status {
       display: block;
       margin-top: 0;
@@ -5308,6 +5333,11 @@
     .modulation-lfo-card__dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); flex-shrink: 0; }
     .modulation-lfo-card--active .modulation-lfo-card__dot { background: var(--live); box-shadow: 0 0 6px var(--live); }
     .modulation-lfo-card__meta { font-size: 11px; color: var(--text-dim); }
+    .modulation-lfo-card__compact {
+      font-size: 10px;
+      color: var(--text-secondary);
+      letter-spacing: 0.02em;
+    }
     .modulation-lfo-card__waveform { border-radius: 4px; background: var(--bg-1); }
     .modulation-lfo-card__controls { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; margin-top: 2px; }
     .modulation-lfo-card__control { display: grid; gap: 2px; }
@@ -5897,6 +5927,55 @@
     }
     .video-wrap--anchored .video-wrap__stage > .live-hud-strip--pinned {
       grid-template-columns: minmax(0, 320px);
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--mods {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      top: auto;
+      right: auto;
+      max-width: min(320px, calc(100% - 16px));
+      z-index: 5;
+      margin-top: 0;
+      grid-template-columns: minmax(0, 320px);
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--morph {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      top: auto;
+      left: auto;
+      max-width: min(360px, calc(100% - 16px));
+      z-index: 5;
+      margin-top: 0;
+      grid-template-columns: minmax(0, 360px);
+    }
+    .live-hud-morph .morph-crossfader-panel {
+      max-height: min(42vh, 320px);
+      overflow: auto;
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--runs {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      top: auto;
+      z-index: 4;
+      margin-top: 0;
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--mods ~ .live-hud-strip--runs,
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--morph ~ .live-hud-strip--runs {
+      bottom: calc(8px + min(42vh, 320px) + 12px);
+    }
+    .param-group__pinned-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .param-pin-btn .ui-icon,
+    .param-lock-btn .ui-icon {
+      width: 12px;
+      height: 12px;
     }
     /* Live sequencer overlay — full video width, large touch targets */
     .live-sequencer-dock {
@@ -6782,6 +6861,138 @@
       flex-wrap: wrap;
       justify-content: flex-end;
     }
+    .motion-view--hero .motion-preset-row--hero {
+      margin-top: 10px;
+    }
+    .motion-preset-toolbar--compact {
+      margin-top: 8px;
+    }
+    .motion-hero-stage {
+      margin-top: 10px;
+    }
+    .motion-view--hero .deforum-motion-pads--hero .motion-controls-row {
+      flex-direction: column;
+      margin-top: 0;
+    }
+    .motion-view--hero .deforum-motion-pads--hero .motion-pad-hero {
+      aspect-ratio: unset;
+      width: 100%;
+      min-height: min(42vh, 280px);
+    }
+    .motion-view--hero .deforum-motion-pads--hero .motion-controls-2d {
+      grid-template-columns: 1fr 1fr;
+      margin-top: 0;
+    }
+    @media (max-width: 720px) {
+      .motion-view--hero .deforum-motion-pads--hero .motion-controls-2d {
+        grid-template-columns: 1fr;
+      }
+    }
+    .motion-view--hero .deforum-motion-pads--hero .motion-pad-hero__puck {
+      width: 22px;
+      height: 22px;
+      box-shadow:
+        0 0 14px var(--live),
+        0 0 32px color-mix(in srgb, var(--live) 50%, transparent);
+    }
+    .motion-view--hero .deforum-motion-pads--hero .motion-pad-hero--look .motion-pad-hero__puck,
+    .motion-view--hero .deforum-motion-pads--hero .motion-pad-hero__puck--look {
+      box-shadow:
+        0 0 14px var(--accent),
+        0 0 32px color-mix(in srgb, var(--accent) 50%, transparent);
+    }
+    .motion-fine-tune-toggle {
+      margin-top: 8px;
+    }
+    .motion-advanced-panel {
+      margin-top: 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px 10px;
+      background: var(--bg-1);
+    }
+    .motion-advanced-panel__summary {
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      list-style: none;
+    }
+    .motion-advanced-panel[open] .motion-advanced-panel__summary {
+      margin-bottom: 10px;
+    }
+    .generate-dock-panel {
+      display: grid;
+      gap: 10px;
+    }
+    .generate-dock-sync {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .generate-dock-sync__metric {
+      display: grid;
+      gap: 2px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-1);
+    }
+    .generate-dock-sync__label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+    }
+    .generate-dock-sync__value {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      color: var(--live-text);
+    }
+    .generate-dock-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .settings-subtabs {
+      flex-wrap: wrap;
+    }
+    .engine-model-glass {
+      margin-bottom: 10px;
+    }
+    .engine-main-summary--glass {
+      display: grid;
+      grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .engine-main-card--stat {
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg-0);
+    }
+    .engine-main-inline-status-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .engine-advanced-panel {
+      margin-top: 0;
+      padding: 10px 12px;
+    }
+    .engine-advanced-panel__summary {
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      list-style: none;
+    }
+    .engine-advanced-panel[open] .engine-advanced-panel__summary {
+      margin-bottom: 10px;
+    }
     .motion-panel__readout {
       font-size: 11px;
       color: var(--text-secondary);
@@ -7166,6 +7377,22 @@
     border-style: dashed;
     color: var(--text-dim);
   }
+  .audio-band-presets--hero {
+    margin-top: 10px;
+    margin-bottom: 0;
+    align-items: center;
+  }
+  .audio-band-presets__label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-secondary);
+    margin-right: 4px;
+  }
+  .audio-band-presets--detail {
+    margin-bottom: 8px;
+  }
   .audio-reactive-hz-pair {
     display: flex;
     align-items: center;
@@ -7185,6 +7412,12 @@
   }
   .audio-reactive-panel__spectrum {
     margin-top: 12px;
+  }
+  .audio-reactive-panel__spectrum--hero {
+    margin-top: 10px;
+  }
+  .audio-reactive-panel__spectrum--hero .audio-spectrum-editor__canvas {
+    min-height: 148px;
   }
   .audio-spectrum-editor {
     position: relative;

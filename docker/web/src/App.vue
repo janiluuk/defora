@@ -104,7 +104,6 @@
       </button>
       <div class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
         <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-        <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
         <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
         <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
         <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
@@ -132,7 +131,8 @@
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
-      'layout--studio': currentTab === 'MODULATION',
+      'layout--generate-dock': currentTab === 'GENERATE',
+      'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',
       'layout--library-workspace': libraryWorkspaceOpen,
     }">
       <!-- Left: video + mini timeline -->
@@ -295,6 +295,47 @@
               />
             </GlassPanel>
           </div>
+          <div v-if="currentTab === 'LIVE' && liveModulating.length" class="live-hud-strip live-hud-strip--mods">
+            <GlassPanel size="sm" class="live-hud-modulating">
+              <template #header>Modulating now</template>
+              <ModulationActiveModsPanel :app="appViewModel" />
+            </GlassPanel>
+          </div>
+          <div v-if="currentTab === 'LIVE'" class="live-hud-strip live-hud-strip--morph">
+            <GlassPanel size="sm" class="live-hud-morph">
+              <template #header>Morph</template>
+              <MorphCrossfaderPanel :app="appViewModel" />
+            </GlassPanel>
+          </div>
+          <div v-if="currentTab === 'LIVE' && recentRunsRail.length" class="live-hud-strip live-hud-strip--runs">
+            <div class="recent-runs-rail" data-testid="live-recent-runs-rail">
+              <div class="recent-runs-rail__header">
+                <span class="recent-runs-rail__title">Recent runs</span>
+                <button type="button" class="recent-runs-rail__link" @click="switchTab('RUNS')">All runs</button>
+              </div>
+              <div class="recent-runs-rail__list">
+                <button
+                  v-for="run in recentRunsRail"
+                  :key="'live-rail-' + run.run_id"
+                  type="button"
+                  class="recent-runs-rail__item"
+                  @click="openRunFromRail(run)"
+                >
+                  <img
+                    v-if="runListingThumbUrl(run)"
+                    :src="runListingThumbUrl(run)"
+                    :alt="run.run_id"
+                    class="recent-runs-rail__thumb"
+                  >
+                  <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">No preview</div>
+                  <div class="recent-runs-rail__meta">
+                    <div class="recent-runs-rail__id">{{ run.run_id }}</div>
+                    <div class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</div>
+                  </div>
+                </button>
+              </div>
+            </div>
+          </div>
           </div>
           <button
             v-if="showEngineDrawerShell"
@@ -415,6 +456,7 @@
         <div
           v-if="currentTab === 'MOTION' || currentTab === 'GENERATE'"
           class="preview-bottom-dock"
+          :class="{ 'preview-bottom-dock--generate': currentTab === 'GENERATE' }"
           data-testid="preview-bottom-dock"
         >
           <div class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer">
@@ -590,11 +632,13 @@ import GenerateView from './components/views/GenerateView.vue'
 import ModulationView from './components/views/ModulationView.vue'
 import SettingsView from './components/views/SettingsView.vue'
 import RunsBrowserPanel from './components/RunsBrowserPanel.vue'
+import MorphCrossfaderPanel from './components/MorphCrossfaderPanel.vue'
+import ModulationActiveModsPanel from './components/ModulationActiveModsPanel.vue'
 import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel, MorphCrossfaderPanel, ModulationActiveModsPanel },
   data() {
     return {
        showFrames: false,
@@ -770,11 +814,13 @@ export default {
       _syncingGlobalFps: false,
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
-        { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
+        { id: "AUDIO", label: "AUDIO", hint: "Reactive", icon: "mic" },
+        { id: "RUNS", label: "RUNS", hint: "History", icon: "history" },
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
+        { id: "GENERATE", label: "GENERATE", hint: "Sequencer", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
@@ -833,8 +879,6 @@ export default {
       videoSwarmVisibleStart: 0,
       videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
-      liveBottomDrawerOpen: false,
-      liveBottomDrawerTab: 'MODULATION',
       liveEngineDrawerOpen: true,
       restoreSessionPromptOpen: false,
       pendingSessionStateRaw: '',
@@ -1252,6 +1296,7 @@ export default {
       sequencerSelectedClipId: null,
       generateDockExpanded: false,
       motionSequencerSideOpen: false,
+      motionFineTuneOpen: false,
       selectedFrameIndex: -1,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
@@ -1384,8 +1429,9 @@ export default {
       }));
     },
     runsMonitorActive() {
-      if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
-      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'SYSTEM';
+      if (this.currentTab === 'RUNS') return true;
+      if (this.currentTab === 'SETTINGS' && (this.currentSubTab.SETTINGS === 'RUNS' || this.currentSubTab.SETTINGS === 'SYSTEM')) return true;
+      return false;
     },
     runsLastRefreshedLabel() {
       if (!this.runsLastRefreshedAt) return '';
@@ -1685,13 +1731,7 @@ export default {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
     },
     showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
-    },
-    canStartHlsWatch() {
-      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
-    },
-    showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+      return this.hlsWatchEnabled;
     },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
@@ -2888,15 +2928,12 @@ export default {
       if (this.currentTab !== 'SETTINGS') return;
       this.syncRunsMonitorPolling();
       if (sub === 'SYSTEM') void this.refreshRuns();
+      if (sub === 'RUNS') void this.refreshRuns();
+      if (sub === 'OUTPUT') void this.refreshStreamStatus();
     },
     runsAutoRefresh() {
       this.syncRunsMonitorPolling();
       this.saveSessionState();
-    },
-    liveBottomDrawerOpen() {
-      this.syncRunsMonitorPolling();
-      this.saveSessionState();
-      this.$nextTick(() => this.updateVideoOverlayBounds());
     },
     liveEngineDrawerOpen(open) {
       this.$nextTick(() => this.updateVideoOverlayBounds());
@@ -2908,17 +2945,12 @@ export default {
     enginePanelDetailsOpen(open) {
       if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
     },
-    liveBottomDrawerTab(tab) {
-      if (tab === 'SYSTEM') void this.refreshRuns();
-      this.syncRunsMonitorPolling();
-    },
     currentTab(tab, prev) {
       this.syncRunsMonitorPolling();
       this.updateVideoOverlayBounds();
       this.updateSidePanelDockBounds();
-      if (prev === "STREAM" && tab !== "STREAM") {
-        this.disableHlsWatch();
-      }
+      if (tab === 'RUNS') void this.refreshRuns();
+      if (tab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'OUTPUT') void this.refreshStreamStatus();
     },
     hlsPreviewStreamValid(valid) {
       if (!valid && this.hlsWatchEnabled) {
@@ -3410,26 +3442,36 @@ export default {
   },
   openRunsSettings() {
     this.switchTab('SETTINGS');
-    this.switchSubTab('SETTINGS', 'SYSTEM');
+    this.switchSubTab('SETTINGS', 'RUNS');
     this.runsBrowserTab = 'active';
     void this.refreshRuns();
     this.syncRunsMonitorPolling();
   },
   openRecentRun(run) {
     if (!run) return;
-    this.liveBottomDrawerOpen = true;
-    this.setLiveBottomDrawerTab('SYSTEM');
+    this.switchTab('RUNS');
     this.showRunDetails(run);
   },
   openRunsDrawerSystem() {
-    this.liveBottomDrawerOpen = true;
-    this.setLiveBottomDrawerTab('SYSTEM');
+    this.switchTab('RUNS');
   },
   openFramesInRunsPanel() {
-    this.liveBottomDrawerOpen = true;
-    this.liveBottomDrawerTab = 'SYSTEM';
+    this.switchTab('RUNS');
     this.setRunsBrowserTab('frames');
     this.syncRunsMonitorPolling();
+  },
+  openRunFromRail(run) {
+    if (!run) return;
+    this.switchTab('RUNS');
+    this.showRunDetails(run);
+  },
+  runRailSummary(run) {
+    if (!run) return '';
+    const tag = run.tag || run.notes || '';
+    if (tag) return String(tag).slice(0, 48);
+    const prompt = run.prompt_positive || '';
+    if (prompt) return String(prompt).slice(0, 48);
+    return '';
   },
   applyRunsFilters() {
     let filtered = (this.runsAll || []).filter((r) => r.status !== 'running' && r.status !== 'queued');
@@ -3917,35 +3959,26 @@ export default {
      this.openLibraryWorkspace(id === 'EDITOR' ? 'editor' : 'browser');
      return;
    }
-   if (id === 'GENERATE') {
-     this.currentTab = 'MOTION';
-     this.currentSubTab.MOTION = 'PERFORMANCE';
-     this.motionSequencerSideOpen = true;
-     try {
-       if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'MOTION');
-         window.localStorage.setItem('defora_subtab_MOTION', 'PERFORMANCE');
-       }
-     } catch (_e) {}
+   if (id === 'STREAM') {
+     this.currentTab = 'SETTINGS';
+     this.switchSubTab('SETTINGS', 'OUTPUT');
+     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'SETTINGS'); } catch (_e) {}
+     void this.refreshStreamStatus();
      this.saveSessionState();
      return;
    }
+   this.currentTab = id;
    if (id === 'AUDIO') {
-     this.currentTab = 'MODULATION';
      this.currentSubTab.MODULATION = 'AUDIO_REACTIVE';
-     try {
-       if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'MODULATION');
-         window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO_REACTIVE');
-       }
-     } catch (_e) {}
-     return;
+   }
+   if (id === 'GENERATE') {
+     this.motionSequencerSideOpen = true;
    }
    if (id === 'RUNS') {
-     this.openRunsDrawerSystem();
-     return;
+     this.runsBrowserTab = this.runsBrowserTab || 'active';
+     void this.refreshRuns();
+     this.syncRunsMonitorPolling();
    }
-   this.currentTab = id;
    if (id === 'MOTION') {
      this.$nextTick(() => {
        this.refreshSequencerList();
@@ -3953,9 +3986,6 @@ export default {
      });
    }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
-  if (id === 'STREAM') {
-    void this.refreshStreamStatus();
-  }
  },
  normalizeModulationSubTab(sub) {
    if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
@@ -3977,13 +4007,10 @@ export default {
   return sub === 'PERFORMANCE' ? sub : 'PERFORMANCE';
  },
  switchSubTab(tab, sub) {
-  if (tab === 'SETTINGS' && sub === 'RUNS') {
-    this.openRunsSettings();
-    return;
-  }
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
+  if (tab === 'SETTINGS' && sub === 'SYSTEM') sub = 'RUNS';
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
   if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
   if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
@@ -4015,7 +4042,7 @@ export default {
     void this.initSystemFilesBrowser();
   }
   if (tab === 'SETTINGS') {
-    if (sub === 'SYSTEM') void this.refreshRuns();
+    if (sub === 'RUNS') void this.refreshRuns();
     this.syncRunsMonitorPolling();
   }
  },
@@ -4029,20 +4056,6 @@ export default {
   } else if (tab === 'active' || tab === 'past') {
     void this.refreshRuns();
   }
-  this.saveSessionState();
- },
- setLiveBottomDrawerTab(tab) {
-  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
-  this.liveBottomDrawerTab = tab;
-  if (tab === 'SYSTEM') {
-    this.ensureRunsJobLogReady();
-    void this.refreshRuns();
-  } else if (tab !== 'CROSSFADER') {
-    this.loraCrossfaderPickerGroup = null;
-  } else if (!this.lorasLoading && !this.loras.available.length) {
-    this.refreshLoras();
-  }
-  this.syncRunsMonitorPolling();
   this.saveSessionState();
  },
  toggleLoraCrossfaderPicker(group) {
@@ -4704,9 +4717,6 @@ setHlsPreviewStreamValid(valid) {
 },
 enableHlsWatch() {
   if (!this.hlsPreviewStreamValid) return;
-  if (this.currentTab !== "STREAM") {
-    this.switchTab("STREAM");
-  }
   if (this.hlsWatchEnabled) return;
   this.hlsWatchEnabled = true;
   this.videoReady = false;
@@ -10566,19 +10576,22 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (s.sidePanelDock === 'auto' || s.sidePanelDock === 'edge' || s.sidePanelDock === 'video') {
        this.sidePanelDock = s.sidePanelDock;
      }
-     if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
-     if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
-     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
-       this.liveBottomDrawerTab = s.liveBottomDrawerTab;
-     } else if (s.liveBottomDrawerTab === 'RUNS') {
-       this.liveBottomDrawerTab = 'SYSTEM';
+     if (s.liveBottomDrawerOpen === true) {
+       if (s.liveBottomDrawerTab === 'SYSTEM' || s.liveBottomDrawerTab === 'RUNS') {
+         this.currentTab = 'RUNS';
+       }
      }
+     if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
     if (s.currentSubTab && s.currentSubTab.MOTION) {
       this.currentSubTab.MOTION = this.normalizeMotionSubTab(s.currentSubTab.MOTION);
     }
+    if (s.currentSubTab && s.currentSubTab.SETTINGS) {
+      this.currentSubTab.SETTINGS = s.currentSubTab.SETTINGS === 'SYSTEM' ? 'RUNS' : s.currentSubTab.SETTINGS;
+    }
+    if (typeof s.motionFineTuneOpen === 'boolean') this.motionFineTuneOpen = s.motionFineTuneOpen;
     if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
     if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
     if (typeof s.activeVideoLayerId === 'string') this.activeVideoLayerId = s.activeVideoLayerId;
@@ -10639,7 +10652,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
     if (typeof s.hlsWatchEnabled === 'boolean') {
       this.hlsWatchEnabled = s.hlsWatchEnabled;
-      if (this.hlsWatchEnabled && this.currentTab === 'STREAM') {
+      if (this.hlsWatchEnabled) {
         this.$nextTick(() => this.attachPlayer());
       }
     }
@@ -10748,8 +10761,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
-      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
-      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -10792,6 +10803,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
+      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -10837,8 +10849,6 @@ getCurrentSessionSnapshotRaw() {
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
-      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
-      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -10879,6 +10889,7 @@ getCurrentSessionSnapshotRaw() {
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
+      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {

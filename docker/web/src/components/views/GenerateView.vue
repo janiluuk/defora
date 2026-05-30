@@ -27,8 +27,8 @@
     </div>
   </div>
 
-  <div v-else class="rack generate-view">
-    <div class="framesync-panel">
+  <div v-else class="rack generate-view generate-view--dock" data-testid="generate-view-dock">
+    <div class="framesync-panel generate-dock-panel">
       <div class="framesync-header">
         <div class="framesync-title">Animation <span class="framesync-accent">Sequencer</span></div>
         <span class="generate-sequencer__status" :class="{ 'generate-sequencer__status--live': sequencerPlaying }">
@@ -36,9 +36,43 @@
         </span>
       </div>
 
+      <div class="generate-dock-sync" data-testid="generate-dock-sync">
+        <div class="generate-dock-sync__metric">
+          <span class="generate-dock-sync__label">Playhead</span>
+          <code class="generate-dock-sync__value">{{ sequencerPlayhead.toFixed(2) }}s</code>
+        </div>
+        <div class="generate-dock-sync__metric">
+          <span class="generate-dock-sync__label">Duration</span>
+          <code class="generate-dock-sync__value">{{ Number(sequencer.durationSec || 0).toFixed(2) }}s</code>
+        </div>
+        <div class="generate-dock-sync__metric">
+          <span class="generate-dock-sync__label">Frame</span>
+          <code class="generate-dock-sync__value">{{ sequencerJobFrameNumber }}/{{ sequencerJobTotalFrames }}</code>
+        </div>
+        <div class="generate-dock-sync__metric">
+          <span class="generate-dock-sync__label">FPS</span>
+          <code class="generate-dock-sync__value">{{ masterFps }}</code>
+        </div>
+      </div>
+
       <p class="generate-sequencer__live-hint">
-        Timeline and transport live below the video. Open the <strong>Edit</strong> side panel on the sequencer dock for tracks, clips, and markers.
+        Preview stays above the timeline dock. Transport, scrubber, and tracks share one playhead — open <strong>Edit</strong> on the dock for clip details.
       </p>
+
+      <div class="generate-dock-actions">
+        <button
+          type="button"
+          class="framesync-button framesync-button--compact"
+          :class="{ active: motionSequencerSideOpen }"
+          data-testid="generate-open-sequencer-editor"
+          @click="motionSequencerSideOpen = !motionSequencerSideOpen; saveSessionState()"
+        >
+          {{ motionSequencerSideOpen ? 'Hide editor' : 'Open editor' }}
+        </button>
+        <button type="button" class="framesync-button framesync-button--compact" @click="switchTab('MOTION')">
+          Motion controls
+        </button>
+      </div>
     </div>
   </div>
 </template>

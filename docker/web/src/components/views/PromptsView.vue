@@ -555,56 +555,13 @@
               </div>
             </div>
           </div>
-          <div class="lora-crossfader-inline">
-            <div class="lora-crossfader-inline__header">
-              <div class="framesync-title">LoRA <span class="framesync-accent">Crossfader</span></div>
-              <div class="prompt-toolbar">
-                <button
-                  type="button"
-                  class="framesync-button"
-                  :class="{ 'framesync-button--live': prompts.loraCrossfaderOn }"
-                  @click="setLoraCrossfaderOn(true)"
-                >
-                  Enabled
-                </button>
-                <button
-                  type="button"
-                  class="framesync-button"
-                  :class="{ active: !prompts.loraCrossfaderOn }"
-                  @click="setLoraCrossfaderOn(false)"
-                >
-                  Disabled
-                </button>
-              </div>
+          <div class="lora-crossfader-hint" data-testid="lora-crossfader-hint">
+            <div class="framesync-subtitle lora-crossfader-hint__copy">
+              LoRA morph blend is on the <strong>LIVE</strong> stage (Morph HUD, bottom-right). Assign LoRAs to Common, A, and B below — crossfade weights are controlled from LIVE.
             </div>
-            <div class="framesync-subtitle lora-crossfader-summary__status">{{ loraCrossfaderSummary }}</div>
-            <div class="lora-crossfader-links" :class="{ 'lora-crossfader-links--disabled': !prompts.loraCrossfaderOn }">
-              <button
-                type="button"
-                class="framesync-button"
-                :class="{ active: !prompts.loraCrossfaderLfoLink }"
-                @click="setLoraCrossfaderLfoLink(null)"
-              >
-                Manual
-              </button>
-              <button
-                v-for="lfo in lfos.slice(0, 6)"
-                :key="'lora-crossfader-inline-lfo-' + lfo.id"
-                type="button"
-                class="framesync-button"
-                :class="{ active: prompts.loraCrossfaderLfoLink === lfo.id }"
-                @click="setLoraCrossfaderLfoLink(lfo.id)"
-              >
-                LFO {{ lfo.id }}
-              </button>
-            </div>
-            <div class="framesync-gradient-bar"></div>
-            <input type="range" min="0" max="1" step="0.01" :value="prompts.crossfaderValue" :disabled="!prompts.loraCrossfaderOn" @input="applyLoraCrossfader($event.target.value)" class="framesync-input" style="margin-top:8px;">
-            <div class="prompt-ab-center__labels">
-              <span class="prompt-ab-center__label prompt-ab-center__label--a">A: {{ ((1-prompts.crossfaderValue)*100).toFixed(0) }}%</span>
-              <span class="prompt-ab-center__label prompt-ab-center__label--b">B: {{ (prompts.crossfaderValue*100).toFixed(0) }}%</span>
-            </div>
-            <div class="lora-crossfader-status">{{ loraCrossfaderLinkStatus }}</div>
+            <button type="button" class="framesync-button framesync-button--compact" @click="switchTab('LIVE')">
+              Open LIVE morph
+            </button>
           </div>
           <div class="framesync-footer" style="margin-top:12px;">
             <button class="framesync-button" @click="applyLoras">Apply LoRAs</button>

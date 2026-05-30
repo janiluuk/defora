@@ -1,5 +1,5 @@
 <template>
-  <div class="rack motion-view" data-testid="motion-controls-panel">
+  <div class="rack motion-view motion-view--hero" data-testid="motion-controls-panel">
     <div class="framesync-panel motion-panel">
       <div class="framesync-header">
         <div class="framesync-title">Motion <span class="framesync-accent">Performance</span></div>
@@ -16,7 +16,20 @@
         </div>
       </div>
 
-      <div class="motion-preset-toolbar">
+      <div class="motion-preset-row motion-preset-row--hero">
+        <button
+          v-for="name in motionQuickPresets"
+          :key="name"
+          type="button"
+          class="chip"
+          :class="{ active: motionSelectedPreset === name }"
+          @click="applyMotionPresetAndSelect(name)"
+        >
+          {{ name }}
+        </button>
+      </div>
+
+      <div class="motion-preset-toolbar motion-preset-toolbar--compact">
         <select
           class="framesync-select motion-preset-select"
           v-model="motionSelectedPreset"
@@ -52,62 +65,72 @@
         </button>
       </div>
 
-      <div class="motion-preset-row">
-        <button
-          v-for="name in motionQuickPresets"
-          :key="name"
-          type="button"
-          class="chip"
-          :class="{ active: motionSelectedPreset === name }"
-          @click="applyMotionPresetAndSelect(name)"
-        >
-          {{ name }}
-        </button>
+      <div class="motion-hero-stage" data-testid="motion-hero-stage">
+        <DeforumMotionPads
+          :app="app"
+          hero
+          show-readout
+          :show-axis-sliders="motionFineTuneOpen"
+        />
       </div>
 
-      <div class="motion-smoothness" data-testid="motion-smoothness">
-        <label class="motion-smoothness__toggle">
-          <input
-            type="checkbox"
-            data-testid="motion-smoothness-enabled"
-            v-model="motionSmoothness.enabled"
-            @change="saveSessionState"
-          >
-          <span>Smoothness</span>
-        </label>
-        <label
-          v-if="motionSmoothness.enabled"
-          class="motion-smoothness__frames"
-        >
-          <span>Frames</span>
-          <input
-            class="framesync-input motion-smoothness__frames-input"
-            type="number"
-            min="1"
-            max="999"
-            step="1"
-            data-testid="motion-smoothness-frames"
-            :value="motionSmoothness.frames"
-            @change="onMotionSmoothnessFramesChange($event.target.value)"
-          >
-        </label>
-        <span v-if="motionSmoothness.enabled" class="motion-smoothness__hint">
-          Ramp schedule changes over the frame count from the current playhead or selected frame.
-        </span>
-      </div>
-
-      <MotionPathPreview
-        v-if="!isDeforumMotion2d"
-        :deforum-settings="deforumSettings"
-        :motion-values="motionPathLiveValues"
-        :prefer-live-values="true"
-      />
+      <button
+        type="button"
+        class="framesync-button framesync-button--compact motion-fine-tune-toggle"
+        :class="{ active: motionFineTuneOpen }"
+        data-testid="motion-fine-tune-toggle"
+        @click="motionFineTuneOpen = !motionFineTuneOpen; saveSessionState()"
+      >
+        {{ motionFineTuneOpen ? 'Hide axis sliders' : 'Fine-tune axes' }}
+      </button>
 
       <DeforumControlPanel
         :app="app"
         :show-settings="false"
+        :show-motion-pads="false"
         motion-pads-show-readout
       />
+
+      <details class="motion-advanced-panel" :open="!isDeforumMotion2d">
+        <summary class="motion-advanced-panel__summary">Smoothness &amp; path preview</summary>
+        <div class="motion-smoothness" data-testid="motion-smoothness">
+          <label class="motion-smoothness__toggle">
+            <input
+              type="checkbox"
+              data-testid="motion-smoothness-enabled"
+              v-model="motionSmoothness.enabled"
+              @change="saveSessionState"
+            >
+            <span>Smoothness</span>
+          </label>
+          <label
+            v-if="motionSmoothness.enabled"
+            class="motion-smoothness__frames"
+          >
+            <span>Frames</span>
+            <input
+              class="framesync-input motion-smoothness__frames-input"
+              type="number"
+              min="1"
+              max="999"
+              step="1"
+              data-testid="motion-smoothness-frames"
+              :value="motionSmoothness.frames"
+              @change="onMotionSmoothnessFramesChange($event.target.value)"
+            >
+          </label>
+          <span v-if="motionSmoothness.enabled" class="motion-smoothness__hint">
+            Ramp schedule changes over the frame count from the current playhead or selected frame.
+          </span>
+        </div>
+
+        <MotionPathPreview
+          v-if="!isDeforumMotion2d"
+          :deforum-settings="deforumSettings"
+          :motion-values="motionPathLiveValues"
+          :prefer-live-values="true"
+        />
+      </details>
     </div>
   </div>
 </template>
@@ -116,11 +139,12 @@
 import UiIcon from '../UiIcon.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
 import DeforumControlPanel from '../DeforumControlPanel.vue'
+import DeforumMotionPads from '../DeforumMotionPads.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, MotionPathPreview, DeforumControlPanel },
+  components: { UiIcon, MotionPathPreview, DeforumControlPanel, DeforumMotionPads },
   props: {
     app: { type: Object, required: true },
   },

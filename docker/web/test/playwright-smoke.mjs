@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import { clickTab, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'STREAM', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
+const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'RUNS', 'SETTINGS', 'GENERATE'];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -21,8 +21,11 @@ try {
       throw new Error(`Missing tab "${name}" — got: ${trimmed.join(', ')}`);
     }
   }
-  if (trimmed.length < expected.length) {
-    throw new Error(`Expected at least ${expected.length} tabs, got ${trimmed.length}`);
+  if (trimmed.includes('STREAM')) {
+    throw new Error('Legacy STREAM tab should not be in top nav');
+  }
+  if (trimmed.length !== expected.length) {
+    throw new Error(`Expected ${expected.length} tabs (${expected.join(', ')}), got ${trimmed.length}: ${trimmed.join(', ')}`);
   }
   await clickTab(page, 'PROMPTS');
   await page.waitForSelector('.sub-pill', { timeout: 30000 });
@@ -40,13 +43,11 @@ try {
   if ((await morphBlend.count()) === 0 || !(await morphBlend.isVisible())) {
     throw new Error('Prompt morph blend slider not found on PROMPTS tab');
   }
-  await clickTab(page, 'MODULATION');
-  await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^Reactive$/ }).first().click();
+  await clickTab(page, 'AUDIO');
   await page.waitForTimeout(300);
   const audioReactivePanel = page.locator('.audio-reactive-panel');
   if ((await audioReactivePanel.count()) === 0) {
-    throw new Error('Audio reactive panel not found under MODULATION -> Reactive');
+    throw new Error('Audio reactive panel not found on AUDIO tab');
   }
   await openLibraryBrowser(page);
   await page.waitForTimeout(300);
@@ -57,8 +58,9 @@ try {
   await openRunsMonitor(page);
   const runsBrowser = page.locator('[data-testid="runs-browser"]');
   if ((await runsBrowser.count()) === 0) {
-    throw new Error('Runs monitor not found under SETTINGS → SYSTEM');
+    throw new Error('Runs monitor not found on RUNS tab');
   }
+  await clickTab(page, 'SETTINGS');
   await page.waitForTimeout(300);
   await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(300);
