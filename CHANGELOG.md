@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.55] - 2026-05-30
+
+## What's Changed
+
+- fix(web): library browser uploads root and local dev storage paths (c27728a)
+- Update (89e84b2)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.54...v0.6.55
+
+
 ## [0.6.54] - 2026-05-30
 
 ## What's Changed
