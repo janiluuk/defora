@@ -1,5 +1,5 @@
 /**
- * Playwright E2E: launch a test run from Settings → System, verify real-time
+ * Playwright E2E: launch a test run from the RUNS tab, verify real-time
  * activity log, table updates, status transition, and job snapshot on disk.
  */
 import fs from "fs";

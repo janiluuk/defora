@@ -1,7 +1,7 @@
 /**
  * Playwright E2E:
  * 1) Cold load shows WebGL standby animation (not blank / not hidden by empty Deforum).
- * 2) Saved run on disk appears in Settings → System Runs Monitor (storage connected via server runsDir).
+ * 2) Saved run on disk appears in the RUNS tab monitor (storage connected via server runsDir).
  * 3) After reload, the same run is still listed (persistence).
  */
 import fs from "fs";
