@@ -173,6 +173,8 @@ const FULL_STUB_COMPONENTS = [
   'DeforumMotionPads.vue',
   'DeforumSettingsBody.vue',
   'ModulationMappingsPanel.vue',
+  'MorphCrossfaderPanel.vue',
+  'ModulationActiveModsPanel.vue',
   'LibraryWorkspaceOverlay.vue',
 ];
 

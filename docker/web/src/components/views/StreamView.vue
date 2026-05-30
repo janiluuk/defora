@@ -8,7 +8,7 @@
         </span>
       </div>
       <div class="framesync-subtitle" style="margin-top:10px;">
-        This panel checks the live HLS feed. Use <strong>Stream</strong> in the top bar to show it on the main stage once the preview is valid.
+        Configure the live HLS feed and enable main-stage streaming from <strong>Settings → Output</strong> or the status strip once the preview is valid.
       </div>
 
       <div class="stream-hls-controls">

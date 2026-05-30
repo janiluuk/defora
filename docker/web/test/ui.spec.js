@@ -256,7 +256,6 @@ describe("Deforumation Web UI", () => {
     appVm.deforumMode2d3d = "3D";
     appVm.deforumSettings = { ...appVm.deforumSettings, animation_mode: "3D" };
     appVm.motionSequencerSideOpen = false;
-    appVm.liveBottomDrawerOpen = false;
     appVm.runsAll = [];
     appVm.runsDetailView = null;
     appVm.deforumBatches = [];
@@ -271,17 +270,17 @@ describe("Deforumation Web UI", () => {
   it("renders tabs for all sections", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
-    expect(tabs.join(" ")).to.include("STREAM");
     expect(document.querySelector('[data-testid="top-nav-library"]')).to.exist;
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
+    expect(tabs.join(" ")).to.include("AUDIO");
+    expect(tabs.join(" ")).to.include("RUNS");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    expect(tabs.join(" ")).to.not.include("GENERATE");
-    expect(tabs.join(" ")).to.not.include("AUDIO");
-    expect(tabs.join(" ")).to.not.include("RUNS");
-    expect(tabs.length).to.equal(6);
-    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(6);
+    expect(tabs.join(" ")).to.include("GENERATE");
+    expect(tabs.join(" ")).to.not.include("STREAM");
+    expect(tabs.length).to.equal(8);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(8);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -301,8 +300,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showMainStageHls).to.equal(false);
     expect(appVm.showDeforumVideo).to.equal(false);
 
-    appVm.currentTab = "STREAM";
-    expect(appVm.showMainStageHls).to.equal(false);
     appVm.hlsPreviewStreamValid = true;
     appVm.hlsWatchEnabled = true;
     expect(appVm.hlsWatchEnabled).to.equal(true);
@@ -335,7 +332,6 @@ describe("Deforumation Web UI", () => {
   it("defaults to the Deforum layer and can show the live feed when HLS watch is enabled", () => {
     appVm.hlsPreviewStreamValid = true;
     appVm.hlsWatchEnabled = true;
-    appVm.currentTab = "STREAM";
     appVm.defaultAnimation.preferDeforumVideo = true;
     appVm.initVideoLayers();
     expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
@@ -369,7 +365,6 @@ describe("Deforumation Web UI", () => {
     appVm.videoReady = true;
     appVm.deforumGeneratedFrameCount = 1;
     appVm.hlsWatchEnabled = false;
-    appVm.currentTab = "STREAM";
     appVm.currentTab = "LIVE";
 
     expect(appVm.showDeforumVideo).to.equal(false);
@@ -1064,8 +1059,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("clamps bottom modulation values and routes mapping to LFO targets", () => {
-    appVm.liveBottomDrawerOpen = true;
-    appVm.liveBottomDrawerTab = "MODULATION";
     const pan = appVm.liveCam.find((p) => p.key === "panx");
     appVm.setLiveModValue("panx", 99);
     expect(pan.val).to.equal(1);
@@ -1108,11 +1101,11 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos.length).to.equal(6);
     expect(appVm.macrosRack.length).to.be.greaterThan(0);
     
-    // Switch to MODULATION -> Reactive (legacy AUDIO tab alias)
+    // Switch to AUDIO tab (reactive modulation panel)
     appVm.switchTab("AUDIO");
     await nextTick();
     
-    expect(appVm.currentTab).to.equal("MODULATION");
+    expect(appVm.currentTab).to.equal("AUDIO");
     expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO_REACTIVE");
 
     appVm.switchSubTab("MODULATION", "AV_SYNC");
@@ -1174,7 +1167,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
     const testRuns = [
       { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: true, latest_frame: "frame_0002.png", frames_done: 2, frames_total: 2, frames_progress_pct: 100, frame_count: 2, model: "xl-a", tag: "defora" },
@@ -1256,7 +1248,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("shows active GPU jobs and kill button for queued batches", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
     appVm.runsBrowserTab = "active";
     appVm.gpuPool.nodes = [
@@ -1338,7 +1329,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("Library workspace does not show the legacy runs frame rail", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.switchTab("LIBRARY");
     await nextTick();
     expect(appVm.libraryWorkspaceOpen).to.equal(true);
@@ -1347,7 +1337,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("Library browser exposes new folder, videos-only, and cloud connect", async () => {
-    appVm.liveBottomDrawerOpen = false;
     global.fetch = async (url) => {
       const path = String(url);
       if (path.includes("/api/video-swarm/roots")) {
@@ -1395,7 +1384,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("launchTestRun logs job and refreshes runs", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
     appVm.runsBrowserTab = "active";
     const fetchCalls = [];

@@ -161,6 +161,15 @@
       <path d="M8.5 10L12 13.5L15.5 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M5.5 16.5V18A1.5 1.5 0 0 0 7 19.5H17A1.5 1.5 0 0 0 18.5 18V16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
     </template>
+    <template v-else-if="name === 'pin'">
+      <path d="M12 17.5V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M8.5 3.5H15.5L14 8.5H10L8.5 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M10 8.5H14V12.5C14 14.4 13.1 15.8 12 17.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
+    <template v-else-if="name === 'lock'">
+      <rect x="7" y="10" width="10" height="8.5" rx="2" stroke="currentColor" stroke-width="1.8" />
+      <path d="M9 10V8.2C9 6.4 10.3 5 12 5C13.7 5 15 6.4 15 8.2V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+    </template>
   </svg>
 </template>
 

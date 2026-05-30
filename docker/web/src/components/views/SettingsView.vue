@@ -6,6 +6,7 @@
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='STYLES'}" @click="switchSubTab('SETTINGS','STYLES')">STYLES</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='OUTPUT'}" @click="switchSubTab('SETTINGS','OUTPUT')">OUTPUT</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','SYSTEM')">SYSTEM</button>
     </div>
 
@@ -840,6 +841,10 @@
       </div>
     </div>
 
+    <div v-else-if="currentSubTab.SETTINGS==='OUTPUT'" data-testid="settings-output-stream">
+      <StreamView :app="app" />
+    </div>
+
     <div v-else-if="currentSubTab.SETTINGS==='SYSTEM'" class="system-runs-tab" data-testid="settings-system-runs">
       <RunsBrowserPanel :app="app" />
     </div>
@@ -849,12 +854,13 @@
 
 <script>
 import RunsBrowserPanel from '../RunsBrowserPanel.vue'
+import StreamView from './StreamView.vue'
 import StylesSettingsPanel from '../StylesSettingsPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',
-  components: { RunsBrowserPanel, StylesSettingsPanel },
+  components: { RunsBrowserPanel, StreamView, StylesSettingsPanel },
   props: {
     app: { type: Object, required: true },
   },

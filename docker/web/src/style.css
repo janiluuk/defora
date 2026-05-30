@@ -5898,6 +5898,55 @@
     .video-wrap--anchored .video-wrap__stage > .live-hud-strip--pinned {
       grid-template-columns: minmax(0, 320px);
     }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--mods {
+      position: absolute;
+      bottom: 8px;
+      left: 8px;
+      top: auto;
+      right: auto;
+      max-width: min(320px, calc(100% - 16px));
+      z-index: 5;
+      margin-top: 0;
+      grid-template-columns: minmax(0, 320px);
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--morph {
+      position: absolute;
+      bottom: 8px;
+      right: 8px;
+      top: auto;
+      left: auto;
+      max-width: min(360px, calc(100% - 16px));
+      z-index: 5;
+      margin-top: 0;
+      grid-template-columns: minmax(0, 360px);
+    }
+    .live-hud-morph .morph-crossfader-panel {
+      max-height: min(42vh, 320px);
+      overflow: auto;
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--runs {
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      bottom: 8px;
+      top: auto;
+      z-index: 4;
+      margin-top: 0;
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--mods ~ .live-hud-strip--runs,
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--morph ~ .live-hud-strip--runs {
+      bottom: calc(8px + min(42vh, 320px) + 12px);
+    }
+    .param-group__pinned-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .param-pin-btn .ui-icon,
+    .param-lock-btn .ui-icon {
+      width: 12px;
+      height: 12px;
+    }
     /* Live sequencer overlay — full video width, large touch targets */
     .live-sequencer-dock {
       position: absolute;
