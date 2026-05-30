@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.54] - 2026-05-30
+
+## What's Changed
+
+- feat(web): UX migration U-21–U-29 with annotated screenshots (#87) (cbaba8a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.53...v0.6.54
+
+
 ## [0.6.53] - 2026-05-30
 
 ## What's Changed
