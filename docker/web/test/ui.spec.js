@@ -783,17 +783,16 @@ describe("Deforumation Web UI", () => {
     await nextTick();
 
     const pageText = document.body.textContent;
-    expect(pageText).to.include("Current model");
-    expect(pageText).to.include("Current CFG");
-    expect(pageText).to.include("Current steps");
-    expect(pageText).to.include("Click to browse checkpoints");
-    expect(pageText).to.not.include("Checkpoint");
+    expect(pageText).to.include("CFG");
+    expect(pageText).to.include("Steps");
+    expect(pageText).to.include("Advanced sampling");
     expect(pageText).to.include("Sampler");
-    expect(pageText).to.include("Optimize for model");
+    const advanced = document.querySelector(".engine-advanced-panel");
+    if (advanced) advanced.open = true;
+    await nextTick();
+    expect(document.body.textContent).to.include("Optimize for model");
 
-    const modelCard = document.querySelector(".engine-main-card--picker");
-    expect(modelCard).to.exist;
-    modelCard.click();
+    appVm.openEngineModelPicker();
     await nextTick();
     await nextTick();
     expect(appVm.engineModelPickerOpen).to.equal(true);
@@ -842,6 +841,7 @@ describe("Deforumation Web UI", () => {
 
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.exist;
     expect(document.body.textContent).to.include("3D motion preview");
+    expect(document.querySelector("[data-testid='motion-hero-stage']")).to.exist;
     expect(document.querySelector(".motion-pad-hero")).to.exist;
     expect(document.querySelector(".motion-controls-2d")).to.not.exist;
   });
@@ -919,6 +919,19 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     expect(document.querySelector('[data-testid="motion-sequencer-side-drawer"]')).to.exist;
     expect(document.querySelectorAll('[data-testid="sequencer-controls-panel"]').length).to.be.at.least(2);
+  });
+
+  it("shows generate dock sync and taller timeline under preview on GENERATE", async () => {
+    appVm.switchTab("GENERATE");
+    appVm.sequencer.durationSec = 12;
+    appVm.sequencerPlayhead = 3.5;
+    await nextTick();
+    await nextTick();
+
+    expect(document.querySelector(".preview-bottom-dock--generate")).to.exist;
+    expect(document.querySelector('[data-testid="generate-view-dock"]')).to.exist;
+    expect(document.querySelector('[data-testid="generate-dock-sync"]')).to.exist;
+    expect(document.body.textContent).to.include("3.50s");
   });
 
   it("shows the modern story generator under the story subtab", async () => {
@@ -1152,7 +1165,7 @@ describe("Deforumation Web UI", () => {
 
   it("renders the runs monitor under Settings → System", async () => {
     appVm.switchTab("SETTINGS");
-    appVm.switchSubTab("SETTINGS", "SYSTEM");
+    appVm.switchSubTab("SETTINGS", "RUNS");
     appVm.rightPanelOpen = true;
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
@@ -1211,7 +1224,7 @@ describe("Deforumation Web UI", () => {
     };
 
     appVm.switchTab("SETTINGS");
-    appVm.switchSubTab("SETTINGS", "SYSTEM");
+    appVm.switchSubTab("SETTINGS", "RUNS");
     appVm.runsBrowserTab = "past";
     await nextTick();
     await Promise.resolve();
@@ -1298,7 +1311,7 @@ describe("Deforumation Web UI", () => {
     global.confirm = () => true;
 
     appVm.switchTab("SETTINGS");
-    appVm.switchSubTab("SETTINGS", "SYSTEM");
+    appVm.switchSubTab("SETTINGS", "RUNS");
     await nextTick();
     await Promise.resolve();
     await nextTick();
@@ -1322,10 +1335,10 @@ describe("Deforumation Web UI", () => {
     delete global.confirm;
   });
 
-  it("openRunsSettings navigates to Settings → System runs monitor", async () => {
+  it("openRunsSettings navigates to Settings → Runs monitor", async () => {
     appVm.openRunsSettings();
     expect(appVm.currentTab).to.equal("SETTINGS");
-    expect(appVm.currentSubTab.SETTINGS).to.equal("SYSTEM");
+    expect(appVm.currentSubTab.SETTINGS).to.equal("RUNS");
     await nextTick();
     expect(document.querySelector(".runs-browser")).to.exist;
     expect(document.querySelector('[data-testid="runs-launch-test"]')).to.exist;
@@ -1416,7 +1429,7 @@ describe("Deforumation Web UI", () => {
       return { ok: true, json: async () => ({}) };
     };
     appVm.switchTab("SETTINGS");
-    appVm.switchSubTab("SETTINGS", "SYSTEM");
+    appVm.switchSubTab("SETTINGS", "RUNS");
     await nextTick();
     await Promise.resolve();
     await nextTick();

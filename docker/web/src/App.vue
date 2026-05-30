@@ -131,6 +131,7 @@
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
+      'layout--generate-dock': currentTab === 'GENERATE',
       'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',
       'layout--library-workspace': libraryWorkspaceOpen,
     }">
@@ -455,6 +456,7 @@
         <div
           v-if="currentTab === 'MOTION' || currentTab === 'GENERATE'"
           class="preview-bottom-dock"
+          :class="{ 'preview-bottom-dock--generate': currentTab === 'GENERATE' }"
           data-testid="preview-bottom-dock"
         >
           <div class="preview-bottom-dock__pane preview-bottom-dock__pane--sequencer">
@@ -1294,6 +1296,7 @@ export default {
       sequencerSelectedClipId: null,
       generateDockExpanded: false,
       motionSequencerSideOpen: false,
+      motionFineTuneOpen: false,
       selectedFrameIndex: -1,
       timelineHoverTime: null,
       timelineHoverPercent: 0,
@@ -1427,7 +1430,7 @@ export default {
     },
     runsMonitorActive() {
       if (this.currentTab === 'RUNS') return true;
-      if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
+      if (this.currentTab === 'SETTINGS' && (this.currentSubTab.SETTINGS === 'RUNS' || this.currentSubTab.SETTINGS === 'SYSTEM')) return true;
       return false;
     },
     runsLastRefreshedLabel() {
@@ -2925,6 +2928,7 @@ export default {
       if (this.currentTab !== 'SETTINGS') return;
       this.syncRunsMonitorPolling();
       if (sub === 'SYSTEM') void this.refreshRuns();
+      if (sub === 'RUNS') void this.refreshRuns();
       if (sub === 'OUTPUT') void this.refreshStreamStatus();
     },
     runsAutoRefresh() {
@@ -3438,7 +3442,7 @@ export default {
   },
   openRunsSettings() {
     this.switchTab('SETTINGS');
-    this.switchSubTab('SETTINGS', 'SYSTEM');
+    this.switchSubTab('SETTINGS', 'RUNS');
     this.runsBrowserTab = 'active';
     void this.refreshRuns();
     this.syncRunsMonitorPolling();
@@ -4003,13 +4007,10 @@ export default {
   return sub === 'PERFORMANCE' ? sub : 'PERFORMANCE';
  },
  switchSubTab(tab, sub) {
-  if (tab === 'SETTINGS' && sub === 'RUNS') {
-    this.openRunsSettings();
-    return;
-  }
   if (tab === 'SETTINGS' && sub === 'FORGE') sub = 'GPUS';
   if (tab === 'SETTINGS' && sub === 'KEYS') sub = 'ENGINE';
   if (tab === 'SETTINGS' && (sub === 'BINDINGS' || sub === 'PRESETS')) sub = 'MIDI';
+  if (tab === 'SETTINGS' && sub === 'SYSTEM') sub = 'RUNS';
   if (tab === 'MODULATION') sub = this.normalizeModulationSubTab(sub);
   if (tab === 'LIVE') sub = this.normalizeLiveSubTab(sub);
   if (tab === 'MOTION') sub = this.normalizeMotionSubTab(sub);
@@ -4041,7 +4042,7 @@ export default {
     void this.initSystemFilesBrowser();
   }
   if (tab === 'SETTINGS') {
-    if (sub === 'SYSTEM') void this.refreshRuns();
+    if (sub === 'RUNS') void this.refreshRuns();
     this.syncRunsMonitorPolling();
   }
  },
@@ -10587,6 +10588,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.currentSubTab && s.currentSubTab.MOTION) {
       this.currentSubTab.MOTION = this.normalizeMotionSubTab(s.currentSubTab.MOTION);
     }
+    if (s.currentSubTab && s.currentSubTab.SETTINGS) {
+      this.currentSubTab.SETTINGS = s.currentSubTab.SETTINGS === 'SYSTEM' ? 'RUNS' : s.currentSubTab.SETTINGS;
+    }
+    if (typeof s.motionFineTuneOpen === 'boolean') this.motionFineTuneOpen = s.motionFineTuneOpen;
     if (Array.isArray(s.liveSources)) this.liveSources = s.liveSources;
     if (s.liveSourcePanel === 'library' || s.liveSourcePanel === 'cloud') this.liveSourcePanel = s.liveSourcePanel;
     if (typeof s.activeVideoLayerId === 'string') this.activeVideoLayerId = s.activeVideoLayerId;
@@ -10798,6 +10803,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
+      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {
@@ -10883,6 +10889,7 @@ getCurrentSessionSnapshotRaw() {
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
+      motionFineTuneOpen: this.motionFineTuneOpen,
       collabEnabled: this.collabEnabled,
       hlsWatchEnabled: !!this.hlsWatchEnabled,
       streaming: {

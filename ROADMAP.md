@@ -29,10 +29,10 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | **U-23** | Step 3 — LIVE stage HUDs | GlassPanel morph (bottom-right) + modulating-now (bottom-left) + recent-runs filmstrip; UiIcon pin/lock | **Done** — morph + modulating-now GlassPanels mounted on LIVE stage; recent-runs filmstrip; UiIcon pin/lock in `LiveView.vue` (morph still also in PROMPTS until U-27) |
 | **U-24** | Step 4 — MODULATION waveform-first | Waveform hero, compact LFO meta line, teal active / dim idle cards | **Done** — waveform-first cards; controls expand on select; compact BPM/depth/routes line when collapsed |
 | **U-25** | Step 5 — AUDIO meter-first mappings | Frequency band meter hero, quick-band pills (`sub · bass · …`) | **Done** — quick-band pills above spectrum hero; taller spectrum canvas; meter cards unchanged |
-| **U-26** | Step 6 — MOTION XY pad hero | Full-view pad, accent puck glow, preset pills | **Partial** — `DeforumMotionPads` + accent puck CSS ✓; pad nested in `DeforumControlPanel`, not dominant hero; common visual strip follows active layer ✓ (follow-up on branch) |
+| **U-26** | Step 6 — MOTION XY pad hero | Full-view pad, accent puck glow, preset pills | **Done** — preset pills + hero `DeforumMotionPads` stage; fine-tune axes toggle; macros-only control panel; path preview in collapsible advanced panel |
 | **U-27** | Step 7 — PROMPTS single crossfader | Remove inline LoRA blend slider; A/B card assignment only; morph on LIVE | **Done** — inline crossfader removed from Prompts → LORA; hint links to LIVE morph HUD |
-| **U-28** | Step 8 — GENERATE timeline dock | Preview above timeline; shared playhead | **Partial** — `GenerateView` + `Timeline.vue` exist; GENERATE tab opens sequencer side drawer; dedicated dock-under-preview layout open |
-| **U-29** | Step 9 — SETTINGS progressive disclosure | Reorder sub-tabs; rename SYSTEM; Output sub-tab for stream; GlassPanel model picker | **Partial** — OUTPUT sub-tab with `StreamView` ✓; sub-tab order / SYSTEM rename / model picker open |
+| **U-28** | Step 8 — GENERATE timeline dock | Preview above timeline; shared playhead | **Done** — `layout--generate-dock` + taller preview-bottom dock; `GenerateView` sync readout (playhead, duration, frame, FPS) and editor actions |
+| **U-29** | Step 9 — SETTINGS progressive disclosure | Reorder sub-tabs; rename SYSTEM; Output sub-tab for stream; GlassPanel model picker | **Done** — ENGINE → OUTPUT → GPUS → RUNS → MIDI → STYLES → COLLAB; SYSTEM alias → RUNS; checkpoint in GlassPanel; advanced sampling/resolution in `<details>` |
 | **U-30** | Step 10 — Token / hex audit | Replace hardcoded hex; delete design.zip | **Open** — `--live` / `--accent` used in CSS; full vue hex sweep not done |
 
 ### Per-issue checklist (audit §3–§5)
@@ -46,26 +46,25 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | L5 | Recent-runs filmstrip on LIVE | **Done** | `recentRunsRail` on stage |
 | M1–M3 | LFO compact / teal / idle | **Partial** | CSS + waveform ✓; compact line + idle copy open |
 | M4–M5 | Audio reactive cards / LFO phase | **Partial** | Phase on Waveform ✓; audio cards open |
-| Mo1–Mo3 | XY pad hero / size | **Partial** | Structure ✓; layout not hero-dominant |
+| Mo1–Mo3 | XY pad hero / size | **Done** | Hero stage + preset pills; fine-tune toggle |
 | Mo4 | Readout mono | **Low / partial** | |
 | P1–P2 | Duplicate crossfader / A/B + slider | **Done** | Morph on LIVE only |
 | P3–P4 | Story / CN card polish | **Open** | |
 | A1–A4 | AUDIO first-class + meters | **Partial** | Tab ✓; meter-first reactive layout ✓ |
-| R1–R2 | RUNS tab + drawer overlap | **Done** | RUNS tab + SETTINGS → SYSTEM |
-| S1–S4 | Settings sub-tabs / disclosure | **Open** | |
-| G1–G3 | GENERATE tab + timeline dock | **Partial** | GENERATE tab ✓; sequencer dock under preview still shared with MOTION |
+| R1–R2 | RUNS tab + drawer overlap | **Done** | RUNS tab + SETTINGS → RUNS (SYSTEM alias) |
+| S1–S4 | Settings sub-tabs / disclosure | **Done** | Reordered sub-tabs; RUNS rename; GlassPanel checkpoint; advanced `<details>` |
+| G1–G3 | GENERATE tab + timeline dock | **Done** | GENERATE tab + dedicated dock under preview with sync readout |
 | St1–St3 | STREAM tab vs design | **Partial** | STREAM removed from nav; Output sub-tab ✓ |
 | X1 | Emoji buttons | **Partial** | pin/lock done; other emoji buttons open |
 | X2 | GlassPanel underused | **Partial** | Pinned + morph + modulating HUDs |
 | X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck |
 | X5–X6 | framesync-panel / inline hex | **Open** | |
 | X7 | Perf drawer duplicate | **Done** | Template removed |
-| X8 | SYSTEM label collision | **Open** | |
+| X8 | SYSTEM label collision | **Done** | Renamed to RUNS; legacy SYSTEM alias preserved |
 
 ### Recommended order
 
-1. **U-26, U-28, U-29** — Motion hero, Generate dock layout, Settings disclosure
-2. **U-30 + remaining emoji** — Token sweep and remaining UiIcon replacements
+1. **U-30 + remaining emoji** — Token sweep and remaining UiIcon replacements
 
 ---
 
@@ -204,10 +203,10 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Partial** |
 | **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Partial** |
 | **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Open** |
-| **U-26** | **UX: motion XY hero** | Promote pad to view hero | **Partial** |
-| **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Open** |
-| **U-28** | **UX: generate dock** | Timeline under preview | **Partial** |
-| **U-29** | **UX: settings polish** | Sub-tab order, diagnostics, disclosure | **Open** |
+| **U-26** | **UX: motion XY hero** | Promote pad to view hero | **Done** |
+| **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Done** |
+| **U-28** | **UX: generate dock** | Timeline under preview | **Done** |
+| **U-29** | **UX: settings polish** | Sub-tab order, diagnostics, disclosure | **Done** |
 | **U-30** | **UX: design token sweep** | Hex → tokens; semantic panels | **Open** |
 
 ---

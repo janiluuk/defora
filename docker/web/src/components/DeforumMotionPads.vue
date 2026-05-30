@@ -1,5 +1,9 @@
 <template>
-  <section class="deforum-motion-pads" data-testid="deforum-motion-pads">
+  <section
+    class="deforum-motion-pads"
+    :class="{ 'deforum-motion-pads--hero': hero }"
+    data-testid="deforum-motion-pads"
+  >
     <div class="deforum-control-panel__section-head">
       <span class="framesync-subtitle deforum-control-panel__section-title">Camera XY</span>
       <code v-if="showReadout" class="deforum-motion-pads__readout">
@@ -178,6 +182,7 @@ export default {
   name: 'DeforumMotionPads',
   props: {
     app: { type: Object, required: true },
+    hero: { type: Boolean, default: false },
     showReadout: { type: Boolean, default: true },
     showAxisSliders: { type: Boolean, default: true },
   },

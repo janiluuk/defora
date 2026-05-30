@@ -1,31 +1,26 @@
 <template>
   <div class="settings-tab-shell">
-    <div class="sub-pills">
+    <div class="sub-pills settings-subtabs">
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='STYLES'}" @click="switchSubTab('SETTINGS','STYLES')">STYLES</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='OUTPUT'}" @click="switchSubTab('SETTINGS','OUTPUT')">OUTPUT</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','SYSTEM')">SYSTEM</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','RUNS')">RUNS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='STYLES'}" @click="switchSubTab('SETTINGS','STYLES')">STYLES</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
     </div>
 
     <div v-if="currentSubTab.SETTINGS==='ENGINE'">
       <div class="rack">
-        <div class="framesync-panel">
-          <div class="framesync-header">
-            <div class="framesync-title"><span class="framesync-accent">Engine</span></div>
-            <span class="model-status-pill" :class="'model-' + modelStatusKind">
-              <span class="model-status-dot"></span>
-              {{ modelStatusLabel }}
-            </span>
-          </div>
-          <div class="engine-main-summary">
+        <GlassPanel size="lg" class="engine-model-glass">
+          <template #header>Checkpoint</template>
+          <div class="engine-main-summary engine-main-summary--glass">
             <button
               type="button"
               class="engine-main-card engine-main-card--wide engine-main-card--picker"
               :disabled="forge.switching"
               :title="engineCurrentModelName ? 'Change checkpoint' : 'Select checkpoint'"
+              data-testid="engine-model-picker"
               @click="openEngineModelPicker()"
             >
               <div class="framesync-subtitle">Current model</div>
@@ -33,19 +28,30 @@
               <div class="engine-main-card__meta">{{ engineOptimizedProfileLabel }} · {{ engineCurrentModelFamilyLabel }}</div>
               <div class="engine-main-card__hint">Click to browse checkpoints</div>
             </button>
-            <div class="engine-main-card">
-              <div class="framesync-subtitle">Current CFG</div>
+            <div class="engine-main-card engine-main-card--stat">
+              <div class="framesync-subtitle">CFG</div>
               <div class="engine-main-card__value">{{ engineCurrentCfgScale.toFixed(1) }}</div>
             </div>
-            <div class="engine-main-card">
-              <div class="framesync-subtitle">Current steps</div>
+            <div class="engine-main-card engine-main-card--stat">
+              <div class="framesync-subtitle">Steps</div>
               <div class="engine-main-card__value">{{ engineCurrentSteps }}</div>
             </div>
-            <div class="engine-main-card">
+            <div class="engine-main-card engine-main-card--stat">
               <div class="framesync-subtitle">Sampler</div>
               <div class="engine-main-card__value engine-main-card__value--small">{{ deforumSettings.sampler || '—' }}</div>
             </div>
           </div>
+          <div class="engine-main-inline-status-row">
+            <span class="model-status-pill" :class="'model-' + modelStatusKind">
+              <span class="model-status-dot"></span>
+              {{ modelStatusLabel }}
+            </span>
+            <span class="engine-main-inline-status">{{ deforumSettingsStatus || 'Idle' }}</span>
+          </div>
+        </GlassPanel>
+
+        <details class="engine-advanced-panel framesync-panel">
+          <summary class="engine-advanced-panel__summary">Advanced sampling &amp; resolution</summary>
           <div class="framesync-row engine-main-grid" style="grid-template-columns: 1fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Sampler</div>
@@ -175,8 +181,7 @@
             <span class="framesync-button" style="cursor:default;">{{ deforumSettings.W }}×{{ deforumSettings.H }} @ {{ deforumSettings.fps }} fps</span>
             <span class="framesync-button" style="cursor:default;">Profile: {{ engineOptimizedProfileLabel }}</span>
           </div>
-        </div>
-      </div>
+        </details>
 
       <div v-if="engineModelPickerOpen" class="engine-model-picker" @click="onEngineModelPickerBackdropClick">
         <div class="engine-model-picker__dialog" role="dialog" aria-modal="true" aria-label="Checkpoint selector">
@@ -227,6 +232,7 @@
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -845,7 +851,7 @@
       <StreamView :app="app" />
     </div>
 
-    <div v-else-if="currentSubTab.SETTINGS==='SYSTEM'" class="system-runs-tab" data-testid="settings-system-runs">
+    <div v-else-if="currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'" class="system-runs-tab" data-testid="settings-system-runs">
       <RunsBrowserPanel :app="app" />
     </div>
 
@@ -856,11 +862,12 @@
 import RunsBrowserPanel from '../RunsBrowserPanel.vue'
 import StreamView from './StreamView.vue'
 import StylesSettingsPanel from '../StylesSettingsPanel.vue'
+import GlassPanel from '../GlassPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',
-  components: { RunsBrowserPanel, StreamView, StylesSettingsPanel },
+  components: { RunsBrowserPanel, StreamView, StylesSettingsPanel, GlassPanel },
   props: {
     app: { type: Object, required: true },
   },
