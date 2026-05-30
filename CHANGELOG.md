@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.53] - 2026-05-30
+
+## What's Changed
+
+- feat(web): preview compositor, animation engine plugins, and motion sequencer (#86) (53f1f3e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.52...v0.6.53
+
+
 ## [0.6.52] - 2026-05-29
 
 ## What's Changed
