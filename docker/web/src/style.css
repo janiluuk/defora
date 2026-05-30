@@ -36,6 +36,7 @@
       --radius: 11px;
       --radius-sm: 7px;
       --radius-pill: 5px;
+      --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
 
       /* ── Compat aliases ── */
       --success: #5af2a9;  /* kept: some components reference --success directly */
@@ -6517,10 +6518,28 @@
       flex-wrap: wrap;
       justify-content: flex-end;
     }
+    .motion-panel__readout,
+    .motion-path-preview__readout,
+    .motion-pad-hero__readout,
+    .motion-axis-slider__value,
+    .deforum-motion-pads__readout,
+    .motion-readout {
+      font-family: var(--mono);
+      font-variant-numeric: tabular-nums;
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.02em;
+    }
     .motion-panel__readout {
       font-size: 11px;
       color: var(--text-secondary);
-      font-family: ui-monospace, "Cascadia Code", monospace;
+    }
+    .deforum-motion-pads--hero .motion-pad-hero__readout {
+      left: auto;
+      right: 12px;
+      bottom: 10px;
+      color: var(--live-text);
+      font-size: 11px;
     }
     .motion-path-preview {
       margin-top: 12px;
@@ -6542,7 +6561,6 @@
     }
     .motion-path-preview__readout {
       font-size: 10px;
-      color: var(--text-secondary);
     }
     .motion-path-preview__stage {
       height: 220px;
@@ -6621,9 +6639,6 @@
       position: absolute;
       left: 8px;
       bottom: 8px;
-      font-size: 10px;
-      color: var(--text-dim);
-      font-family: ui-monospace, "Cascadia Code", monospace;
       pointer-events: none;
     }
     .motion-axis-sliders {
@@ -6673,8 +6688,6 @@
     }
     .motion-axis-slider__value {
       font-size: 10px;
-      color: var(--text-dim);
-      font-family: ui-monospace, "Cascadia Code", monospace;
     }
     .motion-pad-hero__axis {
       position: absolute;
