@@ -4,9 +4,10 @@
     :class="{ 'live-engine-controls--compact': compact }"
     data-testid="live-engine-controls"
   >
-    <PresetSelectorBar v-if="!compact" :app="app" />
+    <PresetSelectorBar v-if="showWebgl && !compact" :app="app" />
 
     <div
+      v-if="showCompositor"
       class="live-engine-controls__section live-engine-controls__section--compositor"
       data-testid="preview-compositor-controls"
     >
@@ -81,7 +82,7 @@
     </div>
 
     <div
-      v-if="forceWebgl || (!forcePerformance && (isWebglLayerActive || isBlendLayerActive))"
+      v-if="showWebgl && (forceWebgl || (!forcePerformance && (isWebglLayerActive || isBlendLayerActive)))"
       class="live-engine-controls__section live-engine-controls__section--webgl"
       data-testid="live-webgl-controls"
     >
@@ -176,7 +177,7 @@
     </div>
 
     <div
-      v-if="!forcePerformance && showForgeOverWebgl"
+      v-if="showCompositor && !forcePerformance && showForgeOverWebgl"
       class="live-engine-controls__section live-engine-controls__section--composite"
       data-testid="forge-overlay-controls"
     >
@@ -201,44 +202,6 @@
       </p>
     </div>
 
-    <div
-      v-if="forcePerformance || (!forceWebgl && (isDeforumLayerActive || isBlendLayerActive))"
-      class="live-engine-controls__section live-engine-controls__section--performance"
-      data-testid="live-performance-params"
-    >
-      <div class="live-engine-controls__section-head">
-        <span class="framesync-subtitle live-engine-controls__section-title">Deforum performance</span>
-        <button
-          type="button"
-          class="framesync-button framesync-button--compact"
-          data-testid="reset-performance-visual"
-          @click="resetLiveVisualParams"
-        >
-          ↺ Reset visual
-        </button>
-      </div>
-      <div
-        v-for="p in liveHudParamItems"
-        :key="'live-perf-' + p.key"
-        class="slider-row live-performance-param-row"
-        :class="{ 'param-locked': isParamLocked(p.key) }"
-      >
-        <span class="framesync-subtitle live-performance-param-row__label" style="margin:0;">
-          {{ p.label }}
-          <code v-if="liveModSourceLabel(p.key)" class="live-performance-param-row__source">{{ liveModSourceLabel(p.key) }}</code>
-        </span>
-        <input
-          type="range"
-          class="framesync-input"
-          :min="p.min"
-          :max="p.max"
-          :step="p.step"
-          :value="p.val"
-          :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)"
-          @input="updateParam(p, $event)"
-        >
-      </div>
-    </div>
   </div>
 </template>
 
@@ -255,11 +218,20 @@ export default {
     compact: { type: Boolean, default: false },
     forceWebgl: { type: Boolean, default: false },
     forcePerformance: { type: Boolean, default: false },
+    showCompositor: { type: Boolean, default: true },
+    showWebgl: { type: Boolean, default: true },
   },
   setup(props) {
     const deforaApp = inject('deforaApp', null)
     const app = props.app || deforaApp
-    return proxyAppView({ app, compact: props.compact, forceWebgl: props.forceWebgl, forcePerformance: props.forcePerformance })
+    return proxyAppView({
+      app,
+      compact: props.compact,
+      forceWebgl: props.forceWebgl,
+      forcePerformance: props.forcePerformance,
+      showCompositor: props.showCompositor,
+      showWebgl: props.showWebgl,
+    })
   },
 }
 </script>

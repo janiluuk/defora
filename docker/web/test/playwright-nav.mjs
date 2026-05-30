@@ -63,11 +63,20 @@ export async function ensureRightPanelOpen(page) {
   }
 }
 
+async function closeLibraryWorkspaceIfOpen(page) {
+  const workspace = page.locator('[data-testid="library-workspace"]');
+  if ((await workspace.count()) > 0 && (await workspace.isVisible())) {
+    await page.locator('[data-testid="close-library-workspace"]').click();
+    await workspace.waitFor({ state: 'hidden', timeout: 10000 }).catch(() => null);
+  }
+}
+
 /** Settings → System runs monitor (completed runs live under Past runs). */
 export async function openRunsMonitor(page, { tab = 'active' } = {}) {
+  await closeLibraryWorkspaceIfOpen(page);
   await ensureRightPanelOpen(page);
   await clickTab(page, 'SETTINGS');
-  await page.locator('.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
+  await page.locator('.live-right-column button.sub-pill').filter({ hasText: /^SYSTEM$/ }).first().click();
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
   await Promise.resolve();
   if (tab === 'past') {
@@ -102,14 +111,26 @@ export async function waitForPastRunRow(page, runId, timeoutMs = 45000) {
   return row;
 }
 
-/** LIBRARY tab → VideoSwarm browser in the right panel. */
+/** Top-nav library button → fullscreen browser workspace. */
 export async function openLibraryBrowser(page) {
-  await ensureRightPanelOpen(page);
-  await clickTab(page, 'LIBRARY');
+  const libraryBtn = page.locator('[data-testid="top-nav-library"]').first();
+  await libraryBtn.waitFor({ state: 'visible', timeout: 30000 });
+  const expanded = await libraryBtn.getAttribute('aria-expanded');
+  if (expanded !== 'true') {
+    await libraryBtn.click();
+  }
+  await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 30000 });
+  await page.locator('[data-testid="library-workspace-tab-browser"]').click();
   await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
   const browserRoot = page.locator('.video-swarm-browser[data-testid="video-swarm-browser"]').first();
   await browserRoot.waitFor({ state: 'visible', timeout: 30000 });
   return browserRoot;
+}
+
+export async function openLibraryEditorTab(page) {
+  await openLibraryBrowser(page);
+  await page.locator('[data-testid="library-workspace-tab-editor"]').click();
+  await page.waitForSelector('[data-testid="editor-workspace"]', { timeout: 15000 });
 }
 
 /** LIVE top drawer → System → Frames rail (crossfader / top-nav layout). */

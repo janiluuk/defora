@@ -2,6 +2,15 @@
  * Forge / A1111-style prompt modifiers (positive + negative append).
  */
 
+/** Default txt2img scene when a style has no custom preview prompt. */
+export const STYLE_PREVIEW_BASE_PROMPT = 'bunny and cat in space';
+
+/** Base scene for style preview generation (style.previewPrompt overrides default). */
+export function stylePreviewPromptFor(style) {
+  const custom = String(style?.previewPrompt ?? '').trim();
+  return custom || STYLE_PREVIEW_BASE_PROMPT;
+}
+
 export function mergePromptParts(base, addition) {
   const a = String(base ?? '').trim();
   const b = String(addition ?? '').trim();

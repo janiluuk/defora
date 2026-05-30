@@ -28,8 +28,16 @@ function instantiate(appDef, overrides = {}) {
     instance[k] = fn.bind(instance);
   });
   if (appDef.computed) {
-    Object.entries(appDef.computed).forEach(([k, fn]) => {
-      Object.defineProperty(instance, k, { get: fn.bind(instance) });
+    Object.entries(appDef.computed).forEach(([k, def]) => {
+      if (typeof def === "function") {
+        Object.defineProperty(instance, k, { get: def.bind(instance) });
+        return;
+      }
+      if (def && typeof def.get === "function") {
+        const desc = { enumerable: true, configurable: true, get: def.get.bind(instance) };
+        if (typeof def.set === "function") desc.set = def.set.bind(instance);
+        Object.defineProperty(instance, k, desc);
+      }
     });
   }
   // Avoid background frame/run polls that keep the Node test runner alive.

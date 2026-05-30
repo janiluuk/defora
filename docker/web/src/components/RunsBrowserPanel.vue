@@ -75,7 +75,7 @@
         <span v-if="runsStatus" class="runs-active-jobs__status">{{ runsStatus }}</span>
       </div>
 
-      <div v-if="runsJobLog.length" class="runs-job-log" data-testid="runs-job-log">
+      <div class="runs-job-log" data-testid="runs-job-log">
         <div
           v-for="entry in runsJobLog"
           :key="entry.id"
@@ -85,6 +85,7 @@
           <time class="runs-job-log__time">{{ formatRunsLogTime(entry.ts) }}</time>
           <span class="runs-job-log__msg">{{ entry.message }}</span>
         </div>
+        <p v-if="!runsJobLog.length" class="runs-job-log__empty">No log entries yet — launch a test job to see activity.</p>
       </div>
 
       <div class="runs-browser__table-wrap runs-browser__table-wrap--active" data-testid="runs-active-jobs">

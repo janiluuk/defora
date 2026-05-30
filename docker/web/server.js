@@ -2127,7 +2127,7 @@ async function start(opts = {}) {
   });
 
   app.post("/api/prompt-styles", async (req, res) => {
-    const { name, positive, negative } = req.body || {};
+    const { name, positive, negative, description, previewPrompt } = req.body || {};
     if (!String(name || "").trim()) {
       return res.status(400).json({ error: "name required" });
     }
@@ -2137,6 +2137,8 @@ async function start(opts = {}) {
         {
           id: String(req.body?.id || "").trim() || undefined,
           name: String(name).trim(),
+          description: String(description || "").trim(),
+          previewPrompt: String(previewPrompt || "").trim(),
           positive: String(positive || "").trim(),
           negative: String(negative || "").trim(),
           source: "custom",
@@ -2147,15 +2149,19 @@ async function start(opts = {}) {
       if (styles.some((style) => style.id === id)) {
         return res.status(409).json({ error: "style id already exists" });
       }
-      styles.push({
-        id,
-        name: String(name).trim(),
-        positive: String(positive || "").trim(),
-        negative: String(negative || "").trim(),
-        source: "custom",
-        exampleImage: null,
-        updatedAt: new Date().toISOString(),
-      });
+      styles.push(
+        promptStylesStore.normalizeStyleRecord({
+          id,
+          name: String(name).trim(),
+          description: String(description || "").trim(),
+          previewPrompt: String(previewPrompt || "").trim(),
+          positive: String(positive || "").trim(),
+          negative: String(negative || "").trim(),
+          source: "custom",
+          exampleImage: null,
+          updatedAt: new Date().toISOString(),
+        }),
+      );
       const saved = await promptStylesStore.writeStyles(webRoot, styles);
       const style = saved.find((entry) => entry.id === id);
       res.json({ ok: true, style });
@@ -2167,15 +2173,17 @@ async function start(opts = {}) {
   app.put("/api/prompt-styles/:id", async (req, res) => {
     const id = String(req.params.id || "").trim();
     if (!id) return res.status(400).json({ error: "id required" });
-    const { name, positive, negative } = req.body || {};
+    const { name, positive, negative, description, previewPrompt } = req.body || {};
     try {
       const styles = await promptStylesStore.readStyles(webRoot);
       const idx = styles.findIndex((style) => style.id === id);
       if (idx < 0) return res.status(404).json({ error: "style not found" });
       if (name != null) styles[idx].name = String(name).trim() || styles[idx].name;
+      if (description != null) styles[idx].description = String(description).trim();
+      if (previewPrompt != null) styles[idx].previewPrompt = String(previewPrompt).trim();
       if (positive != null) styles[idx].positive = String(positive).trim();
       if (negative != null) styles[idx].negative = String(negative).trim();
-      styles[idx].updatedAt = new Date().toISOString();
+      styles[idx] = promptStylesStore.normalizeStyleRecord(styles[idx]);
       const saved = await promptStylesStore.writeStyles(webRoot, styles);
       res.json({ ok: true, style: saved.find((entry) => entry.id === id) });
     } catch (err) {
@@ -4837,12 +4845,25 @@ async function start(opts = {}) {
   app.post("/api/runs/launch-demo", async (req, res) => {
     try {
       const runId = `demo-${Date.now().toString(36)}`;
+      const fps = 24;
+      const maxFrames = 24;
+      const videoName = "demo-output.mp4";
+      const videoPath = path.join(uploadsDir, videoName);
+      try {
+        await fsp.mkdir(uploadsDir, { recursive: true });
+        if (!fs.existsSync(videoPath)) {
+          await fsp.writeFile(videoPath, Buffer.from("defora-demo-mp4"));
+        }
+      } catch (_e) {
+        /* best-effort demo video for e2e */
+      }
       const snapshot = {
         kind: "demo",
-        maxFrames: 12,
-        fps: 12,
+        maxFrames,
+        fps,
         settings: {
-          max_frames: 12,
+          max_frames: maxFrames,
+          fps,
           tag: "demo",
           sd_model_checkpoint: "demo-model",
           animation_prompts_positive: "e2e demo run",
@@ -4853,7 +4874,8 @@ async function start(opts = {}) {
         status: "running",
         tag: "demo",
         model: "demo-model",
-        frame_count: 12,
+        frame_count: maxFrames,
+        fps,
         prompt_positive: "e2e demo run",
       });
       broadcast({ type: "run_demo_started", runId });
@@ -4861,10 +4883,13 @@ async function start(opts = {}) {
         await updateRunManifest(runId, {
           status: "completed",
           completed_at: new Date().toISOString(),
+          output_video: videoPath,
+          fps,
+          frame_count: maxFrames,
         });
         broadcast({ type: "run_demo_done", runId, status: "completed" });
       }, 1200);
-      res.json({ ok: true, run_id: runId, status: "running" });
+      res.json({ ok: true, run_id: runId, status: "running", fps, maxFrames });
     } catch (err) {
       res.status(500).json({ error: err.message || "demo launch failed" });
     }

@@ -8,7 +8,15 @@ const promptStylesStore = require("../modules/prompt-styles-store.js");
 
 describe("prompt styles", () => {
   it("merges positive and negative prompt parts", async () => {
-    const { mergePromptParts, applyPromptStyleToPrompts } = await loadEsm("..", "src", "shared", "prompt-styles.mjs");
+    const {
+      mergePromptParts,
+      applyPromptStyleToPrompts,
+      STYLE_PREVIEW_BASE_PROMPT,
+      stylePreviewPromptFor,
+    } = await loadEsm("..", "src", "shared", "prompt-styles.mjs");
+    assert.equal(STYLE_PREVIEW_BASE_PROMPT, "bunny and cat in space");
+    assert.equal(stylePreviewPromptFor(null), STYLE_PREVIEW_BASE_PROMPT);
+    assert.equal(stylePreviewPromptFor({ previewPrompt: "sunset over ocean" }), "sunset over ocean");
     assert.equal(mergePromptParts("cat", "oil painting"), "cat, oil painting");
     assert.equal(applyPromptStyleToPrompts({ positive: "cat", negative: "blur" }, {
       positive: "cubism",
@@ -21,6 +29,12 @@ describe("prompt styles", () => {
       }).negative,
       "blur, low quality",
     );
+    const preview = applyPromptStyleToPrompts(
+      { positive: STYLE_PREVIEW_BASE_PROMPT, negative: "" },
+      { positive: "oil painting", negative: "low quality" },
+    );
+    assert.equal(preview.positive, "bunny and cat in space, oil painting");
+    assert.equal(preview.negative, "low quality");
   });
 
   it("parses forge style rows and dedupes ids", async () => {
@@ -65,6 +79,8 @@ describe("prompt styles", () => {
     styles.push({
       id: "another",
       name: "Another",
+      description: "Soft watercolor look",
+      previewPrompt: "dragon in clouds",
       positive: "x",
       negative: "",
       source: "custom",
@@ -72,5 +88,7 @@ describe("prompt styles", () => {
     await promptStylesStore.writeStyles(webRoot, styles);
     const again = await promptStylesStore.readStyles(webRoot);
     assert.equal(again.length, 2);
+    assert.equal(again[1].description, "Soft watercolor look");
+    assert.equal(again[1].previewPrompt, "dragon in clouds");
   });
 });

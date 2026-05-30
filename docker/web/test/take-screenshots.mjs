@@ -126,8 +126,9 @@ try {
   await clickTab(page, 'MODULATION');
   await shot(page, 'modulation-tab.png');
 
-  // ── LIBRARY
-  await clickTab(page, 'LIBRARY');
+  // ── LIBRARY (top-nav icon)
+  const { openLibraryBrowser } = await import('./playwright-nav.mjs');
+  await openLibraryBrowser(page);
   const libRootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
   if ((await libRootSelect.count()) > 0) {
     await libRootSelect.selectOption({ value: 'uploads' }).catch(() => null);

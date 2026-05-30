@@ -21,7 +21,8 @@
           </div>
         </div>
         <p class="framesync-subtitle styles-settings__intro">
-          Forge-style modifiers appended to your positive and negative prompts when a style is active on the Prompts tab.
+          Select a style to edit its name, description, preview scene, and prompt modifiers.
+          Missing preview images are generated with txt2img using the preview scene plus this style’s append text.
         </p>
         <div v-if="promptStylesStatus" class="framesync-subtitle styles-settings__status">{{ promptStylesStatus }}</div>
         <input
@@ -51,10 +52,19 @@
           <div v-if="style.exampleImage" class="styles-settings__thumb">
             <img :src="style.exampleImage" :alt="style.name" loading="lazy" />
           </div>
+          <div
+            v-else-if="promptStylePreviewGeneratingId === style.id"
+            class="styles-settings__thumb styles-settings__thumb--generating"
+            aria-label="Generating preview"
+          >
+            <span class="styles-settings__thumb-label">Generating…</span>
+          </div>
           <div v-else class="styles-settings__thumb styles-settings__thumb--empty" aria-hidden="true"></div>
           <div class="styles-settings__item-copy">
             <div class="styles-settings__item-title">{{ style.name }}</div>
-            <div class="styles-settings__item-meta">{{ style.source || 'custom' }}</div>
+            <div class="styles-settings__item-meta">
+              {{ style.description || style.source || 'custom' }}
+            </div>
           </div>
           <span v-if="activePromptStyleId === style.id" class="styles-settings__active-tag">Active</span>
         </button>
@@ -85,13 +95,45 @@
             </div>
           </div>
 
-          <div v-if="promptStyleDraft.exampleImage" class="styles-settings__example-preview">
+          <div
+            v-if="promptStylePreviewGeneratingId === promptStyleDraft.id"
+            class="styles-settings__example-preview styles-settings__example-preview--generating"
+          >
+            <span class="framesync-subtitle">Generating preview with “{{ promptStyleDraftPreviewPrompt }}”…</span>
+          </div>
+          <div v-else-if="promptStyleDraft.exampleImage" class="styles-settings__example-preview">
             <img :src="promptStyleDraft.exampleImage" :alt="promptStyleDraft.name + ' example'" />
+          </div>
+          <div v-else class="styles-settings__example-preview styles-settings__example-preview--empty">
+            <span class="framesync-subtitle">No preview yet — select this style to generate one automatically.</span>
           </div>
 
           <label class="styles-settings__field">
             <span class="framesync-subtitle">Name</span>
             <input v-model.trim="promptStyleDraft.name" type="text" class="framesync-input" data-testid="prompt-style-name" />
+          </label>
+          <label class="styles-settings__field">
+            <span class="framesync-subtitle">Description</span>
+            <textarea
+              v-model="promptStyleDraft.description"
+              class="framesync-input"
+              rows="3"
+              placeholder="What this style is for, mood, subject matter, references…"
+              data-testid="prompt-style-description"
+            ></textarea>
+          </label>
+          <label class="styles-settings__field">
+            <span class="framesync-subtitle">Preview scene (txt2img)</span>
+            <input
+              v-model.trim="promptStyleDraft.previewPrompt"
+              type="text"
+              class="framesync-input"
+              placeholder="bunny and cat in space"
+              data-testid="prompt-style-preview-prompt"
+            />
+            <span class="framesync-subtitle styles-settings__field-hint">
+              Base scene for the thumbnail; positive and negative append below are added when generating the preview.
+            </span>
           </label>
           <label class="styles-settings__field">
             <span class="framesync-subtitle">Positive append</span>
@@ -105,6 +147,15 @@
           <div class="framesync-footer styles-settings__editor-actions">
             <button type="button" class="framesync-button" data-testid="prompt-style-save" @click="savePromptStyleDraft()">
               Save
+            </button>
+            <button
+              type="button"
+              class="framesync-button framesync-button--live"
+              data-testid="prompt-style-generate-preview"
+              :disabled="!!promptStylePreviewGeneratingId"
+              @click="generatePromptStyleExample(promptStyleDraft.id)"
+            >
+              {{ promptStylePreviewGeneratingId === promptStyleDraft.id ? 'Generating…' : 'Generate preview' }}
             </button>
             <button
               type="button"
@@ -164,3 +215,11 @@ export default {
   },
 }
 </script>
+
+<style scoped>
+.styles-settings__field-hint {
+  margin: 4px 0 0;
+  font-size: 10px;
+  line-height: 1.35;
+}
+</style>

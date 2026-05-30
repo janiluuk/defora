@@ -56,6 +56,23 @@ function examplePublicUrl(id) {
   return `/style-examples/${safe}.png`;
 }
 
+const DEFAULT_STYLE_PREVIEW_PROMPT = "bunny and cat in space";
+
+function normalizeStyleRecord(style) {
+  const previewRaw = String(style?.previewPrompt ?? "").trim();
+  return {
+    id: style.id,
+    name: String(style.name || "").trim() || style.id,
+    description: String(style.description ?? "").trim(),
+    previewPrompt: previewRaw || DEFAULT_STYLE_PREVIEW_PROMPT,
+    positive: String(style.positive ?? "").trim(),
+    negative: String(style.negative ?? "").trim(),
+    source: style.source || "custom",
+    exampleImage: style.exampleImage || null,
+    updatedAt: style.updatedAt || new Date().toISOString(),
+  };
+}
+
 async function ensurePromptStylesStore(webRoot) {
   const file = stylesFilePath(webRoot);
   await fsp.mkdir(path.dirname(file), { recursive: true });
@@ -71,15 +88,7 @@ async function ensurePromptStylesStore(webRoot) {
       styles = [];
     }
   }
-  const normalized = dedupeStyleIds(styles).map((style) => ({
-    id: style.id,
-    name: String(style.name || "").trim() || style.id,
-    positive: String(style.positive ?? "").trim(),
-    negative: String(style.negative ?? "").trim(),
-    source: style.source || "custom",
-    exampleImage: style.exampleImage || null,
-    updatedAt: style.updatedAt || new Date().toISOString(),
-  }));
+  const normalized = dedupeStyleIds(styles).map((style) => normalizeStyleRecord(style));
   await fsp.writeFile(
     file,
     JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), styles: normalized }, null, 2),
@@ -90,20 +99,13 @@ async function ensurePromptStylesStore(webRoot) {
 async function readStyles(webRoot) {
   await ensurePromptStylesStore(webRoot);
   const raw = JSON.parse(await fsp.readFile(stylesFilePath(webRoot), "utf-8"));
-  return Array.isArray(raw.styles) ? raw.styles : [];
+  const styles = Array.isArray(raw.styles) ? raw.styles : [];
+  return styles.map((style) => normalizeStyleRecord(style));
 }
 
 async function writeStyles(webRoot, styles) {
   await ensurePromptStylesStore(webRoot);
-  const normalized = dedupeStyleIds(styles).map((style) => ({
-    id: style.id,
-    name: String(style.name || "").trim() || style.id,
-    positive: String(style.positive ?? "").trim(),
-    negative: String(style.negative ?? "").trim(),
-    source: style.source || "custom",
-    exampleImage: style.exampleImage || null,
-    updatedAt: style.updatedAt || new Date().toISOString(),
-  }));
+  const normalized = dedupeStyleIds(styles).map((style) => normalizeStyleRecord(style));
   await fsp.writeFile(
     stylesFilePath(webRoot),
     JSON.stringify({ version: 1, updatedAt: new Date().toISOString(), styles: normalized }, null, 2),
@@ -118,15 +120,17 @@ function forgeStyleToRecord(entry, index = 0) {
   const positive = String(entry.prompt ?? "").trim();
   const negative = String(entry.negative_prompt ?? "").trim();
   if (!positive && !negative) return null;
-  return {
+  return normalizeStyleRecord({
     id: slugifyStyleId(name, index),
     name,
+    description: "",
+    previewPrompt: DEFAULT_STYLE_PREVIEW_PROMPT,
     positive,
     negative,
     source: "forge",
     exampleImage: null,
     updatedAt: new Date().toISOString(),
-  };
+  });
 }
 
 async function importFromForge(forgeUrl, webRoot, { merge = true } = {}) {
@@ -162,6 +166,8 @@ async function importFromForge(forgeUrl, webRoot, { merge = true } = {}) {
         ...prev,
         positive: style.positive,
         negative: style.negative,
+        description: prev.description || "",
+        previewPrompt: prev.previewPrompt || DEFAULT_STYLE_PREVIEW_PROMPT,
         source: style.source || prev.source,
         updatedAt: new Date().toISOString(),
       });
@@ -236,6 +242,8 @@ async function clearStyleExample(webRoot, id) {
 }
 
 module.exports = {
+  DEFAULT_STYLE_PREVIEW_PROMPT,
+  normalizeStyleRecord,
   mergePromptParts,
   applyPromptStyleToPrompts: (prompts, style) => {
     if (!style) return { ...prompts };
