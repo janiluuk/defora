@@ -1,0 +1,11 @@
+# Copy to docker-compose.override.yml for local bind mounts (Library sees repo files).
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#   docker compose up web
+#
+services:
+  web:
+    volumes:
+      - ./docker/web/frames:/data/frames:ro
+      - ./docker/web/runs:/data/runs
+      - ./docker/web/hls:/var/www/hls
