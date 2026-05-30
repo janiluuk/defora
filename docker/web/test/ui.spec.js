@@ -242,7 +242,6 @@ describe("Deforumation Web UI", () => {
     appVm.deforumMode2d3d = "3D";
     appVm.deforumSettings = { ...appVm.deforumSettings, animation_mode: "3D" };
     appVm.motionSequencerSideOpen = false;
-    appVm.liveBottomDrawerOpen = false;
     appVm.runsAll = [];
     appVm.runsDetailView = null;
     appVm.deforumBatches = [];
@@ -256,18 +255,19 @@ describe("Deforumation Web UI", () => {
 
   it("renders tabs for all sections", () => {
     const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
+    // Design-spec 8 tabs; LIBRARY and STREAM kept as tabs (STREAM de-emphasised, pending Step 9)
     expect(tabs.join(" ")).to.include("LIVE");
-    expect(tabs.join(" ")).to.include("STREAM");
-    expect(tabs.join(" ")).to.include("LIBRARY");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
+    expect(tabs.join(" ")).to.include("AUDIO");
+    expect(tabs.join(" ")).to.include("RUNS");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    expect(tabs.join(" ")).to.not.include("GENERATE");
-    expect(tabs.join(" ")).to.not.include("AUDIO");
-    expect(tabs.join(" ")).to.not.include("RUNS");
-    expect(tabs.length).to.equal(7);
-    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(7);
+    expect(tabs.join(" ")).to.include("GENERATE");
+    expect(tabs.join(" ")).to.include("LIBRARY");
+    expect(tabs.join(" ")).to.include("STREAM");
+    expect(tabs.length).to.equal(10);
+    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(10);
   });
 
   it("has a video player and overlay HUD", () => {
@@ -1036,8 +1036,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("clamps bottom modulation values and routes mapping to LFO targets", () => {
-    appVm.liveBottomDrawerOpen = true;
-    appVm.liveBottomDrawerTab = "MODULATION";
     const pan = appVm.liveCam.find((p) => p.key === "panx");
     appVm.setLiveModValue("panx", 99);
     expect(pan.val).to.equal(1);
@@ -1056,19 +1054,13 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos[0].targets).to.not.include("translation_x");
   });
 
-  it("shows the crossfader in the bottom drawer with morph slots and group pickers", async () => {
-    appVm.liveBottomDrawerOpen = true;
-    appVm.liveBottomDrawerTab = "CROSSFADER";
+  it("shows the crossfader in PROMPTS → LORA with morph slots and group pickers", async () => {
+    // The Perf drawer was removed; CrossfaderPanel is now accessible via PROMPTS → LORA sub-tab
+    appVm.switchTab("PROMPTS");
+    appVm.switchSubTab("PROMPTS", "LORA");
     await nextTick();
     await nextTick();
 
-    const drawerTabs = [...document.querySelectorAll(".live-top-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
-    expect(drawerTabs.join(" ")).to.include("CROSSFADER");
-    expect(drawerTabs.join(" ")).to.include("SYSTEM");
-    expect(appVm.liveBottomDrawerTab).to.equal("CROSSFADER");
-
-    const titles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
-    expect(titles.join(" ")).to.include("Crossfader");
     expect(document.querySelector("[data-testid='crossfader-panel']")).to.exist;
     expect(document.querySelector("[data-testid='crossfader-generic-prompt']")).to.exist;
     expect(document.querySelector("[data-testid='crossfader-morph-slots']")).to.exist;
@@ -1094,11 +1086,11 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos.length).to.equal(6);
     expect(appVm.macrosRack.length).to.be.greaterThan(0);
     
-    // Switch to MODULATION -> Reactive (legacy AUDIO tab alias)
+    // AUDIO is now a first-class tab; sets currentTab='AUDIO' and MODULATION sub-tab to AUDIO_REACTIVE
     appVm.switchTab("AUDIO");
     await nextTick();
-    
-    expect(appVm.currentTab).to.equal("MODULATION");
+
+    expect(appVm.currentTab).to.equal("AUDIO");
     expect(appVm.currentSubTab.MODULATION).to.equal("AUDIO_REACTIVE");
 
     appVm.switchSubTab("MODULATION", "AV_SYNC");
@@ -1140,9 +1132,9 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders the runs monitor in the bottom drawer SYSTEM tab", async () => {
-    appVm.liveBottomDrawerOpen = true;
-    appVm.setLiveBottomDrawerTab("SYSTEM");
+  it("renders the runs monitor on the RUNS tab (Perf drawer removed)", async () => {
+    // RUNS is now a first-class nav tab; the Perf drawer and its SYSTEM sub-tab were removed
+    appVm.switchTab("RUNS");
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
       { run_id: "run-002", status: "completed", started_at: "2026-05-26T10:00:00Z", has_thumbnail: false },
@@ -1152,17 +1144,14 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector('[data-testid="bottom-drawer-system"]')).to.exist;
-    const drawerTabs = [...document.querySelectorAll(".live-top-drawer__tabs .sub-pill")].map((el) => el.textContent.trim());
-    expect(drawerTabs.join(" ")).to.include("SYSTEM");
-    const runsBrowser = document.querySelector('[data-testid="bottom-drawer-system"] [data-testid="runs-browser"]');
+    expect(appVm.currentTab).to.equal("RUNS");
+    expect(appVm.runsMonitorActive).to.equal(true);
+    const runsBrowser = document.querySelector('[data-testid="runs-browser"]');
     expect(runsBrowser).to.exist;
     expect(document.body.textContent).to.include("Runs Monitor");
-    expect(runsBrowser.closest('[data-testid="bottom-drawer"]')).to.exist;
   });
 
   it("shows the runs monitor under Settings → System with table and details", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
     const testRuns = [
       { run_id: "run-a-002", status: "completed", started_at: "2026-05-26T12:00:00Z", has_thumbnail: true, latest_frame: "frame_0002.png", frames_done: 2, frames_total: 2, frames_progress_pct: 100, frame_count: 2, model: "xl-a", tag: "defora" },
@@ -1244,7 +1233,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("shows active GPU jobs and kill button for queued batches", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
     appVm.runsBrowserTab = "active";
     appVm.gpuPool.nodes = [
@@ -1326,7 +1314,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("Library tab does not show the legacy runs frame rail", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.switchTab("LIBRARY");
     await nextTick();
     expect(document.querySelector('[data-testid="library-frame-rail"]')).to.equal(null);
@@ -1334,7 +1321,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("Library browser exposes new folder, videos-only, and cloud connect", async () => {
-    appVm.liveBottomDrawerOpen = false;
     global.fetch = async (url) => {
       const path = String(url);
       if (path.includes("/api/video-swarm/roots")) {
@@ -1381,7 +1367,6 @@ describe("Deforumation Web UI", () => {
   });
 
   it("launchTestRun logs job and refreshes runs", async () => {
-    appVm.liveBottomDrawerOpen = false;
     appVm.rightPanelOpen = true;
     appVm.runsBrowserTab = "active";
     const fetchCalls = [];

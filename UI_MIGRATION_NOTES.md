@@ -166,3 +166,32 @@ The brief says: *"The existing lock 🔒 icons become pin/hold state … Confirm
 | `docker/web/src/index.html` | May need Google Fonts update (Space Grotesk already referenced in body font-family) |
 
 No Python, mediator, WS-protocol, or backend files should be touched.
+
+---
+
+## Migration Progress Log
+
+### Steps 1 + 2 — Nav restructure + Perf drawer removal (2026-05-31) ✅
+
+**Step 1: Promoted AUDIO, RUNS, GENERATE to first-class nav tabs**
+- Added AUDIO, RUNS, GENERATE to `tabs` array in `App.vue`
+- AUDIO: sets `currentTab = 'AUDIO'`, renders `ModulationView` with `AUDIO_REACTIVE` subtab
+- RUNS: sets `currentTab = 'RUNS'`, renders `RunsBrowserPanel` full-page
+- GENERATE: sets `currentTab = 'GENERATE'`, renders `GenerateView` with sequencer dock
+- LIBRARY and STREAM remain in tabs (STREAM de-emphasised, moved to end; full STREAM → SETTINGS migration deferred to Step 9)
+- `runsMonitorActive` computed now triggers on `currentTab === 'RUNS'`
+
+**Step 2: Deleted the "Perf" drawer and all duplicate content**
+- Removed `top-drawer-shell` block (~5600 chars of duplicate MODULATION/CROSSFADER/SYSTEM panels)
+- Removed Perf FAB overlay button (duplicate of nav)
+- Removed `liveBottomDrawerOpen`, `liveBottomDrawerTab` state, watchers, and `setLiveBottomDrawerTab` method
+- Removed drawer state from session save/restore
+- `openRecentRun`, `openRunsDrawerSystem`, `openFramesInRunsPanel` now route to RUNS tab
+
+**Tests updated:**
+- `playwright-nav.mjs`: `openRunsMonitor` and `openLiveFramesPanel` now click RUNS tab
+- `playwright-smoke.mjs`: expected tabs updated to include AUDIO, RUNS, GENERATE
+- `playwright-frame-pipeline-profile.mjs`: `openFramesPanel` uses RUNS tab
+- `ui.spec.js`: tab count test, AUDIO first-class tab assertion, crossfader location, RUNS tab monitor test
+
+**Next: Steps 3+4** — LIVE stage morph/modulating-now HUDs + MODULATION waveform-first cards
