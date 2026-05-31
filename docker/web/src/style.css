@@ -7832,3 +7832,29 @@
       background: var(--bg-1);
       border-radius: var(--radius-sm);
     }
+
+    /* ── Step 3: Morph HUD + Modulating Now HUD ── */
+    .live-hud-strip--modulating { position: absolute; left: 14px; bottom: 14px; width: 210px; z-index: 10; }
+    .live-hud-strip--morph { position: absolute; right: 14px; bottom: 14px; width: 280px; z-index: 10; }
+    .live-hud-modulating, .live-hud-morph { padding: 10px 12px; }
+    .live-hud-mod-row { margin-bottom: 7px; }
+    .live-hud-mod-row__info { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; color: var(--live-text); margin-bottom: 4px; }
+    .live-hud-mod-row__source { color: var(--text-2); }
+    .live-hud-mod-row__val { font-family: var(--mono); }
+    .live-hud-mod-row__bar { height: 3px; background: rgba(29,158,117,.2); border-radius: 2px; }
+    .live-hud-mod-row__fill { height: 100%; background: var(--live); border-radius: 2px; transition: width 120ms; }
+    .live-hud-morph__labels { display: flex; justify-content: space-between; font-size: 10px; margin-bottom: 8px; }
+    .live-hud-morph__a { color: var(--a-group); }
+    .live-hud-morph__b { color: var(--b-group); }
+    .live-hud-morph__slider-wrap { margin-bottom: 8px; }
+    .live-hud-morph__slider { width: 100%; }
+    .live-hud-morph__actions { display: flex; gap: 5px; }
+    .live-hud-morph__actions .framesync-button { flex: 1; font-size: 10px; }
+
+    /* ── Step 4: beat-macro-pill pulsing ── */
+    @keyframes beat-pulse {
+      0% { box-shadow: 0 0 0 1px var(--accent); }
+      50% { box-shadow: 0 0 8px 2px var(--accent), inset 0 0 4px rgba(127,119,221,0.18); }
+      100% { box-shadow: 0 0 0 1px var(--accent); }
+    }
+    .beat-macro-pill--pulsing { animation: beat-pulse 200ms ease-out; }

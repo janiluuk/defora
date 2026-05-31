@@ -278,6 +278,47 @@
               />
             </GlassPanel>
           </div>
+
+          <!-- "Modulating now" HUD — bottom-left -->
+          <div v-if="currentTab === 'LIVE' && modulatingNowItems.length" class="live-hud-strip live-hud-strip--modulating">
+            <GlassPanel size="sm" class="live-hud-modulating">
+              <template #header>modulating now</template>
+              <div v-for="item in modulatingNowItems.slice(0, 3)" :key="'hud-mod-' + item.key" class="live-hud-mod-row">
+                <div class="live-hud-mod-row__info">
+                  <span class="live-hud-mod-row__label">{{ item.label }}</span>
+                  <span class="live-hud-mod-row__source">← {{ item.source }}</span>
+                  <span class="live-hud-mod-row__val">{{ Number(item.val).toFixed(2) }}</span>
+                </div>
+                <div class="live-hud-mod-row__bar">
+                  <div class="live-hud-mod-row__fill" :style="{ width: item.pct + '%' }"></div>
+                </div>
+              </div>
+            </GlassPanel>
+          </div>
+
+          <!-- Morph HUD — bottom-right -->
+          <div v-if="currentTab === 'LIVE'" class="live-hud-strip live-hud-strip--morph">
+            <GlassPanel size="sm" class="live-hud-morph" data-testid="live-morph-hud">
+              <template #header>morph</template>
+              <div class="live-hud-morph__labels">
+                <span class="live-hud-morph__a">A · {{ Math.round((1 - performance.crossfader) * 100) }}%</span>
+                <span class="live-hud-morph__b">B · {{ Math.round(performance.crossfader * 100) }}%</span>
+              </div>
+              <div class="live-hud-morph__slider-wrap">
+                <input
+                  type="range" min="0" max="1" step="0.01"
+                  :value="performance.crossfader"
+                  class="live-hud-morph__slider"
+                  @input="onCrossfaderSlider($event.target.value)"
+                />
+              </div>
+              <div class="live-hud-morph__actions">
+                <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(0)">snap A</button>
+                <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(1)">snap B</button>
+                <button class="framesync-button framesync-button--compact framesync-button--live" @click="onCrossfaderSlider(Math.random())">rand</button>
+              </div>
+            </GlassPanel>
+          </div>
           </div>
           <button
             v-if="showEngineDrawerShell"
@@ -2040,6 +2081,19 @@ export default {
       return this.pinnedParams
         .map(key => allParams.find(p => p.key === key))
         .filter(Boolean);
+    },
+    modulatingNowItems() {
+      return [...this.liveVibe, ...this.liveCam]
+        .filter(p => this.paramSources[p.key] && this.paramSources[p.key] !== 'Manual')
+        .map(p => ({
+          key: p.key,
+          label: p.label,
+          source: this.paramSources[p.key],
+          val: p.val,
+          min: p.min,
+          max: p.max,
+          pct: Math.round(((p.val - p.min) / ((p.max - p.min) || 1)) * 100),
+        }));
     },
     audioReactiveActive() {
       return ['Audio sent to mediator', 'Streaming'].includes(this.audioStatus);
