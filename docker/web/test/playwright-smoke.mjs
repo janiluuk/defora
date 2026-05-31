@@ -42,9 +42,10 @@ try {
   await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
   const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]');
   if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
-    const morphEnabled = page.locator('.framesync-button.framesync-button--live').filter({ hasText: /^Enabled$/ }).first();
+    const morphPanel = page.locator('.framesync-panel').filter({ hasText: 'Prompt Morphing' }).first();
+    const morphEnabled = morphPanel.locator('.framesync-button.framesync-button--live').filter({ hasText: /^Enabled$/ }).first();
     if ((await morphEnabled.count()) === 0) {
-      await page.locator('.framesync-button').filter({ hasText: /^Enabled$/ }).first().click();
+      await morphPanel.locator('.framesync-button').filter({ hasText: /^Enabled$/ }).first().click();
       await page.waitForTimeout(200);
     }
     await morphHint.waitFor({ state: 'visible', timeout: 30000 });
