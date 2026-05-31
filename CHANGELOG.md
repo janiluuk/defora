@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.61] - 2026-05-31
+
+## What's Changed
+
+- chore(screenshots): refresh all tab screenshots with animated sea background (4965985)
+- chore: refresh UI screenshots after LIVE and Deforum layout updates. (950208e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.60...v0.6.61
+
+
 ## [0.6.60] - 2026-05-31
 
 ## What's Changed
