@@ -195,3 +195,13 @@ No Python, mediator, WS-protocol, or backend files should be touched.
 - `ui.spec.js`: tab count test, AUDIO first-class tab assertion, crossfader location, RUNS tab monitor test
 
 **Next: Steps 3+4** — LIVE stage morph/modulating-now HUDs + MODULATION waveform-first cards
+
+### Layout refactor (2026-05-31) ✅
+
+**User requests addressed:**
+1. Side-panel menus: live-drawer-shell moved inside preview-stage-row, slides from video edge horizontally
+2. Wider panels: both drawers now max(340px, 33vw) — ~33% screen width
+3. Sequencer: height increased from 196px to flexible 40vh, overflow removed
+4. Engine controls: AnimationEnginePanel now shows all controls inline (no "Controls →")
+
+**Next: Steps 5+6** — MOTION XY pad hero + PROMPTS crossfader consolidation
