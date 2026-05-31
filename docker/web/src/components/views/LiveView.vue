@@ -1,7 +1,5 @@
 <template>
   <div class="live-view" data-testid="live-view">
-    <LiveEngineControlsDock :app="app" />
-
     <div class="live-view__scroll">
     <div class="rack param-drawer">
       <button type="button" class="param-drawer-toggle" @click="paramPanelOpen = !paramPanelOpen; saveSessionState()">
@@ -55,12 +53,11 @@
 
 <script>
 import UiIcon from '../UiIcon.vue'
-import LiveEngineControlsDock from '../LiveEngineControlsDock.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'LiveView',
-  components: { UiIcon, LiveEngineControlsDock },
+  components: { UiIcon },
   props: {
     app: { type: Object, required: true },
   },

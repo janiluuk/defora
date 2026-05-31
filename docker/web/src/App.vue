@@ -68,39 +68,6 @@
       </div>
     </nav>
 
-    <div
-      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
-      class="live-drawer-shell live-drawer-shell--dock-top"
-      :class="{ 'live-drawer-shell--open': rightPanelOpen }"
-      data-testid="right-panel-drawer"
-    >
-      <button
-        type="button"
-        class="live-overlay-btn live-overlay-btn--top"
-        :class="{ 'live-overlay-btn--open': rightPanelOpen }"
-        :title="rightPanelToggleTitle"
-        :aria-expanded="rightPanelOpen ? 'true' : 'false'"
-        data-testid="right-panel-toggle"
-        @click="toggleRightPanel"
-      >
-        <span class="live-overlay-btn__arrow-wrap">
-          <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
-        </span>
-        <span class="live-overlay-btn__top-label">{{ rightPanelOpen ? 'Hide panel' : 'Show panel' }}</span>
-      </button>
-      <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
-        <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-        <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
-        <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
-        <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
-        <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
-        <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
-        <ModulationView v-else-if="currentTab === 'MODULATION' || currentTab === 'AUDIO'" :app="appViewModel" />
-        <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
-        <RunsBrowserPanel v-else-if="currentTab === 'RUNS'" :app="appViewModel" />
-      </div>
-    </div>
-
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
@@ -492,6 +459,38 @@
 
         <!-- transport moved to top bar in LIVE -->
 
+          </div>
+
+          <div
+            v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+            class="live-drawer-shell live-drawer-shell--side"
+            :class="{ 'live-drawer-shell--open': rightPanelOpen }"
+            data-testid="right-panel-drawer"
+          >
+            <button
+              type="button"
+              class="live-overlay-btn live-overlay-btn--side"
+              :class="{ 'live-overlay-btn--open': rightPanelOpen }"
+              :title="rightPanelOpen ? 'Hide panel' : 'Show panel'"
+              :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+              data-testid="right-panel-toggle"
+              @click="toggleRightPanel"
+            >
+              <span class="live-overlay-btn__arrow-wrap">
+                <UiIcon class="live-overlay-btn__state" :name="rightPanelOpen ? 'chevron-right' : 'chevron-left'" />
+              </span>
+            </button>
+            <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
+              <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+              <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
+              <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
+              <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
+              <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
+              <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
+              <ModulationView v-else-if="currentTab === 'MODULATION' || currentTab === 'AUDIO'" :app="appViewModel" />
+              <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+              <RunsBrowserPanel v-else-if="currentTab === 'RUNS'" :app="appViewModel" />
+            </div>
           </div>
 
           <aside
