@@ -1,7 +1,7 @@
 {
   "enabled": true,
   "strategy": "least_busy",
-  "defaultForgeModel": "SDXL/sd_xl_turbo_1.0_fp16.safetensors",
+  "defaultForgeModel": "SDXL_sd_xl_turbo_1.0_fp16",
   "healthCheckInterval": 30,
   "timeout": 300,
   "retryAttempts": 2,
