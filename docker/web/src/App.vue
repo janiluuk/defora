@@ -857,6 +857,7 @@ export default {
       wanEngine: { ...DEFAULT_WAN_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
+      engineDetailTab: 'layer',
       videoLayerAddOpen: false,
       inputLayerPlaybackUrl: null,
       inputLayerLabel: 'Input',
