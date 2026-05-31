@@ -239,16 +239,25 @@
                 <span class="audio-map-card__target-name">{{ mapping.param ? (lfoTargets.find(t => t.key === mapping.param)?.label || mapping.param) : 'Unmapped' }}</span>
                 <code class="modulation-lfo-card__meta">{{ mapping.freq_min }}–{{ mapping.freq_max }} Hz</code>
               </div>
-              <div
-                class="audio-map-card__freq-meter audio-reactive-mapping-card__meter"
-                :class="{ 'audio-map-card__freq-meter--active': audioSpectrumPlaying || audioReactiveActive }"
+              <svg
+                class="audio-mini-bars"
+                :class="{ 'audio-mini-bars--live': audioSpectrumPlaying || audioReactiveActive }"
+                viewBox="0 0 88 28"
+                preserveAspectRatio="none"
+                aria-hidden="true"
               >
-                <div class="audio-map-card__freq-band" :style="audioBandWindowStyle(mapping)"></div>
-                <div
-                  class="audio-map-card__freq-bar"
-                  :style="{ width: ((audioMappingLevels[mapIndex] || 0) * 100) + '%' }"
-                ></div>
-              </div>
+                <rect
+                  v-for="(h, bi) in audioMappingMiniBars[mapIndex]"
+                  :key="bi"
+                  :x="bi * 11"
+                  :y="28 - Math.max(2, h * 26)"
+                  width="9"
+                  :height="Math.max(2, h * 26)"
+                  class="audio-mini-bars__bar"
+                  :class="{ 'audio-mini-bars__bar--on': h > 0.04 }"
+                  rx="1.5"
+                />
+              </svg>
               <div class="audio-reactive-mapping-card__level">
                 {{ Math.round((audioMappingLevels[mapIndex] || 0) * 100) }}%
                 · {{ audioBandTabDefs[mapIndex]?.label || 'Band' }}
@@ -363,6 +372,28 @@ export default {
       if (this.isAudioTab) return 'AUDIO_REACTIVE'
       const sub = this.currentSubTab && this.currentSubTab.MODULATION
       return sub || 'LFO'
+    },
+    audioMappingMiniBars() {
+      const bins = this.audioSpectrumBins
+      const BAR_COUNT = 8
+      const NYQUIST = 22050
+      return (this.audioMappings || []).map((m) => {
+        if (!bins || !bins.length) return Array(BAR_COUNT).fill(0)
+        const binCount = bins.length
+        const lo = Math.max(0, Math.floor((m.freq_min / NYQUIST) * binCount))
+        const hi = Math.min(binCount - 1, Math.ceil((m.freq_max / NYQUIST) * binCount))
+        const range = Math.max(1, hi - lo + 1)
+        const step = range / BAR_COUNT
+        const bars = []
+        for (let b = 0; b < BAR_COUNT; b++) {
+          const start = lo + Math.floor(b * step)
+          const end = lo + Math.floor((b + 1) * step)
+          let peak = 0
+          for (let i = start; i <= Math.min(hi, end); i++) peak = Math.max(peak, bins[i] || 0)
+          bars.push(peak / 255)
+        }
+        return bars
+      })
     },
   },
   methods: {

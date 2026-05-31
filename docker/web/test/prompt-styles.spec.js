@@ -48,7 +48,7 @@ describe("prompt styles", () => {
   });
 
   it("morphs style modifiers across the crossfader", async () => {
-    const { morphStyleModifiers } = await loadEsm("..", "src", "morph-utils.mjs");
+    const { morphStyleModifiers } = await loadEsm("..", "src", "utils", "morph-utils.mjs");
     const a = { positive: "cubist", negative: "photo" };
     const b = { positive: "anime", negative: "realistic" };
     const atA = morphStyleModifiers(a, b, 0);

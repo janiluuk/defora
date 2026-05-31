@@ -7196,6 +7196,20 @@
     color: var(--text-dim);
     font-variant-numeric: tabular-nums;
   }
+  .audio-mini-bars {
+    width: 100%;
+    height: 36px;
+    display: block;
+  }
+  .audio-mini-bars__bar {
+    fill: color-mix(in srgb, var(--live) 18%, transparent);
+  }
+  .audio-mini-bars__bar--on {
+    fill: var(--live);
+  }
+  .audio-mini-bars--live .audio-mini-bars__bar:not(.audio-mini-bars__bar--on) {
+    fill: color-mix(in srgb, var(--live) 28%, #0f3a2a 72%);
+  }
   .audio-reactive-detail {
     margin-top: 12px;
   }

@@ -16,7 +16,7 @@
 <script>
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { buildCameraPath } from '../deforum-schedule.mjs'
+import { buildCameraPath } from '../utils/deforum-schedule.mjs'
 
 export default {
   name: 'MotionPathPreview',

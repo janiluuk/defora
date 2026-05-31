@@ -547,7 +547,7 @@ import {
   CROSSFADE_SLOT_TYPES,
   morphSlotValue,
   smoothstep,
-} from './morph-utils.mjs'
+} from './utils/morph-utils.mjs'
 import {
   DEFORUM_DEFAULT_SETTINGS,
   DEFORUM_FIELD_GROUPS,
@@ -567,9 +567,9 @@ import {
   buildLinearScheduleRamp,
   normalizeDeforumMode2d3d,
   isDeforum3dOnlyFieldKey,
-} from './deforum-settings-schema.mjs'
-import { verifyDeforumSettings } from './deforum-settings-verify.mjs'
-import { apiFetch, modelSourceLabel } from './api-utils.js'
+} from './utils/deforum-settings-schema.mjs'
+import { verifyDeforumSettings } from './utils/deforum-settings-verify.mjs'
+import { apiFetch, modelSourceLabel } from './utils/api-utils.js'
 import {
   buildRunDetailCurrentContext,
   buildRunDetailJsonRows,
@@ -646,7 +646,7 @@ import GenerateView from './components/views/GenerateView.vue'
 import ModulationView from './components/views/ModulationView.vue'
 import SettingsView from './components/views/SettingsView.vue'
 import RunsBrowserPanel from './components/RunsBrowserPanel.vue'
-import { paintSpectrumBars } from './audio-spectrum.js'
+import { paintSpectrumBars } from './utils/audio-spectrum.js'
 
 export default {
   name: 'App',
