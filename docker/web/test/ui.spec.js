@@ -735,20 +735,26 @@ describe("Deforumation Web UI", () => {
   it("shows prompt morph controls", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "PROMPTS");
-    await nextTick();
-    const promptButtonsCollapsed = [...document.querySelectorAll(".prompt-toolbar .framesync-button")].map((el) => el.textContent.trim());
-    expect(promptButtonsCollapsed).to.include("Expand");
-    appVm.morphCollapsed = false;
-    await nextTick();
+    appVm.setMorph(true);
     await nextTick();
     const promptTitles = [...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim());
     expect(promptTitles.join(" ")).to.include("Prompt Morphing");
-    expect(promptTitles.join(" ")).to.include("Morph Crossfader");
+    expect(document.querySelector("[data-testid='prompt-morph-live-hint']")).to.exist;
+    const hintCopy = document.querySelector("[data-testid='prompt-morph-live-hint']")?.textContent || "";
+    expect(hintCopy).to.match(/LIVE/i);
     const promptButtons = [...document.querySelectorAll(".prompt-toolbar .framesync-button")].map((el) => el.textContent.trim());
     expect(promptButtons.join(" ")).to.match(/Enabled|Disabled/);
-    const allButtons = [...document.querySelectorAll(".framesync-button")].map((el) => el.textContent.trim());
-    expect(allButtons.join(" ")).to.include("Manual");
-    expect(allButtons.join(" ")).to.include("LFO 1");
+    appVm.morphCollapsed = false;
+    await nextTick();
+    expect(document.querySelector(".morph-slot-weights")).to.exist;
+  });
+
+  it("syncs LIVE morph HUD slider with prompt morph blend", async () => {
+    appVm.switchTab("LIVE");
+    appVm.setMorph(true);
+    appVm.onCrossfaderSlider(0.75);
+    expect(appVm.performance.crossfader).to.equal(0.75);
+    expect(appVm.prompts.morphBlend).to.equal(0.75);
   });
 
   it("shows the main engine controls in the engine tab", async () => {
@@ -1054,25 +1060,17 @@ describe("Deforumation Web UI", () => {
     expect(appVm.lfos[0].targets).to.not.include("translation_x");
   });
 
-  it("shows the crossfader in PROMPTS → LORA with morph slots and group pickers", async () => {
-    // The Perf drawer was removed; CrossfaderPanel is now accessible via PROMPTS → LORA sub-tab
+  it("shows LoRA group assignment with LIVE morph hint (no inline crossfader deck)", async () => {
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "LORA");
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector("[data-testid='crossfader-panel']")).to.exist;
-    expect(document.querySelector("[data-testid='crossfader-generic-prompt']")).to.exist;
-    expect(document.querySelector("[data-testid='crossfader-morph-slots']")).to.exist;
-    expect(document.querySelector(".lora-crossfader-panel__deck")).to.exist;
-
-    const groupPickers = [...document.querySelectorAll(".lora-crossfader-panel .lora-picker-trigger")];
-    expect(groupPickers.length).to.equal(2);
-
-    groupPickers[0].click();
-    await nextTick();
-    expect(appVm.loraCrossfaderPickerGroup).to.equal("A");
-    expect(document.querySelector(".lora-crossfader-panel__side--a .lora-picker-panel")).to.exist;
+    expect(document.querySelector("[data-testid='lora-crossfader-hint']")).to.exist;
+    expect(document.querySelector("[data-testid='crossfader-panel']")).to.not.exist;
+    expect(document.querySelector(".lora-active-group--common")).to.exist;
+    expect(document.querySelector(".lora-active-group--a")).to.exist;
+    expect(document.querySelector(".lora-active-group--b")).to.exist;
   });
 
   it("toggles modulation tab sections and shows LFO modulators", async () => {

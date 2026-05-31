@@ -6514,6 +6514,46 @@
     }
 
     /* ── MOTION — XY pad hero ── */
+    .motion-view--hero .motion-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .motion-preset-row--hero {
+      flex-wrap: wrap;
+    }
+    .motion-hero-stage {
+      min-height: min(52vh, 520px);
+      display: flex;
+      flex-direction: column;
+    }
+    .motion-hero-stage .deforum-motion-pads--hero {
+      flex: 1;
+      min-height: 0;
+    }
+    .motion-fine-tune-toggle.active {
+      border-color: var(--live);
+      color: var(--live);
+    }
+    .morph-live-hint,
+    .lora-crossfader-hint {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-top: 12px;
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--bg-2);
+    }
+    .morph-live-hint__copy,
+    .lora-crossfader-hint__copy {
+      margin: 0;
+      flex: 1;
+      min-width: 200px;
+    }
     .motion-view__tabs {
       margin-bottom: 10px;
     }

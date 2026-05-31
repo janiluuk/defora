@@ -52,74 +52,28 @@
             <div class="prompt-toolbar">
               <button class="framesync-button" :class="{ 'framesync-button--live': prompts.morphOn }" @click="setMorph(true)">Enabled</button>
               <button class="framesync-button" :class="{active: !prompts.morphOn}" @click="setMorph(false)">Disabled</button>
-              <button class="framesync-button" @click="morphCollapsed = !morphCollapsed">{{ morphCollapsed ? 'Expand' : 'Collapse' }}</button>
+              <button
+                v-if="prompts.morphOn"
+                class="framesync-button"
+                @click="morphCollapsed = !morphCollapsed; saveSessionState()"
+              >
+                {{ morphCollapsed ? 'Edit morph slots' : 'Collapse slots' }}
+              </button>
             </div>
           </div>
 
-          <div v-if="morphCollapsed && prompts.morphOn" class="morph-crossfader-mini" data-testid="prompt-morph-mini">
-            <div class="framesync-subtitle" style="margin:0;">Morph Crossfader</div>
-            <div class="framesync-gradient-bar"></div>
-            <input
-              type="range"
-              min="0"
-              max="1"
-              step="0.01"
-              :value="prompts.morphBlend"
-              class="framesync-input"
-              data-testid="prompt-morph-blend"
-              @input="applyPromptMorphBlend($event.target.value, { commitBase: true })"
-            />
-            <div class="morph-blend-labels">
-              <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
-              <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
+          <div v-if="prompts.morphOn" class="morph-live-hint" data-testid="prompt-morph-live-hint">
+            <div class="framesync-subtitle morph-live-hint__copy">
+              Prompt morph blend is on the <strong>LIVE</strong> stage (Morph HUD, bottom-right).
+              A/B mix: {{ Math.round((1 - prompts.morphBlend) * 100) }}% · {{ Math.round(prompts.morphBlend * 100) }}%
+              <span v-if="promptMorphBlendLinkStatus"> · {{ promptMorphBlendLinkStatus }}</span>
             </div>
-            <button type="button" class="framesync-button framesync-button--compact" @click="morphCollapsed = false">Expand</button>
+            <button type="button" class="framesync-button framesync-button--compact" @click="switchTab('LIVE')">
+              Open LIVE morph
+            </button>
           </div>
 
-          <div v-else-if="!morphCollapsed">
-            <div class="morph-crossfader-panel">
-              <div class="framesync-header">
-                <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
-                <div class="prompt-toolbar morph-crossfader-links">
-                  <button
-                    class="framesync-button"
-                    :class="{ active: !promptMorphBlendLinkedLfo }"
-                    @click="setPromptMorphBlendLfoLink(null)"
-                  >
-                    Manual
-                  </button>
-                  <button
-                    v-for="lfo in lfos.slice(0, 4)"
-                    :key="'morph-lfo-link-' + lfo.id"
-                    class="framesync-button"
-                    :class="{ active: prompts.morphBlendLfoLink === lfo.id }"
-                    @click="setPromptMorphBlendLfoLink(lfo.id)"
-                  >
-                    {{ 'LFO ' + lfo.id }}
-                  </button>
-                </div>
-              </div>
-              <div class="morph-blend-bar" style="margin-top:14px;">
-                <div class="framesync-subtitle">Prompt morph blend</div>
-                <div class="framesync-gradient-bar"></div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.01"
-                  :value="prompts.morphBlend"
-                  class="framesync-input"
-                  data-testid="prompt-morph-blend"
-                  :disabled="!prompts.morphOn"
-                  @input="applyPromptMorphBlend($event.target.value, { commitBase: true })"
-                />
-                <div class="morph-blend-labels">
-                  <span>A {{ ((1 - prompts.morphBlend) * 100).toFixed(0) }}%</span>
-                  <span>B {{ (prompts.morphBlend * 100).toFixed(0) }}%</span>
-                </div>
-              </div>
-              <div class="framesync-subtitle morph-crossfader-status">{{ promptMorphBlendLinkStatus }}</div>
-            </div>
+          <div v-if="prompts.morphOn && !morphCollapsed">
             <div v-if="prompts.morphOn" class="morph-slot-weights" style="margin-top:12px;">
               <div
                 v-for="slot in morphSlots"

@@ -11182,7 +11182,16 @@ reapplyEngineModelDefaults() {
    this.prompts.crossfaderValue = t;
  },
  onCrossfaderSlider(value) {
-   this.performance.crossfader = this.clampVal(Number(value) || 0, 0, 1);
+   const next = this.clampVal(Number(value) || 0, 0, 1);
+   this.performance.crossfader = next;
+   this.prompts.crossfaderValue = next;
+   if (this.prompts.morphOn) {
+     this.prompts.morphBlend = next;
+     if (!this.prompts.morphBlendLfoLink) {
+       this.prompts.morphBlendLfoBase = next;
+     }
+     this.applyPromptMorphing();
+   }
    this.onCrossfaderInput();
  },
  onCrossfaderInput() {

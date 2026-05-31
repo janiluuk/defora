@@ -35,7 +35,7 @@ cd docker/web && npm run build && node test/take-screenshots.mjs
 <td width="50%">
 <h4>PROMPTS — words &amp; styles</h4>
 <img src="../../screenshots/prompts-tab.png" alt="PROMPTS tab" width="100%" />
-<p><b>①</b> Sub-pills: PROMPTS · IMAGE · LORA · CONTROLNET · STORY. <b>②</b> Style modifier with forge-compatible presets. <b>③</b> Prompt morphing enable — A/B blend is on the LIVE morph HUD (single crossfader source). <b>④</b> Generic prompt + history on LIVE crossfader panel.</p>
+<p><b>①</b> Sub-pills: PROMPTS · IMAGE · LORA · CONTROLNET · STORY. <b>②</b> Style modifier with forge-compatible presets. <b>③</b> Prompt morphing enable — A/B blend on LIVE Morph HUD only (hint + slot editors here). <b>④</b> Generic prompt + history on LIVE crossfader panel.</p>
 </td>
 </tr>
 <tr>
@@ -121,7 +121,7 @@ cd docker/web && npm run build && node test/take-screenshots.mjs
 | U-23 | Done | LIVE stage HUDs (morph, modulating-now, runs rail) |
 | U-24–U-25 | Done | Waveform-first LFO; audio band hero |
 | U-26 | Done | Motion XY hero + preset pills |
-| U-27 | Done | Single morph crossfader on LIVE |
+| U-27 | Done | Single morph crossfader on LIVE (PROMPTS hint + slot editors only) |
 | U-28 | Done | Generate timeline dock |
 | U-29 | Done | Settings progressive disclosure; SYSTEM → RUNS |
 | U-30 | Open | Token / hex sweep, remaining emoji → UiIcon |

@@ -205,3 +205,20 @@ No Python, mediator, WS-protocol, or backend files should be touched.
 4. Engine controls: AnimationEnginePanel now shows all controls inline (no "Controls →")
 
 **Next: Steps 5+6** — MOTION XY pad hero + PROMPTS crossfader consolidation
+
+### Steps 5 + 6 — Motion hero polish + single morph crossfader (2026-05-31) ✅
+
+**Step 5: MOTION XY pad hero**
+- `.motion-hero-stage` min-height (~52vh) so the hero pad dominates the MOTION panel
+- Preset pill row + fine-tune axes toggle unchanged; path preview stays in collapsible advanced panel
+
+**Step 6: PROMPTS crossfader consolidation**
+- Removed duplicate morph crossfader sliders from PROMPTS → PROMPTS (mini + expanded panel)
+- Added `prompt-morph-live-hint` pointing performers to LIVE Morph HUD (matches LoRA tab pattern)
+- Morph slot editors remain under “Edit morph slots” when morph is enabled
+- `onCrossfaderSlider` now syncs `prompts.morphBlend` when morph is on (single A/B control on LIVE)
+- Shared `.morph-live-hint` / `.lora-crossfader-hint` chrome in `style.css`
+
+**Tests updated:** prompt morph hint, LoRA hint (no inline deck), LIVE morph blend sync
+
+**Next:** Step 7 — SETTINGS / RUNS declutter + token sweep (U-30 remaining hex)
