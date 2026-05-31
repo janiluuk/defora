@@ -2162,15 +2162,33 @@
     .param-drawer-chevron { font-size: 14px; color: var(--text-secondary); }
     .param-drawer-body { padding: 12px; }
     .model-source-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       font-size: 10px;
       padding: 2px 8px;
       border-radius: 999px;
       border: 1px solid var(--border);
       white-space: nowrap;
     }
-    .model-source-pill.src-sd-forge { color: var(--success); border-color: rgba(90, 242, 169, 0.35); }
-    .model-source-pill.src-cache { color: var(--warn); border-color: rgba(239, 159, 39, 0.35); }
-    .model-source-pill.src-placeholder { color: var(--danger); border-color: rgba(255, 77, 109, 0.35); }
+    .model-source-pill__dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--border);
+      flex-shrink: 0;
+    }
+    .model-source-pill--forge { color: var(--live-text); border-color: color-mix(in srgb, var(--live) 35%, var(--border)); }
+    .model-source-pill--forge .model-source-pill__dot { background: var(--live); }
+    .model-source-pill--cache { color: var(--warn-text); border-color: color-mix(in srgb, var(--warn) 35%, var(--border)); }
+    .model-source-pill--cache .model-source-pill__dot { background: var(--warn); }
+    .model-source-pill--placeholder { color: var(--error-text); border-color: color-mix(in srgb, var(--error) 35%, var(--border)); }
+    .model-source-pill--placeholder .model-source-pill__dot { background: var(--error); }
+    .modulation-audio-tab__intro {
+      margin-top: 8px;
+      margin-bottom: 4px;
+      color: var(--text-secondary);
+    }
     .param-lock-btn {
       border: none;
       background: transparent;
@@ -5760,7 +5778,7 @@
     pointer-events: none;
   }
     /* Pinned HUD sits top-left so it does not cover the sequencer */
-    .video-wrap--anchored .video-wrap__stage > .live-hud-strip {
+    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--pinned {
       position: absolute;
       top: 8px;
       left: 8px;
@@ -5769,9 +5787,31 @@
       max-width: min(360px, calc(100% - 16px));
       z-index: 5;
       margin-top: 0;
-    }
-    .video-wrap--anchored .video-wrap__stage > .live-hud-strip--pinned {
       grid-template-columns: minmax(0, 320px);
+    }
+    .video-wrap--anchored .video-wrap__stage > .live-hud-dock {
+      position: absolute;
+      left: 14px;
+      right: 14px;
+      bottom: 14px;
+      z-index: 10;
+      display: flex;
+      align-items: flex-end;
+      justify-content: flex-end;
+      gap: 12px;
+      pointer-events: none;
+    }
+    .live-hud-dock__cell {
+      pointer-events: auto;
+      flex: 0 1 auto;
+      min-width: 0;
+    }
+    .live-hud-dock__cell--modulating {
+      margin-right: auto;
+      width: min(240px, calc(50% - 8px));
+    }
+    .live-hud-dock__cell--morph {
+      width: min(280px, calc(50% - 8px));
     }
     /* Live sequencer overlay — full video width, large touch targets */
     .live-sequencer-dock {
@@ -8059,9 +8099,10 @@
     }
 
     /* ── Step 3: Morph HUD + Modulating Now HUD ── */
-    .live-hud-strip--modulating { position: absolute; left: 14px; bottom: 14px; width: 210px; z-index: 10; }
-    .live-hud-strip--morph { position: absolute; right: 14px; bottom: 14px; width: 280px; z-index: 10; }
-    .live-hud-modulating, .live-hud-morph { padding: 10px 12px; }
+    .live-hud-dock .live-hud-modulating,
+    .live-hud-dock .live-hud-morph {
+      width: 100%;
+    }
     .live-hud-mod-row { margin-bottom: 7px; }
     .live-hud-mod-row__info { display: flex; justify-content: space-between; align-items: baseline; font-size: 10px; color: var(--live-text); margin-bottom: 4px; }
     .live-hud-mod-row__source { color: var(--text-2); }

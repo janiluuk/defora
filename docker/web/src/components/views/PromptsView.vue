@@ -417,12 +417,7 @@
             <div class="framesync-title">Active <span class="framesync-accent">LoRAs</span></div>
             <div class="prompt-toolbar">
               <span class="lora-family-pill">{{ currentLoraModelFamilyLabel }}</span>
-              <span class="source" v-if="loras.source" style="font-size:10px;">
-                <span v-if="loras.source==='sd-forge'" style="color:var(--success);">● Forge</span>
-                <span v-else-if="loras.source==='cache'" style="color:var(--warn);">● Cache</span>
-                <span v-else-if="loras.source==='placeholder'" style="color:var(--error);">● Placeholder</span>
-                <span v-else style="color:var(--text-dim);">● {{ loras.source }}</span>
-              </span>
+              <ModelSourcePill v-if="loras.source" :source="loras.source" />
               <button class="framesync-button" @click="refreshLoras">Refresh</button>
               <button class="framesync-button lora-picker-trigger" @click="loraPickerOpen = !loraPickerOpen">{{ loraPickerOpen ? 'Close' : '+' }}</button>
             </div>
@@ -531,12 +526,7 @@
           <div class="framesync-header">
             <div class="framesync-title">ControlNet <span class="framesync-accent">Slots</span></div>
             <div class="prompt-toolbar">
-              <span class="source" v-if="cn.source" style="font-size:10px;">
-                <span v-if="cn.source==='sd-forge'" style="color:var(--success);">● Forge</span>
-                <span v-else-if="cn.source==='cache'" style="color:var(--warn);">● Cache</span>
-                <span v-else-if="cn.source==='placeholder'" style="color:var(--error);">● Placeholder</span>
-                <span v-else style="color:var(--text-dim);">● {{ cn.source }}</span>
-              </span>
+              <ModelSourcePill v-if="cn.source" :source="cn.source" />
               <button class="framesync-button" @click="loadControlNetModels">Refresh</button>
             </div>
           </div>
@@ -620,10 +610,12 @@
 </template>
 
 <script>
+import ModelSourcePill from '../ModelSourcePill.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'PromptsView',
+  components: { ModelSourcePill },
   props: {
     app: { type: Object, required: true },
   },

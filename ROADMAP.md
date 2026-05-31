@@ -50,11 +50,11 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | Mo4 | Readout mono | **Done** | `--mono` token; shared `.motion-readout`; hero pad readout bottom-right |
 | P1–P2 | Duplicate crossfader / A/B + slider | **Done** | Morph on LIVE only |
 | P3–P4 | Story / CN card polish | **Done** | GlassPanel on STORY + CONTROLNET; ModelSourcePill for Forge/Cache/Placeholder |
-| A1–A4 | AUDIO first-class + meters | **Partial** | Tab ✓; meter-first reactive layout ✓ |
+| A1–A4 | AUDIO first-class + meters | **Done** | Dedicated AUDIO tab chrome; reactive panel without modulation sub-pills |
 | R1–R2 | RUNS tab + drawer overlap | **Done** | RUNS tab + SETTINGS → RUNS (SYSTEM alias) |
 | S1–S4 | Settings sub-tabs / disclosure | **Done** | Reordered sub-tabs; RUNS rename; GlassPanel checkpoint; advanced `<details>` |
 | G1–G3 | GENERATE tab + timeline dock | **Done** | GENERATE tab + dedicated dock under preview with sync readout |
-| St1–St3 | STREAM tab vs design | **Partial** | STREAM removed from nav; Output sub-tab ✓ |
+| St1–St3 | STREAM tab vs design | **Done** | STREAM removed from nav; legacy alias → SETTINGS → OUTPUT |
 | X1 | Emoji buttons | **Done** | Library folder/play, Deforum toolbar, nav icons via UiIcon |
 | X2 | GlassPanel underused | **Partial** | Pinned + morph + modulating HUDs |
 | X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck |
@@ -64,7 +64,7 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 
 ### Recommended order
 
-1. **St1–St3 / A1–A4** — STREAM placement and AUDIO tab polish remain partial where noted above
+1. **X2 / X3–X4** — GlassPanel usage and `--live` / `--accent` on remaining surfaces
 2. **Mo4 follow-ups** — Apply `--mono` to generate dock sync readout and morph HUD if desired
 
 ---
@@ -199,11 +199,11 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **18** | **Runs compare export** | `POST /api/runs/compare`; prompt fields in UI; CSV/JSON download | **Done** (item 12) |
 | **19** | **Forge routes + GPU pool** | sd-models, loras, forge options use pool target | **Done** (item 13) |
 | **20** | **Nightly Docker E2E** | `.github/workflows/nightly-docker-e2e.yml` | **Done** (item 14) |
-| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Done** |
-| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Done** |
-| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Done** |
-| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Done** |
-| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Done** |
+| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Partial** |
+| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Partial** |
+| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Partial** |
+| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Partial** |
+| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Open** |
 | **U-26** | **UX: motion XY hero** | Promote pad to view hero | **Done** |
 | **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Done** |
 | **U-28** | **UX: generate dock** | Timeline under preview | **Done** |

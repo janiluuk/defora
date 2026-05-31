@@ -241,45 +241,49 @@
             </GlassPanel>
           </div>
 
-          <!-- "Modulating now" HUD — bottom-left -->
-          <div v-if="currentTab === 'LIVE' && modulatingNowItems.length" class="live-hud-strip live-hud-strip--modulating">
-            <GlassPanel size="sm" class="live-hud-modulating">
-              <template #header>modulating now</template>
-              <div v-for="item in modulatingNowItems.slice(0, 3)" :key="'hud-mod-' + item.key" class="live-hud-mod-row">
-                <div class="live-hud-mod-row__info">
-                  <span class="live-hud-mod-row__label">{{ item.label }}</span>
-                  <span class="live-hud-mod-row__source">← {{ item.source }}</span>
-                  <span class="live-hud-mod-row__val">{{ Number(item.val).toFixed(2) }}</span>
+          <div v-if="currentTab === 'LIVE'" class="live-hud-dock" data-testid="live-hud-dock">
+            <div
+              v-if="modulatingNowItems.length"
+              class="live-hud-dock__cell live-hud-dock__cell--modulating"
+              data-testid="live-modulating-hud"
+            >
+              <GlassPanel size="sm" variant="overlay" class="live-hud-modulating">
+                <template #header>modulating now</template>
+                <div v-for="item in modulatingNowItems.slice(0, 3)" :key="'hud-mod-' + item.key" class="live-hud-mod-row">
+                  <div class="live-hud-mod-row__info">
+                    <span class="live-hud-mod-row__label">{{ item.label }}</span>
+                    <span class="live-hud-mod-row__source">← {{ item.source }}</span>
+                    <span class="live-hud-mod-row__val">{{ Number(item.val).toFixed(2) }}</span>
+                  </div>
+                  <div class="live-hud-mod-row__bar">
+                    <div class="live-hud-mod-row__fill" :style="{ width: item.pct + '%' }"></div>
+                  </div>
                 </div>
-                <div class="live-hud-mod-row__bar">
-                  <div class="live-hud-mod-row__fill" :style="{ width: item.pct + '%' }"></div>
-                </div>
-              </div>
-            </GlassPanel>
-          </div>
+              </GlassPanel>
+            </div>
 
-          <!-- Morph HUD — bottom-right -->
-          <div v-if="currentTab === 'LIVE'" class="live-hud-strip live-hud-strip--morph">
-            <GlassPanel size="sm" class="live-hud-morph" data-testid="live-morph-hud">
-              <template #header>morph</template>
-              <div class="live-hud-morph__labels">
-                <span class="live-hud-morph__a">A · {{ Math.round((1 - performance.crossfader) * 100) }}%</span>
-                <span class="live-hud-morph__b">B · {{ Math.round(performance.crossfader * 100) }}%</span>
-              </div>
-              <div class="live-hud-morph__slider-wrap">
-                <input
-                  type="range" min="0" max="1" step="0.01"
-                  :value="performance.crossfader"
-                  class="live-hud-morph__slider"
-                  @input="onCrossfaderSlider($event.target.value)"
-                />
-              </div>
-              <div class="live-hud-morph__actions">
-                <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(0)">snap A</button>
-                <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(1)">snap B</button>
-                <button class="framesync-button framesync-button--compact framesync-button--live" @click="onCrossfaderSlider(Math.random())">rand</button>
-              </div>
-            </GlassPanel>
+            <div class="live-hud-dock__cell live-hud-dock__cell--morph">
+              <GlassPanel size="sm" variant="overlay" class="live-hud-morph" data-testid="live-morph-hud">
+                <template #header>morph</template>
+                <div class="live-hud-morph__labels">
+                  <span class="live-hud-morph__a">A · {{ Math.round((1 - performance.crossfader) * 100) }}%</span>
+                  <span class="live-hud-morph__b">B · {{ Math.round(performance.crossfader * 100) }}%</span>
+                </div>
+                <div class="live-hud-morph__slider-wrap">
+                  <input
+                    type="range" min="0" max="1" step="0.01"
+                    :value="performance.crossfader"
+                    class="live-hud-morph__slider"
+                    @input="onCrossfaderSlider($event.target.value)"
+                  />
+                </div>
+                <div class="live-hud-morph__actions">
+                  <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(0)">snap A</button>
+                  <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(1)">snap B</button>
+                  <button class="framesync-button framesync-button--compact framesync-button--live" @click="onCrossfaderSlider(Math.random())">rand</button>
+                </div>
+              </GlassPanel>
+            </div>
           </div>
           </div>
           <button

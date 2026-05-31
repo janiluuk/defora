@@ -3,7 +3,7 @@
  * Usage: BASE_URL=http://127.0.0.1:3999 node test/playwright-smoke.mjs
  */
 import { chromium } from 'playwright';
-import { clickTab, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
+import { clickTab, dismissSessionModalIfOpen, ensureRightPanelOpen, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
 const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'RUNS', 'SETTINGS', 'GENERATE'];
@@ -14,6 +14,7 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 try {
   // "networkidle" can be blocked by live polling/streaming; DOM loaded is enough for these assertions.
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 60000 });
+  await dismissSessionModalIfOpen(page);
   await waitForNavTabs(page);
   const trimmed = await getTabLabels(page);
   for (const name of expected) {
@@ -36,10 +37,18 @@ try {
     throw new Error('Morph crossfader slider not found on LIVE tab');
   }
   await clickTab(page, 'PROMPTS');
+  await ensureRightPanelOpen(page);
   await page.waitForSelector('.sub-pill', { timeout: 30000 });
   await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
   const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]');
-  await morphHint.waitFor({ state: 'visible', timeout: 30000 }).catch(() => null);
+  if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
+    const morphEnabled = page.locator('.framesync-button.framesync-button--live').filter({ hasText: /^Enabled$/ }).first();
+    if ((await morphEnabled.count()) === 0) {
+      await page.locator('.framesync-button').filter({ hasText: /^Enabled$/ }).first().click();
+      await page.waitForTimeout(200);
+    }
+    await morphHint.waitFor({ state: 'visible', timeout: 30000 });
+  }
   if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
     throw new Error('Prompt morph LIVE hint not found on PROMPTS tab');
   }
