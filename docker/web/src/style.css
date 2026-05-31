@@ -1857,6 +1857,19 @@
       gap: 6px;
     }
     .animation-engine-layer-row {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      padding: 8px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(8, 9, 13, 0.35);
+    }
+    .animation-engine-layer-row--active {
+      border-color: color-mix(in srgb, var(--accent) 35%, rgba(255, 255, 255, 0.06));
+      background: color-mix(in srgb, var(--accent) 8%, rgba(8, 9, 13, 0.35));
+    }
+    .animation-engine-layer-row__top {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
       gap: 8px;
@@ -1967,6 +1980,115 @@
     .animation-engine-layer-row__opacity-slider {
       width: 100%;
       margin: 0;
+    }
+    .animation-engine-layer-row__controls {
+      border-radius: 10px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.18);
+      overflow: hidden;
+    }
+    .animation-engine-layer-row__controls-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .animation-engine-layer-row__controls-summary::-webkit-details-marker {
+      display: none;
+    }
+    .animation-engine-layer-row__controls-summary:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .animation-engine-layer-row__controls-chevron {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      transition: transform 0.18s ease;
+    }
+    .animation-engine-layer-row__controls[open] .animation-engine-layer-row__controls-chevron {
+      transform: rotate(180deg);
+    }
+    .animation-engine-layer-row__controls-body {
+      padding: 0 10px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .engine-layer-controls {
+      margin-top: 10px;
+      min-width: 0;
+    }
+    .engine-layer-controls__hint {
+      margin: 0 0 10px;
+      line-height: 1.4;
+    }
+    .engine-layer-controls .deforum-job-panel.rack {
+      margin: 0;
+      padding: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+    }
+    .engine-layer-controls .deforum-job-panel__head {
+      margin-bottom: 8px;
+    }
+    .engine-layer-controls .deforum-settings-body {
+      max-height: min(60vh, 480px);
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .engine-layer-controls .live-engine-controls {
+      margin-top: 0;
+    }
+    .animation-engine-panel__compositor-section {
+      margin-top: 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(8, 9, 13, 0.35);
+      overflow: hidden;
+    }
+    .animation-engine-panel__compositor-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      cursor: pointer;
+      list-style: none;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .animation-engine-panel__compositor-summary::-webkit-details-marker {
+      display: none;
+    }
+    .animation-engine-panel__compositor-summary:hover {
+      color: var(--text-primary);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .animation-engine-panel__compositor-chevron {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+      transition: transform 0.18s ease;
+    }
+    .animation-engine-panel__compositor-section[open] .animation-engine-panel__compositor-chevron {
+      transform: rotate(180deg);
+    }
+    .animation-engine-panel__compositor-body {
+      padding: 0 10px 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.06);
     }
     .compositor-panel {
       display: flex;
