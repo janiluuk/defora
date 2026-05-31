@@ -11,6 +11,7 @@ COPY --from=builder /app/public /usr/share/nginx/html/public
 COPY --from=builder /app/node_modules /usr/share/nginx/html/node_modules
 COPY docker/web/nginx.conf /etc/nginx/nginx.conf
 COPY docker/web/server.js /usr/share/nginx/html/server.js
+COPY docker/web/shared /usr/share/nginx/html/shared
 COPY docker/web/modules /usr/share/nginx/html/modules
 COPY docker/web/gpu-pool.json /usr/share/nginx/html/gpu-pool.json
 WORKDIR /usr/share/nginx/html
