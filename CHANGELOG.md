@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.57] - 2026-05-31
+
+## What's Changed
+
+- fix(web): scope morph enable click in Playwright smoke test (15d6ba5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.56...v0.6.57
+
+
 ## [0.6.56] - 2026-05-31
 
 ## What's Changed
