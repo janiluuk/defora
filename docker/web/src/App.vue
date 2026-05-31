@@ -66,214 +66,42 @@
           </span>
         </button>
       </div>
+      <div class="top-nav__actions">
+        <button
+          type="button"
+          class="top-nav__icon-btn"
+          :class="{ 'top-nav__icon-btn--active': libraryWorkspaceOpen }"
+          :aria-expanded="libraryWorkspaceOpen ? 'true' : 'false'"
+          title="Library — browse videos and open the editor"
+          data-testid="top-nav-library"
+          @click="toggleLibraryWorkspace()"
+        >
+          <UiIcon name="folder" />
+          <span class="sr-only">Library</span>
+        </button>
+      </div>
     </nav>
 
-    <div
-      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
-      class="live-drawer-shell live-drawer-shell--dock-top"
-      :class="{ 'live-drawer-shell--open': rightPanelOpen }"
-      data-testid="right-panel-drawer"
-    >
-      <button
-        type="button"
-        class="live-overlay-btn live-overlay-btn--top"
-        :class="{ 'live-overlay-btn--open': rightPanelOpen }"
-        :title="rightPanelToggleTitle"
-        :aria-expanded="rightPanelOpen ? 'true' : 'false'"
-        data-testid="right-panel-toggle"
-        @click="toggleRightPanel"
-      >
-        <span class="live-overlay-btn__arrow-wrap">
-          <UiIcon class="live-overlay-btn__state" :name="rightPanelToggleIcon" />
-        </span>
-        <span class="live-overlay-btn__top-label">{{ rightPanelOpen ? 'Hide panel' : 'Show panel' }}</span>
-      </button>
-      <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' }">
-        <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-        <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
-        <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
-        <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
-        <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
-        <ModulationView v-else-if="currentTab === 'MODULATION'" :app="appViewModel" />
-        <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
-      </div>
-    </div>
+    <LibraryWorkspaceOverlay :app="appViewModel" />
 
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
-      'layout--stage': currentTab === 'MOTION',
-      'layout--studio': currentTab === 'MODULATION',
-      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',
+      'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
+      'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',
+      'layout--library-workspace': libraryWorkspaceOpen,
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
         'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',
         'preview--motion-dock': currentTab === 'MOTION',
-        'preview--top-dock': liveBottomDrawerOpen && !(libraryEditorOpen && currentTab === 'LIBRARY'),
         'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,
       }">
         <div
-          v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
-          class="editor-workspace-shell"
-          data-testid="editor-workspace"
-        >
-          <div class="editor-workspace-shell__toolbar">
-            <button
-              type="button"
-              class="framesync-button framesync-button--compact"
-              data-testid="close-library-editor"
-              @click="closeLibraryEditor()"
-            >
-              ← Back to Library
-            </button>
-            <span v-if="editorStatus" class="editor-workspace-shell__status" :class="{ 'editor-workspace-shell__status--live': editorStatusLive }">
-              {{ editorStatus }}
-            </span>
-          </div>
-          <EditorView :app="appViewModel" />
-        </div>
-        <div
-          v-else
           class="preview-stage-row"
           :class="{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }"
           data-testid="preview-stage-row"
         >
           <div class="preview-stage-main">
-        <div
-          v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
-          class="top-drawer-shell"
-          :class="{ 'top-drawer-shell--open': liveBottomDrawerOpen }"
-          data-testid="bottom-drawer"
-        >
-        <div class="live-top-drawer__tabs">
-          <button
-            type="button"
-            class="sub-pill"
-            :class="{ active: liveBottomDrawerTab === 'MODULATION' }"
-            @click="setLiveBottomDrawerTab('MODULATION')"
-          >
-            MODULATION
-          </button>
-          <button
-            type="button"
-            class="sub-pill"
-            :class="{ active: liveBottomDrawerTab === 'CROSSFADER' }"
-            @click="setLiveBottomDrawerTab('CROSSFADER')"
-          >
-            CROSSFADER
-          </button>
-          <button
-            type="button"
-            class="sub-pill"
-            :class="{ active: liveBottomDrawerTab === 'SYSTEM' }"
-            @click="setLiveBottomDrawerTab('SYSTEM')"
-          >
-            SYSTEM
-          </button>
-        </div>
-          <div
-            class="top-drawer-panel"
-            :class="{
-              'top-drawer-panel--open': liveBottomDrawerOpen,
-              'top-drawer-panel--system': liveBottomDrawerOpen && liveBottomDrawerTab === 'SYSTEM',
-              'top-drawer-panel--crossfader': liveBottomDrawerOpen && liveBottomDrawerTab === 'CROSSFADER',
-            }"
-          >
-        <div v-if="liveBottomDrawerTab === 'MODULATION'" class="live-mod-grid">
-            <div v-for="(slot, idx) in liveModulationSlots" :key="'live-mod-slot-' + idx" class="live-mod-slot">
-              <div class="live-mod-slot__head">
-                <span class="framesync-subtitle" style="margin:0;">{{ slot.label }}</span>
-                <span v-if="slot.mappingLabel" class="live-mod-slot__map">
-                  <UiIcon name="arrow-left" />
-                  <span>{{ slot.mappingLabel }}</span>
-                </span>
-                <div class="live-mod-slot__actions">
-                  <button
-                    v-if="slot.paramKey"
-                    type="button"
-                    class="framesync-button framesync-button--compact"
-                    title="Remove mapping"
-                    @click="clearParamMapping(slot.paramKey)"
-                  >
-                    <UiIcon name="close" />
-                  </button>
-                  <button
-                    v-if="slot.paramKey"
-                    type="button"
-                    class="framesync-button framesync-button--compact"
-                    title="Add mapping"
-                    @click="openModulationMapping(slot.paramKey)"
-                  >
-                    <UiIcon name="sliders" />
-                  </button>
-                </div>
-              </div>
-
-              <div v-if="slot.kind === 'slider'" class="live-mod-slot__body">
-                <div class="live-mod-slider" :style="{ '--shade': `${slot.shade}` }">
-                  <input
-                    type="range"
-                    class="framesync-input live-mod-slider__input"
-                    :min="slot.min"
-                    :max="slot.max"
-                    :step="slot.step"
-                    :value="slot.value"
-                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
-                  />
-                  <div class="live-mod-slider__readout">{{ slot.valueLabel }}</div>
-                </div>
-              </div>
-
-              <div v-else-if="slot.kind === 'xypad'" class="live-mod-slot__body">
-                <div
-                  class="live-mod-pad"
-                  @mousedown="livePadDown($event, slot)"
-                  @mousemove="livePadMove($event, slot)"
-                  @mouseup="livePadUp"
-                  @mouseleave="livePadUp"
-                  @touchstart.prevent="livePadDown($event, slot)"
-                  @touchmove.prevent="livePadMove($event, slot)"
-                  @touchend.prevent="livePadUp"
-                >
-                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--x"></div>
-                  <div class="live-mod-pad__crosshair live-mod-pad__crosshair--y"></div>
-                  <div class="live-mod-pad__puck" :style="slot.puckStyle"></div>
-                </div>
-                <div class="live-mod-pad__axes">
-                  <span class="framesync-subtitle" style="margin:0;">X {{ slot.xLabel }}</span>
-                  <span class="framesync-subtitle" style="margin:0;">Y {{ slot.yLabel }}</span>
-                </div>
-              </div>
-
-              <div v-else class="live-mod-slot__body">
-                <div class="live-mod-knob">
-                  <input
-                    type="range"
-                    class="framesync-input live-mod-knob__input"
-                    :min="slot.min"
-                    :max="slot.max"
-                    :step="slot.step"
-                    :value="slot.value"
-                    @input="slot.paramKey && setLiveModValue(slot.paramKey, $event.target.value)"
-                  />
-                  <div class="live-mod-knob__readout">{{ slot.valueLabel }}</div>
-                </div>
-              </div>
-            </div>
-        </div>
-
-        <CrossfaderPanel v-else-if="liveBottomDrawerTab === 'CROSSFADER'" :app="appViewModel" />
-
-        <div
-          v-else-if="liveBottomDrawerTab === 'SYSTEM'"
-          class="top-drawer-system system-runs-tab"
-          data-testid="bottom-drawer-system"
-        >
-          <RunsBrowserPanel :app="appViewModel" />
-        </div>
-          </div>
-        </div>
-
         <div class="preview-stage-video-stack">
         <div
           class="video-wrap video-wrap--anchored"
@@ -412,20 +240,51 @@
               />
             </GlassPanel>
           </div>
-          <button
-            v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
-            type="button"
-            class="top-drawer-fab top-drawer-fab--stage"
-            :class="{ 'top-drawer-fab--active': liveBottomDrawerOpen }"
-            :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
-            :title="liveBottomDrawerOpen ? 'Hide performance panel' : 'Show performance panel'"
-            data-testid="bottom-drawer-toggle"
-            @click="liveBottomDrawerOpen = !liveBottomDrawerOpen; saveSessionState()"
-          >
-            <span class="top-drawer-fab__icon-wrap" aria-hidden="true">
-              <UiIcon class="top-drawer-fab__icon" :name="liveBottomDrawerOpen ? 'chevron-up' : 'chevron-down'" />
-            </span>
-          </button>
+
+          <div v-if="currentTab === 'LIVE'" class="live-hud-dock" data-testid="live-hud-dock">
+            <div
+              v-if="modulatingNowItems.length"
+              class="live-hud-dock__cell live-hud-dock__cell--modulating"
+              data-testid="live-modulating-hud"
+            >
+              <GlassPanel size="sm" variant="overlay" class="live-hud-modulating">
+                <template #header>modulating now</template>
+                <div v-for="item in modulatingNowItems.slice(0, 3)" :key="'hud-mod-' + item.key" class="live-hud-mod-row">
+                  <div class="live-hud-mod-row__info">
+                    <span class="live-hud-mod-row__label">{{ item.label }}</span>
+                    <span class="live-hud-mod-row__source">← {{ item.source }}</span>
+                    <span class="live-hud-mod-row__val">{{ Number(item.val).toFixed(2) }}</span>
+                  </div>
+                  <div class="live-hud-mod-row__bar">
+                    <div class="live-hud-mod-row__fill" :style="{ width: item.pct + '%' }"></div>
+                  </div>
+                </div>
+              </GlassPanel>
+            </div>
+
+            <div class="live-hud-dock__cell live-hud-dock__cell--morph">
+              <GlassPanel size="sm" variant="overlay" class="live-hud-morph" data-testid="live-morph-hud">
+                <template #header>morph</template>
+                <div class="live-hud-morph__labels">
+                  <span class="live-hud-morph__a">A · {{ Math.round((1 - performance.crossfader) * 100) }}%</span>
+                  <span class="live-hud-morph__b">B · {{ Math.round(performance.crossfader * 100) }}%</span>
+                </div>
+                <div class="live-hud-morph__slider-wrap">
+                  <input
+                    type="range" min="0" max="1" step="0.01"
+                    :value="performance.crossfader"
+                    class="live-hud-morph__slider"
+                    @input="onCrossfaderSlider($event.target.value)"
+                  />
+                </div>
+                <div class="live-hud-morph__actions">
+                  <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(0)">snap A</button>
+                  <button class="framesync-button framesync-button--compact" @click="onCrossfaderSlider(1)">snap B</button>
+                  <button class="framesync-button framesync-button--compact framesync-button--live" @click="onCrossfaderSlider(Math.random())">rand</button>
+                </div>
+              </GlassPanel>
+            </div>
+          </div>
           </div>
           <button
             v-if="showEngineDrawerShell"
@@ -473,6 +332,38 @@
             >
               + Add source
             </button>
+          </div>
+
+          <div
+            v-if="currentTab === 'LIVE' && recentRunsRail.length"
+            class="recent-runs-rail"
+            data-testid="recent-runs-rail"
+          >
+            <div class="recent-runs-rail__header">
+              <span class="recent-runs-rail__title">Recent runs</span>
+              <button type="button" class="recent-runs-rail__link" @click="switchTab('RUNS')">Open runs</button>
+            </div>
+            <div class="recent-runs-rail__list">
+              <button
+                v-for="run in recentRunsRail"
+                :key="'recent-run-' + run.run_id"
+                type="button"
+                class="recent-runs-rail__item"
+                @click="openRecentRunFromRail(run)"
+              >
+                <img
+                  v-if="runListingThumbUrl(run)"
+                  :src="runListingThumbUrl(run)"
+                  class="recent-runs-rail__thumb"
+                  :alt="run.run_id"
+                >
+                <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">—</div>
+                <div class="recent-runs-rail__meta">
+                  <span class="recent-runs-rail__id">{{ run.run_id }}</span>
+                  <span class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</span>
+                </div>
+              </button>
+            </div>
           </div>
 
           <div
@@ -544,7 +435,7 @@
         <audio ref="avSyncAudio" data-testid="av-sync-audio" :src="audio.objectUrl || undefined" preload="auto" style="display:none;"></audio>
 
         <div
-          v-if="currentTab === 'MOTION'"
+          v-if="currentTab === 'MOTION' || currentTab === 'GENERATE'"
           class="preview-bottom-dock"
           data-testid="preview-bottom-dock"
         >
@@ -599,6 +490,36 @@
 
         <!-- transport moved to top bar in LIVE -->
 
+          </div>
+
+          <div
+            v-if="!libraryWorkspaceOpen"
+            class="live-drawer-shell live-drawer-shell--side"
+            :class="{ 'live-drawer-shell--open': rightPanelOpen }"
+            data-testid="right-panel-drawer"
+          >
+            <button
+              type="button"
+              class="live-overlay-btn live-overlay-btn--side"
+              :class="{ 'live-overlay-btn--open': rightPanelOpen }"
+              :title="rightPanelOpen ? 'Hide panel' : 'Show panel'"
+              :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+              data-testid="right-panel-toggle"
+              @click="toggleRightPanel"
+            >
+              <span class="live-overlay-btn__arrow-wrap">
+                <UiIcon class="live-overlay-btn__state" :name="rightPanelOpen ? 'chevron-right' : 'chevron-left'" />
+              </span>
+            </button>
+            <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
+              <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
+              <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
+              <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
+              <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
+              <ModulationView v-else-if="currentTab === 'MODULATION' || currentTab === 'AUDIO'" :app="appViewModel" />
+              <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
+              <RunsBrowserPanel v-else-if="currentTab === 'RUNS'" :app="appViewModel" />
+            </div>
           </div>
 
           <aside
@@ -669,6 +590,22 @@ import {
   visibleWanControlFields,
   WAN_ANIMATION_MODE,
 } from './shared/wan-engine-config.mjs'
+import {
+  COMMON_VISUAL_PARAMS,
+  bindingFor,
+  isCommonVisualEnabled,
+  parseCommonVisualModKey,
+} from './animation-plugins/common-visual.mjs'
+
+function pluginByLayerKind(kind) {
+  const plugins = [
+    { id: 'webgl', layerKind: 'webgl' },
+    { id: 'deforum', layerKind: 'deforum' },
+    { id: 'wan', layerKind: 'wan' },
+    { id: 'animatelcm', layerKind: 'animatelcm' },
+  ];
+  return plugins.find((p) => p.layerKind === kind) || null;
+}
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -701,9 +638,8 @@ import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LiveEngineControlsDock from './components/LiveEngineControlsDock.vue'
 import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
-import LibraryView from './components/views/LibraryView.vue'
+import LibraryWorkspaceOverlay from './components/LibraryWorkspaceOverlay.vue'
 import EditorView from './components/views/EditorView.vue'
-import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
 import GenerateView from './components/views/GenerateView.vue'
@@ -714,7 +650,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, EditorView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -752,7 +688,8 @@ export default {
       deforumPreloadStatus: '',
       _preloadDeforumStarted: false,
       libraryFullscreen: false,
-      libraryEditorOpen: false,
+      libraryWorkspaceOpen: false,
+      libraryWorkspacePane: 'browser',
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -888,12 +825,13 @@ export default {
       _syncingGlobalFps: false,
       tabs: [
         { id: "LIVE", label: "LIVE", hint: "Monitor", icon: "broadcast" },
-        { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
-        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
+        { id: "AUDIO", label: "AUDIO", hint: "Reactive", icon: "mic" },
+        { id: "RUNS", label: "RUNS", hint: "History", icon: "history" },
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
+        { id: "GENERATE", label: "GENERATE", hint: "Sequencer", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
@@ -950,8 +888,6 @@ export default {
       videoSwarmVisibleStart: 0,
       videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
-      liveBottomDrawerOpen: false,
-      liveBottomDrawerTab: 'MODULATION',
       liveEngineDrawerOpen: true,
       restoreSessionPromptOpen: false,
       pendingSessionStateRaw: '',
@@ -1322,7 +1258,12 @@ export default {
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
         forgeLayerOpacity: 0.88,
+        rememberCompositorLayerOnStartup: false,
+        previewCompositorCrossfadeMs: 800,
+        forgeLayerOpacityLfoLink: null,
+        forgeLayerOpacityLfoBase: 0.88,
       },
+      frameRailRunId: null,
       thumbs: [],
       frameThumbLoadingKeys: {},
       framesTimer: null,
@@ -1495,8 +1436,9 @@ export default {
       }));
     },
     runsMonitorActive() {
+      if (this.currentTab === 'RUNS') return true;
       if (this.currentTab === 'SETTINGS' && this.currentSubTab.SETTINGS === 'SYSTEM') return true;
-      return this.liveBottomDrawerOpen && this.liveBottomDrawerTab === 'SYSTEM';
+      return false;
     },
     runsLastRefreshedLabel() {
       if (!this.runsLastRefreshedAt) return '';
@@ -1543,7 +1485,27 @@ export default {
       return '/hls/live/deforum.m3u8';
     },
     frameStripThumbs() {
+      const runId = this.frameRailRunId;
+      const detail = this.runsDetailView;
+      if (
+        runId
+        && detail
+        && detail.run_id === runId
+        && Array.isArray(detail.frames)
+        && detail.frames.length
+      ) {
+        return detail.frames.map((name, idx) => {
+          const frameName = String(name);
+          const src = `/api/runs/${encodeURIComponent(detail.run_id)}/frames/${encodeURIComponent(frameName)}`;
+          return { name: frameName, src, url: src, path: src, frame: idx + 1 };
+        });
+      }
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
+    },
+    frameRailSourceLabel() {
+      const runId = this.frameRailRunId;
+      if (!runId) return '';
+      return `Run ${runId}`;
     },
     framesEmptyStatus() {
       const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
@@ -1669,19 +1631,32 @@ export default {
       return 'Processing…';
     },
     showMotionSequencerDock() {
-      return this.currentTab === 'MOTION';
+      return this.currentTab === 'MOTION' || this.currentTab === 'GENERATE';
     },
     showRightPanel() {
       return this.rightPanelOpen;
     },
     showEngineDrawerShell() {
-      return !(this.libraryEditorOpen && this.currentTab === 'LIBRARY');
+      return !this.libraryWorkspaceOpen;
+    },
+    libraryEditorOpen: {
+      get() {
+        return this.libraryWorkspaceOpen && this.libraryWorkspacePane === 'editor';
+      },
+      set(value) {
+        if (value) {
+          this.libraryWorkspaceOpen = true;
+          this.libraryWorkspacePane = 'editor';
+        } else if (this.libraryWorkspacePane === 'editor') {
+          this.libraryWorkspaceOpen = false;
+        }
+      },
     },
     sidePanelUsesEdgeDock() {
       const mode = this.sidePanelDock || 'auto';
       if (mode === 'edge') return true;
       if (mode === 'video') return false;
-      if (this.libraryEditorOpen && this.currentTab === 'LIBRARY') return true;
+      if (this.libraryWorkspaceOpen) return true;
       return this.currentTab === 'LIVE' && this.videoStageSize === 'full';
     },
     rightPanelToggleIcon() {
@@ -1710,13 +1685,7 @@ export default {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
     },
     showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
-    },
-    canStartHlsWatch() {
-      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
-    },
-    showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+      return this.hlsWatchEnabled;
     },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
@@ -1729,7 +1698,7 @@ export default {
       if (!this.standbyPreviewVideoUrl) return false;
       const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
       if (!showClip && !this.showMainStageHls) return false;
-      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
+      if (this.libraryWorkspaceOpen) return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -1802,6 +1771,17 @@ export default {
       }
       return { opacity: String(opacity), visibility: 'visible', pointerEvents: 'none' };
     },
+    previewStageStyle() {
+      const ms = Math.max(
+        0,
+        Math.min(5000, Math.round(Number(this.defaultAnimation?.previewCompositorCrossfadeMs) || 800)),
+      );
+      const forgeOpacity = this.effectiveForgeLayerOpacity;
+      return {
+        '--preview-compositor-crossfade-ms': `${ms}ms`,
+        '--preview-forge-layer-opacity': String(forgeOpacity),
+      };
+    },
     isDeforumLayerActive() {
       return this.activeVideoLayer?.kind === 'deforum';
     },
@@ -1810,7 +1790,13 @@ export default {
     },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
-      return kind === 'deforum' || kind === 'wan';
+      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm';
+    },
+    activeAnimationPlugin() {
+      return pluginByLayerKind(this.activeVideoLayer?.kind) || null;
+    },
+    activeAnimationPluginId() {
+      return this.activeAnimationPlugin?.id || null;
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
@@ -2186,6 +2172,19 @@ export default {
       return this.pinnedParams
         .map(key => allParams.find(p => p.key === key))
         .filter(Boolean);
+    },
+    modulatingNowItems() {
+      return [...this.liveVibe, ...this.liveCam]
+        .filter(p => this.paramSources[p.key] && this.paramSources[p.key] !== 'Manual')
+        .map(p => ({
+          key: p.key,
+          label: p.label,
+          source: this.paramSources[p.key],
+          val: p.val,
+          min: p.min,
+          max: p.max,
+          pct: Math.round(((p.val - p.min) / ((p.max - p.min) || 1)) * 100),
+        }));
     },
     audioReactiveActive() {
       return ['Audio sent to mediator', 'Streaming'].includes(this.audioStatus);
@@ -2884,9 +2883,6 @@ export default {
       this.syncRunsMonitorPolling();
       this.saveSessionState();
     },
-    liveBottomDrawerOpen() {
-      this.syncRunsMonitorPolling();
-    },
     liveEngineDrawerOpen(open) {
       this.$nextTick(() => this.updateSidePanelDockBounds());
       if (open) void this.preloadDeforumPipeline();
@@ -2897,13 +2893,9 @@ export default {
     enginePanelDetailsOpen(open) {
       if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
     },
-    liveBottomDrawerTab(tab) {
-      if (tab === 'SYSTEM') void this.refreshRuns();
-      this.syncRunsMonitorPolling();
-    },
     currentTab(tab, prev) {
-      if (prev === "STREAM" && tab !== "STREAM") {
-        this.disableHlsWatch();
+      if ((prev === "STREAM" || prev === "LIBRARY") && tab !== prev) {
+        if (prev === "STREAM" && this.hlsWatchEnabled) this.disableHlsWatch();
       }
     },
     hlsPreviewStreamValid(valid) {
@@ -2924,7 +2916,7 @@ export default {
     videoStageSize() {
       this.updateSidePanelDockBounds();
     },
-    libraryEditorOpen() {
+    libraryWorkspaceOpen() {
       this.updateSidePanelDockBounds();
     },
     currentTab() {
@@ -2942,10 +2934,11 @@ export default {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const savedTab = window.localStorage.getItem('defora_tab');
-        if (savedTab === 'EDITOR') {
-          this.currentTab = 'LIBRARY';
-          this.libraryEditorOpen = true;
-          window.localStorage.setItem('defora_tab', 'LIBRARY');
+        if (savedTab === 'EDITOR' || savedTab === 'LIBRARY') {
+          this.openLibraryWorkspace(savedTab === 'EDITOR' ? 'editor' : 'browser');
+        } else if (savedTab === 'STREAM') {
+          this.switchTab('SETTINGS');
+          this.switchSubTab('SETTINGS', 'OUTPUT');
         }
       }
     } catch (_e) {}
@@ -3381,17 +3374,14 @@ export default {
   },
   openRecentRun(run) {
     if (!run) return;
-    this.liveBottomDrawerOpen = true;
-    this.setLiveBottomDrawerTab('SYSTEM');
+    this.switchTab('RUNS');
     this.showRunDetails(run);
   },
   openRunsDrawerSystem() {
-    this.liveBottomDrawerOpen = true;
-    this.setLiveBottomDrawerTab('SYSTEM');
+    this.switchTab('RUNS');
   },
   openFramesInRunsPanel() {
-    this.liveBottomDrawerOpen = true;
-    this.liveBottomDrawerTab = 'SYSTEM';
+    this.switchTab('RUNS');
     this.setRunsBrowserTab('frames');
     this.syncRunsMonitorPolling();
   },
@@ -3455,6 +3445,11 @@ export default {
     }
     void this.showRunDetails(run);
   },
+  openRecentRunFromRail(run) {
+    if (!run) return;
+    this.switchTab('RUNS');
+    void this.showRunDetails(run);
+  },
   runPrimaryVideoUrl(run) {
     if (!run) return "";
     if (run.primary_video && run.primary_video.url) return run.primary_video.url;
@@ -3479,7 +3474,7 @@ export default {
     const browsePath = framesOut?.browse_path || null;
     const rootId = framesOut?.rootId || "runs";
     if (!browsePath) return;
-    this.currentTab = "LIBRARY";
+    this.openLibraryWorkspace('browser');
     this.librarySubTab = "BROWSER";
     await this.initSystemFilesBrowser();
     await this.browseSystemFiles(browsePath, { rootId });
@@ -3834,54 +3829,42 @@ export default {
    }
  },
  switchTab(id) {
-   if (id === 'EDITOR') {
-     id = 'LIBRARY';
+   if (id === 'EDITOR' || id === 'LIBRARY') {
+     this.openLibraryWorkspace(id === 'EDITOR' ? 'editor' : 'browser');
+     return;
    }
-   if (id === 'GENERATE') {
-     this.currentTab = 'MOTION';
-     this.currentSubTab.MOTION = 'PERFORMANCE';
-     this.motionSequencerSideOpen = true;
-     try {
-       if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'MOTION');
-         window.localStorage.setItem('defora_subtab_MOTION', 'PERFORMANCE');
-       }
-     } catch (_e) {}
+   if (id === 'STREAM') {
+     this.currentTab = 'SETTINGS';
+     this.switchSubTab('SETTINGS', 'OUTPUT');
+     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'SETTINGS'); } catch (_e) {}
+     void this.refreshStreamStatus();
      this.saveSessionState();
      return;
    }
    if (id === 'AUDIO') {
-     this.currentTab = 'MODULATION';
+     this.currentTab = 'AUDIO';
      this.currentSubTab.MODULATION = 'AUDIO_REACTIVE';
-     try {
-       if (typeof window !== 'undefined' && window.localStorage) {
-         window.localStorage.setItem('defora_tab', 'MODULATION');
-         window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO_REACTIVE');
-       }
-     } catch (_e) {}
-     return;
+     try { if (typeof window !== 'undefined' && window.localStorage) { window.localStorage.setItem('defora_tab', 'AUDIO'); window.localStorage.setItem('defora_subtab_MODULATION', 'AUDIO_REACTIVE'); } } catch (_e) {}
+     this.saveSessionState(); return;
    }
    if (id === 'RUNS') {
-     this.openRunsDrawerSystem();
-     return;
+     this.currentTab = 'RUNS';
+     void this.refreshRuns();
+     this.syncRunsMonitorPolling();
+     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'RUNS'); } catch(_e) {}
+     this.saveSessionState(); return;
    }
-   if (id !== 'LIBRARY') {
-     this.libraryEditorOpen = false;
+   if (id === 'GENERATE') {
+     this.currentTab = 'GENERATE';
+     this.motionSequencerSideOpen = true;
+     this.$nextTick(() => { this.refreshSequencerList(); setTimeout(() => this.drawTimeline(), 200); });
+     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'GENERATE'); } catch(_e) {}
+     this.saveSessionState(); return;
    }
    this.currentTab = id;
-   if (id === 'MOTION') {
-     this.$nextTick(() => {
-       this.refreshSequencerList();
-       setTimeout(() => this.drawTimeline(), 200);
-     });
-   }
+   if (id === 'MOTION') { this.$nextTick(() => { this.refreshSequencerList(); setTimeout(() => this.drawTimeline(), 200); }); }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
-  if (id === 'LIBRARY') {
-    void this.initSystemFilesBrowser();
-  }
-  if (id === 'STREAM') {
-    void this.refreshStreamStatus();
-  }
+   this.saveSessionState();
  },
  normalizeModulationSubTab(sub) {
    if (sub === 'AUDIO') return 'AUDIO_REACTIVE';
@@ -3954,19 +3937,6 @@ export default {
   } else if (tab === 'active' || tab === 'past') {
     void this.refreshRuns();
   }
-  this.saveSessionState();
- },
- setLiveBottomDrawerTab(tab) {
-  if (tab !== 'MODULATION' && tab !== 'CROSSFADER' && tab !== 'SYSTEM') return;
-  this.liveBottomDrawerTab = tab;
-  if (tab === 'SYSTEM') {
-    void this.refreshRuns();
-  } else if (tab !== 'CROSSFADER') {
-    this.loraCrossfaderPickerGroup = null;
-  } else if (!this.lorasLoading && !this.loras.available.length) {
-    this.refreshLoras();
-  }
-  this.syncRunsMonitorPolling();
   this.saveSessionState();
  },
  toggleLoraCrossfaderPicker(group) {
@@ -4298,6 +4268,16 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
     forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
+    rememberCompositorLayerOnStartup: !!next.rememberCompositorLayerOnStartup,
+    previewCompositorCrossfadeMs: Math.max(
+      0,
+      Math.min(5000, Math.round(Number(next.previewCompositorCrossfadeMs) || 800)),
+    ),
+    forgeLayerOpacityLfoLink: (() => {
+      const id = Number(next.forgeLayerOpacityLfoLink);
+      return id >= 1 && id <= 6 ? id : null;
+    })(),
+    forgeLayerOpacityLfoBase: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacityLfoBase)) ? Number(next.forgeLayerOpacityLfoBase) : (Number(next.forgeLayerOpacity) || 0.88))),
   };
 },
 onDefaultAnimationInput() {
@@ -4400,6 +4380,15 @@ applyAnimationModulation(field, value) {
   });
 },
 routeModulationValue(key, value, payload, cnUpdates) {
+  const pluginParsed = parseCommonVisualModKey(key);
+  if (pluginParsed) {
+    this.writeCommonVisualValue(pluginParsed.pluginId, pluginParsed.paramId, value);
+    return;
+  }
+  if (String(key).startsWith('wan.')) {
+    this.onWanEngineFieldChange(String(key).slice(4), value, 'number');
+    return;
+  }
   const anim = this.animationTargets.find((t) => t.key === key);
   if (anim) {
     this.applyAnimationModulation(anim.field, value);
@@ -4419,6 +4408,65 @@ routeModulationValue(key, value, payload, cnUpdates) {
     return;
   }
   payload[key] = value;
+},
+readCommonVisualValue(pluginId, paramId) {
+  const binding = bindingFor(pluginId, paramId);
+  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
+  if (!param || binding.type === 'disabled') return param?.default ?? 0;
+  if (binding.type === 'animation') {
+    const field = binding.field;
+    const val = Number(this.defaultAnimation?.[field]);
+    return Number.isFinite(val) ? val : param.default;
+  }
+  if (binding.type === 'schedule') {
+    const raw = readScheduleValueAtFrame(this.deforumSettings?.[binding.key], 0);
+    const val = Number(raw);
+    return Number.isFinite(val) ? val : param.default;
+  }
+  if (binding.type === 'wan') {
+    const val = Number(this.wanEngine?.[binding.key]);
+    return Number.isFinite(val) ? val : param.default;
+  }
+  return param.default;
+},
+writeCommonVisualValue(pluginId, paramId, rawValue) {
+  const binding = bindingFor(pluginId, paramId);
+  if (binding.type === 'disabled') return;
+  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
+  const num = Number(rawValue);
+  if (!Number.isFinite(num) || !param) return;
+  const clamped = this.clampVal(num, param.min, param.max);
+  if (binding.type === 'animation') {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+      ...this.defaultAnimation,
+      [binding.field]: clamped,
+    });
+    this.saveSessionState();
+    return;
+  }
+  if (binding.type === 'schedule') {
+    this.onDeforumFieldInput(binding.key, `0:(${clamped})`, 'text');
+    return;
+  }
+  if (binding.type === 'wan') {
+    this.onWanEngineFieldChange(binding.key, clamped, 'number');
+  }
+},
+onCommonVisualInput(paramId, rawValue, pluginIdOverride) {
+  const pluginId = pluginIdOverride || this.activeAnimationPluginId;
+  if (!pluginId) return;
+  this.writeCommonVisualValue(pluginId, paramId, rawValue);
+},
+commonVisualItemsForPlugin(pluginId) {
+  if (!pluginId) return [];
+  return COMMON_VISUAL_PARAMS.map((p) => {
+    const disabled = !isCommonVisualEnabled(pluginId, p.id);
+    const value = disabled ? p.default : this.readCommonVisualValue(pluginId, p.id);
+    const readout = Number.isFinite(value)
+      ? (Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2))
+      : '—';
+    return { ...p, paramId: p.id, value, readout, disabled };
+  });
 },
 setDefaultAnimationMode(mode) {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
@@ -4470,9 +4518,6 @@ setHlsPreviewStreamValid(valid) {
 },
 enableHlsWatch() {
   if (!this.hlsPreviewStreamValid) return;
-  if (this.currentTab !== "STREAM") {
-    this.switchTab("STREAM");
-  }
   if (this.hlsWatchEnabled) return;
   this.hlsWatchEnabled = true;
   this.videoReady = false;
@@ -4701,14 +4746,44 @@ updateHeldPreviewFromLatestFrame() {
   if (path) this.heldPreviewFramePath = path;
 },
 applyStartupVideoPreview() {
-  this._userPickedPreviewLayer = false;
-  this.activeVideoLayerId = 'webgl';
+  const remember = !!this.defaultAnimation?.rememberCompositorLayerOnStartup;
+  if (!remember) {
+    this._userPickedPreviewLayer = false;
+    this.activeVideoLayerId = 'webgl';
+  }
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
-    preferDeforumVideo: false,
+    preferDeforumVideo: remember ? this.defaultAnimation.preferDeforumVideo : false,
     autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
   });
   this.$nextTick(() => this.kickstandbyAnimation());
+},
+promoteToDeforum() {
+  this.selectVideoLayer('deforum', { userInitiated: true });
+},
+applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {}) {
+  const next = this.clampVal(Number(value) || 0, 0, 1);
+  this.defaultAnimation.forgeLayerOpacity = next;
+  if (commitBase || !fromModulation) {
+    this.defaultAnimation.forgeLayerOpacityLfoBase = next;
+  }
+  if (!fromModulation) this.onDefaultAnimationInput();
+},
+setForgeLayerOpacityLfoLink(lfoId) {
+  const nextId = Number(lfoId || 0);
+  const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
+  this.defaultAnimation.forgeLayerOpacityLfoLink = this.defaultAnimation.forgeLayerOpacityLfoLink === allowed
+    ? null
+    : allowed;
+  this.defaultAnimation.forgeLayerOpacityLfoBase = this.defaultAnimation.forgeLayerOpacity;
+  if (this.defaultAnimation.forgeLayerOpacityLfoLink) {
+    const linked = this.lfos.find((lfo) => lfo.id === this.defaultAnimation.forgeLayerOpacityLfoLink);
+    if (linked) linked.on = true;
+    if (!this.isBlendLayerActive && !this.isForgeAnimationLayerActive) {
+      this.selectVideoLayer('blend', { userInitiated: false });
+    }
+  }
+  this.onDefaultAnimationInput();
 },
 maybePromoteDeforumPreview() {
   const anim = this.defaultAnimation || {};
@@ -4939,25 +5014,40 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
-openLibraryVideoEditor() {
-  this.currentTab = 'LIBRARY';
-  this.libraryEditorOpen = true;
-  this.rightPanelOpen = true;
-  this.liveDrawerOpen = true;
+toggleLibraryWorkspace() {
+  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
+  else this.openLibraryWorkspace('browser');
+},
+openLibraryWorkspace(pane = 'browser') {
+  this.libraryWorkspaceOpen = true;
+  this.libraryWorkspacePane = pane === 'editor' ? 'editor' : 'browser';
   void this.initSystemFilesBrowser();
   this.saveSessionState();
 },
-closeLibraryEditor() {
-  this.libraryEditorOpen = false;
+closeLibraryWorkspace() {
+  this.libraryWorkspaceOpen = false;
+  this.libraryWorkspacePane = 'browser';
   this.saveSessionState();
+},
+setLibraryWorkspacePane(pane) {
+  const next = pane === 'editor' ? 'editor' : 'browser';
+  if (this.libraryWorkspacePane === next) return;
+  this.libraryWorkspacePane = next;
+  if (next === 'browser') void this.initSystemFilesBrowser();
+  this.saveSessionState();
+},
+openLibraryVideoEditor() {
+  this.openLibraryWorkspace('editor');
+},
+closeLibraryEditor() {
+  this.setLibraryWorkspacePane('browser');
 },
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
     this.editorStatusLive = false;
-    this.currentTab = 'LIBRARY';
-    this.libraryEditorOpen = false;
+    this.openLibraryWorkspace('browser');
     this.saveSessionState();
     return;
   }
@@ -4967,7 +5057,7 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.openLibraryVideoEditor();
+  this.openLibraryWorkspace('editor');
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -10261,13 +10351,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      if (s.sidePanelDock === 'auto' || s.sidePanelDock === 'edge' || s.sidePanelDock === 'video') {
        this.sidePanelDock = s.sidePanelDock;
      }
-     if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
      if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
-     if (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM') {
-       this.liveBottomDrawerTab = s.liveBottomDrawerTab;
-     } else if (s.liveBottomDrawerTab === 'RUNS') {
-       this.liveBottomDrawerTab = 'SYSTEM';
-     }
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
@@ -10334,14 +10418,19 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
     if (typeof s.hlsWatchEnabled === 'boolean') {
       this.hlsWatchEnabled = s.hlsWatchEnabled;
-      if (this.hlsWatchEnabled && this.currentTab === 'STREAM') {
+      if (this.hlsWatchEnabled) {
         this.$nextTick(() => this.attachPlayer());
       }
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
-    if (typeof s.libraryEditorOpen === 'boolean') {
-      this.libraryEditorOpen = s.libraryEditorOpen;
-      if (this.libraryEditorOpen) this.currentTab = 'LIBRARY';
+    if (typeof s.libraryWorkspaceOpen === 'boolean') {
+      this.libraryWorkspaceOpen = s.libraryWorkspaceOpen;
+      if (s.libraryWorkspacePane === 'editor' || s.libraryWorkspacePane === 'browser') {
+        this.libraryWorkspacePane = s.libraryWorkspacePane;
+      }
+    } else if (typeof s.libraryEditorOpen === 'boolean' && s.libraryEditorOpen) {
+      this.libraryWorkspaceOpen = true;
+      this.libraryWorkspacePane = 'editor';
     }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
@@ -10435,8 +10524,6 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
-      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
-      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -10464,6 +10551,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
+      libraryWorkspacePane: this.libraryWorkspacePane,
       libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
@@ -10522,8 +10611,6 @@ getCurrentSessionSnapshotRaw() {
       runsBrowserTab: this.runsBrowserTab,
       rightPanelOpen: this.rightPanelOpen,
       sidePanelDock: this.sidePanelDock,
-      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
-      liveBottomDrawerTab: this.liveBottomDrawerTab,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
@@ -10551,6 +10638,8 @@ getCurrentSessionSnapshotRaw() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
+      libraryWorkspacePane: this.libraryWorkspacePane,
       libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
@@ -11325,7 +11414,16 @@ reapplyEngineModelDefaults() {
    this.prompts.crossfaderValue = t;
  },
  onCrossfaderSlider(value) {
-   this.performance.crossfader = this.clampVal(Number(value) || 0, 0, 1);
+   const next = this.clampVal(Number(value) || 0, 0, 1);
+   this.performance.crossfader = next;
+   this.prompts.crossfaderValue = next;
+   if (this.prompts.morphOn) {
+     this.prompts.morphBlend = next;
+     if (!this.prompts.morphBlendLfoLink) {
+       this.prompts.morphBlendLfoBase = next;
+     }
+     this.applyPromptMorphing();
+   }
    this.onCrossfaderInput();
  },
  onCrossfaderInput() {

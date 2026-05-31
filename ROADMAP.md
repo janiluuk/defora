@@ -33,7 +33,7 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | **U-27** | Step 7 — PROMPTS single crossfader | Remove inline LoRA blend slider; A/B card assignment only; morph on LIVE | **Done** — inline crossfader removed from Prompts → LORA; hint links to LIVE morph HUD |
 | **U-28** | Step 8 — GENERATE timeline dock | Preview above timeline; shared playhead | **Done** — `layout--generate-dock` + taller preview-bottom dock; `GenerateView` sync readout (playhead, duration, frame, FPS) and editor actions |
 | **U-29** | Step 9 — SETTINGS progressive disclosure | Reorder sub-tabs; rename SYSTEM; Output sub-tab for stream; GlassPanel model picker | **Done** — ENGINE → OUTPUT → GPUS → RUNS → MIDI → STYLES → COLLAB; SYSTEM alias → RUNS; checkpoint in GlassPanel; advanced sampling/resolution in `<details>` |
-| **U-30** | Step 10 — Token / hex audit | Replace hardcoded hex; delete design.zip | **Open** — `--live` / `--accent` used in CSS; full vue hex sweep not done |
+| **U-30** | Step 10 — Token / hex audit | Replace hardcoded hex; delete design.zip | **Done** — Vue templates clean; log/status tokens; library icons via UiIcon |
 
 ### Per-issue checklist (audit §3–§5)
 
@@ -44,27 +44,28 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | L3 | Modulating-now HUD | **Done** | `ModulationActiveModsPanel` on LIVE |
 | L4 | MODULATION duplicated in drawer | **Done** | Drawer UI removed |
 | L5 | Recent-runs filmstrip on LIVE | **Done** | `recentRunsRail` on stage |
-| M1–M3 | LFO compact / teal / idle | **Partial** | CSS + waveform ✓; compact line + idle copy open |
-| M4–M5 | Audio reactive cards / LFO phase | **Partial** | Phase on Waveform ✓; audio cards open |
+| M1–M3 | LFO compact / teal / idle | **Done** | Standby compact copy, `--idle` dim, teal active chrome |
+| M4–M5 | Audio reactive cards / LFO phase | **Done** | Idle/mapped/live card states; phase on Waveform |
 | Mo1–Mo3 | XY pad hero / size | **Done** | Hero stage + preset pills; fine-tune toggle |
-| Mo4 | Readout mono | **Low / partial** | |
+| Mo4 | Readout mono | **Done** | `--mono` token; shared `.motion-readout`; hero pad readout bottom-right |
 | P1–P2 | Duplicate crossfader / A/B + slider | **Done** | Morph on LIVE only |
-| P3–P4 | Story / CN card polish | **Open** | |
-| A1–A4 | AUDIO first-class + meters | **Partial** | Tab ✓; meter-first reactive layout ✓ |
+| P3–P4 | Story / CN card polish | **Done** | GlassPanel on STORY + CONTROLNET; ModelSourcePill for Forge/Cache/Placeholder |
+| A1–A4 | AUDIO first-class + meters | **Done** | Dedicated AUDIO tab chrome; reactive panel without modulation sub-pills |
 | R1–R2 | RUNS tab + drawer overlap | **Done** | RUNS tab + SETTINGS → RUNS (SYSTEM alias) |
 | S1–S4 | Settings sub-tabs / disclosure | **Done** | Reordered sub-tabs; RUNS rename; GlassPanel checkpoint; advanced `<details>` |
 | G1–G3 | GENERATE tab + timeline dock | **Done** | GENERATE tab + dedicated dock under preview with sync readout |
-| St1–St3 | STREAM tab vs design | **Partial** | STREAM removed from nav; Output sub-tab ✓ |
-| X1 | Emoji buttons | **Partial** | pin/lock done; other emoji buttons open |
+| St1–St3 | STREAM tab vs design | **Done** | STREAM removed from nav; legacy alias → SETTINGS → OUTPUT |
+| X1 | Emoji buttons | **Done** | Library folder/play, Deforum toolbar, nav icons via UiIcon |
 | X2 | GlassPanel underused | **Partial** | Pinned + morph + modulating HUDs |
-| X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck |
-| X5–X6 | framesync-panel / inline hex | **Open** | |
+| X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck, generate dock sync readout |
+| X5–X6 | framesync-panel / inline hex | **Done** | CN layout → CSS classes; tab accents via `:root` aliases |
 | X7 | Perf drawer duplicate | **Done** | Template removed |
 | X8 | SYSTEM label collision | **Done** | Renamed to RUNS; legacy SYSTEM alias preserved |
 
 ### Recommended order
 
-1. **U-30 + remaining emoji** — Token sweep and remaining UiIcon replacements
+1. **X2 / X3–X4** — GlassPanel usage and `--live` / `--accent` on remaining surfaces
+2. **Mo4 follow-ups** — Apply `--mono` to generate dock sync readout and morph HUD if desired
 
 ---
 
@@ -207,7 +208,7 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Done** |
 | **U-28** | **UX: generate dock** | Timeline under preview | **Done** |
 | **U-29** | **UX: settings polish** | Sub-tab order, diagnostics, disclosure | **Done** |
-| **U-30** | **UX: design token sweep** | Hex → tokens; semantic panels | **Open** |
+| **U-30** | **UX: design token sweep** | Hex → tokens; semantic panels | **Done** |
 
 ---
 

@@ -2,11 +2,11 @@
   <div class="motion-path-preview" data-testid="motion-path-preview">
     <div class="motion-path-preview__header">
       <div class="framesync-subtitle motion-path-preview__title">3D motion preview</div>
-      <code class="motion-path-preview__readout">
-        Frame {{ displayFrame }} / {{ totalFrames }}
-        · X {{ displayPoint.x.toFixed(1) }}
-        · Y {{ displayPoint.y.toFixed(1) }}
-        · Z {{ displayPoint.z.toFixed(1) }}
+      <code class="motion-path-preview__readout motion-readout">
+        Frame {{ displayFrame }} / {{ totalFrames }},
+        X {{ displayPoint.x.toFixed(1) }},
+        Y {{ displayPoint.y.toFixed(1) }},
+        Z {{ displayPoint.z.toFixed(1) }}
       </code>
     </div>
     <div ref="host" class="motion-path-preview__stage"></div>

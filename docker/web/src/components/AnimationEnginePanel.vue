@@ -29,15 +29,6 @@
         >
           Deforum →
         </button>
-        <button
-          v-if="!rightPanelOpen"
-          type="button"
-          class="framesync-button framesync-button--compact"
-          data-testid="animation-engine-open-controls"
-          @click="openEngineControlsInRightPanel"
-        >
-          Controls →
-        </button>
       </div>
     </div>
 
@@ -80,6 +71,12 @@
         </button>
       </li>
     </ul>
+
+    <div class="animation-engine-panel__controls">
+      <CommonVisualStrip v-if="activeAnimationPluginId" :app="app" />
+      <AnimationEnginePluginPanel :app="app" />
+      <CompositorControls :app="app" />
+    </div>
 
     <div class="animation-engine-panel__sources">
       <button
@@ -124,11 +121,14 @@
 <script>
 import UiIcon from './UiIcon.vue'
 import VideoSwarmBrowser from './VideoSwarmBrowser.vue'
+import CommonVisualStrip from './animation-plugins/CommonVisualStrip.vue'
+import AnimationEnginePluginPanel from './animation-plugins/AnimationEnginePluginPanel.vue'
+import CompositorControls from './animation-plugins/CompositorControls.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'AnimationEnginePanel',
-  components: { UiIcon, VideoSwarmBrowser },
+  components: { UiIcon, VideoSwarmBrowser, CommonVisualStrip, AnimationEnginePluginPanel, CompositorControls },
   props: { app: { type: Object, required: true } },
   setup(props) { return proxyAppView(props) },
 }

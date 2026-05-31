@@ -2,18 +2,24 @@
   <div class="rack modulation-view">
     <div class="framesync-panel modulation-panel">
       <div class="framesync-header">
-        <div class="framesync-title">Modulation <span class="framesync-accent">Patch Bay</span></div>
-        <span class="modulation-summary">{{ modulationSubtabSummary }}</span>
+        <div class="framesync-title">
+          <template v-if="isAudioTab">Audio <span class="framesync-accent">Reactive</span></template>
+          <template v-else>Modulation <span class="framesync-accent">Patch Bay</span></template>
+        </div>
+        <span v-if="!isAudioTab" class="modulation-summary">{{ modulationSubtabSummary }}</span>
       </div>
-      <div class="sub-pills modulation-subtabs">
-        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='LFO'}" @click="switchSubTab('MODULATION','LFO')">LFO</button>
-        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AV_SYNC'}" @click="switchSubTab('MODULATION','AV_SYNC')">Audio</button>
-        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='AUDIO_REACTIVE'}" @click="switchSubTab('MODULATION','AUDIO_REACTIVE')">Reactive</button>
-        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='BEAT_MACROS'}" @click="switchSubTab('MODULATION','BEAT_MACROS')">Beat</button>
-        <button class="sub-pill" :class="{active: currentSubTab.MODULATION==='MAPPINGS'}" @click="switchSubTab('MODULATION','MAPPINGS')">Mappings</button>
+      <div v-if="!isAudioTab" class="sub-pills modulation-subtabs">
+        <button class="sub-pill" :class="{active: modulationPane === 'LFO'}" @click="switchSubTab('MODULATION','LFO')">LFO</button>
+        <button class="sub-pill" :class="{active: modulationPane === 'AV_SYNC'}" @click="switchSubTab('MODULATION','AV_SYNC')">Audio</button>
+        <button class="sub-pill" :class="{active: modulationPane === 'AUDIO_REACTIVE'}" @click="openAudioTab()">Reactive</button>
+        <button class="sub-pill" :class="{active: modulationPane === 'BEAT_MACROS'}" @click="switchSubTab('MODULATION','BEAT_MACROS')">Beat</button>
+        <button class="sub-pill" :class="{active: modulationPane === 'MAPPINGS'}" @click="switchSubTab('MODULATION','MAPPINGS')">Mappings</button>
+      </div>
+      <div v-else class="framesync-subtitle modulation-audio-tab__intro">
+        Map frequency bands to live parameters. Use the spectrum hero and meter cards below, or upload reference audio under Modulation → Audio.
       </div>
 
-      <template v-if="currentSubTab.MODULATION==='LFO'">
+      <template v-if="modulationPane === 'LFO'">
         <div class="modulation-panel__actions modulation-panel__actions--section">
           <button class="framesync-button" :class="{active: lfoOn}" @click="lfoOn=!lfoOn">{{ lfoOn ? 'On' : 'Off' }}</button>
           <button class="framesync-button" @click="resetLfos">Reset</button>
@@ -102,11 +108,11 @@
         </div>
       </template>
 
-      <template v-else-if="currentSubTab.MODULATION==='MAPPINGS'">
+      <template v-else-if="modulationPane === 'MAPPINGS'">
         <ModulationMappingsPanel :app="app" />
       </template>
 
-      <template v-else-if="currentSubTab.MODULATION==='AV_SYNC'">
+      <template v-else-if="modulationPane === 'AV_SYNC'">
         <div class="framesync-panel modulation-audio-panel">
           <div class="framesync-header">
             <div class="framesync-title">Reference <span class="framesync-accent">Audio</span></div>
@@ -172,7 +178,7 @@
         </div>
       </template>
 
-      <template v-else-if="currentSubTab.MODULATION==='AUDIO_REACTIVE'">
+      <template v-else-if="modulationPane === 'AUDIO_REACTIVE'">
         <div class="framesync-panel audio-reactive-panel">
           <div class="framesync-header">
             <div class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
@@ -301,7 +307,7 @@
         </div>
       </template>
 
-      <template v-else-if="currentSubTab.MODULATION==='BEAT_MACROS'">
+      <template v-else-if="modulationPane === 'BEAT_MACROS'">
         <div class="framesync-panel modulation-macros modulation-macros--audio" :class="{ 'modulation-macros--disabled': !audio.objectUrl }">
           <div class="framesync-header modulation-macros__header">
             <div class="framesync-title">Beat <span class="framesync-accent">Macros</span></div>
@@ -348,6 +354,25 @@ export default {
   },
   setup(props) {
     return proxyAppView(props)
+  },
+  computed: {
+    isAudioTab() {
+      return this.currentTab === 'AUDIO'
+    },
+    modulationPane() {
+      if (this.isAudioTab) return 'AUDIO_REACTIVE'
+      const sub = this.currentSubTab && this.currentSubTab.MODULATION
+      return sub || 'LFO'
+    },
+  },
+  methods: {
+    openAudioTab() {
+      if (typeof this.switchTab === 'function') {
+        this.switchTab('AUDIO')
+      } else {
+        this.switchSubTab('MODULATION', 'AUDIO_REACTIVE')
+      }
+    },
   },
 }
 </script>
