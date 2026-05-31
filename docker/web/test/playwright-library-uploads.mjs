@@ -15,7 +15,9 @@ try {
   if (await restore.isVisible().catch(() => false)) {
     await restore.click();
   }
-  await page.getByRole('button', { name: 'LIBRARY', exact: true }).click();
+  await page.locator('[data-testid="top-nav-library"]').click();
+  await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 15000 });
+  await page.locator('[data-testid="library-workspace-tab-browser"]').click();
   await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 15000 });
 
   const rootSelect = page.locator('[data-testid="video-swarm-root-select"]');

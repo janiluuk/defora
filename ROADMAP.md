@@ -199,11 +199,11 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **18** | **Runs compare export** | `POST /api/runs/compare`; prompt fields in UI; CSV/JSON download | **Done** (item 12) |
 | **19** | **Forge routes + GPU pool** | sd-models, loras, forge options use pool target | **Done** (item 13) |
 | **20** | **Nightly Docker E2E** | `.github/workflows/nightly-docker-e2e.yml` | **Done** (item 14) |
-| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Partial** |
-| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Partial** |
-| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Partial** |
-| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Partial** |
-| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Open** |
+| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Done** |
+| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Done** |
+| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Done** |
+| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Done** |
+| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Done** |
 | **U-26** | **UX: motion XY hero** | Promote pad to view hero | **Done** |
 | **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Done** |
 | **U-28** | **UX: generate dock** | Timeline under preview | **Done** |

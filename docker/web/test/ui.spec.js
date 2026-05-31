@@ -133,7 +133,14 @@ function instantiate(appDef, overrides = {}) {
   });
   if (appDef.computed) {
     Object.entries(appDef.computed).forEach(([k, fn]) => {
-      Object.defineProperty(instance, k, { get: fn.bind(instance) });
+      if (fn && typeof fn === "object" && (fn.get || fn.set)) {
+        const desc = {};
+        if (fn.get) desc.get = fn.get.bind(instance);
+        if (fn.set) desc.set = fn.set.bind(instance);
+        Object.defineProperty(instance, k, desc);
+      } else {
+        Object.defineProperty(instance, k, { get: fn.bind(instance) });
+      }
     });
   }
   instance.$nextTick = (fn) => Promise.resolve().then(fn);
@@ -255,8 +262,7 @@ describe("Deforumation Web UI", () => {
   });
 
   it("renders tabs for all sections", () => {
-    const tabs = [...document.querySelectorAll(".tab")].map((el) => el.textContent.trim());
-    // Design-spec 8 tabs; LIBRARY and STREAM kept as tabs (STREAM de-emphasised, pending Step 9)
+    const tabs = [...document.querySelectorAll('[data-testid="top-nav"] .tab__label')].map((el) => el.textContent.trim());
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
@@ -265,10 +271,9 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("RUNS");
     expect(tabs.join(" ")).to.include("SETTINGS");
     expect(tabs.join(" ")).to.include("GENERATE");
-    expect(tabs.join(" ")).to.include("LIBRARY");
-    expect(tabs.join(" ")).to.include("STREAM");
-    expect(tabs.length).to.equal(10);
-    expect(document.querySelectorAll(".tab__icon-wrap").length).to.equal(10);
+    expect(tabs.join(" ")).to.not.include("STREAM");
+    expect(tabs.length).to.equal(8);
+    expect(document.querySelector('[data-testid="top-nav-library"]')).to.exist;
   });
 
   it("has a video player and overlay HUD", () => {
@@ -288,8 +293,6 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showMainStageHls).to.equal(false);
     expect(appVm.showDeforumVideo).to.equal(false);
 
-    appVm.currentTab = "STREAM";
-    expect(appVm.showMainStageHls).to.equal(false);
     appVm.hlsPreviewStreamValid = true;
     appVm.hlsWatchEnabled = true;
     expect(appVm.hlsWatchEnabled).to.equal(true);
@@ -299,7 +302,6 @@ describe("Deforumation Web UI", () => {
     appVm.standbyPreviewVideoUrl = "/api/preview/standby-video";
     expect(appVm.showStandbyPreviewVideo).to.equal(true);
 
-    appVm.currentTab = "LIVE";
     appVm.hlsWatchEnabled = false;
     appVm.defaultAnimation.showStandbyClip = false;
     expect(appVm.showStandbyPreviewVideo).to.equal(false);
@@ -322,7 +324,6 @@ describe("Deforumation Web UI", () => {
   it("defaults to the Deforum layer and can show the live feed when HLS watch is enabled", () => {
     appVm.hlsPreviewStreamValid = true;
     appVm.hlsWatchEnabled = true;
-    appVm.currentTab = "STREAM";
     appVm.defaultAnimation.preferDeforumVideo = true;
     appVm.initVideoLayers();
     expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
@@ -355,9 +356,6 @@ describe("Deforumation Web UI", () => {
 
     appVm.videoReady = true;
     appVm.deforumGeneratedFrameCount = 1;
-    appVm.hlsWatchEnabled = false;
-    appVm.currentTab = "STREAM";
-    appVm.currentTab = "LIVE";
 
     expect(appVm.showDeforumVideo).to.equal(false);
     appVm.clearHeldPreviewFrame();
@@ -1311,8 +1309,26 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector('[data-testid="runs-launch-test"]')).to.exist;
   });
 
+  it("Library workspace opens from top nav without a LIBRARY tab", () => {
+    appVm.openLibraryWorkspace("browser");
+    expect(appVm.libraryWorkspaceOpen).to.equal(true);
+    expect(appVm.libraryWorkspacePane).to.equal("browser");
+    const tabs = [...document.querySelectorAll('[data-testid="top-nav"] .tab__label')].map((el) => el.textContent.trim());
+    expect(tabs.join(" ")).to.not.include("LIBRARY");
+  });
+
+  it("shows recent runs rail on LIVE when runs exist", async () => {
+    appVm.runsAll = [
+      { run_id: "demo-a", started_at: new Date().toISOString(), status: "completed" },
+      { run_id: "demo-b", started_at: new Date().toISOString(), status: "completed" },
+    ];
+    appVm.switchTab("LIVE");
+    await nextTick();
+    expect(document.querySelector('[data-testid="recent-runs-rail"]')).to.exist;
+  });
+
   it("Library tab does not show the legacy runs frame rail", async () => {
-    appVm.switchTab("LIBRARY");
+    appVm.openLibraryWorkspace("browser");
     await nextTick();
     expect(document.querySelector('[data-testid="library-frame-rail"]')).to.equal(null);
     expect(document.querySelector('[data-testid="library-run-thumbs"]')).to.equal(null);
@@ -1347,15 +1363,14 @@ describe("Deforumation Web UI", () => {
       return { ok: true, json: async () => ({}) };
     };
     appVm.systemFiles._rootsLoaded = false;
-    appVm.switchTab("LIBRARY");
+    appVm.openLibraryWorkspace("browser");
     await appVm.initSystemFilesBrowser();
     await nextTick();
-    await nextTick();
 
-    expect(document.querySelector('[data-testid="video-swarm-browser"]')).to.exist;
-    expect(document.querySelector('[data-testid="video-swarm-new-folder"]')).to.exist;
-    expect(document.querySelector('[data-testid="video-swarm-view-videos-only"]')).to.exist;
-    expect(document.querySelector('[data-testid="video-swarm-connect-cloud"]')).to.exist;
+    expect(appVm.libraryWorkspaceOpen).to.equal(true);
+    expect(appVm.systemFiles._rootsLoaded).to.equal(true);
+    expect(appVm.systemFiles.roots[0].id).to.equal("uploads");
+    expect(appVm.systemFiles.videos.some((v) => v.name === "a.mp4")).to.equal(true);
 
     appVm.toggleSystemFilesVideosOnly();
     await nextTick();

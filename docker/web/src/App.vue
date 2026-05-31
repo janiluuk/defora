@@ -66,13 +66,29 @@
           </span>
         </button>
       </div>
+      <div class="top-nav__actions">
+        <button
+          type="button"
+          class="top-nav__icon-btn"
+          :class="{ 'top-nav__icon-btn--active': libraryWorkspaceOpen }"
+          :aria-expanded="libraryWorkspaceOpen ? 'true' : 'false'"
+          title="Library — browse videos and open the editor"
+          data-testid="top-nav-library"
+          @click="toggleLibraryWorkspace()"
+        >
+          <UiIcon name="folder" />
+          <span class="sr-only">Library</span>
+        </button>
+      </div>
     </nav>
+
+    <LibraryWorkspaceOverlay :app="appViewModel" />
 
     <div class="layout layout--sidebar" :class="{
       'layout--live': currentTab === 'LIVE',
       'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
       'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',
-      'layout--editor': libraryEditorOpen && currentTab === 'LIBRARY',
+      'layout--library-workspace': libraryWorkspaceOpen,
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
@@ -81,27 +97,6 @@
         'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,
       }">
         <div
-          v-if="libraryEditorOpen && currentTab === 'LIBRARY'"
-          class="editor-workspace-shell"
-          data-testid="editor-workspace"
-        >
-          <div class="editor-workspace-shell__toolbar">
-            <button
-              type="button"
-              class="framesync-button framesync-button--compact"
-              data-testid="close-library-editor"
-              @click="closeLibraryEditor()"
-            >
-              ← Back to Library
-            </button>
-            <span v-if="editorStatus" class="editor-workspace-shell__status" :class="{ 'editor-workspace-shell__status--live': editorStatusLive }">
-              {{ editorStatus }}
-            </span>
-          </div>
-          <EditorView :app="appViewModel" />
-        </div>
-        <div
-          v-else
           class="preview-stage-row"
           :class="{ 'preview-stage-row--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen }"
           data-testid="preview-stage-row"
@@ -336,6 +331,38 @@
           </div>
 
           <div
+            v-if="currentTab === 'LIVE' && recentRunsRail.length"
+            class="recent-runs-rail"
+            data-testid="recent-runs-rail"
+          >
+            <div class="recent-runs-rail__header">
+              <span class="recent-runs-rail__title">Recent runs</span>
+              <button type="button" class="recent-runs-rail__link" @click="switchTab('RUNS')">Open runs</button>
+            </div>
+            <div class="recent-runs-rail__list">
+              <button
+                v-for="run in recentRunsRail"
+                :key="'recent-run-' + run.run_id"
+                type="button"
+                class="recent-runs-rail__item"
+                @click="openRecentRunFromRail(run)"
+              >
+                <img
+                  v-if="runListingThumbUrl(run)"
+                  :src="runListingThumbUrl(run)"
+                  class="recent-runs-rail__thumb"
+                  :alt="run.run_id"
+                >
+                <div v-else class="recent-runs-rail__thumb recent-runs-rail__thumb--empty">—</div>
+                <div class="recent-runs-rail__meta">
+                  <span class="recent-runs-rail__id">{{ run.run_id }}</span>
+                  <span class="recent-runs-rail__date">{{ formatDate(run.started_at) }}</span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div
             v-if="currentTab === 'LIVE' && videoLayerAddOpen"
             class="video-layer-add framesync-panel"
             data-testid="video-layer-add"
@@ -462,7 +489,7 @@
           </div>
 
           <div
-            v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+            v-if="!libraryWorkspaceOpen"
             class="live-drawer-shell live-drawer-shell--side"
             :class="{ 'live-drawer-shell--open': rightPanelOpen }"
             data-testid="right-panel-drawer"
@@ -482,8 +509,6 @@
             </button>
             <div v-show="rightPanelOpen" class="live-right-column" :class="{ 'stage-rack-overlay': currentTab === 'MOTION' || currentTab === 'GENERATE' }">
               <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
-              <LibraryView v-else-if="currentTab === 'LIBRARY'" :app="appViewModel" />
-              <StreamView v-else-if="currentTab === 'STREAM'" :app="appViewModel" />
               <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
               <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
               <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
@@ -609,9 +634,8 @@ import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
 import LiveEngineControlsDock from './components/LiveEngineControlsDock.vue'
 import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
-import LibraryView from './components/views/LibraryView.vue'
+import LibraryWorkspaceOverlay from './components/LibraryWorkspaceOverlay.vue'
 import EditorView from './components/views/EditorView.vue'
-import StreamView from './components/views/StreamView.vue'
 import PromptsView from './components/views/PromptsView.vue'
 import MotionView from './components/views/MotionView.vue'
 import GenerateView from './components/views/GenerateView.vue'
@@ -622,7 +646,7 @@ import { paintSpectrumBars } from './audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryView, EditorView, StreamView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, EditorView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -660,7 +684,8 @@ export default {
       deforumPreloadStatus: '',
       _preloadDeforumStarted: false,
       libraryFullscreen: false,
-      libraryEditorOpen: false,
+      libraryWorkspaceOpen: false,
+      libraryWorkspacePane: 'browser',
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -799,12 +824,10 @@ export default {
         { id: "PROMPTS", label: "PROMPTS", hint: "Words", icon: "sparkles" },
         { id: "MOTION", label: "MOTION", hint: "Move", icon: "shuffle" },
         { id: "MODULATION", label: "MODULATION", hint: "React", icon: "wave" },
-        { id: "AUDIO", label: "AUDIO", hint: "Sound", icon: "wave" },
-        { id: "RUNS", label: "RUNS", hint: "Render", icon: "list" },
+        { id: "AUDIO", label: "AUDIO", hint: "Reactive", icon: "mic" },
+        { id: "RUNS", label: "RUNS", hint: "History", icon: "history" },
         { id: "SETTINGS", label: "SETTINGS", hint: "Engine", icon: "gear" },
-        { id: "GENERATE", label: "GENERATE", hint: "Keys", icon: "play" },
-        { id: "LIBRARY", label: "LIBRARY", hint: "Frames", icon: "folder" },
-        { id: "STREAM", label: "STREAM", hint: "Output", icon: "broadcast" },
+        { id: "GENERATE", label: "GENERATE", hint: "Sequencer", icon: "film" },
       ],
       currentTab: "LIVE",
       currentSubTab: { LIVE: 'MONITOR', PROMPTS: 'PROMPTS', MODULATION: 'LFO', SETTINGS: 'ENGINE', MOTION: 'PERFORMANCE' },
@@ -1610,13 +1633,26 @@ export default {
       return this.rightPanelOpen;
     },
     showEngineDrawerShell() {
-      return !(this.libraryEditorOpen && this.currentTab === 'LIBRARY');
+      return !this.libraryWorkspaceOpen;
+    },
+    libraryEditorOpen: {
+      get() {
+        return this.libraryWorkspaceOpen && this.libraryWorkspacePane === 'editor';
+      },
+      set(value) {
+        if (value) {
+          this.libraryWorkspaceOpen = true;
+          this.libraryWorkspacePane = 'editor';
+        } else if (this.libraryWorkspacePane === 'editor') {
+          this.libraryWorkspaceOpen = false;
+        }
+      },
     },
     sidePanelUsesEdgeDock() {
       const mode = this.sidePanelDock || 'auto';
       if (mode === 'edge') return true;
       if (mode === 'video') return false;
-      if (this.libraryEditorOpen && this.currentTab === 'LIBRARY') return true;
+      if (this.libraryWorkspaceOpen) return true;
       return this.currentTab === 'LIVE' && this.videoStageSize === 'full';
     },
     rightPanelToggleIcon() {
@@ -1645,13 +1681,7 @@ export default {
       return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
     },
     showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
-    },
-    canStartHlsWatch() {
-      return this.hlsPreviewStreamValid && !this.hlsWatchEnabled;
-    },
-    showMainStageHls() {
-      return this.currentTab === "STREAM" && this.hlsWatchEnabled;
+      return this.hlsWatchEnabled;
     },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
@@ -1664,7 +1694,7 @@ export default {
       if (!this.standbyPreviewVideoUrl) return false;
       const showClip = !!(this.defaultAnimation && this.defaultAnimation.showStandbyClip);
       if (!showClip && !this.showMainStageHls) return false;
-      if (this.libraryEditorOpen && this.currentTab === "LIBRARY") return false;
+      if (this.libraryWorkspaceOpen) return false;
       if (this.showLayerInputVideo) return false;
       if (this.showPreviewStill) return false;
       return true;
@@ -2860,8 +2890,8 @@ export default {
       if (this.liveAnimationBoxOpen !== open) this.liveAnimationBoxOpen = open;
     },
     currentTab(tab, prev) {
-      if (prev === "STREAM" && tab !== "STREAM") {
-        this.disableHlsWatch();
+      if ((prev === "STREAM" || prev === "LIBRARY") && tab !== prev) {
+        if (prev === "STREAM" && this.hlsWatchEnabled) this.disableHlsWatch();
       }
     },
     hlsPreviewStreamValid(valid) {
@@ -2882,7 +2912,7 @@ export default {
     videoStageSize() {
       this.updateSidePanelDockBounds();
     },
-    libraryEditorOpen() {
+    libraryWorkspaceOpen() {
       this.updateSidePanelDockBounds();
     },
     currentTab() {
@@ -2900,10 +2930,11 @@ export default {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
         const savedTab = window.localStorage.getItem('defora_tab');
-        if (savedTab === 'EDITOR') {
-          this.currentTab = 'LIBRARY';
-          this.libraryEditorOpen = true;
-          window.localStorage.setItem('defora_tab', 'LIBRARY');
+        if (savedTab === 'EDITOR' || savedTab === 'LIBRARY') {
+          this.openLibraryWorkspace(savedTab === 'EDITOR' ? 'editor' : 'browser');
+        } else if (savedTab === 'STREAM') {
+          this.switchTab('SETTINGS');
+          this.switchSubTab('SETTINGS', 'OUTPUT');
         }
       }
     } catch (_e) {}
@@ -3410,6 +3441,11 @@ export default {
     }
     void this.showRunDetails(run);
   },
+  openRecentRunFromRail(run) {
+    if (!run) return;
+    this.switchTab('RUNS');
+    void this.showRunDetails(run);
+  },
   runPrimaryVideoUrl(run) {
     if (!run) return "";
     if (run.primary_video && run.primary_video.url) return run.primary_video.url;
@@ -3434,7 +3470,7 @@ export default {
     const browsePath = framesOut?.browse_path || null;
     const rootId = framesOut?.rootId || "runs";
     if (!browsePath) return;
-    this.currentTab = "LIBRARY";
+    this.openLibraryWorkspace('browser');
     this.librarySubTab = "BROWSER";
     await this.initSystemFilesBrowser();
     await this.browseSystemFiles(browsePath, { rootId });
@@ -3789,11 +3825,17 @@ export default {
    }
  },
  switchTab(id) {
-   if (id === 'EDITOR') { this.openLibraryWorkspace('editor'); return; }
-   if (id === 'LIBRARY') {
-     this.currentTab = 'LIBRARY';
-     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'LIBRARY'); } catch(_e) {}
-     this.saveSessionState(); return;
+   if (id === 'EDITOR' || id === 'LIBRARY') {
+     this.openLibraryWorkspace(id === 'EDITOR' ? 'editor' : 'browser');
+     return;
+   }
+   if (id === 'STREAM') {
+     this.currentTab = 'SETTINGS';
+     this.switchSubTab('SETTINGS', 'OUTPUT');
+     try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', 'SETTINGS'); } catch (_e) {}
+     void this.refreshStreamStatus();
+     this.saveSessionState();
+     return;
    }
    if (id === 'AUDIO') {
      this.currentTab = 'AUDIO';
@@ -3818,7 +3860,6 @@ export default {
    this.currentTab = id;
    if (id === 'MOTION') { this.$nextTick(() => { this.refreshSequencerList(); setTimeout(() => this.drawTimeline(), 200); }); }
    try { if (typeof window !== 'undefined' && window.localStorage) window.localStorage.setItem('defora_tab', id); } catch(_e) {}
-   if (id === 'STREAM') void this.refreshStreamStatus();
    this.saveSessionState();
  },
  normalizeModulationSubTab(sub) {
@@ -4473,9 +4514,6 @@ setHlsPreviewStreamValid(valid) {
 },
 enableHlsWatch() {
   if (!this.hlsPreviewStreamValid) return;
-  if (this.currentTab !== "STREAM") {
-    this.switchTab("STREAM");
-  }
   if (this.hlsWatchEnabled) return;
   this.hlsWatchEnabled = true;
   this.videoReady = false;
@@ -4972,25 +5010,40 @@ assignInputFromSelection() {
   this.videoLayerAddOpen = false;
   this.saveSessionState();
 },
-openLibraryVideoEditor() {
-  this.currentTab = 'LIBRARY';
-  this.libraryEditorOpen = true;
-  this.rightPanelOpen = true;
-  this.liveDrawerOpen = true;
+toggleLibraryWorkspace() {
+  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
+  else this.openLibraryWorkspace('browser');
+},
+openLibraryWorkspace(pane = 'browser') {
+  this.libraryWorkspaceOpen = true;
+  this.libraryWorkspacePane = pane === 'editor' ? 'editor' : 'browser';
   void this.initSystemFilesBrowser();
   this.saveSessionState();
 },
-closeLibraryEditor() {
-  this.libraryEditorOpen = false;
+closeLibraryWorkspace() {
+  this.libraryWorkspaceOpen = false;
+  this.libraryWorkspacePane = 'browser';
   this.saveSessionState();
+},
+setLibraryWorkspacePane(pane) {
+  const next = pane === 'editor' ? 'editor' : 'browser';
+  if (this.libraryWorkspacePane === next) return;
+  this.libraryWorkspacePane = next;
+  if (next === 'browser') void this.initSystemFilesBrowser();
+  this.saveSessionState();
+},
+openLibraryVideoEditor() {
+  this.openLibraryWorkspace('editor');
+},
+closeLibraryEditor() {
+  this.setLibraryWorkspacePane('browser');
 },
 openInVideoEditor(video) {
   const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
     this.editorStatusLive = false;
-    this.currentTab = 'LIBRARY';
-    this.libraryEditorOpen = false;
+    this.openLibraryWorkspace('browser');
     this.saveSessionState();
     return;
   }
@@ -5000,7 +5053,7 @@ openInVideoEditor(video) {
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
-  this.openLibraryVideoEditor();
+  this.openLibraryWorkspace('editor');
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -10361,14 +10414,19 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
     if (typeof s.hlsWatchEnabled === 'boolean') {
       this.hlsWatchEnabled = s.hlsWatchEnabled;
-      if (this.hlsWatchEnabled && this.currentTab === 'STREAM') {
+      if (this.hlsWatchEnabled) {
         this.$nextTick(() => this.attachPlayer());
       }
     }
     if (typeof s.libraryFullscreen === 'boolean') this.libraryFullscreen = s.libraryFullscreen;
-    if (typeof s.libraryEditorOpen === 'boolean') {
-      this.libraryEditorOpen = s.libraryEditorOpen;
-      if (this.libraryEditorOpen) this.currentTab = 'LIBRARY';
+    if (typeof s.libraryWorkspaceOpen === 'boolean') {
+      this.libraryWorkspaceOpen = s.libraryWorkspaceOpen;
+      if (s.libraryWorkspacePane === 'editor' || s.libraryWorkspacePane === 'browser') {
+        this.libraryWorkspacePane = s.libraryWorkspacePane;
+      }
+    } else if (typeof s.libraryEditorOpen === 'boolean' && s.libraryEditorOpen) {
+      this.libraryWorkspaceOpen = true;
+      this.libraryWorkspacePane = 'editor';
     }
     if (s.librarySubTab === 'RUNS' || s.librarySubTab === 'BROWSER') {
       this.librarySubTab = s.librarySubTab === 'RUNS' ? 'BROWSER' : s.librarySubTab;
@@ -10489,6 +10547,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
+      libraryWorkspacePane: this.libraryWorkspacePane,
       libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,
@@ -10574,6 +10634,8 @@ getCurrentSessionSnapshotRaw() {
         zoomLevel: this.systemFiles.zoomLevel,
       },
       libraryFullscreen: this.libraryFullscreen,
+      libraryWorkspaceOpen: this.libraryWorkspaceOpen,
+      libraryWorkspacePane: this.libraryWorkspacePane,
       libraryEditorOpen: this.libraryEditorOpen,
       librarySubTab: this.librarySubTab,
       editorFreecutRoute: this.editorFreecutRoute,

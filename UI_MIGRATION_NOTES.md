@@ -221,4 +221,21 @@ No Python, mediator, WS-protocol, or backend files should be touched.
 
 **Tests updated:** prompt morph hint, LoRA hint (no inline deck), LIVE morph blend sync
 
-**Next:** Step 7 — SETTINGS / RUNS declutter + token sweep (U-30 remaining hex)
+**Next:** Step 8 — view extraction (optional) + remaining token grep in `style.css`
+
+### Step 7 — Library overlay, RUNS rail, token sweep (2026-05-31) ✅
+
+**Library workspace overlay**
+- LIBRARY removed from top nav tabs (8 performance tabs remain)
+- Folder icon in `top-nav__actions` opens fullscreen `LibraryWorkspaceOverlay` (Browser + Video editor)
+- Legacy `switchTab('LIBRARY'|'EDITOR')` routes to overlay; session state migrates `libraryEditorOpen` → workspace
+
+**LIVE recent-runs rail**
+- `recent-runs-rail` under layer bar when `recentRunsRail` has entries; click opens RUNS detail
+
+**Token / declutter**
+- `--library-accent`, `--a-group-text`, `--b-group-text` tokens
+- Runs job log + top-nav library active state use semantic colors
+- LoRA / prompt A/B active buttons use group text tokens
+
+**Tests:** 8-tab nav + library icon; library via `openLibraryWorkspace`; Playwright library icon click

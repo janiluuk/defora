@@ -102,7 +102,7 @@ cd docker/web && npm run build && node test/take-screenshots.mjs
 <td width="50%">
 <h4>LIBRARY</h4>
 <img src="../../screenshots/library-tab.png" alt="Library workspace" width="100%" />
-<p><b>①</b> Top-nav Library icon opens fullscreen workspace. <b>②</b> Root selector (Frames, Runs, Uploads, HLS, VideoSwarm). <b>③</b> Videos-only, cloud connect, Open in editor.</p>
+<p><b>①</b> Top-nav folder icon opens fullscreen library workspace overlay (not a main tab). <b>②</b> Browser + Video editor panes. <b>③</b> Root selector (Uploads default), videos-only, cloud connect, Open in editor.</p>
 </td>
 <td width="50%">
 <h4>Landing overview</h4>
