@@ -173,6 +173,7 @@ const FULL_STUB_SUFFIXES = [
   'animation-plugins/WebGLPluginPanel.vue',
   'animation-plugins/WanPluginPanel.vue',
   'animation-plugins/DeforumPluginPanel.vue',
+  'animation-plugins/EngineLayerControls.vue',
   'animation-plugins/CommonVisualStrip.vue',
 ];
 

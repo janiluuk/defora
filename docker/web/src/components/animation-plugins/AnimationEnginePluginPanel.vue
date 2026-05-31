@@ -5,7 +5,7 @@
   <AnimateLcmPluginPanel v-else-if="activeAnimationPluginId === 'animatelcm'" :app="app" />
   <div v-else-if="activeVideoLayer?.kind === 'blend'" class="animation-plugin-panel animation-plugin-panel--hint">
     <p class="framesync-subtitle">
-      <strong>Both</strong> composites WebGL under a Forge layer. Adjust forge opacity in the Compositor tab.
+      <strong>Both</strong> composites WebGL under a Forge layer. Adjust forge opacity in the Compositor section.
     </p>
   </div>
   <div v-else-if="activeVideoLayer?.kind === 'input'" class="animation-plugin-panel animation-plugin-panel--hint">
