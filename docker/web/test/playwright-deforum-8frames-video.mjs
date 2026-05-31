@@ -8,7 +8,7 @@
  *   4. Verify all 8 frames appear in the UI frame rail (WebSocket push path).
  *   5. Encode the 8 frames into a real MP4 using local ffmpeg (no Docker needed).
  *   6. Write the MP4 into uploadsDir so the server can list it.
- *   7. Navigate to Settings → SYSTEM → VideoSwarm browser → "Uploads" root.
+ *   7. Navigate to Library → VideoSwarm browser → "Uploads" root.
  *   8. Assert the MP4 tile appears in the grid.
  *   9. Assert the file endpoint returns HTTP 200 (video is actually servable).
  *
@@ -25,7 +25,8 @@ import os from "os";
 import path from "path";
 import { execSync } from "child_process";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
+import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -40,14 +41,6 @@ function generateFramePng(outPath, frameIndex) {
     `ffmpeg -y -f lavfi -i color=c=${color}:size=64x64:d=1 -frames:v 1 "${outPath}"`,
     { stdio: "pipe" },
   );
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function clickSubPill(page, label) {
@@ -88,14 +81,14 @@ console.log(`✓  ${TOTAL_FRAMES} frames pre-generated in staging dir`);
 
 // ── server ────────────────────────────────────────────────────────────────────
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   framesDir,
   runsDir,
   uploadsDir,
   hlsDir,
   sequencersDir,
-  enableMq: false,
   hlsStream: "/hls/live/deforum.m3u8",
 });
 const base = `http://127.0.0.1:${svc.port}`;
@@ -114,15 +107,11 @@ try {
       .filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10_000 });
   }
-  await page.waitForSelector("header .tab", { timeout: 30_000 });
+  await waitForNavTabs(page);
 
-  // ── 2. Go to LIVE tab and expand frame rail ──────────────────────────────
+  // ── 2. Go to LIVE tab and open frames in System → Runs → Frames ─────────
   await clickTab(page, "LIVE");
-  // Expand via JS to avoid pointer-event intercept from the drawer overlay
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(150);
 
   // ── 3. Drop 8 frames into framesDir one at a time ───────────────────────
@@ -211,10 +200,9 @@ try {
   fs.writeFileSync(path.join(liveDir, "deforum.m3u8"), m3u8Content);
   console.log(`✓  HLS playlist written to ${liveDir}/deforum.m3u8`);
 
-  // ── 7. Navigate to Settings → SYSTEM → VideoSwarm browser ───────────────
-  await clickTab(page, "SETTINGS");
-  await page.waitForSelector(".sub-pill", { timeout: 20_000 });
-  await clickSubPill(page, "SYSTEM");
+  // ── 7. Navigate to Library → VideoSwarm browser ───────────────
+  const { openLibraryBrowser } = await import("./playwright-nav.mjs");
+  await openLibraryBrowser(page);
 
   const browserRoot = page
     .locator('.video-swarm-browser[data-testid="video-swarm-browser"]')

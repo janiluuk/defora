@@ -3,6 +3,7 @@
  *   BASE_URL=https://defora.dudeisland.eu node docker/web/test/playwright-webgl-prod-debug.mjs
  */
 import { chromium } from "playwright";
+import { waitForNavTabs } from "./playwright-nav.mjs";
 
 const base = process.env.BASE_URL || "https://defora.dudeisland.eu";
 
@@ -23,7 +24,7 @@ try {
     await modal.waitFor({ state: "hidden", timeout: 15000 }).catch(() => null);
   }
 
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
   await page.waitForTimeout(2000);
 
   const diag = await page.evaluate(() => {
@@ -32,7 +33,7 @@ try {
     const activeTab = [...document.querySelectorAll(".video-layer-tab.active .video-layer-tab__label")].map(
       (el) => el.textContent?.trim(),
     );
-    const webglTab = document.querySelector('[data-testid="video-layer-tabs-engine"]');
+    const webglTab = document.querySelector('[data-testid="animation-engine-webgl"]');
     return {
       standbyExists: !!standby,
       standbyClass: standby?.className || null,

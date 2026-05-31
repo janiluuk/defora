@@ -3,30 +3,10 @@
  * Usage: BASE_URL=http://127.0.0.1:3999 node test/playwright-smoke.mjs
  */
 import { chromium } from 'playwright';
+import { clickTab, dismissSessionModalIfOpen, ensureRightPanelOpen, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'STREAM', 'LIBRARY', 'PROMPTS', 'MOTION', 'MODULATION', 'SETTINGS'];
-
-function escapeRegex(text) {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-async function getTabLabels(page) {
-  const labels = await page.locator('header .tab .tab__label').allTextContents();
-  return labels.map((label) => label.trim()).filter(Boolean);
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator('header .tab').filter({
-    has: page.locator('.tab__label').filter({
-      hasText: new RegExp(`^${escapeRegex(label)}$`),
-    }),
-  }).first();
-  if ((await tab.count()) === 0) {
-    throw new Error(`Tab button "${label}" not found`);
-  }
-  await tab.click();
-}
+const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'RUNS', 'SETTINGS', 'GENERATE'];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -34,45 +14,61 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 try {
   // "networkidle" can be blocked by live polling/streaming; DOM loaded is enough for these assertions.
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 60000 });
-  await page.waitForSelector('header .tab', { timeout: 30000 });
+  await dismissSessionModalIfOpen(page);
+  await waitForNavTabs(page);
   const trimmed = await getTabLabels(page);
   for (const name of expected) {
     if (!trimmed.includes(name)) {
       throw new Error(`Missing tab "${name}" — got: ${trimmed.join(', ')}`);
     }
   }
-  if (trimmed.length < expected.length) {
-    throw new Error(`Expected at least ${expected.length} tabs, got ${trimmed.length}`);
+  if (trimmed.includes('STREAM')) {
+    throw new Error('Legacy STREAM tab should not be in top nav');
+  }
+  if (trimmed.length !== expected.length) {
+    throw new Error(`Expected ${expected.length} tabs (${expected.join(', ')}), got ${trimmed.length}: ${trimmed.join(', ')}`);
+  }
+  await clickTab(page, 'LIVE');
+  await page.waitForTimeout(300);
+  const morphHud = page.locator('[data-testid="live-morph-hud"]');
+  await morphHud.waitFor({ state: 'visible', timeout: 30000 });
+  const morphSlider = morphHud.locator('.live-hud-morph__slider');
+  if ((await morphSlider.count()) === 0 || !(await morphSlider.isVisible())) {
+    throw new Error('Morph crossfader slider not found on LIVE tab');
   }
   await clickTab(page, 'PROMPTS');
+  await ensureRightPanelOpen(page);
   await page.waitForSelector('.sub-pill', { timeout: 30000 });
   await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
-  const morphPanel = page.locator('.framesync-panel').filter({
-    has: page.locator('.framesync-title').filter({ hasText: /Prompt\s+Morphing/ }),
-  }).first();
-  await morphPanel.waitFor({ state: 'visible', timeout: 30000 });
-  const expandMorph = morphPanel.locator('button.framesync-button').filter({ hasText: /^(Expand|Show)$/ });
-  if ((await expandMorph.count()) > 0) {
-    await expandMorph.first().click();
+  const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]');
+  if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
+    const morphPanel = page.locator('.framesync-panel').filter({ hasText: 'Prompt Morphing' }).first();
+    const morphEnabled = morphPanel.locator('.framesync-button.framesync-button--live').filter({ hasText: /^Enabled$/ }).first();
+    if ((await morphEnabled.count()) === 0) {
+      await morphPanel.locator('.framesync-button').filter({ hasText: /^Enabled$/ }).first().click();
+      await page.waitForTimeout(200);
+    }
+    await morphHint.waitFor({ state: 'visible', timeout: 30000 });
   }
-  const morphBlend = morphPanel.locator('[data-testid="prompt-morph-blend"]');
-  await morphBlend.waitFor({ state: 'visible', timeout: 30000 }).catch(() => null);
-  if ((await morphBlend.count()) === 0 || !(await morphBlend.isVisible())) {
-    throw new Error('Prompt morph blend slider not found on PROMPTS tab');
+  if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
+    throw new Error('Prompt morph LIVE hint not found on PROMPTS tab');
   }
-  await clickTab(page, 'MODULATION');
-  await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^Reactive$/ }).first().click();
+  await clickTab(page, 'AUDIO');
   await page.waitForTimeout(300);
   const audioReactivePanel = page.locator('.audio-reactive-panel');
   if ((await audioReactivePanel.count()) === 0) {
-    throw new Error('Audio reactive panel not found under MODULATION -> Reactive');
+    throw new Error('Audio reactive panel not found on AUDIO tab');
   }
-  await clickTab(page, 'LIBRARY');
+  await openLibraryBrowser(page);
   await page.waitForTimeout(300);
-  const runsBrowser = page.locator('.runs-browser');
+  const storageBrowser = page.locator('.library-storage-browser');
+  if ((await storageBrowser.count()) === 0) {
+    throw new Error('Storage browser not found under LIBRARY');
+  }
+  await openRunsMonitor(page);
+  const runsBrowser = page.locator('[data-testid="runs-browser"]');
   if ((await runsBrowser.count()) === 0) {
-    throw new Error('Runs browser not found under LIBRARY');
+    throw new Error('Runs monitor not found on RUNS tab');
   }
   await clickTab(page, 'SETTINGS');
   await page.waitForTimeout(300);
@@ -90,7 +86,7 @@ try {
   if ((await gpuPanel.count()) === 0) {
     throw new Error('GPU pool panel not found under SETTINGS → GPUS');
   }
-  console.log(`OK: ${trimmed.length} tabs, nested audio/runs views, morph blend, infrastructure + GPU pool present`);
+  console.log(`OK: ${trimmed.length} tabs, LIVE morph HUD, PROMPTS morph hint, audio/runs views, infrastructure + GPU pool present`);
 } finally {
   await browser.close();
 }

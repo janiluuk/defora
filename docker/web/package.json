@@ -1,6 +1,6 @@
 {
   "name": "defora-web",
-  "version": "0.6.31",
+  "version": "0.6.58",
   "private": true,
   "scripts": {
     "dev": "vite",
@@ -11,7 +11,11 @@
     "pretest": "node scripts/sync-app-definition.mjs",
     "test": "node --test test/*.spec.js",
     "capture-ui-shots": "node scripts/capture-web-ui.mjs",
-    "test:playwright": "npm run build && node test/playwright-smoke.mjs && node test/playwright-startup-and-runs-storage.mjs && node test/playwright-clip-metadata.mjs && node test/playwright-recording-appears.mjs"
+    "seed-library": "node scripts/seed-library.mjs",
+    "dev:server": "node scripts/dev-server.mjs",
+    "install:freecut": "node scripts/install-freecut.mjs",
+    "install:freecut:check": "node scripts/install-freecut.mjs --skip-if-present",
+    "test:playwright": "npm run build && node test/playwright-smoke.mjs && node test/playwright-startup-and-runs-storage.mjs && node test/playwright-runs-realtime.mjs && node test/playwright-clip-metadata.mjs && node test/playwright-recording-appears.mjs && node test/playwright-record-during-generation.mjs && node test/playwright-storage-browser.mjs && node test/playwright-browser-upload.mjs && node test/playwright-editor.mjs && node test/playwright-deforum-video-editor.mjs"
   },
   "dependencies": {
     "amqplib": "^0.10.3",
@@ -28,5 +32,8 @@
     "supertest": "^6.3.4",
     "vite": "^5.4.0",
     "vue": "^3.4.27"
+  },
+  "overrides": {
+    "serialize-javascript": "^7.0.5"
   }
 }

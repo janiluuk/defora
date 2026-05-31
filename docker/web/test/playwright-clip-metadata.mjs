@@ -9,7 +9,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
+import { openRunsMonitor, waitForNavTabs, waitForPastRunRow } from "./playwright-nav.mjs";
 
 function tinyPngBuffer() {
   // 1x1 transparent PNG
@@ -24,14 +25,6 @@ function mustInclude(haystack, needle, label, { ignoreCase = false } = {}) {
   const n = String(needle || "");
   const ok = ignoreCase ? h.toLowerCase().includes(n.toLowerCase()) : h.includes(n);
   if (!ok) throw new Error(`Missing ${label || "text"}: expected "${needle}"`);
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-e2e-clip-"));
@@ -77,13 +70,13 @@ fs.writeFileSync(path.join(runPath, "thumb.png"), tinyPngBuffer());
 // Also drop at least one frame so the thumb fallback path is valid.
 fs.writeFileSync(path.join(runPath, "frame_0001.png"), tinyPngBuffer());
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   sequencersDir,
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 
@@ -93,36 +86,17 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 try {
   // UI continuously polls/streams, so don't use "networkidle".
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
   // Ensure backend serving the clip assets.
   const thumbRes = await page.request.get(`${base}/api/runs/${runId}/thumb`);
   if (!thumbRes.ok()) throw new Error(`Expected thumb 200, got ${thumbRes.status()}`);
 
-  await clickTab(page, "LIBRARY");
-  await page.waitForSelector(".runs-browser__table", { timeout: 30000 });
+  await openRunsMonitor(page, { tab: "past" });
+  const runRow = await waitForPastRunRow(page, runId);
 
-  const runRow = page
-    .locator(".runs-browser__table tbody tr")
-    .filter({ has: page.locator(".runs-browser__run-id", { hasText: runId }) })
-    .first();
-
-  const deadline = Date.now() + 30000;
-  while ((await runRow.count()) === 0 && Date.now() < deadline) {
-    const apiRuns = await page.request.get(`${base}/api/runs`);
-    if (!apiRuns.ok()) throw new Error(`Expected /api/runs 200, got ${apiRuns.status()}`);
-    const body = await apiRuns.json();
-    const found = (body.runs || []).some((r) => r.run_id === runId);
-    if (!found) {
-      throw new Error(`Run "${runId}" missing from /api/runs (${(body.runs || []).length} runs)`);
-    }
-    await page.locator("button.framesync-button").filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
-    await page.waitForTimeout(500);
-  }
-  await runRow.waitFor({ state: "visible", timeout: 10000 });
-
-  await runRow.locator("button").filter({ hasText: /^Details$/ }).first().click();
-  const details = page.locator(".runs-detail-card");
+  await runRow.click();
+  const details = page.locator('[data-testid="runs-detail-card"]');
   await details.waitFor({ state: "visible", timeout: 10000 });
 
   const text = (await details.innerText()).replace(/\s+/g, " ").trim();

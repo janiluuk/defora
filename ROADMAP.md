@@ -2,7 +2,70 @@
 
 This document outlines the current status, unfinished features, and planned future development for Defora — an audio-visual instrument for Stable Diffusion.
 
-**Last Updated**: 2026-05-23 | **Version**: 0.3.6 (web package) / roadmap track 0.3.x
+**Last Updated**: 2026-05-30 | **Version**: 0.6.52 (web package) / roadmap track 0.3.x
+
+---
+
+## UX design migration (2026-05-30 audit)
+
+Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; both files removed after import). Target: mockup nav (`live · prompts · motion · modulation · audio · runs · settings · generate`), GlassPanel stage HUDs, waveform-first modulation, XY-pad hero motion, single morph crossfader on LIVE.
+
+**Verification snapshot (2026-05-30, branch `feat/motion-sequencer-vimage3-streaming`):** U-21, U-22, and U-23 landed in this pass; U-24–U-30 remain open or partial. Animation engine plugins (WebGL / Deforum / WAN / AnimateLCM layers + shared 8-macro strip) are **Done** on that branch but were out of scope for the original audit.
+
+### Summary
+
+| Severity | Open | Partial | Done | Theme |
+|----------|------|---------|------|--------|
+| **Critical** | 4 | 2 | 2 | Stage morph/mod HUDs; duplicate crossfader; Perf drawer dead state; LFO phase (wired) |
+| **High** | 6 | 8 | 4 | First-class nav tabs; modulation card polish; motion pad hero; runs access |
+| **Medium / Low** | 12 | 6 | 3 | Settings labels; STREAM placement; token/hex sweep; emoji → UiIcon |
+
+### Migration steps (audit §7 → roadmap phases)
+
+| Phase | Audit step | Scope | Status |
+|-------|------------|--------|--------|
+| **U-21** | Step 1 — First-class AUDIO, RUNS, GENERATE nav | Add tabs to `App.vue` `tabs[]`; full-page `RunsBrowserPanel` / `GenerateView`; route AUDIO to reactive panel; move STREAM to SETTINGS → Output | **Done** — 8-tab nav (LIVE, PROMPTS, MOTION, MODULATION, AUDIO, RUNS, SETTINGS, GENERATE); STREAM → SETTINGS → OUTPUT; `switchTab('STREAM')` legacy alias routes to Output |
+| **U-22** | Step 2 — Remove Perf / bottom drawer | Drop `liveBottomDrawerOpen` state, FAB, duplicate MODULATION/CROSSFADER drawer; runs via tab only | **Done** — dead drawer state removed; `openRunsDrawerSystem()` → `switchTab('RUNS')`; HLS watch no longer tied to STREAM tab |
+| **U-23** | Step 3 — LIVE stage HUDs | GlassPanel morph (bottom-right) + modulating-now (bottom-left) + recent-runs filmstrip; UiIcon pin/lock | **Done** — morph + modulating-now GlassPanels mounted on LIVE stage; recent-runs filmstrip; UiIcon pin/lock in `LiveView.vue` (morph still also in PROMPTS until U-27) |
+| **U-24** | Step 4 — MODULATION waveform-first | Waveform hero, compact LFO meta line, teal active / dim idle cards | **Done** — waveform-first cards; controls expand on select; compact BPM/depth/routes line when collapsed |
+| **U-25** | Step 5 — AUDIO meter-first mappings | Frequency band meter hero, quick-band pills (`sub · bass · …`) | **Done** — quick-band pills above spectrum hero; taller spectrum canvas; meter cards unchanged |
+| **U-26** | Step 6 — MOTION XY pad hero | Full-view pad, accent puck glow, preset pills | **Done** — preset pills + hero `DeforumMotionPads` stage; fine-tune axes toggle; macros-only control panel; path preview in collapsible advanced panel |
+| **U-27** | Step 7 — PROMPTS single crossfader | Remove inline LoRA blend slider; A/B card assignment only; morph on LIVE | **Done** — inline crossfader removed from Prompts → LORA; hint links to LIVE morph HUD |
+| **U-28** | Step 8 — GENERATE timeline dock | Preview above timeline; shared playhead | **Done** — `layout--generate-dock` + taller preview-bottom dock; `GenerateView` sync readout (playhead, duration, frame, FPS) and editor actions |
+| **U-29** | Step 9 — SETTINGS progressive disclosure | Reorder sub-tabs; rename SYSTEM; Output sub-tab for stream; GlassPanel model picker | **Done** — ENGINE → OUTPUT → GPUS → RUNS → MIDI → STYLES → COLLAB; SYSTEM alias → RUNS; checkpoint in GlassPanel; advanced sampling/resolution in `<details>` |
+| **U-30** | Step 10 — Token / hex audit | Replace hardcoded hex; delete design.zip | **Done** — Vue templates clean; log/status tokens; library icons via UiIcon |
+
+### Per-issue checklist (audit §3–§5)
+
+| ID | Issue | Status | Notes |
+|----|-------|--------|-------|
+| L1 | Emoji pin/lock → UiIcon | **Done** | `LiveView.vue` |
+| L2 | Morph HUD on stage | **Done** | `MorphCrossfaderPanel` on LIVE |
+| L3 | Modulating-now HUD | **Done** | `ModulationActiveModsPanel` on LIVE |
+| L4 | MODULATION duplicated in drawer | **Done** | Drawer UI removed |
+| L5 | Recent-runs filmstrip on LIVE | **Done** | `recentRunsRail` on stage |
+| M1–M3 | LFO compact / teal / idle | **Done** | Standby compact copy, `--idle` dim, teal active chrome |
+| M4–M5 | Audio reactive cards / LFO phase | **Done** | Idle/mapped/live card states; phase on Waveform |
+| Mo1–Mo3 | XY pad hero / size | **Done** | Hero stage + preset pills; fine-tune toggle |
+| Mo4 | Readout mono | **Done** | `--mono` token; shared `.motion-readout`; hero pad readout bottom-right |
+| P1–P2 | Duplicate crossfader / A/B + slider | **Done** | Morph on LIVE only |
+| P3–P4 | Story / CN card polish | **Done** | GlassPanel on STORY + CONTROLNET; ModelSourcePill for Forge/Cache/Placeholder |
+| A1–A4 | AUDIO first-class + meters | **Done** | Dedicated AUDIO tab chrome; reactive panel without modulation sub-pills |
+| R1–R2 | RUNS tab + drawer overlap | **Done** | RUNS tab + SETTINGS → RUNS (SYSTEM alias) |
+| S1–S4 | Settings sub-tabs / disclosure | **Done** | Reordered sub-tabs; RUNS rename; GlassPanel checkpoint; advanced `<details>` |
+| G1–G3 | GENERATE tab + timeline dock | **Done** | GENERATE tab + dedicated dock under preview with sync readout |
+| St1–St3 | STREAM tab vs design | **Done** | STREAM removed from nav; legacy alias → SETTINGS → OUTPUT |
+| X1 | Emoji buttons | **Done** | Library folder/play, Deforum toolbar, nav icons via UiIcon |
+| X2 | GlassPanel underused | **Partial** | Pinned + morph + modulating HUDs |
+| X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck, generate dock sync readout |
+| X5–X6 | framesync-panel / inline hex | **Done** | CN layout → CSS classes; tab accents via `:root` aliases |
+| X7 | Perf drawer duplicate | **Done** | Template removed |
+| X8 | SYSTEM label collision | **Done** | Renamed to RUNS; legacy SYSTEM alias preserved |
+
+### Recommended order
+
+1. **X2 / X3–X4** — GlassPanel usage and `--live` / `--accent` on remaining surfaces
+2. **Mo4 follow-ups** — Apply `--mono` to generate dock sync readout and morph HUD if desired
 
 ---
 
@@ -136,19 +199,30 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **18** | **Runs compare export** | `POST /api/runs/compare`; prompt fields in UI; CSV/JSON download | **Done** (item 12) |
 | **19** | **Forge routes + GPU pool** | sd-models, loras, forge options use pool target | **Done** (item 13) |
 | **20** | **Nightly Docker E2E** | `.github/workflows/nightly-docker-e2e.yml` | **Done** (item 14) |
+| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Partial** |
+| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Partial** |
+| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Partial** |
+| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Partial** |
+| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Open** |
+| **U-26** | **UX: motion XY hero** | Promote pad to view hero | **Done** |
+| **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Done** |
+| **U-28** | **UX: generate dock** | Timeline under preview | **Done** |
+| **U-29** | **UX: settings polish** | Sub-tab order, diagnostics, disclosure | **Done** |
+| **U-30** | **UX: design token sweep** | Hex → tokens; semantic panels | **Done** |
 
 ---
 
 ## Table of Contents
 
-1. [Audit findings (2026-05-23)](#audit-findings-2026-05-23)
-2. [README ↔ roadmap alignment](#readme--roadmap-alignment)
-3. [Project Status Overview](#project-status-overview)
-4. [Current Features (Completed)](#current-features-completed)
-5. [Incomplete/In-Progress Features](#incompletein-progress-features)
-6. [Planned Features](#planned-features)
-7. [Future Enhancements](#future-enhancements)
-8. [Long-Term Vision](#long-term-vision)
+1. [UX design migration (2026-05-30 audit)](#ux-design-migration-2026-05-30-audit)
+2. [Audit findings (2026-05-23)](#audit-findings-2026-05-23)
+3. [README ↔ roadmap alignment](#readme--roadmap-alignment)
+4. [Project Status Overview](#project-status-overview)
+5. [Current Features (Completed)](#current-features-completed)
+6. [Incomplete/In-Progress Features](#incompletein-progress-features)
+7. [Planned Features](#planned-features)
+8. [Future Enhancements](#future-enhancements)
+9. [Long-Term Vision](#long-term-vision)
 
 ---
 
@@ -267,6 +341,10 @@ Defora is in **active development** with a strong foundation of core features im
 
 ## Incomplete/In-Progress Features
 
+### 🔴 UX design migration (2026-05-30)
+
+See [UX design migration](#ux-design-migration-2026-05-30-audit). Phases **U-21–U-30** track the mockup-aligned UI pass (nav structure, stage HUDs, modulation/motion polish, token audit). **None complete end-to-end**; U-22 drawer template removal and animation-engine plugin layers are partial wins.
+
 ### 🔴 Audit backlog (2026-05-23)
 
 See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. Phased remediation: **Phases 10–15** in [Phased delivery](#phased-delivery).
@@ -300,7 +378,7 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 **Remaining Enhancements** (moved to future roadmap):
 - Advanced filtering and search (basic search/filter exists in RUNS tab)
 - ✅ Export comparison reports — `POST /api/runs/compare` + RUNS compare export buttons
-- Visual diff for prompts (side-by-side text diff)
+- ✅ Visual diff for prompts — side-by-side diff in RUNS browser + `prompt_diffs` on `POST /api/runs/compare` (2 runs)
 
 ### ✅ API Fallback Systems (COMPLETED in v0.2.7)
 
@@ -782,4 +860,4 @@ This roadmap and the Defora project are open source. See [LICENSE](LICENSE) for 
 
 ---
 
-**Last Updated**: 2026-05-23 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)
+**Last Updated**: 2026-05-30 | **Maintained by**: [@janiluuk](https://github.com/janiluuk)

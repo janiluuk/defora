@@ -6,6 +6,7 @@ const crypto = require("crypto");
 const fs = require("fs");
 const fsp = fs.promises;
 const path = require("path");
+const { skipBackgroundProbes: shouldSkipBackgroundProbes } = require("./ci-offline");
 
 const BACKENDS = ["sd-forge", "comfyui", "ollama"];
 const STRATEGIES = ["round_robin", "least_busy", "random", "priority"];
@@ -52,6 +53,21 @@ function normalizeUrl(url) {
 
 function normalizeModelName(value) {
   return String(value || "").trim().toLowerCase();
+}
+
+function modelKey(value) {
+  const raw = normalizeModelName(value);
+  if (!raw) return "";
+  const base = raw.split(/[/\\]/).pop() || raw;
+  return base.replace(/\s+/g, "");
+}
+
+function modelsMatch(a, b) {
+  const left = modelKey(a);
+  const right = modelKey(b);
+  if (!left || !right) return false;
+  if (left === right) return true;
+  return left.includes(right) || right.includes(left);
 }
 
 function nodeIdFromUrl(url) {
@@ -241,10 +257,17 @@ function createGpuPool(options = {}) {
     const healthy = eligibleNodes({ sdApiOnly, backend });
     if (!healthy.length) return null;
     const preferredModelKey = normalizeModelName(preferredModel);
-    const candidateNodes = preferredModelKey
-      ? healthy.filter((node) => normalizeModelName(node.currentModel || node.model).includes(preferredModelKey))
-      : healthy;
-    const pool = candidateNodes.length ? candidateNodes : healthy;
+    let candidateNodes = healthy;
+    if (preferredModelKey) {
+      const running = healthy.filter((node) =>
+        modelsMatch(node.currentModel || node.model, preferredModel)
+      );
+      const pinned = healthy.filter(
+        (node) => node.model && modelsMatch(node.model, preferredModel)
+      );
+      candidateNodes = running.length ? running : pinned.length ? pinned : healthy;
+    }
+    const pool = candidateNodes;
     const compareByLoad = (a, b) => {
       if (a.activeJobs !== b.activeJobs) return a.activeJobs - b.activeJobs;
       const aResponse = Number.isFinite(Number(a.responseTime)) ? Number(a.responseTime) : Number.MAX_SAFE_INTEGER;
@@ -322,6 +345,62 @@ function createGpuPool(options = {}) {
       "";
     const trimmed = String(raw || "").trim();
     return trimmed || String(state.defaultForgeModel || "").trim() || "";
+  }
+
+  function findNodeWithModel(modelName) {
+    const healthy = eligibleNodes({ sdApiOnly: true });
+    return healthy.find((node) => modelsMatch(node.currentModel || node.model, modelName)) || null;
+  }
+
+  function selectPreloadNode(modelName) {
+    const healthy = eligibleNodes({ sdApiOnly: true });
+    const pinned = healthy.filter((node) => node.model && modelsMatch(node.model, modelName));
+    if (pinned.length) {
+      return [...pinned].sort((a, b) => a.activeJobs - b.activeJobs || a.priority - b.priority)[0];
+    }
+    return selectNode({ preferredModel: modelName, sdApiOnly: true });
+  }
+
+  async function setForgeModelOnNode(node, modelName) {
+    if (!node || node.backend !== "sd-forge") return { ok: false, error: "not an sd-forge node" };
+    const name = String(modelName || "").trim();
+    if (!name) return { ok: false, error: "model required" };
+    const t0 = Date.now();
+    const res = await fetchJson(
+      `${node.url}/sdapi/v1/options`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ sd_model_checkpoint: name }),
+      },
+      20000
+    );
+    pushNodeLog(node, {
+      type: "options",
+      path: "/sdapi/v1/options [default model]",
+      statusCode: res.status,
+      durationMs: Date.now() - t0,
+      ok: res.ok,
+    });
+    if (!res.ok) {
+      return { ok: false, status: res.status, error: res.data?.error || `HTTP ${res.status}` };
+    }
+    node.currentModel = name;
+    return { ok: true, model: name };
+  }
+
+  async function ensureDefaultModelPreloaded() {
+    if (shouldSkipBackgroundProbes(env)) {
+      return { ok: false, skipped: true, reason: "ci_offline" };
+    }
+    const model = String(state.defaultForgeModel || "").trim();
+    if (!model) return { ok: false, skipped: true, reason: "no default model" };
+    if (findNodeWithModel(model)) {
+      return { ok: true, skipped: true, reason: "already loaded" };
+    }
+    const target = selectPreloadNode(model);
+    if (!target) return { ok: false, error: "no forge node available" };
+    return setForgeModelOnNode(target, model);
   }
 
   function resolveForgeTarget(req, { sdApiOnly = true, allowDirectPreferred = false } = {}) {
@@ -604,6 +683,7 @@ function createGpuPool(options = {}) {
 
   function scheduleHealthChecks() {
     if (healthTimer) clearInterval(healthTimer);
+    if (shouldSkipBackgroundProbes(env)) return;
     if (!state.enabled || !state.nodes.length) return;
     healthTimer = setInterval(() => {
       performHealthCheck().catch((e) => console.error("[gpu-pool] health check", e));
@@ -659,34 +739,6 @@ function createGpuPool(options = {}) {
       }
     });
 
-    async function setForgeModelOnNode(node, modelName) {
-      if (!node || node.backend !== "sd-forge") return { ok: false, error: "not an sd-forge node" };
-      const name = String(modelName || "").trim();
-      if (!name) return { ok: false, error: "model required" };
-      const t0 = Date.now();
-      const res = await fetchJson(
-        `${node.url}/sdapi/v1/options`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({ sd_model_checkpoint: name }),
-        },
-        20000
-      );
-      pushNodeLog(node, {
-        type: "options",
-        path: "/sdapi/v1/options [default model]",
-        statusCode: res.status,
-        durationMs: Date.now() - t0,
-        ok: res.ok,
-      });
-      if (!res.ok) {
-        return { ok: false, status: res.status, error: res.data?.error || `HTTP ${res.status}` };
-      }
-      node.currentModel = name;
-      return { ok: true, model: name };
-    }
-
     app.put("/api/gpu-pool/default-forge-model", async (req, res) => {
       try {
         const model = String(req.body?.model || "").trim();
@@ -696,7 +748,10 @@ function createGpuPool(options = {}) {
 
         let preloadResults = null;
         if (preload && model) {
-          const nodes = eligibleNodes({ sdApiOnly: true, backend: "sd-forge" });
+          const singleNode = req.body?.singleNode !== false;
+          const nodes = singleNode
+            ? [selectPreloadNode(model)].filter(Boolean)
+            : eligibleNodes({ sdApiOnly: true, backend: "sd-forge" });
           preloadResults = await Promise.all(
             nodes.map(async (node) => {
               try {
@@ -1002,9 +1057,17 @@ function createGpuPool(options = {}) {
 
   async function init() {
     await loadConfig();
+    if (shouldSkipBackgroundProbes(env)) {
+      if (state.nodes.length) {
+        console.log("[gpu-pool] CI offline — skipping startup health probes");
+      }
+      return;
+    }
     scheduleHealthChecks();
     if (state.enabled && state.nodes.length) {
-      performHealthCheck().catch(() => {});
+      performHealthCheck()
+        .then(() => ensureDefaultModelPreloaded())
+        .catch(() => {});
     }
   }
 
@@ -1019,6 +1082,11 @@ function createGpuPool(options = {}) {
     attachRoutes,
     selectNode,
     resolveForgeTarget,
+    findNodeWithModel,
+    selectPreloadNode,
+    setForgeModelOnNode,
+    ensureDefaultModelPreloaded,
+    modelsMatch,
     resolveOllamaTarget,
     isLoadBalancing,
     trackJobStart,

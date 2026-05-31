@@ -6,6 +6,7 @@ const { expect } = require("chai");
 const { describe, it, beforeEach, afterEach } = require("node:test");
 
 const { start } = require("../server");
+const { diffPromptLines } = require("../shared/prompt-diff.cjs");
 
 describe("Runs compare API", () => {
   let svc;
@@ -59,6 +60,14 @@ describe("Runs compare API", () => {
     expect(res.body.comparison.run_ids).to.deep.equal(["run_a", "run_b"]);
     expect(res.body.comparison.matrix.model.run_a).to.equal("sdxl");
     expect(res.body.comparison.matrix.prompt_positive.run_b).to.equal("city");
+    expect(res.body.comparison.prompt_diffs).to.exist;
+    expect(res.body.comparison.prompt_diffs.run_a).to.equal("run_a");
+    expect(res.body.comparison.prompt_diffs.prompt_positive).to.deep.equal(
+      diffPromptLines("sunset", "city"),
+    );
+    expect(res.body.comparison.prompt_diffs.prompt_negative).to.deep.equal(
+      diffPromptLines("blur", "noise"),
+    );
   });
 
   it("POST /api/runs/compare format=csv returns attachment", async () => {

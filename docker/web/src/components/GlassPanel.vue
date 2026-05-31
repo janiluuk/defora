@@ -1,5 +1,5 @@
 <template>
-  <div class="glass-panel" :class="[`glass-panel--${size}`]">
+  <div class="glass-panel" :class="[`glass-panel--${size}`, variant !== 'solid' ? `glass-panel--${variant}` : null]">
     <div v-if="$slots.header" class="glass-panel-header">
       <slot name="header" />
     </div>
@@ -14,6 +14,7 @@ export default {
   name: 'GlassPanel',
   props: {
     size: { type: String, default: 'md' },
+    variant: { type: String, default: 'solid' },
   },
 }
 </script>
@@ -40,4 +41,15 @@ export default {
 }
 .glass-panel--sm .glass-panel-body { padding: 6px 10px; }
 .glass-panel--lg .glass-panel-body { padding: 14px 16px; }
+.glass-panel--overlay {
+  background: rgba(17, 19, 28, 0.42);
+  backdrop-filter: blur(10px) saturate(1.08);
+  -webkit-backdrop-filter: blur(10px) saturate(1.08);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+.glass-panel--overlay .glass-panel-header {
+  background: transparent;
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
 </style>

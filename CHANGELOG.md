@@ -3,6 +3,263 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.58] - 2026-05-31
+
+## What's Changed
+
+- fix(web): scope morph enable click in Playwright smoke test (a47bf29)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.57...v0.6.58
+
+
+## [0.6.57] - 2026-05-31
+
+## What's Changed
+
+- fix(web): scope morph enable click in Playwright smoke test (15d6ba5)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.56...v0.6.57
+
+
+## [0.6.56] - 2026-05-31
+
+## What's Changed
+
+- fix(ci): install ffmpeg before Playwright E2E suite (6a6c7f0)
+- style(web): mono generate dock sync readout and dock chrome (ac5c58d)
+- feat(ux): LIVE HUD dock, AUDIO tab polish, and model source pills (7cb0a46)
+- fix(web): update Playwright smoke for 8-tab nav and LIVE morph HUD (fec9ab5)
+- fix(web): support getter/setter computed props in video-controls tests (a9d253e)
+- feat(ux): library workspace overlay, recent-runs rail, token sweep (cf713c2)
+- fix(web): restore compositor/plugin logic and update tests for UX migration (9fe4781)
+- feat(ux): motion hero stage and consolidate prompt morph on LIVE (51ca041)
+- docs: update migration notes with layout refactor progress; remove design.zip (f5066df)
+- feat(ux): layout — side-panel drawer, wider menus, taller sequencer, engine controls inline (f8c49ca)
+- feat(ux): steps 3+4 — LIVE morph/modulating HUDs + MODULATION teal active state (ec06024)
+- feat(ux): steps 1+2 — promote AUDIO/RUNS/GENERATE tabs, remove Perf drawer (5a9a420)
+- feat(web): motion readout mono token and hero pad layout (Mo4) (c1d4549)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.55...v0.6.56
+
+
+## [0.6.55] - 2026-05-30
+
+## What's Changed
+
+- fix(web): library browser uploads root and local dev storage paths (c27728a)
+- Update (89e84b2)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.54...v0.6.55
+
+
+## [0.6.54] - 2026-05-30
+
+## What's Changed
+
+- feat(web): UX migration U-21–U-29 with annotated screenshots (#87) (cbaba8a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.53...v0.6.54
+
+
+## [0.6.53] - 2026-05-30
+
+## What's Changed
+
+- feat(web): preview compositor, animation engine plugins, and motion sequencer (#86) (53f1f3e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.52...v0.6.53
+
+
+## [0.6.52] - 2026-05-29
+
+## What's Changed
+
+- Feat/motion sequencer vimage3 streaming (#85) (68965f8)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.51...v0.6.52
+
+
+## [0.6.51] - 2026-05-29
+
+## What's Changed
+
+- feat(ui): 4-panel overlay menu system with tabs at top (#84) (ff833be)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.50...v0.6.51
+
+
+## [0.6.50] - 2026-05-29
+
+## What's Changed
+
+- Feat/motion sequencer vimage3 streaming (#81) (a7e4cfb)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.49...v0.6.50
+
+
+## [0.6.49] - 2026-05-29
+
+## What's Changed
+
+- Fix web UI test harness for library browser and CI parity. (#82) (9629ee6)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.48...v0.6.49
+
+
+## [0.6.48] - 2026-05-29
+
+## What's Changed
+
+- Live UI: top nav/drawers, unified crossfader, frames in Runs monitor (#83) (0b33f34)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.47...v0.6.48
+
+
+## [0.6.47] - 2026-05-29
+
+## What's Changed
+
+- Use sane Deforum defaults for max_frames and CFG schedules. (26024ee)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.46...v0.6.47
+
+
+## [0.6.46] - 2026-05-29
+
+## What's Changed
+
+- fix (38154a4)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.45...v0.6.46
+
+
+## [0.6.45] - 2026-05-29
+
+## What's Changed
+
+- Add (ccdc17f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.44...v0.6.45
+
+
+## [0.6.44] - 2026-05-29
+
+## What's Changed
+
+- deforum (1ae55e1)
+- Fix (0ffea87)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.43...v0.6.44
+
+
+## [0.6.43] - 2026-05-29
+
+## What's Changed
+
+- test (789e04e)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.42...v0.6.43
+
+
+## [0.6.42] - 2026-05-29
+
+## What's Changed
+
+- Feat/bottom nav (#80) (ceed343)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.41...v0.6.42
+
+
+## [0.6.41] - 2026-05-29
+
+## What's Changed
+
+- Feat/motion sequencer vimage3 streaming (#78) (f12c892)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.40...v0.6.41
+
+
+## [0.6.40] - 2026-05-29
+
+## What's Changed
+
+- Feat/bottom nav (#79) (d2f9562)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.39...v0.6.40
+
+
+## [0.6.39] - 2026-05-29
+
+## What's Changed
+
+- Fixes (8748714)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.38...v0.6.39
+
+
+## [0.6.38] - 2026-05-29
+
+## What's Changed
+
+- feat(ui): bottom navigation bar — fixed, centered, enlarged tabs (#77) (1a714aa)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.37...v0.6.38
+
+
+## [0.6.37] - 2026-05-29
+
+## What's Changed
+
+- chore: rebuild assets for bottom nav (eabd779)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.36...v0.6.37
+
+
+## [0.6.36] - 2026-05-29
+
+## What's Changed
+
+- feat(ui): move tab nav to fixed bottom bar, centered and enlarged (fc890fe)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.35...v0.6.36
+
+
+## [0.6.35] - 2026-05-29
+
+## What's Changed
+
+- Fresh screenshots, rewritten UI annotations, design system doc, CI ESM fixes (#75) (8aee9cc)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.34...v0.6.35
+
+
+## [0.6.34] - 2026-05-29
+
+## What's Changed
+
+- fix(web): restore WebGL animation by keeping Three.js out of Vue reactivity (#76) (b69049d)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.33...v0.6.34
+
+
+## [0.6.33] - 2026-05-28
+
+## What's Changed
+
+- fix(web): restore WebGL animation by keeping Three.js out of Vue reactivity (#73) (c048d2d)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.32...v0.6.33
+
+
+## [0.6.32] - 2026-05-28
+
+## What's Changed
+
+- fix(web): restore WebGL animation by keeping Three.js out of Vue reactivity (#72) (574f2a1)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.31...v0.6.32
+
+
 ## [0.6.31] - 2026-05-28
 
 ## What's Changed

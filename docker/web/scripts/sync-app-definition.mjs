@@ -12,7 +12,8 @@ const root = join(__dirname, '..');
 const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
-const UTIL_MODULES = ['morph-utils.js', 'deforum-settings-schema.js', 'api-utils.js'];
+// Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
+const UTIL_MODULES = ['morph-utils.mjs', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -83,19 +84,100 @@ const emittedComponentStubs = new Set();
 const emittedComponentPaths = new Set();
 let needsAppViewProxyStub = false;
 
+function extractObjectClause(scriptBody, key) {
+  const idx = scriptBody.indexOf(`${key}:`);
+  if (idx < 0) return '';
+  const start = scriptBody.indexOf('{', idx);
+  if (start < 0) return '';
+  let depth = 0;
+  for (let i = start; i < scriptBody.length; i++) {
+    const ch = scriptBody[i];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return `, ${key}: ${scriptBody.slice(start, i + 1)}`;
+      }
+    }
+  }
+  return '';
+}
+
+function extractMethodsClause(scriptBody) {
+  return extractObjectClause(scriptBody, 'methods');
+}
+
+function extractComputedClause(scriptBody) {
+  return extractObjectClause(scriptBody, 'computed');
+}
+
+function extractDataFunctionClause(scriptBody) {
+  const idx = scriptBody.indexOf('data()');
+  if (idx < 0) return '';
+  const returnIdx = scriptBody.indexOf('return', idx);
+  if (returnIdx < 0) return '';
+  const start = scriptBody.indexOf('{', returnIdx);
+  if (start < 0) return '';
+  let depth = 0;
+  for (let i = start; i < scriptBody.length; i++) {
+    const ch = scriptBody[i];
+    if (ch === '{') depth += 1;
+    else if (ch === '}') {
+      depth -= 1;
+      if (depth === 0) {
+        return `, data() { return ${scriptBody.slice(start, i + 1)} }`;
+      }
+    }
+  }
+  return '';
+}
+
 function extractComponentDefinition(scriptBody) {
-  const usesProxy = scriptBody.includes('proxyAppView');
+  const usesProxy = /\bproxyAppView\b/.test(scriptBody) && scriptBody.includes('return proxyAppView');
   const propsMatch = scriptBody.match(/props:\s*\{([\s\S]*?)\n\s*\},/);
   let propsClause = "props: ['app']";
   if (propsMatch) {
     propsClause = `props: {${propsMatch[1]}\n  }`;
   }
   const setupClause = usesProxy ? ', setup(props) { return __proxyAppView(props); }' : '';
-  return { propsClause, setupClause, usesProxy };
+  // Proxy-backed panels delegate to app; inlining local data/computed/methods breaks the test harness.
+  const dataClause = usesProxy ? '' : extractDataFunctionClause(scriptBody);
+  const methodsClause = usesProxy ? '' : extractMethodsClause(scriptBody);
+  const computedClause = usesProxy ? '' : extractComputedClause(scriptBody);
+  return { propsClause, setupClause, dataClause, methodsClause, computedClause, usesProxy };
 }
 
 function motionPathPreviewStub(name) {
   return `const ${name} = { props: ['deforumSettings', 'motionValues', 'preferLiveValues', 'playing'], template: '<div class="motion-path-preview" data-testid="motion-path-preview"><div class="motion-path-preview__header"><div class="framesync-subtitle motion-path-preview__title">3D motion preview</div></div><div class="motion-path-preview__stage"></div></div>' };`;
+}
+
+const FULL_STUB_SUFFIXES = [
+  'RunsBrowserPanel.vue',
+  'FrameRailPanel.vue',
+  'SequencerControlsPanel.vue',
+  'LoraCrossfaderPanel.vue',
+  'StylesSettingsPanel.vue',
+  'VideoSwarmBrowser.vue',
+  'AnimationEnginePanel.vue',
+  'LiveEngineControls.vue',
+  'LiveEngineControlsDock.vue',
+  'CrossfaderPanel.vue',
+  'DeforumJobPanel.vue',
+  'DeforumMotionPads.vue',
+  'DeforumControlPanel.vue',
+  'DeforumSettingsBody.vue',
+  'ModulationMappingsPanel.vue',
+  'animation-plugins/CompositorControls.vue',
+  'animation-plugins/AnimationEnginePluginPanel.vue',
+  'animation-plugins/WebGLPluginPanel.vue',
+  'animation-plugins/WanPluginPanel.vue',
+  'animation-plugins/DeforumPluginPanel.vue',
+  'animation-plugins/CommonVisualStrip.vue',
+];
+
+function usesFullComponentStub(relPath) {
+  const relKey = relPath.replace(/^\.\//, '');
+  return relKey.includes('/views/') || FULL_STUB_SUFFIXES.some((p) => relKey.endsWith(p));
 }
 
 function ensureComponentStub(name, relPath, lines, seen = new Set()) {
@@ -108,9 +190,9 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
   const componentSrc = readFileSync(componentPath, 'utf8');
   const componentTemplate = extractVueTemplate(componentSrc, relPath);
   const scriptMatch = componentSrc.match(/<script>([\s\S]*?)<\/script>/);
-  const { propsClause, setupClause, usesProxy } = scriptMatch
+  const { propsClause, setupClause, dataClause, methodsClause, computedClause, usesProxy } = scriptMatch
     ? extractComponentDefinition(scriptMatch[1])
-    : { propsClause: "props: ['app']", setupClause: ', setup(props) { return __proxyAppView(props); }', usesProxy: true };
+    : { propsClause: "props: ['app']", setupClause: ', setup(props) { return __proxyAppView(props); }', dataClause: '', methodsClause: '', computedClause: '', usesProxy: true };
   if (usesProxy) {
     needsAppViewProxyStub = true;
   }
@@ -122,7 +204,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     while ((m = importRe.exec(scriptMatch[1])) !== null) {
       const [, importName, importRel] = m;
       const nestedRel = normalizeRelPath(relPath, importRel);
-      if (nestedRel.includes('/views/') || nestedRel.endsWith('SequencerControlsPanel.vue') || nestedRel.endsWith('LoraCrossfaderPanel.vue')) {
+      if (usesFullComponentStub(nestedRel)) {
         ensureComponentStub(importName, nestedRel, lines, seen);
       } else if (nestedRel.includes('/generate/')) {
         if (!emittedComponentStubs.has(importName)) {
@@ -132,6 +214,11 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
       } else if (nestedRel.endsWith('MotionPathPreview.vue')) {
         if (!emittedComponentStubs.has(importName)) {
           lines.push(motionPathPreviewStub(importName));
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('AnimateLcmPluginPanel.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="animatelcm-plugin-panel"></div>' };`);
           emittedComponentStubs.add(importName);
         }
       } else if (!emittedComponentStubs.has(importName)) {
@@ -146,7 +233,7 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
     ? `, components: { ${childComponents.join(', ')} }`
     : '';
   lines.push(
-    `const ${name} = { ${propsClause}${setupClause}${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
+    `const ${name} = { ${propsClause}${setupClause}${dataClause}${computedClause}${methodsClause}${componentsClause}, template: ${JSON.stringify(componentTemplate)} };`
   );
   emittedComponentStubs.add(name);
 }
@@ -155,12 +242,15 @@ const componentStubs = [];
 script = script.replace(
   /^import\s+([A-Za-z0-9_$]+)\s+from\s+['"](\.\/components\/[^'"]+\.vue)['"];?\s*$/gm,
   (_, name, relPath) => {
-    if (relPath.includes('/views/') || relPath.endsWith('SequencerControlsPanel.vue') || relPath.endsWith('LoraCrossfaderPanel.vue')) {
+    if (usesFullComponentStub(relPath)) {
       ensureComponentStub(name, relPath, componentStubs);
       return '';
     }
     if (!emittedComponentStubs.has(name)) {
-      componentStubs.push(`const ${name} = { props: ['app'], template: '<div></div>' };`);
+      const glassStub = name === 'GlassPanel'
+        ? `const ${name} = { props: ['size'], template: '<div class="glass-panel"><slot name="header"></slot><slot></slot></div>' };`
+        : `const ${name} = { props: ['app'], template: '<div></div>' };`;
+      componentStubs.push(glassStub);
       emittedComponentStubs.add(name);
     }
     return '';
@@ -174,23 +264,31 @@ const proxyStubBlock = needsAppViewProxyStub
 function __proxyAppView(props) {
   return new Proxy({}, {
     get(_target, key) {
+      if (__hasOwnProp(props, 'app') && key === 'app') return props.app;
       if (__hasOwnProp(props, key) && key !== 'app') return props[key];
+      if (props.app == null) return undefined;
       const value = Reflect.get(props.app, key);
       if (typeof value === 'function') return value.bind(props.app);
       return value;
     },
     set(_target, key, value) {
       if (__hasOwnProp(props, key) && key !== 'app') return false;
+      if (props.app == null) return false;
       Reflect.set(props.app, key, value);
       return true;
     },
     has(_target, key) {
-      return (__hasOwnProp(props, key) && key !== 'app') || key in props.app;
+      if (__hasOwnProp(props, 'app') && key === 'app') return true;
+      return (__hasOwnProp(props, key) && key !== 'app') || (props.app != null && Reflect.has(props.app, key));
     },
     getOwnPropertyDescriptor(_target, key) {
+      if (__hasOwnProp(props, 'app') && key === 'app') {
+        return { configurable: true, enumerable: true, value: props.app, writable: false };
+      }
       if (__hasOwnProp(props, key) && key !== 'app') {
         return { configurable: true, enumerable: true, value: props[key], writable: false };
       }
+      if (props.app == null) return undefined;
       return {
         configurable: true,
         enumerable: true,

@@ -32,7 +32,8 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
+import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -49,6 +50,13 @@ function fmt(ms) {
   return `${ms}ms`;
 }
 
+async function openFramesPanel(page) {
+  await clickTab(page, 'RUNS');
+  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 15_000 });
+  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
+  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
+}
+
 // ── setup ─────────────────────────────────────────────────────────────────────
 
 const FRAMES_TO_TEST = 6;
@@ -61,7 +69,7 @@ const uploadsDir   = path.join(tmpRoot, "uploads");
 const sequencersDir = path.join(tmpRoot, "sequencers");
 for (const d of [runsDir, framesDir, uploadsDir, sequencersDir]) fs.mkdirSync(d, { recursive: true });
 
-const svc  = await start({ port: 0, runsDir, framesDir, uploadsDir, sequencersDir, enableMq: false });
+const svc = await startE2eServer({ port: 0, root: tmpRoot, runsDir, framesDir, uploadsDir, sequencersDir });
 const base = `http://127.0.0.1:${svc.port}`;
 const browser = await chromium.launch({ headless: true });
 
@@ -133,19 +141,12 @@ try {
     await page.locator(".restore-session-modal button").filter({ hasText: /^Discard$/ }).first().click();
     await modal.waitFor({ state: "hidden", timeout: 10_000 });
   }
-  await page.waitForSelector("header .tab", { timeout: 30_000 });
+  await waitForNavTabs(page);
 
-  // Go to LIVE tab so frame-rail renders
-  const liveTab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: /^LIVE$/ }),
-  }).first();
-  if ((await liveTab.count()) > 0) await liveTab.click();
+  // Go to LIVE tab and open frames in System → Runs → Frames
+  await clickTab(page, "LIVE");
 
-  // Expand frame rail via JS (live drawer overlay can intercept pointer events)
-  await page.evaluate(() => {
-    const btn = document.querySelector(".frame-rail__toggle[aria-expanded='false']");
-    if (btn) btn.click();
-  });
+  await openLiveFramesPanel(page);
   await page.waitForTimeout(200);
 
   // Capture performance.timeOrigin so we can convert WS performance.now() to epoch ms

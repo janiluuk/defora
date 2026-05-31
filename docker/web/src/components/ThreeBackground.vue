@@ -64,8 +64,10 @@ varying vec4 vColor;
 
 void main() {
   vec4 color = vec4(vColor);
+  color.rgb = min(color.rgb * 1.25, vec3(1.0));
   color.rgb += vec3(hueShift * 0.35, hueShift * 0.18, hueShift * 0.5);
   color.r += sin(vPosition.x * 10.0 + time) * shimmer;
+  color.a = max(color.a, 0.85);
   gl_FragColor = color;
 }
 `
@@ -1061,6 +1063,10 @@ export default {
         const presetMode = raycastMode || marchingMode || oceanMode || instancingMode
         const delta = this.clock.getDelta()
 
+        if (this.scene?.fog) {
+          this.scene.fog.density = instancingMode ? 0.006 : 0.045
+        }
+
         if (this.particleSystem) this.particleSystem.visible = !presetMode
         if (this.haloMesh) this.haloMesh.visible = !presetMode
         this.beamMeshes.forEach((beam) => { beam.visible = !presetMode && beam.visible })
@@ -1226,11 +1232,7 @@ export default {
   z-index: 0;
   pointer-events: none;
   overflow: hidden;
-  opacity: 0.95;
-  background:
-    radial-gradient(circle at 50% 38%, rgba(127, 119, 221, 0.18), transparent 38%),
-    radial-gradient(circle at 18% 18%, rgba(45, 226, 255, 0.14), transparent 22%),
-    radial-gradient(circle at 82% 20%, rgba(255, 120, 215, 0.12), transparent 24%);
+  background: transparent;
 }
 
 .three-background :deep(canvas) {

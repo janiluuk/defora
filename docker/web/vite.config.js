@@ -2,6 +2,9 @@ import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+const apiPort = process.env.DEFORA_API_PORT || '3999'
+const apiOrigin = process.env.DEFORA_API_ORIGIN || `http://127.0.0.1:${apiPort}`
+
 export default defineConfig({
   plugins: [vue()],
   root: 'src',
@@ -20,11 +23,13 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': 'http://localhost:3000',
-      '/hls': 'http://localhost:3000',
-      '/uploads': 'http://localhost:3000',
+      '/api': apiOrigin,
+      '/freecut': apiOrigin,
+      '/hls': apiOrigin,
+      '/uploads': apiOrigin,
+      '/frames': apiOrigin,
       '/ws': {
-        target: 'ws://localhost:3000',
+        target: apiOrigin.replace(/^http/, 'ws'),
         ws: true,
       },
     },

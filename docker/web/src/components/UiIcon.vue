@@ -46,6 +46,9 @@
       <path d="M5 8H19" stroke="currentColor" stroke-width="1.5" />
       <path d="M5 16H19" stroke="currentColor" stroke-width="1.5" />
     </template>
+    <template v-else-if="name === 'lightning'">
+      <path d="M13 2.5L6.5 13.5H11.5L10.5 21.5L17 10.5H12L13 2.5Z" fill="currentColor" stroke="currentColor" stroke-width="0.5" stroke-linejoin="round" />
+    </template>
     <template v-else-if="name === 'sparkles'">
       <path d="M12 3.5L13.7 8.3L18.5 10L13.7 11.7L12 16.5L10.3 11.7L5.5 10L10.3 8.3L12 3.5Z" fill="currentColor" />
       <path d="M18.5 3L19.2 5L21.2 5.7L19.2 6.4L18.5 8.4L17.8 6.4L15.8 5.7L17.8 5L18.5 3Z" fill="currentColor" opacity="0.75" />
@@ -157,6 +160,15 @@
       <path d="M12 4.5V13.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
       <path d="M8.5 10L12 13.5L15.5 10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
       <path d="M5.5 16.5V18A1.5 1.5 0 0 0 7 19.5H17A1.5 1.5 0 0 0 18.5 18V16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
+    <template v-else-if="name === 'pin'">
+      <path d="M12 17.5V21" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M8.5 3.5H15.5L14 8.5H10L8.5 3.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <path d="M10 8.5H14V12.5C14 14.4 13.1 15.8 12 17.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
+    <template v-else-if="name === 'lock'">
+      <rect x="7" y="10" width="10" height="8.5" rx="2" stroke="currentColor" stroke-width="1.8" />
+      <path d="M9 10V8.2C9 6.4 10.3 5 12 5C13.7 5 15 6.4 15 8.2V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
     </template>
   </svg>
 </template>

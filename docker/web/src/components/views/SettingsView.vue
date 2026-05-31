@@ -1,29 +1,26 @@
 <template>
   <div class="settings-tab-shell">
-    <div class="sub-pills">
+    <div class="sub-pills settings-subtabs">
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='ENGINE'}" @click="switchSubTab('SETTINGS','ENGINE')">ENGINE</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='OUTPUT'}" @click="switchSubTab('SETTINGS','OUTPUT')">OUTPUT</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='GPUS'}" @click="switchSubTab('SETTINGS','GPUS')">GPUS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','RUNS')">RUNS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='STYLES'}" @click="switchSubTab('SETTINGS','STYLES')">STYLES</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
-      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','SYSTEM')">SYSTEM</button>
     </div>
 
     <div v-if="currentSubTab.SETTINGS==='ENGINE'">
       <div class="rack">
-        <div class="framesync-panel">
-          <div class="framesync-header">
-            <div class="framesync-title"><span class="framesync-accent">Engine</span></div>
-            <span class="model-status-pill" :class="'model-' + modelStatusKind">
-              <span class="model-status-dot"></span>
-              {{ modelStatusLabel }}
-            </span>
-          </div>
-          <div class="engine-main-summary">
+        <GlassPanel size="lg" class="engine-model-glass">
+          <template #header>Checkpoint</template>
+          <div class="engine-main-summary engine-main-summary--glass">
             <button
               type="button"
               class="engine-main-card engine-main-card--wide engine-main-card--picker"
               :disabled="forge.switching"
               :title="engineCurrentModelName ? 'Change checkpoint' : 'Select checkpoint'"
+              data-testid="engine-model-picker"
               @click="openEngineModelPicker()"
             >
               <div class="framesync-subtitle">Current model</div>
@@ -31,19 +28,30 @@
               <div class="engine-main-card__meta">{{ engineOptimizedProfileLabel }} · {{ engineCurrentModelFamilyLabel }}</div>
               <div class="engine-main-card__hint">Click to browse checkpoints</div>
             </button>
-            <div class="engine-main-card">
-              <div class="framesync-subtitle">Current CFG</div>
+            <div class="engine-main-card engine-main-card--stat">
+              <div class="framesync-subtitle">CFG</div>
               <div class="engine-main-card__value">{{ engineCurrentCfgScale.toFixed(1) }}</div>
             </div>
-            <div class="engine-main-card">
-              <div class="framesync-subtitle">Current steps</div>
+            <div class="engine-main-card engine-main-card--stat">
+              <div class="framesync-subtitle">Steps</div>
               <div class="engine-main-card__value">{{ engineCurrentSteps }}</div>
             </div>
-            <div class="engine-main-card">
+            <div class="engine-main-card engine-main-card--stat">
               <div class="framesync-subtitle">Sampler</div>
               <div class="engine-main-card__value engine-main-card__value--small">{{ deforumSettings.sampler || '—' }}</div>
             </div>
           </div>
+          <div class="engine-main-inline-status-row">
+            <span class="model-status-pill" :class="'model-' + modelStatusKind">
+              <span class="model-status-dot"></span>
+              {{ modelStatusLabel }}
+            </span>
+            <span class="engine-main-inline-status">{{ deforumSettingsStatus || 'Idle' }}</span>
+          </div>
+        </GlassPanel>
+
+        <details class="engine-advanced-panel framesync-panel">
+          <summary class="engine-advanced-panel__summary">Advanced sampling &amp; resolution</summary>
           <div class="framesync-row engine-main-grid" style="grid-template-columns: 1fr 1fr 0.8fr 0.8fr; gap:10px; margin-top:12px;">
             <div class="framesync-stack">
               <div class="framesync-subtitle">Sampler</div>
@@ -59,7 +67,18 @@
             </div>
             <div class="framesync-stack">
               <div class="framesync-subtitle">Steps</div>
-              <input type="number" class="framesync-input" :value="engineCurrentSteps" min="1" max="150" step="1" @input="onEngineStepsChange($event.target.value)">
+              <input
+                type="number"
+                class="framesync-input"
+                :value="engineCurrentSteps"
+                min="1"
+                max="150"
+                step="1"
+                :disabled="lcmEngineEnabled"
+                :title="lcmEngineEnabled ? 'Steps are controlled by LCM Engine' : ''"
+                data-testid="engine-steps-input"
+                @input="onEngineStepsChange($event.target.value)"
+              >
             </div>
             <div class="framesync-stack">
               <div class="framesync-subtitle">CFG</div>
@@ -95,16 +114,76 @@
               <div class="engine-main-inline-status">{{ deforumSettingsStatus || 'Idle' }}</div>
             </div>
           </div>
+          <div class="lcm-engine-panel" data-testid="lcm-engine-panel">
+            <label class="lcm-engine-panel__toggle">
+              <input
+                type="checkbox"
+                :checked="lcmEngineEnabled"
+                data-testid="lcm-engine-toggle"
+                @change="setLcmEngineEnabled($event.target.checked)"
+              >
+              <span>LCM Engine</span>
+            </label>
+            <template v-if="lcmEngineEnabled">
+              <div class="lcm-engine-panel__fields">
+                <div class="framesync-stack">
+                  <div class="framesync-subtitle">LCM steps</div>
+                  <input
+                    type="number"
+                    class="framesync-input"
+                    data-testid="lcm-engine-steps"
+                    min="1"
+                    max="20"
+                    step="1"
+                    :value="lcmEngine.steps"
+                    @input="onLcmEngineStepsChange($event.target.value)"
+                  >
+                </div>
+                <div class="framesync-stack lcm-engine-panel__lora">
+                  <div class="framesync-subtitle">LCM LoRA tag</div>
+                  <input
+                    type="text"
+                    class="framesync-input"
+                    data-testid="lcm-engine-lora"
+                    :value="lcmEngine.loraTag"
+                    @input="onLcmEngineLoraChange($event.target.value)"
+                  >
+                </div>
+              </div>
+            </template>
+          </div>
           <div class="framesync-footer" style="margin-top:12px;">
             <button class="framesync-button" :disabled="forge.switching || !engineCurrentModelName" @click="reapplyEngineModelDefaults()">Optimize for model</button>
-            <button class="framesync-button" @click="onDeforumFieldInput('seed', Math.floor(Math.random() * 2147483647), 'number')">Seed: {{ deforumSettings.seed }}</button>
+            <div class="engine-seed-control" data-testid="engine-seed-control">
+              <span class="engine-seed-control__label">Seed</span>
+              <button
+                type="button"
+                class="chip chip--compact"
+                :class="{ active: seedRandomEnabled }"
+                data-testid="seed-random-toggle"
+                @click="setSeedRandomEnabled(!seedRandomEnabled)"
+              >
+                Random
+              </button>
+              <input
+                v-if="!seedRandomEnabled"
+                type="number"
+                class="framesync-input engine-seed-control__input"
+                data-testid="seed-value-input"
+                min="0"
+                max="2147483647"
+                step="1"
+                :value="deforumSettings.seed"
+                @input="onDeforumSeedInput($event.target.value)"
+              />
+              <span v-else class="engine-seed-control__random-hint">−1 · random each run</span>
+            </div>
             <span class="framesync-button" style="cursor:default;">{{ deforumSettings.W }}×{{ deforumSettings.H }} @ {{ deforumSettings.fps }} fps</span>
             <span class="framesync-button" style="cursor:default;">Profile: {{ engineOptimizedProfileLabel }}</span>
           </div>
-        </div>
-      </div>
+        </details>
 
-      <div v-if="engineModelPickerOpen" class="engine-model-picker" @click.self="closeEngineModelPicker()">
+      <div v-if="engineModelPickerOpen" class="engine-model-picker" @click="onEngineModelPickerBackdropClick">
         <div class="engine-model-picker__dialog" role="dialog" aria-modal="true" aria-label="Checkpoint selector">
           <div class="engine-model-picker__header">
             <div>
@@ -153,6 +232,7 @@
             </button>
           </div>
         </div>
+      </div>
       </div>
     </div>
 
@@ -604,7 +684,7 @@
           <div v-if="gpuPool.status" class="framesync-subtitle" style="margin-top:10px;">{{ gpuPool.status }}</div>
         </div>
       </div>
-      <div v-if="gpuPool.forgeModal.open" class="gpu-forge-modal" @click.self="closeGpuForgeModal()">
+      <div v-if="gpuPool.forgeModal.open" class="gpu-forge-modal" @click="onGpuForgeModalBackdropClick">
         <div class="gpu-forge-modal__dialog">
           <div class="gpu-forge-modal__header">
             <div>
@@ -705,6 +785,10 @@
       </div>
     </div>
 
+    <div v-else-if="currentSubTab.SETTINGS==='STYLES'">
+      <StylesSettingsPanel :app="app" />
+    </div>
+
     <div v-else-if="currentSubTab.SETTINGS==='COLLAB'">
       <div class="rack">
         <div class="framesync-panel">
@@ -763,20 +847,27 @@
       </div>
     </div>
 
-    <div v-else-if="currentSubTab.SETTINGS==='SYSTEM'" class="system-files-tab" data-testid="video-swarm-browser">
-      <VideoSwarmBrowser :app="app" />
+    <div v-else-if="currentSubTab.SETTINGS==='OUTPUT'" data-testid="settings-output-stream">
+      <StreamView :app="app" />
+    </div>
+
+    <div v-else-if="currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'" class="system-runs-tab" data-testid="settings-system-runs">
+      <RunsBrowserPanel :app="app" />
     </div>
 
   </div>
 </template>
 
 <script>
-import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
+import RunsBrowserPanel from '../RunsBrowserPanel.vue'
+import StreamView from './StreamView.vue'
+import StylesSettingsPanel from '../StylesSettingsPanel.vue'
+import GlassPanel from '../GlassPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',
-  components: { VideoSwarmBrowser },
+  components: { RunsBrowserPanel, StreamView, StylesSettingsPanel, GlassPanel },
   props: {
     app: { type: Object, required: true },
   },

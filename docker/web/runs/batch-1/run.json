@@ -1,0 +1,43 @@
+{
+  "run_id": "batch-1",
+  "status": "completed",
+  "completed_at": "2026-05-30T02:22:51.363Z",
+  "preview_path": "/frames/frame_0001.png?v=1780107771182.3694",
+  "started_at": "2026-05-29T01:35:44.385Z",
+  "tag": "defora",
+  "kind": "txt2img_fallback",
+  "model": "",
+  "seed": -1,
+  "steps": 4,
+  "cfg": null,
+  "strength": null,
+  "frame_count": null,
+  "length_frames": null,
+  "prompt_positive": "test preview",
+  "prompt_negative": "",
+  "fps": null,
+  "job": {
+    "run_id": "batch-1",
+    "captured_at": "2026-05-30T02:22:51.363Z",
+    "snapshot": {
+      "kind": "txt2img_fallback",
+      "settings": {
+        "prompts": [
+          "test preview"
+        ],
+        "negative_prompts": "",
+        "W": 512,
+        "H": 512,
+        "steps": 4,
+        "sampler": "Euler a",
+        "seed": -1
+      },
+      "options_overrides": {},
+      "node": {
+        "name": "node-a",
+        "url": "http://node-a:7860"
+      }
+    }
+  },
+  "updated_at": "2026-05-30T02:22:51.377Z"
+}

@@ -1,6 +1,6 @@
 /**
  * Playwright E2E: when the user records material, it shows up in the browser
- * after processing completes (Settings → SYSTEM video swarm browser).
+ * after processing completes (Library → VideoSwarm browser).
  *
  * We boot a real `server.js` with a temp `uploadsDir`, then intercept the
  * `/api/stream/record` call to simulate an async processing pipeline that
@@ -10,19 +10,12 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { chromium } from "playwright";
-import { start } from "../server.js";
+import { startE2eServer } from "./playwright-server.mjs";
+import { clickTab, openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   // Not a valid playable MP4, but enough for listing + download endpoints.
   return Buffer.from("defora-e2e-mp4");
-}
-
-async function clickTab(page, label) {
-  const tab = page.locator("header .tab").filter({
-    has: page.locator(".tab__label").filter({ hasText: new RegExp(`^${label}$`) }),
-  }).first();
-  if ((await tab.count()) === 0) throw new Error(`Tab "${label}" not found`);
-  await tab.click();
 }
 
 async function clickSubPill(page, label) {
@@ -41,13 +34,13 @@ fs.mkdirSync(framesDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(sequencersDir, { recursive: true });
 
-const svc = await start({
+const svc = await startE2eServer({
   port: 0,
+  root: tmpRoot,
   runsDir,
   framesDir,
   uploadsDir,
   sequencersDir,
-  enableMq: false,
 });
 const base = `http://127.0.0.1:${svc.port}`;
 
@@ -90,22 +83,16 @@ try {
   });
 
   await page.goto(base, { waitUntil: "domcontentloaded", timeout: 60000 });
-  await page.waitForSelector("header .tab", { timeout: 30000 });
+  await waitForNavTabs(page);
 
-  // User action: start recording from LIVE.
+  // User action: start recording from header transport (always in chrome).
   await clickTab(page, "LIVE");
-  const recordBtn = page.locator('[data-testid="stream-record"]').first();
-  if ((await recordBtn.count()) === 0) throw new Error("Record button not found on LIVE");
+  const recordBtn = page.locator('[data-testid="header-record"]').first();
+  if ((await recordBtn.count()) === 0) throw new Error("Record button not found in header transport");
   await recordBtn.click();
 
-  // Go to Settings → SYSTEM (video swarm browser).
-  await clickTab(page, "SETTINGS");
-  await page.waitForSelector(".sub-pill", { timeout: 30000 });
-  await clickSubPill(page, "SYSTEM");
-
-  // SettingsView wraps VideoSwarmBrowser in a container that shares the same testid.
-  const browserRoot = page.locator(".video-swarm-browser[data-testid=\"video-swarm-browser\"]").first();
-  await browserRoot.waitFor({ state: "visible", timeout: 30000 });
+  // Go to Library (VideoSwarm browser).
+  const browserRoot = await openLibraryBrowser(page);
 
   // Choose Uploads root (record output is processed into uploadsDir).
   const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();

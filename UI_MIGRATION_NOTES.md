@@ -166,3 +166,76 @@ The brief says: *"The existing lock 🔒 icons become pin/hold state … Confirm
 | `docker/web/src/index.html` | May need Google Fonts update (Space Grotesk already referenced in body font-family) |
 
 No Python, mediator, WS-protocol, or backend files should be touched.
+
+---
+
+## Migration Progress Log
+
+### Steps 1 + 2 — Nav restructure + Perf drawer removal (2026-05-31) ✅
+
+**Step 1: Promoted AUDIO, RUNS, GENERATE to first-class nav tabs**
+- Added AUDIO, RUNS, GENERATE to `tabs` array in `App.vue`
+- AUDIO: sets `currentTab = 'AUDIO'`, renders `ModulationView` with `AUDIO_REACTIVE` subtab
+- RUNS: sets `currentTab = 'RUNS'`, renders `RunsBrowserPanel` full-page
+- GENERATE: sets `currentTab = 'GENERATE'`, renders `GenerateView` with sequencer dock
+- LIBRARY and STREAM remain in tabs (STREAM de-emphasised, moved to end; full STREAM → SETTINGS migration deferred to Step 9)
+- `runsMonitorActive` computed now triggers on `currentTab === 'RUNS'`
+
+**Step 2: Deleted the "Perf" drawer and all duplicate content**
+- Removed `top-drawer-shell` block (~5600 chars of duplicate MODULATION/CROSSFADER/SYSTEM panels)
+- Removed Perf FAB overlay button (duplicate of nav)
+- Removed `liveBottomDrawerOpen`, `liveBottomDrawerTab` state, watchers, and `setLiveBottomDrawerTab` method
+- Removed drawer state from session save/restore
+- `openRecentRun`, `openRunsDrawerSystem`, `openFramesInRunsPanel` now route to RUNS tab
+
+**Tests updated:**
+- `playwright-nav.mjs`: `openRunsMonitor` and `openLiveFramesPanel` now click RUNS tab
+- `playwright-smoke.mjs`: expected tabs updated to include AUDIO, RUNS, GENERATE
+- `playwright-frame-pipeline-profile.mjs`: `openFramesPanel` uses RUNS tab
+- `ui.spec.js`: tab count test, AUDIO first-class tab assertion, crossfader location, RUNS tab monitor test
+
+**Next: Steps 3+4** — LIVE stage morph/modulating-now HUDs + MODULATION waveform-first cards
+
+### Layout refactor (2026-05-31) ✅
+
+**User requests addressed:**
+1. Side-panel menus: live-drawer-shell moved inside preview-stage-row, slides from video edge horizontally
+2. Wider panels: both drawers now max(340px, 33vw) — ~33% screen width
+3. Sequencer: height increased from 196px to flexible 40vh, overflow removed
+4. Engine controls: AnimationEnginePanel now shows all controls inline (no "Controls →")
+
+**Next: Steps 5+6** — MOTION XY pad hero + PROMPTS crossfader consolidation
+
+### Steps 5 + 6 — Motion hero polish + single morph crossfader (2026-05-31) ✅
+
+**Step 5: MOTION XY pad hero**
+- `.motion-hero-stage` min-height (~52vh) so the hero pad dominates the MOTION panel
+- Preset pill row + fine-tune axes toggle unchanged; path preview stays in collapsible advanced panel
+
+**Step 6: PROMPTS crossfader consolidation**
+- Removed duplicate morph crossfader sliders from PROMPTS → PROMPTS (mini + expanded panel)
+- Added `prompt-morph-live-hint` pointing performers to LIVE Morph HUD (matches LoRA tab pattern)
+- Morph slot editors remain under “Edit morph slots” when morph is enabled
+- `onCrossfaderSlider` now syncs `prompts.morphBlend` when morph is on (single A/B control on LIVE)
+- Shared `.morph-live-hint` / `.lora-crossfader-hint` chrome in `style.css`
+
+**Tests updated:** prompt morph hint, LoRA hint (no inline deck), LIVE morph blend sync
+
+**Next:** Step 8 — view extraction (optional) + remaining token grep in `style.css`
+
+### Step 7 — Library overlay, RUNS rail, token sweep (2026-05-31) ✅
+
+**Library workspace overlay**
+- LIBRARY removed from top nav tabs (8 performance tabs remain)
+- Folder icon in `top-nav__actions` opens fullscreen `LibraryWorkspaceOverlay` (Browser + Video editor)
+- Legacy `switchTab('LIBRARY'|'EDITOR')` routes to overlay; session state migrates `libraryEditorOpen` → workspace
+
+**LIVE recent-runs rail**
+- `recent-runs-rail` under layer bar when `recentRunsRail` has entries; click opens RUNS detail
+
+**Token / declutter**
+- `--library-accent`, `--a-group-text`, `--b-group-text` tokens
+- Runs job log + top-nav library active state use semantic colors
+- LoRA / prompt A/B active buttons use group text tokens
+
+**Tests:** 8-tab nav + library icon; library via `openLibraryWorkspace`; Playwright library icon click
