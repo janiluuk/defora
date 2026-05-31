@@ -40,7 +40,7 @@ import {
   hzToRatio,
   paintSpectrumBars,
   ratioToHz,
-} from '../audio-spectrum.js'
+} from '../utils/audio-spectrum.js'
 
 export default {
   name: 'AudioSpectrumEditor',

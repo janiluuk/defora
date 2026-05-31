@@ -13,7 +13,7 @@ const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
 // Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
-const UTIL_MODULES = ['morph-utils.mjs', 'deforum-settings-schema.mjs', 'deforum-settings-verify.mjs', 'api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
+const UTIL_MODULES = ['utils/morph-utils.mjs', 'utils/deforum-settings-schema.mjs', 'utils/deforum-settings-verify.mjs', 'utils/api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');

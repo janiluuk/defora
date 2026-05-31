@@ -8,7 +8,7 @@ describe('motion smoothness schedule helpers', () => {
       buildLinearScheduleRamp,
       parseScheduleKeyframes,
       readScheduleValueAtFrame,
-    } = await loadEsm('..', 'src', 'deforum-settings-schema.mjs');
+    } = await loadEsm('..', 'src', 'utils', 'deforum-settings-schema.mjs');
 
     const schedule = buildLinearScheduleRamp(0, 10, 0, 1, '0: (0)');
     const kfs = parseScheduleKeyframes(schedule);
@@ -25,6 +25,7 @@ describe('motion smoothness schedule helpers', () => {
     const { buildLinearScheduleRamp, parseScheduleKeyframes } = await loadEsm(
       '..',
       'src',
+      'utils',
       'deforum-settings-schema.mjs'
     );
     const existing = '0: (0), 20: (5)';
@@ -43,7 +44,7 @@ describe('motion smoothness schedule helpers', () => {
   });
 
   it('readScheduleValueAtFrame returns held value', async () => {
-    const { readScheduleValueAtFrame } = await loadEsm('..', 'src', 'deforum-settings-schema.mjs');
+    const { readScheduleValueAtFrame } = await loadEsm('..', 'src', 'utils', 'deforum-settings-schema.mjs');
     const raw = '0: (0), 5: (2), 10: (4)';
     assert.equal(readScheduleValueAtFrame(raw, 0), 0);
     assert.equal(readScheduleValueAtFrame(raw, 7), 2);
