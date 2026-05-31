@@ -89,10 +89,11 @@
       'layout--stage': currentTab === 'MOTION' || currentTab === 'GENERATE',
       'layout--studio': currentTab === 'MODULATION' || currentTab === 'AUDIO',
       'layout--library-workspace': libraryWorkspaceOpen,
+      'layout--stage-full': videoStageSize === 'full',
     }">
       <!-- Left: video + mini timeline -->
       <div class="preview" :class="{
-        'preview--stage-full': currentTab === 'LIVE' && videoStageSize === 'full',
+        'preview--stage-full': videoStageSize === 'full',
         'preview--motion-dock': currentTab === 'MOTION',
         'preview--engine-dock': showEngineDrawerShell && liveEngineDrawerOpen,
       }">
@@ -123,6 +124,7 @@
               ref="threeBackgroundRef"
               data-testid="preview-standby-animation"
               :class="['video-wrap__default-animation', { 'video-wrap__default-animation--visible': showDefaultAnimation }]"
+              :style="webglLayerStyle"
               :lfos="lfos"
               :audio-metrics="backgroundAudioMetrics"
               :active-tab="currentTab"
@@ -162,6 +164,7 @@
             <video
               ref="inputVideoEl"
               :class="['video-feed', 'video-layer-input-video', { 'video-feed--visible': showLayerInputVideo }]"
+              :style="inputLayerStyle"
               muted
               playsinline
               controls
@@ -681,7 +684,7 @@ export default {
       sidePanelDockBounds: { top: 0, left: 0, height: 0 },
       _sidePanelDockOnResize: null,
       _sidePanelDockResizeObserver: null,
-      videoStageSize: 'medium', // small | medium | full
+      videoStageSize: 'full', // small | medium | full
       liveAnimationBoxOpen: false,
       enginePanelDetailsOpen: false,
       enginePanelDetailsTab: 'ENGINE',
@@ -1689,6 +1692,13 @@ export default {
     },
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
+      if (this.isBlendLayerActive) {
+        if (!this.layerKindVisible('blend')) return false;
+      } else if (this.isForgeAnimationLayerActive) {
+        if (!this.layerKindVisible(this.activeVideoLayer?.kind)) return false;
+      } else {
+        return false;
+      }
       if (this.isWebglLayerActive && !this.isBlendLayerActive) return false;
       if (!this.isForgeAnimationLayerActive && !this.isBlendLayerActive) return false;
       if (!this.videoReady) return false;
@@ -1706,10 +1716,10 @@ export default {
     showDefaultAnimation() {
       if (this.showStandbyPreviewVideo) return false;
       if (this.showPreviewStill) return false;
-      if (this.isBlendLayerActive) return true;
-      if (this.isWebglLayerActive) return true;
-      if (this.isForgeAnimationLayerActive) return !this.showDeforumVideo;
-      if (!this.activeLayerPlaybackUrl && !this.showLayerInputVideo) return true;
+      if (this.isBlendLayerActive) return this.layerKindVisible('webgl');
+      if (this.isWebglLayerActive) return this.layerKindVisible('webgl');
+      if (this.isForgeAnimationLayerActive) return !this.showDeforumVideo && this.layerKindVisible('webgl');
+      if (!this.activeLayerPlaybackUrl && !this.showLayerInputVideo) return this.layerKindVisible('webgl');
       return false;
     },
     activeVideoLayer() {
@@ -1739,14 +1749,9 @@ export default {
     },
     runningPreviewVideoLayers() {
       const layers = Array.isArray(this.videoLayers) ? this.videoLayers : [];
-      const builtin = layers.filter((layer) => layer && layer.builtin && this.isVideoLayerPreviewVisible(layer));
-      const running = builtin.filter((layer) => this.isVideoLayerRunning(layer));
-      const activeId = this.activeVideoLayerId;
-      if (activeId && !running.some((layer) => layer.id === activeId)) {
-        const active = builtin.find((layer) => layer.id === activeId);
-        if (active) running.push(active);
-      }
-      return running;
+      return layers.filter(
+        (layer) => layer && layer.builtin && this.isVideoLayerPreviewVisible(layer) && this.isVideoLayerRunning(layer),
+      );
     },
     isWebglLayerActive() {
       return this.activeVideoLayer?.kind === 'webgl';
@@ -1761,8 +1766,19 @@ export default {
     },
     effectiveForgeLayerOpacity() {
       if (this.isWebglSoloPreview) return 0;
+      const layer = this.activeVideoLayer;
+      if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
+        if (!this.layerKindVisible(layer.kind)) return 0;
+        return this.readVideoLayerOpacity(layer);
+      }
       const raw = Number(this.defaultAnimation?.forgeLayerOpacity);
       return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0.88;
+    },
+    webglLayerStyle() {
+      return this.videoLayerRenderStyle('webgl');
+    },
+    inputLayerStyle() {
+      return this.videoLayerRenderStyle('input');
     },
     forgeOverlayStyle() {
       const opacity = this.effectiveForgeLayerOpacity;
@@ -1817,6 +1833,7 @@ export default {
     showLayerInputVideo() {
       const layer = this.activeVideoLayer;
       if (!layer || !this.activeLayerPlaybackUrl) return false;
+      if (!this.layerKindVisible('input')) return false;
       return layer.kind === 'input' || layer.kind === 'library';
     },
     appView() {
@@ -4551,6 +4568,17 @@ rebuildVideoLayers() {
     const layer = prev.find((row) => row && row.id === id);
     return layer ? layer.previewVisible !== false : true;
   };
+  const prevOpacity = (id, kind) => {
+    const layer = prev.find((row) => row && row.id === id);
+    if (layer && Number.isFinite(Number(layer.opacity))) {
+      return Math.max(0, Math.min(1, Number(layer.opacity)));
+    }
+    if (kind === 'deforum' || kind === 'wan' || kind === 'blend') {
+      const raw = Number(this.defaultAnimation?.forgeLayerOpacity);
+      return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0.88;
+    }
+    return 1;
+  };
   const custom = (this.liveSources || []).map((source) => ({
     id: source.id,
     kind: source.type === 'cloud' ? 'cloud' : 'library',
@@ -4559,12 +4587,13 @@ rebuildVideoLayers() {
     url: source.url || null,
     builtin: false,
     previewVisible: true,
+    opacity: 1,
   }));
   this.videoLayers = [
-    { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl') },
-    { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum') },
-    { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan') },
-    { id: 'blend', kind: 'blend', label: 'Both', builtin: true, previewVisible: prevVisible('blend') },
+    { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl'), opacity: prevOpacity('webgl', 'webgl') },
+    { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum'), opacity: prevOpacity('deforum', 'deforum') },
+    { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan'), opacity: prevOpacity('wan', 'wan') },
+    { id: 'blend', kind: 'blend', label: 'Both', builtin: true, previewVisible: prevVisible('blend'), opacity: prevOpacity('blend', 'blend') },
     {
       id: 'input',
       kind: 'input',
@@ -4572,15 +4601,58 @@ rebuildVideoLayers() {
       playbackUrl: this.inputLayerPlaybackUrl || null,
       builtin: true,
       previewVisible: prevVisible('input'),
+      opacity: prevOpacity('input', 'input'),
     },
     ...custom,
   ];
+},
+findVideoLayer(layerId) {
+  return (this.videoLayers || []).find((row) => row && row.id === layerId) || null;
+},
+readVideoLayerOpacity(layer) {
+  if (!layer) return 1;
+  const raw = Number(layer.opacity);
+  if (Number.isFinite(raw)) return Math.max(0, Math.min(1, raw));
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
+    const forgeRaw = Number(this.defaultAnimation?.forgeLayerOpacity);
+    return Number.isFinite(forgeRaw) ? Math.max(0, Math.min(1, forgeRaw)) : 0.88;
+  }
+  return 1;
+},
+layerKindVisible(kind) {
+  const layer = (this.videoLayers || []).find((row) => row && row.kind === kind);
+  if (!layer) return true;
+  if (!this.isVideoLayerPreviewVisible(layer)) return false;
+  if (this.readVideoLayerOpacity(layer) <= 0.001) return false;
+  return true;
+},
+videoLayerRenderStyle(layerId) {
+  const layer = this.findVideoLayer(layerId);
+  if (!layer || !this.isVideoLayerPreviewVisible(layer)) {
+    return { opacity: '0', visibility: 'hidden', pointerEvents: 'none' };
+  }
+  const opacity = this.readVideoLayerOpacity(layer);
+  if (opacity <= 0.001) {
+    return { opacity: '0', visibility: 'hidden', pointerEvents: 'none' };
+  }
+  return { opacity: String(opacity), visibility: 'visible' };
+},
+setVideoLayerOpacity(layerId, value) {
+  const layer = this.findVideoLayer(layerId);
+  if (!layer || !layer.builtin) return;
+  const next = Math.max(0, Math.min(1, Number(value)));
+  layer.opacity = next;
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
+    this.applyForgeLayerOpacity(next, { commitBase: true });
+  } else {
+    this.saveSessionState();
+  }
 },
 isVideoLayerPreviewVisible(layer) {
   return !!(layer && layer.previewVisible !== false);
 },
 toggleVideoLayerPreview(layerId) {
-  const layer = (this.videoLayers || []).find((row) => row && row.id === layerId);
+  const layer = this.findVideoLayer(layerId);
   if (!layer || !layer.builtin) return;
   layer.previewVisible = layer.previewVisible === false;
   if (layer.previewVisible === false && this.activeVideoLayerId === layerId) {
@@ -4767,6 +4839,11 @@ applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {
   if (commitBase || !fromModulation) {
     this.defaultAnimation.forgeLayerOpacityLfoBase = next;
   }
+  (this.videoLayers || []).forEach((layer) => {
+    if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
+      layer.opacity = next;
+    }
+  });
   if (!fromModulation) this.onDefaultAnimationInput();
 },
 setForgeLayerOpacityLfoLink(lfoId) {
@@ -10386,6 +10463,15 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
          }
        });
      }
+     if (s.videoLayerOpacity && typeof s.videoLayerOpacity === 'object') {
+       const map = s.videoLayerOpacity;
+       (this.videoLayers || []).forEach((layer) => {
+         if (layer && Object.prototype.hasOwnProperty.call(map, layer.id)) {
+           const raw = Number(map[layer.id]);
+           if (Number.isFinite(raw)) layer.opacity = Math.max(0, Math.min(1, raw));
+         }
+       });
+     }
     if (s.cloudDriveDraft && typeof s.cloudDriveDraft === 'object') {
       this.cloudDriveDraft = {
         url: String(s.cloudDriveDraft.url || ''),
@@ -10541,6 +10627,11 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
           .filter((layer) => layer && layer.builtin)
           .map((layer) => [layer.id, layer.previewVisible !== false]),
       ),
+      videoLayerOpacity: Object.fromEntries(
+        (this.videoLayers || [])
+          .filter((layer) => layer && layer.builtin)
+          .map((layer) => [layer.id, this.readVideoLayerOpacity(layer)]),
+      ),
       cloudDriveDraft: { ...this.cloudDriveDraft },
       systemFiles: {
         rootId: this.systemFiles.rootId,
@@ -10627,6 +10718,11 @@ getCurrentSessionSnapshotRaw() {
         (this.videoLayers || [])
           .filter((layer) => layer && layer.builtin)
           .map((layer) => [layer.id, layer.previewVisible !== false]),
+      ),
+      videoLayerOpacity: Object.fromEntries(
+        (this.videoLayers || [])
+          .filter((layer) => layer && layer.builtin)
+          .map((layer) => [layer.id, this.readVideoLayerOpacity(layer)]),
       ),
       cloudDriveDraft: { ...this.cloudDriveDraft },
       systemFiles: {

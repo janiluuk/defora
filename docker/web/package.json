@@ -15,7 +15,7 @@
     "dev:server": "node scripts/dev-server.mjs",
     "install:freecut": "node scripts/install-freecut.mjs",
     "install:freecut:check": "node scripts/install-freecut.mjs --skip-if-present",
-    "test:playwright": "npm run build && node test/playwright-smoke.mjs && node test/playwright-startup-and-runs-storage.mjs && node test/playwright-runs-realtime.mjs && node test/playwright-clip-metadata.mjs && node test/playwright-recording-appears.mjs && node test/playwright-record-during-generation.mjs && node test/playwright-storage-browser.mjs && node test/playwright-browser-upload.mjs && node test/playwright-editor.mjs && node test/playwright-deforum-video-editor.mjs"
+    "test:playwright": "npm run build && node test/playwright-smoke.mjs && node test/playwright-startup-and-runs-storage.mjs && node test/playwright-runs-realtime.mjs && node test/playwright-clip-metadata.mjs && node test/playwright-recording-appears.mjs && node test/playwright-record-during-generation.mjs && node test/playwright-16frames-library-editor.mjs && node test/playwright-storage-browser.mjs && node test/playwright-browser-upload.mjs && node test/playwright-editor.mjs && node test/playwright-deforum-video-editor.mjs"
   },
   "dependencies": {
     "amqplib": "^0.10.3",

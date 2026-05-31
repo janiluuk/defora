@@ -712,10 +712,14 @@ describe("Deforumation Web UI", () => {
     expect(video).to.exist;
     appVm.liveEngineDrawerOpen = true;
     appVm.rightPanelOpen = true;
+    appVm.activeVideoLayerId = "webgl";
     appVm.paramPanelOpen = true;
     await nextTick();
     const engineSliders = document.querySelectorAll("[data-testid='live-webgl-controls'] input[type='range']");
     expect(engineSliders.length).to.be.greaterThan(3);
+    appVm.activeVideoLayerId = "deforum";
+    appVm.paramPanelOpen = true;
+    await nextTick();
     const paramSliders = document.querySelectorAll(".param-drawer input[type='range']");
     expect(paramSliders.length).to.be.greaterThan(5);
     appVm.switchTab("MOTION");
@@ -724,6 +728,8 @@ describe("Deforumation Web UI", () => {
     const titles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
     expect(titles.join(" ")).to.include("Motion");
     appVm.switchTab("LIVE");
+    appVm.liveEngineDrawerOpen = true;
+    appVm.activeVideoLayerId = "deforum";
     appVm.paramPanelOpen = true;
     await nextTick();
     const liveLabels = [...document.querySelectorAll(".param-drawer .framesync-subtitle, .framesync-title")].map((t) => t.textContent.trim());

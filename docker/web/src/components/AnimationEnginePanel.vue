@@ -43,31 +43,54 @@
         }"
         :data-testid="'animation-engine-row-' + layer.id"
       >
-        <button
-          type="button"
-          class="animation-engine-layer-row__select"
-          :class="{ 'animation-engine-layer-row__select--active': activeVideoLayerId === layer.id }"
-          :aria-pressed="activeVideoLayerId === layer.id ? 'true' : 'false'"
-          :data-testid="'animation-engine-' + layer.id"
-          @click="selectVideoLayer(layer.id)"
-        >
-          <span
-            class="animation-engine-card__dot"
-            :class="'animation-engine-card__dot--' + layerStatus(layer)"
-            aria-hidden="true"
-          ></span>
-          <span class="animation-engine-layer-row__label">{{ layer.label }}</span>
-          <span class="animation-engine-layer-row__status">{{ videoLayerStatusShort(layer) }}</span>
-        </button>
+        <div class="animation-engine-layer-row__main">
+          <button
+            type="button"
+            class="animation-engine-layer-row__select"
+            :class="{ 'animation-engine-layer-row__select--active': activeVideoLayerId === layer.id }"
+            :aria-pressed="activeVideoLayerId === layer.id ? 'true' : 'false'"
+            :data-testid="'animation-engine-' + layer.id"
+            @click="selectVideoLayer(layer.id)"
+          >
+            <span
+              class="animation-engine-card__dot"
+              :class="'animation-engine-card__dot--' + layerStatus(layer)"
+              aria-hidden="true"
+            ></span>
+            <span class="animation-engine-layer-row__label">{{ layer.label }}</span>
+            <span class="animation-engine-layer-row__status">{{ videoLayerStatusShort(layer) }}</span>
+          </button>
+          <div class="animation-engine-layer-row__mix">
+            <div class="animation-engine-layer-row__mix-head">
+              <span class="animation-engine-layer-row__mix-label">Opacity</span>
+              <span class="animation-engine-layer-row__opacity-value">
+                {{ Math.round(readVideoLayerOpacity(layer) * 100) }}%
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.01"
+              class="animation-engine-layer-row__opacity-slider framesync-input"
+              :value="readVideoLayerOpacity(layer)"
+              :disabled="!isVideoLayerPreviewVisible(layer)"
+              :data-testid="'animation-engine-opacity-' + layer.id"
+              @input="setVideoLayerOpacity(layer.id, $event.target.value)"
+            >
+          </div>
+        </div>
         <button
           type="button"
           class="framesync-button framesync-button--compact animation-engine-layer-row__visibility"
           :class="{ 'framesync-button--live': isVideoLayerPreviewVisible(layer) }"
           :title="isVideoLayerPreviewVisible(layer) ? 'Hide layer in preview' : 'Show layer in preview'"
+          :aria-pressed="isVideoLayerPreviewVisible(layer) ? 'true' : 'false'"
           :data-testid="'animation-engine-visibility-' + layer.id"
           @click.stop="toggleVideoLayerPreview(layer.id)"
         >
-          {{ isVideoLayerPreviewVisible(layer) ? 'Hide' : 'Show' }}
+          <UiIcon :name="isVideoLayerPreviewVisible(layer) ? 'eye' : 'eye-off'" />
+          <span class="sr-only">{{ isVideoLayerPreviewVisible(layer) ? 'Hide layer' : 'Show layer' }}</span>
         </button>
       </li>
     </ul>
