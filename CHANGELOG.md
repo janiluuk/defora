@@ -3,6 +3,17 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.62] - 2026-05-31
+
+## What's Changed
+
+- feat(web): per-layer engine controls in animation drawer tabs (1bee722)
+- feat(web): split engine drawer into layer settings and compositor tabs (22194d9)
+- chore(test): add visual E2E verify-video-flow for runs browser + editor (3ad5157)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.61...v0.6.62
+
+
 ## [0.6.61] - 2026-05-31
 
 ## What's Changed
