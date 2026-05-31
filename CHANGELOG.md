@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.59] - 2026-05-31
+
+## What's Changed
+
+- chore(web): rebuild public assets, fix gpu-pool model name format (ff4540f)
+- refactor(web): move src utils to src/utils/, add AUDIO mini-bar meters (aa9d570)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.58...v0.6.59
+
+
 ## [0.6.58] - 2026-05-31
 
 ## What's Changed
