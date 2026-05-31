@@ -170,6 +170,15 @@
       <rect x="7" y="10" width="10" height="8.5" rx="2" stroke="currentColor" stroke-width="1.8" />
       <path d="M9 10V8.2C9 6.4 10.3 5 12 5C13.7 5 15 6.4 15 8.2V10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
     </template>
+    <template v-else-if="name === 'eye'">
+      <path d="M2.5 12C4.2 8.2 7.7 5.5 12 5.5C16.3 5.5 19.8 8.2 21.5 12C19.8 15.8 16.3 18.5 12 18.5C7.7 18.5 4.2 15.8 2.5 12Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
+      <circle cx="12" cy="12" r="2.8" stroke="currentColor" stroke-width="1.8" />
+    </template>
+    <template v-else-if="name === 'eye-off'">
+      <path d="M4.5 4.5L19.5 19.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" />
+      <path d="M8.2 8.8C7.2 9.8 6.5 10.9 6 12C7.7 15.8 11.2 18.5 15.5 18.5C16.7 18.5 17.8 18.2 18.8 17.6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M10.2 6.4C10.8 6.2 11.4 6.1 12 6.1C16.3 6.1 19.8 8.8 21.5 12.5C20.8 13.9 19.8 15.1 18.5 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
+    </template>
   </svg>
 </template>
 

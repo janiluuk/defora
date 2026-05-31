@@ -163,6 +163,7 @@ const FULL_STUB_SUFFIXES = [
   'LiveEngineControlsDock.vue',
   'CrossfaderPanel.vue',
   'DeforumJobPanel.vue',
+  'LiveParametersPanel.vue',
   'DeforumMotionPads.vue',
   'DeforumControlPanel.vue',
   'DeforumSettingsBody.vue',

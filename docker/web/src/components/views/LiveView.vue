@@ -1,68 +1,44 @@
 <template>
   <div class="live-view" data-testid="live-view">
     <div class="live-view__scroll">
-    <div class="rack param-drawer">
-      <button type="button" class="param-drawer-toggle" @click="paramPanelOpen = !paramPanelOpen; saveSessionState()">
-        <span class="param-drawer-label">
-          <UiIcon class="param-drawer-label-icon" name="sliders" />
-          <span>Parameters</span>
-        </span>
-        <UiIcon class="param-drawer-chevron" :name="paramPanelOpen ? 'chevron-up' : 'chevron-down'" />
-      </button>
-      <div v-show="paramPanelOpen" class="param-drawer-body">
-          <div v-if="pinnedParamItems.length" class="param-group param-group--pinned">
-          <div class="framesync-subtitle param-group__pinned-label">
-            <UiIcon name="pin" class="param-group__pinned-icon" />
-            <span>Pinned</span>
-          </div>
-          <div class="param-group-grid">
-            <div class="framesync-stack" v-for="p in pinnedParamItems" :key="'pin-'+p.key" :class="{'param-locked': isParamLocked(p.key)}">
-              <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:4px;">
-                <span>{{ p.label }}</span>
-                <button type="button" class="param-pin-btn active" title="Unpin" @click.stop="toggleParamPin(p.key)"><UiIcon name="pin" /></button>
-                <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)"><UiIcon name="lock" /></button>
-              </div>
-              <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
-            </div>
-          </div>
+      <div class="framesync-panel live-view__engine-hint">
+        <div class="framesync-header">
+          <div class="framesync-title">Live <span class="framesync-accent">controls</span></div>
         </div>
-
-        <div v-for="group in paramPanelGroups" :key="group.label" class="param-group">
-          <div class="framesync-subtitle">{{ group.label }}</div>
-          <div class="param-group-grid">
-            <div class="framesync-stack" v-for="p in group.items" :key="p.key" :class="{'param-locked': isParamLocked(p.key)}">
-              <div class="framesync-subtitle" style="font-size:10px; display:flex; align-items:center; gap:4px;">
-                <span>{{ p.label }}</span>
-                <button type="button" class="param-pin-btn" :class="{active: isParamPinned(p.key)}" title="Pin to top" @click.stop="toggleParamPin(p.key)"><UiIcon name="pin" /></button>
-                <button type="button" class="param-lock-btn" :class="{active: isParamLockedByMe(p.key)}" :title="paramLockTitle(p.key)" @click.stop="toggleParamLock(p.key)"><UiIcon name="lock" /></button>
-              </div>
-              <input type="range" :min="p.min" :max="p.max" :step="p.step" :value="p.val" :disabled="isParamLocked(p.key) && !isParamLockedByMe(p.key)" @input="updateParam(p,$event)" class="framesync-input">
-            </div>
-          </div>
-        </div>
-
-        <div class="framesync-footer" style="margin-top:10px;">
-          <button class="framesync-button" @click="resetVibeParams">↺ Reset vibe</button>
-          <button class="framesync-button" @click="resetCameraParams">↺ Reset camera</button>
-        </div>
+        <p class="framesync-subtitle live-view__engine-hint-copy">
+          Style and camera parameters are in the Animation Engine → Deforum panel.
+        </p>
+        <button
+          type="button"
+          class="framesync-button framesync-button--live"
+          data-testid="live-open-deforum-parameters"
+          @click="openDeforumParameters"
+        >
+          Open Deforum parameters
+        </button>
       </div>
-    </div>
     </div>
   </div>
 </template>
 
 <script>
-import UiIcon from '../UiIcon.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'LiveView',
-  components: { UiIcon },
   props: {
     app: { type: Object, required: true },
   },
   setup(props) {
     return proxyAppView(props)
+  },
+  methods: {
+    openDeforumParameters() {
+      this.liveEngineDrawerOpen = true
+      this.promoteToDeforum()
+      this.paramPanelOpen = true
+      this.saveSessionState()
+    },
   },
 }
 </script>

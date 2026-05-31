@@ -116,19 +116,23 @@
           Settings look good — no issues found.
         </p>
 
-        <DeforumControlPanel v-else :app="app" visual-plugin-id="deforum" />
+        <div v-else class="deforum-settings-stack">
+          <LiveParametersPanel :app="app" />
+          <DeforumControlPanel :app="app" visual-plugin-id="deforum" />
+        </div>
       </div>
   </div>
 </template>
 
 <script>
 import UiIcon from './UiIcon.vue'
+import LiveParametersPanel from './LiveParametersPanel.vue'
 import DeforumControlPanel from './DeforumControlPanel.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'DeforumJobPanel',
-  components: { UiIcon, DeforumControlPanel },
+  components: { UiIcon, LiveParametersPanel, DeforumControlPanel },
   props: { app: { type: Object, required: true } },
   setup(props) { return proxyAppView(props) },
 }
