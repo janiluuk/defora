@@ -3,6 +3,18 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.60] - 2026-05-31
+
+## What's Changed
+
+- feat(plan): retrieve creaprompt extension and document integration plan (77f03cc)
+- fix(web): copy shared/ into Docker image for server.js requires (4148c09)
+- docs(web): add CreaPrompt integration plan and source CSV bundle (56379e5)
+- feat(web): full-bleed stage, layer opacity controls, and Deforum params panel (12a7bf1)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.59...v0.6.60
+
+
 ## [0.6.59] - 2026-05-31
 
 ## What's Changed
