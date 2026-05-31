@@ -27,21 +27,21 @@ try {
   if (trimmed.length !== expected.length) {
     throw new Error(`Expected ${expected.length} tabs (${expected.join(', ')}), got ${trimmed.length}: ${trimmed.join(', ')}`);
   }
+  await clickTab(page, 'LIVE');
+  await page.waitForTimeout(300);
+  const morphHud = page.locator('[data-testid="live-morph-hud"]');
+  await morphHud.waitFor({ state: 'visible', timeout: 30000 });
+  const morphSlider = morphHud.locator('.live-hud-morph__slider');
+  if ((await morphSlider.count()) === 0 || !(await morphSlider.isVisible())) {
+    throw new Error('Morph crossfader slider not found on LIVE tab');
+  }
   await clickTab(page, 'PROMPTS');
   await page.waitForSelector('.sub-pill', { timeout: 30000 });
   await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
-  const morphPanel = page.locator('.framesync-panel').filter({
-    has: page.locator('.framesync-title').filter({ hasText: /Prompt\s+Morphing/ }),
-  }).first();
-  await morphPanel.waitFor({ state: 'visible', timeout: 30000 });
-  const expandMorph = morphPanel.locator('button.framesync-button').filter({ hasText: /^(Expand|Show)$/ });
-  if ((await expandMorph.count()) > 0) {
-    await expandMorph.first().click();
-  }
-  const morphBlend = morphPanel.locator('[data-testid="prompt-morph-blend"]');
-  await morphBlend.waitFor({ state: 'visible', timeout: 30000 }).catch(() => null);
-  if ((await morphBlend.count()) === 0 || !(await morphBlend.isVisible())) {
-    throw new Error('Prompt morph blend slider not found on PROMPTS tab');
+  const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]');
+  await morphHint.waitFor({ state: 'visible', timeout: 30000 }).catch(() => null);
+  if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
+    throw new Error('Prompt morph LIVE hint not found on PROMPTS tab');
   }
   await clickTab(page, 'AUDIO');
   await page.waitForTimeout(300);
@@ -76,7 +76,7 @@ try {
   if ((await gpuPanel.count()) === 0) {
     throw new Error('GPU pool panel not found under SETTINGS → GPUS');
   }
-  console.log(`OK: ${trimmed.length} tabs, nested audio/runs views, morph blend, infrastructure + GPU pool present`);
+  console.log(`OK: ${trimmed.length} tabs, LIVE morph HUD, PROMPTS morph hint, audio/runs views, infrastructure + GPU pool present`);
 } finally {
   await browser.close();
 }
