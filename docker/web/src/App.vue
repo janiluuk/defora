@@ -561,6 +561,22 @@ import {
   visibleWanControlFields,
   WAN_ANIMATION_MODE,
 } from './shared/wan-engine-config.mjs'
+import {
+  COMMON_VISUAL_PARAMS,
+  bindingFor,
+  isCommonVisualEnabled,
+  parseCommonVisualModKey,
+} from './animation-plugins/common-visual.mjs'
+
+function pluginByLayerKind(kind) {
+  const plugins = [
+    { id: 'webgl', layerKind: 'webgl' },
+    { id: 'deforum', layerKind: 'deforum' },
+    { id: 'wan', layerKind: 'wan' },
+    { id: 'animatelcm', layerKind: 'animatelcm' },
+  ];
+  return plugins.find((p) => p.layerKind === kind) || null;
+}
 
 const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
@@ -1215,7 +1231,12 @@ export default {
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
         forgeLayerOpacity: 0.88,
+        rememberCompositorLayerOnStartup: false,
+        previewCompositorCrossfadeMs: 800,
+        forgeLayerOpacityLfoLink: null,
+        forgeLayerOpacityLfoBase: 0.88,
       },
+      frameRailRunId: null,
       thumbs: [],
       frameThumbLoadingKeys: {},
       framesTimer: null,
@@ -1437,7 +1458,27 @@ export default {
       return '/hls/live/deforum.m3u8';
     },
     frameStripThumbs() {
+      const runId = this.frameRailRunId;
+      const detail = this.runsDetailView;
+      if (
+        runId
+        && detail
+        && detail.run_id === runId
+        && Array.isArray(detail.frames)
+        && detail.frames.length
+      ) {
+        return detail.frames.map((name, idx) => {
+          const frameName = String(name);
+          const src = `/api/runs/${encodeURIComponent(detail.run_id)}/frames/${encodeURIComponent(frameName)}`;
+          return { name: frameName, src, url: src, path: src, frame: idx + 1 };
+        });
+      }
       return (this.thumbs || []).filter((thumb) => !!(thumb && (thumb.src || thumb.url || thumb.path)));
+    },
+    frameRailSourceLabel() {
+      const runId = this.frameRailRunId;
+      if (!runId) return '';
+      return `Run ${runId}`;
     },
     framesEmptyStatus() {
       const forgeUp = !!(this.forge && this.forge.available) || !!(this.apiHealth && this.apiHealth.sdForge && this.apiHealth.sdForge.available);
@@ -1696,6 +1737,17 @@ export default {
       }
       return { opacity: String(opacity), visibility: 'visible', pointerEvents: 'none' };
     },
+    previewStageStyle() {
+      const ms = Math.max(
+        0,
+        Math.min(5000, Math.round(Number(this.defaultAnimation?.previewCompositorCrossfadeMs) || 800)),
+      );
+      const forgeOpacity = this.effectiveForgeLayerOpacity;
+      return {
+        '--preview-compositor-crossfade-ms': `${ms}ms`,
+        '--preview-forge-layer-opacity': String(forgeOpacity),
+      };
+    },
     isDeforumLayerActive() {
       return this.activeVideoLayer?.kind === 'deforum';
     },
@@ -1704,7 +1756,13 @@ export default {
     },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
-      return kind === 'deforum' || kind === 'wan';
+      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm';
+    },
+    activeAnimationPlugin() {
+      return pluginByLayerKind(this.activeVideoLayer?.kind) || null;
+    },
+    activeAnimationPluginId() {
+      return this.activeAnimationPlugin?.id || null;
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
@@ -4165,6 +4223,16 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
     forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
+    rememberCompositorLayerOnStartup: !!next.rememberCompositorLayerOnStartup,
+    previewCompositorCrossfadeMs: Math.max(
+      0,
+      Math.min(5000, Math.round(Number(next.previewCompositorCrossfadeMs) || 800)),
+    ),
+    forgeLayerOpacityLfoLink: (() => {
+      const id = Number(next.forgeLayerOpacityLfoLink);
+      return id >= 1 && id <= 6 ? id : null;
+    })(),
+    forgeLayerOpacityLfoBase: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacityLfoBase)) ? Number(next.forgeLayerOpacityLfoBase) : (Number(next.forgeLayerOpacity) || 0.88))),
   };
 },
 onDefaultAnimationInput() {
@@ -4267,6 +4335,15 @@ applyAnimationModulation(field, value) {
   });
 },
 routeModulationValue(key, value, payload, cnUpdates) {
+  const pluginParsed = parseCommonVisualModKey(key);
+  if (pluginParsed) {
+    this.writeCommonVisualValue(pluginParsed.pluginId, pluginParsed.paramId, value);
+    return;
+  }
+  if (String(key).startsWith('wan.')) {
+    this.onWanEngineFieldChange(String(key).slice(4), value, 'number');
+    return;
+  }
   const anim = this.animationTargets.find((t) => t.key === key);
   if (anim) {
     this.applyAnimationModulation(anim.field, value);
@@ -4286,6 +4363,65 @@ routeModulationValue(key, value, payload, cnUpdates) {
     return;
   }
   payload[key] = value;
+},
+readCommonVisualValue(pluginId, paramId) {
+  const binding = bindingFor(pluginId, paramId);
+  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
+  if (!param || binding.type === 'disabled') return param?.default ?? 0;
+  if (binding.type === 'animation') {
+    const field = binding.field;
+    const val = Number(this.defaultAnimation?.[field]);
+    return Number.isFinite(val) ? val : param.default;
+  }
+  if (binding.type === 'schedule') {
+    const raw = readScheduleValueAtFrame(this.deforumSettings?.[binding.key], 0);
+    const val = Number(raw);
+    return Number.isFinite(val) ? val : param.default;
+  }
+  if (binding.type === 'wan') {
+    const val = Number(this.wanEngine?.[binding.key]);
+    return Number.isFinite(val) ? val : param.default;
+  }
+  return param.default;
+},
+writeCommonVisualValue(pluginId, paramId, rawValue) {
+  const binding = bindingFor(pluginId, paramId);
+  if (binding.type === 'disabled') return;
+  const param = COMMON_VISUAL_PARAMS.find((p) => p.id === paramId);
+  const num = Number(rawValue);
+  if (!Number.isFinite(num) || !param) return;
+  const clamped = this.clampVal(num, param.min, param.max);
+  if (binding.type === 'animation') {
+    this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+      ...this.defaultAnimation,
+      [binding.field]: clamped,
+    });
+    this.saveSessionState();
+    return;
+  }
+  if (binding.type === 'schedule') {
+    this.onDeforumFieldInput(binding.key, `0:(${clamped})`, 'text');
+    return;
+  }
+  if (binding.type === 'wan') {
+    this.onWanEngineFieldChange(binding.key, clamped, 'number');
+  }
+},
+onCommonVisualInput(paramId, rawValue, pluginIdOverride) {
+  const pluginId = pluginIdOverride || this.activeAnimationPluginId;
+  if (!pluginId) return;
+  this.writeCommonVisualValue(pluginId, paramId, rawValue);
+},
+commonVisualItemsForPlugin(pluginId) {
+  if (!pluginId) return [];
+  return COMMON_VISUAL_PARAMS.map((p) => {
+    const disabled = !isCommonVisualEnabled(pluginId, p.id);
+    const value = disabled ? p.default : this.readCommonVisualValue(pluginId, p.id);
+    const readout = Number.isFinite(value)
+      ? (Math.abs(value) >= 10 ? value.toFixed(1) : value.toFixed(2))
+      : '—';
+    return { ...p, paramId: p.id, value, readout, disabled };
+  });
 },
 setDefaultAnimationMode(mode) {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
@@ -4568,14 +4704,44 @@ updateHeldPreviewFromLatestFrame() {
   if (path) this.heldPreviewFramePath = path;
 },
 applyStartupVideoPreview() {
-  this._userPickedPreviewLayer = false;
-  this.activeVideoLayerId = 'webgl';
+  const remember = !!this.defaultAnimation?.rememberCompositorLayerOnStartup;
+  if (!remember) {
+    this._userPickedPreviewLayer = false;
+    this.activeVideoLayerId = 'webgl';
+  }
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
-    preferDeforumVideo: false,
+    preferDeforumVideo: remember ? this.defaultAnimation.preferDeforumVideo : false,
     autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
   });
   this.$nextTick(() => this.kickstandbyAnimation());
+},
+promoteToDeforum() {
+  this.selectVideoLayer('deforum', { userInitiated: true });
+},
+applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {}) {
+  const next = this.clampVal(Number(value) || 0, 0, 1);
+  this.defaultAnimation.forgeLayerOpacity = next;
+  if (commitBase || !fromModulation) {
+    this.defaultAnimation.forgeLayerOpacityLfoBase = next;
+  }
+  if (!fromModulation) this.onDefaultAnimationInput();
+},
+setForgeLayerOpacityLfoLink(lfoId) {
+  const nextId = Number(lfoId || 0);
+  const allowed = nextId >= 1 && nextId <= 6 ? nextId : null;
+  this.defaultAnimation.forgeLayerOpacityLfoLink = this.defaultAnimation.forgeLayerOpacityLfoLink === allowed
+    ? null
+    : allowed;
+  this.defaultAnimation.forgeLayerOpacityLfoBase = this.defaultAnimation.forgeLayerOpacity;
+  if (this.defaultAnimation.forgeLayerOpacityLfoLink) {
+    const linked = this.lfos.find((lfo) => lfo.id === this.defaultAnimation.forgeLayerOpacityLfoLink);
+    if (linked) linked.on = true;
+    if (!this.isBlendLayerActive && !this.isForgeAnimationLayerActive) {
+      this.selectVideoLayer('blend', { userInitiated: false });
+    }
+  }
+  this.onDefaultAnimationInput();
 },
 maybePromoteDeforumPreview() {
   const anim = this.defaultAnimation || {};

@@ -246,6 +246,7 @@ describe("Deforumation Web UI", () => {
     appVm.runsDetailView = null;
     appVm.deforumBatches = [];
     appVm.deforumBatchNodes = [];
+    if (typeof appVm.setLcmEngineEnabled === "function") appVm.setLcmEngineEnabled(false);
     if (typeof appVm.applyRunsFilters === "function") appVm.applyRunsFilters();
     appVm.initVideoLayers();
     appVm.selectVideoLayer("webgl");
@@ -442,9 +443,10 @@ describe("Deforumation Web UI", () => {
   it("scopes standby controls to the WebGL animation engine and resets them", async () => {
     appVm.switchSubTab("LIVE", "MONITOR");
     appVm.selectVideoLayer("webgl");
-    appVm.rightPanelOpen = true;
-    appVm.liveDrawerOpen = true;
+    appVm.liveEngineDrawerOpen = true;
     await nextTick();
+    await nextTick();
+    expect(document.querySelector("[data-testid='live-webgl-controls']")).to.exist;
     expect(document.body.textContent).to.include("Instance count");
 
     appVm.setDefaultAnimationMode("volume");
@@ -545,7 +547,7 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("LIVE", "MONITOR");
     appVm.liveEngineDrawerOpen = true;
     await nextTick();
-    expect(document.querySelector("[data-testid='lcm-engine-badge']")).to.exist;
+    expect(document.querySelector("[data-testid='animation-engine-panel']")).to.exist;
 
     appVm.setLcmEngineEnabled(false);
     expect(appVm.effectivePositivePrompt("a cat")).to.not.include("<lora:lcm-lora-ssd-1b:1>");
@@ -564,20 +566,19 @@ describe("Deforumation Web UI", () => {
     expect(appVm.wanEngine.wan_inference_steps).to.equal(12);
 
     appVm.switchTab("LIVE");
-    appVm.switchSubTab("LIVE", "MONITOR");
-    appVm.rightPanelOpen = true;
-    appVm.liveDrawerOpen = true;
+    appVm.selectVideoLayer("wan");
+    appVm.liveEngineDrawerOpen = true;
     await nextTick();
-    expect(document.querySelector("[data-testid='wan-engine-controls']")).to.exist;
+    expect(document.querySelector("[data-testid='wan-plugin-panel']")).to.exist;
     expect(document.querySelector("[data-testid='wan-field-wan_inference_steps']")).to.exist;
   });
 
   it("shows 2D/3D mode toggle and locks 3D-only deforum fields in 2D", async () => {
     appVm.switchTab("LIVE");
-    appVm.rightPanelOpen = true;
-    appVm.liveDrawerOpen = true;
-    appVm.switchSubTab("LIVE", "DEFORUM_JOB");
+    appVm.selectVideoLayer("deforum");
+    appVm.liveEngineDrawerOpen = true;
     appVm.deforumAdvancedOpen = false;
+    await nextTick();
     await nextTick();
 
     expect(document.querySelector("[data-testid='deforum-mode-toggle']")).to.exist;
@@ -600,17 +601,15 @@ describe("Deforumation Web UI", () => {
     expect(appVm.isDeforumFieldEnabled("rotation_3d_x")).to.equal(true);
   });
 
-  it("shows LIVE sub-tabs for monitor and deforum", async () => {
+  it("shows LIVE engine drawer with layer list and deforum settings", async () => {
     appVm.switchTab("LIVE");
-    appVm.rightPanelOpen = true;
-    appVm.liveDrawerOpen = true;
+    appVm.liveEngineDrawerOpen = true;
     await nextTick();
     await nextTick();
-    const engineTabs = [...document.querySelectorAll("[data-testid='live-engine-dock-tabs'] .sub-pill")].map((el) => el.textContent.trim());
-    expect(engineTabs).to.include.members(["Visual", "Deforum"]);
+    expect(document.querySelector("[data-testid='animation-engine-layer-list']")).to.exist;
+    expect(document.querySelector("[data-testid='engine-drawer']")).to.exist;
 
-    appVm.switchSubTab("LIVE", "DEFORUM_JOB");
-    expect(appVm.enginePanelDetailsTab).to.equal("JOB");
+    appVm.selectVideoLayer("deforum");
     await nextTick();
     expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
     expect(document.body.textContent).to.include("Deforum");
@@ -625,11 +624,9 @@ describe("Deforumation Web UI", () => {
     expect(Number(heightField.value)).to.be.greaterThan(0);
     expect(appVm.deforumSettings.use_init).to.equal(false);
 
-    appVm.switchSubTab("LIVE", "MONITOR");
-    appVm.liveEngineDrawerOpen = true;
+    appVm.selectVideoLayer("webgl");
     await nextTick();
-    expect(document.querySelector("[data-testid='animation-engine-layer-list']")).to.exist;
-    expect(document.querySelector("[data-testid='engine-drawer']")).to.exist;
+    expect(document.querySelector("[data-testid='live-webgl-controls']")).to.exist;
   });
 
   it("crossfades prompt styles in performance slots", () => {
@@ -715,13 +712,16 @@ describe("Deforumation Web UI", () => {
   it("includes video, sliders, and presets", async () => {
     const video = document.querySelector("video#player");
     expect(video).to.exist;
+    appVm.liveEngineDrawerOpen = true;
     appVm.rightPanelOpen = true;
-    appVm.liveDrawerOpen = true;
     appVm.paramPanelOpen = true;
     await nextTick();
-    const sliderRows = [...document.querySelectorAll(".param-drawer input[type='range'], [data-testid='modulation-morph-crossfader']")];
-    expect(sliderRows.length).to.be.greaterThan(5);
+    const engineSliders = document.querySelectorAll("[data-testid='live-webgl-controls'] input[type='range']");
+    expect(engineSliders.length).to.be.greaterThan(3);
+    const paramSliders = document.querySelectorAll(".param-drawer input[type='range']");
+    expect(paramSliders.length).to.be.greaterThan(5);
     appVm.switchTab("MOTION");
+    appVm.rightPanelOpen = true;
     await nextTick();
     const titles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
     expect(titles.join(" ")).to.include("Motion");
@@ -729,7 +729,7 @@ describe("Deforumation Web UI", () => {
     appVm.paramPanelOpen = true;
     await nextTick();
     const liveLabels = [...document.querySelectorAll(".param-drawer .framesync-subtitle, .framesync-title")].map((t) => t.textContent.trim());
-    expect(liveLabels.join(" ")).to.match(/Camera|Style|Performance/);
+    expect(liveLabels.join(" ")).to.match(/Camera|Style|Parameters/);
   });
 
   it("shows prompt morph controls", async () => {
@@ -772,10 +772,9 @@ describe("Deforumation Web UI", () => {
 
     const pageText = document.body.textContent;
     expect(pageText).to.include("Current model");
-    expect(pageText).to.include("Current CFG");
-    expect(pageText).to.include("Current steps");
+    expect(pageText).to.include("CFG");
+    expect(pageText).to.include("Steps");
     expect(pageText).to.include("Click to browse checkpoints");
-    expect(pageText).to.not.include("Checkpoint");
     expect(pageText).to.include("Sampler");
     expect(pageText).to.include("Optimize for model");
 
@@ -822,6 +821,7 @@ describe("Deforumation Web UI", () => {
 
   it("shows a 3D motion path preview above performance axis controls", async () => {
     appVm.switchTab("MOTION");
+    appVm.rightPanelOpen = true;
     appVm.deforumSettings.animation_mode = "3D";
     appVm.motionPadValues.translation_x = 3;
     appVm.motionPadValues.translation_z = 1.5;
@@ -836,13 +836,14 @@ describe("Deforumation Web UI", () => {
 
   it("shows 2D move and look XY pads when Deforum animation mode is 2D", async () => {
     appVm.switchTab("MOTION");
+    appVm.rightPanelOpen = true;
     appVm.deforumSettings.animation_mode = "2D";
     await nextTick();
     await nextTick();
 
     expect(document.querySelector(".motion-controls-2d")).to.exist;
-    expect(document.body.textContent).to.include("Move controls");
-    expect(document.body.textContent).to.include("Look controls");
+    expect(document.body.textContent).to.include("Pan X / Y");
+    expect(document.body.textContent).to.include("Angle / Zoom");
     expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
     expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
@@ -867,6 +868,7 @@ describe("Deforumation Web UI", () => {
 
   it("shows motion sequencer below preview and motion controls on the side", async () => {
     appVm.switchTab("MOTION");
+    appVm.rightPanelOpen = true;
     appVm.performance.status = "Preview frame ready";
     appVm.generator.status = "Story ready";
     appVm.generator.result = {
@@ -954,10 +956,8 @@ describe("Deforumation Web UI", () => {
 
     const buttonsBefore = [...document.querySelectorAll(".framesync-button")].map((el) => el.textContent.trim());
     expect(buttonsBefore.join(" ")).to.include("+");
-    expect(buttonsBefore.join(" ")).to.include("Manual");
-    expect(buttonsBefore.join(" ")).to.include("LFO 6");
+    expect(document.querySelector("[data-testid='lora-crossfader-hint']")).to.exist;
     expect(document.body.textContent).to.include("Common Group (1)");
-    expect([...document.querySelectorAll(".framesync-title")].map((el) => el.textContent.trim()).join(" ")).to.include("LoRA Crossfader");
     expect(document.querySelectorAll(".lora-picker-row").length).to.equal(0);
 
     appVm.loraPickerOpen = true;
