@@ -82,23 +82,56 @@
         </div>
         <button
           type="button"
-          class="framesync-button framesync-button--compact animation-engine-layer-row__visibility"
-          :class="{ 'framesync-button--live': isVideoLayerPreviewVisible(layer) }"
+          class="animation-engine-layer-row__visibility-toggle"
+          :class="{ 'animation-engine-layer-row__visibility-toggle--on': isVideoLayerPreviewVisible(layer) }"
           :title="isVideoLayerPreviewVisible(layer) ? 'Hide layer in preview' : 'Show layer in preview'"
           :aria-pressed="isVideoLayerPreviewVisible(layer) ? 'true' : 'false'"
           :data-testid="'animation-engine-visibility-' + layer.id"
           @click.stop="toggleVideoLayerPreview(layer.id)"
         >
-          <UiIcon :name="isVideoLayerPreviewVisible(layer) ? 'eye' : 'eye-off'" />
-          <span class="sr-only">{{ isVideoLayerPreviewVisible(layer) ? 'Hide layer' : 'Show layer' }}</span>
+          <UiIcon
+            class="animation-engine-layer-row__visibility-icon"
+            :name="isVideoLayerPreviewVisible(layer) ? 'eye' : 'eye-off'"
+            aria-hidden="true"
+          />
+          <span class="animation-engine-layer-row__visibility-label">
+            {{ isVideoLayerPreviewVisible(layer) ? 'On' : 'Off' }}
+          </span>
         </button>
       </li>
     </ul>
 
+    <div class="animation-engine-panel__tabs" role="tablist" aria-label="Engine panel sections">
+      <button
+        type="button"
+        role="tab"
+        class="animation-engine-panel__tab"
+        :class="{ active: engineDetailTab === 'layer' }"
+        :aria-selected="engineDetailTab === 'layer' ? 'true' : 'false'"
+        data-testid="animation-engine-tab-layer"
+        @click="engineDetailTab = 'layer'"
+      >
+        Layer settings
+      </button>
+      <button
+        type="button"
+        role="tab"
+        class="animation-engine-panel__tab"
+        :class="{ active: engineDetailTab === 'compositor' }"
+        :aria-selected="engineDetailTab === 'compositor' ? 'true' : 'false'"
+        data-testid="animation-engine-tab-compositor"
+        @click="engineDetailTab = 'compositor'"
+      >
+        Compositor
+      </button>
+    </div>
+
     <div class="animation-engine-panel__controls">
-      <CommonVisualStrip v-if="activeAnimationPluginId" :app="app" />
-      <AnimationEnginePluginPanel :app="app" />
-      <CompositorControls :app="app" />
+      <template v-if="engineDetailTab === 'layer'">
+        <CommonVisualStrip v-if="activeAnimationPluginId" :app="app" />
+        <AnimationEnginePluginPanel :app="app" />
+      </template>
+      <CompositorControls v-else :app="app" />
     </div>
 
     <div class="animation-engine-panel__sources">
