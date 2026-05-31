@@ -2602,6 +2602,33 @@
       font-size: 11px;
       color: var(--text-secondary);
     }
+    .generate-dock-sync {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-3);
+    }
+    .generate-dock-sync__metric {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .generate-dock-sync__label {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+    }
+    .generate-dock-sync__value {
+      font-size: 11px;
+      color: var(--live-text);
+    }
     .morph-crossfader-deck--split {
       grid-template-columns: 1fr 1fr;
       margin-top: 0;
@@ -6788,6 +6815,9 @@
     .motion-pad-hero__readout,
     .motion-axis-slider__value,
     .deforum-motion-pads__readout,
+    .generate-dock-sync__value,
+    .morph-crossfader-hero__readout,
+    .live-hud-mod-row__val,
     .motion-readout {
       font-family: var(--mono);
       font-variant-numeric: tabular-nums;

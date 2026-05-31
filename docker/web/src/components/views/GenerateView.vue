@@ -39,19 +39,19 @@
       <div class="generate-dock-sync" data-testid="generate-dock-sync">
         <div class="generate-dock-sync__metric">
           <span class="generate-dock-sync__label">Playhead</span>
-          <code class="generate-dock-sync__value">{{ sequencerPlayhead.toFixed(2) }}s</code>
+          <code class="generate-dock-sync__value motion-readout">{{ sequencerPlayhead.toFixed(2) }}s</code>
         </div>
         <div class="generate-dock-sync__metric">
           <span class="generate-dock-sync__label">Duration</span>
-          <code class="generate-dock-sync__value">{{ Number(sequencer.durationSec || 0).toFixed(2) }}s</code>
+          <code class="generate-dock-sync__value motion-readout">{{ Number(sequencer.durationSec || 0).toFixed(2) }}s</code>
         </div>
         <div class="generate-dock-sync__metric">
           <span class="generate-dock-sync__label">Frame</span>
-          <code class="generate-dock-sync__value">{{ sequencerJobFrameNumber }}/{{ sequencerJobTotalFrames }}</code>
+          <code class="generate-dock-sync__value motion-readout">{{ sequencerJobFrameNumber }}/{{ sequencerJobTotalFrames }}</code>
         </div>
         <div class="generate-dock-sync__metric">
           <span class="generate-dock-sync__label">FPS</span>
-          <code class="generate-dock-sync__value">{{ masterFps }}</code>
+          <code class="generate-dock-sync__value motion-readout">{{ masterFps }}</code>
         </div>
       </div>
 

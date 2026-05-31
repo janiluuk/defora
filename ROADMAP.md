@@ -57,7 +57,7 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | St1–St3 | STREAM tab vs design | **Done** | STREAM removed from nav; legacy alias → SETTINGS → OUTPUT |
 | X1 | Emoji buttons | **Done** | Library folder/play, Deforum toolbar, nav icons via UiIcon |
 | X2 | GlassPanel underused | **Partial** | Pinned + morph + modulating HUDs |
-| X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck |
+| X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck, generate dock sync readout |
 | X5–X6 | framesync-panel / inline hex | **Done** | CN layout → CSS classes; tab accents via `:root` aliases |
 | X7 | Perf drawer duplicate | **Done** | Template removed |
 | X8 | SYSTEM label collision | **Done** | Renamed to RUNS; legacy SYSTEM alias preserved |
