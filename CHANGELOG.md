@@ -3,6 +3,27 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.56] - 2026-05-31
+
+## What's Changed
+
+- fix(ci): install ffmpeg before Playwright E2E suite (6a6c7f0)
+- style(web): mono generate dock sync readout and dock chrome (ac5c58d)
+- feat(ux): LIVE HUD dock, AUDIO tab polish, and model source pills (7cb0a46)
+- fix(web): update Playwright smoke for 8-tab nav and LIVE morph HUD (fec9ab5)
+- fix(web): support getter/setter computed props in video-controls tests (a9d253e)
+- feat(ux): library workspace overlay, recent-runs rail, token sweep (cf713c2)
+- fix(web): restore compositor/plugin logic and update tests for UX migration (9fe4781)
+- feat(ux): motion hero stage and consolidate prompt morph on LIVE (51ca041)
+- docs: update migration notes with layout refactor progress; remove design.zip (f5066df)
+- feat(ux): layout — side-panel drawer, wider menus, taller sequencer, engine controls inline (f8c49ca)
+- feat(ux): steps 3+4 — LIVE morph/modulating HUDs + MODULATION teal active state (ec06024)
+- feat(ux): steps 1+2 — promote AUDIO/RUNS/GENERATE tabs, remove Perf drawer (5a9a420)
+- feat(web): motion readout mono token and hero pad layout (Mo4) (c1d4549)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.55...v0.6.56
+
+
 ## [0.6.55] - 2026-05-30
 
 ## What's Changed
