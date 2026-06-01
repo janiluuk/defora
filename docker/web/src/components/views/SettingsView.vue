@@ -441,12 +441,13 @@
             <div class="service-health-card">
               <div class="service-health-card__head">
                 <strong>Mediator</strong>
-                <span class="gpu-status-pill" :class="infrastructure.mediator && infrastructure.mediator.status === 'healthy' ? 'st-healthy' : 'st-unhealthy'">
-                  {{ infrastructure.mediator ? infrastructure.mediator.status : 'unknown' }}
+                <span class="gpu-status-pill" :class="mediatorHealthSummary.ok ? 'st-healthy' : 'st-unhealthy'">
+                  {{ mediatorHealthSummary.label }}
                 </span>
               </div>
               <div class="service-health-card__meta">
-                <span v-if="infrastructure.mediator"><code>{{ infrastructure.mediator.address }}</code></span>
+                <span v-if="sdForgeGpuNodes.length">{{ sdForgeGpuNodes.length }} forge instance(s)</span>
+                <span v-else-if="infrastructure.mediator"><code>{{ infrastructure.mediator.address }}</code></span>
                 <span v-else>—</span>
               </div>
             </div>
@@ -475,9 +476,33 @@
             </button>
           </div>
 
-          <div class="infra-section">
-            <div class="framesync-subtitle">Active mediator server</div>
-            <div v-if="infrastructure.loading && !infrastructure.mediator" class="infra-panel__empty">Loading mediator…</div>
+          <div class="infra-section" data-testid="infra-mediator-list">
+            <div class="framesync-subtitle">Mediator per SD-Forge instance</div>
+            <div v-if="gpuPool.loading && !sdForgeGpuNodes.length" class="infra-panel__empty">Loading forge mediators…</div>
+            <div v-else-if="sdForgeGpuNodes.length" class="infra-mediator-list">
+              <div
+                v-for="n in sdForgeGpuNodes"
+                :key="'infra-mediator-' + n.id"
+                class="infra-mediator-card"
+                :data-testid="n.id === sdForgeGpuNodes[0].id ? 'infra-mediator-card' : undefined"
+              >
+                <div class="infra-mediator-card__head">
+                  <strong>{{ n.name }}</strong>
+                  <span v-if="n.mediator" class="gpu-status-pill" :class="mediatorStatusClass(n.mediator.deforumationStatus)">
+                    Deforumation {{ n.mediator.deforumationStatus }}
+                  </span>
+                  <span v-if="n.mediator" class="gpu-status-pill" :class="mediatorStatusClass(n.mediator.deforumStatus)">
+                    Deforum {{ n.mediator.deforumStatus }}
+                  </span>
+                </div>
+                <div v-if="n.mediator" class="infra-mediator-card__meta">
+                  <span>Host <code>{{ n.mediator.host }}</code></span>
+                  <span>Deforumation <code>{{ n.mediator.deforumationWsUrl }}</code></span>
+                  <span>Deforum bridge <code>{{ n.mediator.deforumWsUrl }}</code></span>
+                </div>
+                <div v-else class="infra-panel__empty">No mediator settings — disable node and Edit to configure.</div>
+              </div>
+            </div>
             <div v-else-if="infrastructure.mediator" class="infra-mediator-card" data-testid="infra-mediator-card">
               <div class="infra-mediator-card__head">
                 <span class="gpu-status-pill" :class="infrastructure.mediator.status === 'healthy' ? 'st-healthy' : 'st-unhealthy'">
@@ -491,7 +516,11 @@
                 <span>Deforum <code>{{ infrastructure.mediator.deforumWsUrl }}</code> · {{ infrastructure.mediator.deforumStatus }}</span>
               </div>
             </div>
-            <div v-else class="infra-panel__empty">Mediator configuration unavailable.</div>
+            <div v-else class="infra-panel__empty">No SD-Forge instances with mediator configuration.</div>
+            <p class="infra-panel__hint">
+              Each forge host runs its own mediator (e.g. <code>vimage5</code> → <code>vimage5:8765</code> / <code>:8766</code>).
+              Edit an instance (disable first) to change host and ports, or use <strong>Check ports</strong> in the forge editor.
+            </p>
           </div>
 
           <div class="infra-section">
@@ -630,6 +659,10 @@
                     <span style="font-size:10px; color:var(--text-dim);">{{ n.url }}</span>
                     <span style="font-size:10px; color:var(--text-dim);">{{ n.backend }}</span>
                     <span v-if="n.backend === 'ollama' && (n.model || n.currentModel)" style="font-size:10px; color:var(--text-dim);">model: {{ n.model || n.currentModel }}</span>
+                    <span v-if="n.backend === 'sd-forge' && n.mediator" style="font-size:10px; color:var(--text-dim);">
+                      mediator: {{ n.mediator.host }}
+                      · {{ n.mediator.deforumStatus }}/{{ n.mediator.deforumationStatus }}
+                    </span>
                   </template>
                 </div>
                 <div class="gpu-node-card__stats">
@@ -729,6 +762,69 @@
 
           <div class="framesync-subtitle forge-tab__note">
             This is the per-instance Forge configuration for <strong>{{ gpuPool.forgeModal.nodeName || 'this node' }}</strong>. Saved values reopen here next time, and <strong>Apply options</strong> pushes them to this Forge instance only.
+          </div>
+
+          <div class="gpu-forge-modal__mediator" data-testid="gpu-forge-mediator-section">
+            <div class="framesync-subtitle" style="margin-top:14px;">Mediator <span class="framesync-accent">(Deforum)</span></div>
+            <p class="framesync-subtitle forge-tab__note" style="margin-top:6px;">
+              Co-located on the forge host — defaults to instance name (<code>{{ gpuPool.forgeModal.nodeName || 'hostname' }}</code>).
+            </p>
+            <div class="framesync-row" style="grid-template-columns: 1.4fr 0.8fr 0.8fr; gap:10px; margin-top:10px;">
+              <div class="framesync-stack">
+                <div class="framesync-subtitle">Host</div>
+                <input
+                  class="framesync-input"
+                  v-model.trim="gpuPool.forgeModal.mediator.host"
+                  placeholder="vimage5"
+                  :disabled="gpuPool.forgeModal.saving || gpuPool.forgeModal.applying || gpuPool.forgeModal.mediator.probing"
+                >
+              </div>
+              <div class="framesync-stack">
+                <div class="framesync-subtitle">Deforum port</div>
+                <input
+                  type="number"
+                  class="framesync-input"
+                  v-model.number="gpuPool.forgeModal.mediator.deforumPort"
+                  min="1"
+                  max="65535"
+                  :disabled="gpuPool.forgeModal.saving || gpuPool.forgeModal.applying || gpuPool.forgeModal.mediator.probing"
+                >
+              </div>
+              <div class="framesync-stack">
+                <div class="framesync-subtitle">Deforumation port</div>
+                <input
+                  type="number"
+                  class="framesync-input"
+                  v-model.number="gpuPool.forgeModal.mediator.deforumationPort"
+                  min="1"
+                  max="65535"
+                  :disabled="gpuPool.forgeModal.saving || gpuPool.forgeModal.applying || gpuPool.forgeModal.mediator.probing"
+                >
+              </div>
+            </div>
+            <div class="framesync-footer" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:8px;">
+              <button
+                class="framesync-button framesync-button--compact"
+                :disabled="gpuPool.forgeModal.mediator.probing || !gpuPool.forgeModal.nodeId"
+                @click="probeGpuForgeMediatorPorts()"
+              >
+                {{ gpuPool.forgeModal.mediator.probing ? 'Checking…' : 'Check ports' }}
+              </button>
+              <span
+                v-if="gpuPool.forgeModal.mediator.deforumStatus"
+                class="gpu-status-pill"
+                :class="mediatorStatusClass(gpuPool.forgeModal.mediator.deforumStatus)"
+              >
+                Deforum {{ gpuPool.forgeModal.mediator.deforumPort }}: {{ gpuPool.forgeModal.mediator.deforumStatus }}
+              </span>
+              <span
+                v-if="gpuPool.forgeModal.mediator.deforumationStatus"
+                class="gpu-status-pill"
+                :class="mediatorStatusClass(gpuPool.forgeModal.mediator.deforumationStatus)"
+              >
+                Deforumation {{ gpuPool.forgeModal.mediator.deforumationPort }}: {{ gpuPool.forgeModal.mediator.deforumationStatus }}
+              </span>
+            </div>
           </div>
 
           <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:12px;">

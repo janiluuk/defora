@@ -118,60 +118,79 @@ try {
   await page.waitForTimeout(1200);
   await shot(page, '01-live.png', 'LIVE — main stage');
 
-  const engineToggle = page.locator('[data-testid="bottom-drawer-toggle"]').first();
+  await ensureRightPanelOpen(page);
+  await page.waitForTimeout(600);
+  await shot(page, '02-live-controls.png', 'LIVE — Controls drawer (summary + live params)');
+
+  const engineToggle = page.locator('[data-testid="engine-drawer-toggle"]').first();
   if ((await engineToggle.count()) > 0) {
     const expanded = await engineToggle.getAttribute('aria-expanded');
     if (expanded !== 'true') await engineToggle.click();
-    await page.waitForTimeout(600);
-    await shot(page, '02-live-engine-drawer.png', 'LIVE — animation engine drawer');
+    await page.waitForTimeout(800);
+    await shot(page, '03-live-engine-drawer.png', 'LIVE — engine drawer');
+  }
+
+  const layersToggle = page.locator('[data-testid="layers-sidebar-toggle"]').first();
+  if ((await layersToggle.count()) > 0) {
+    const layersOpen = await layersToggle.getAttribute('aria-expanded');
+    if (layersOpen !== 'true') await layersToggle.click();
+    await page.waitForTimeout(500);
+    await shot(page, '04-live-layers-rail.png', 'LIVE — layers rail');
+    if (layersOpen !== 'true') await layersToggle.click();
   }
 
   await clickTab(page, 'PROMPTS');
   await ensureRightPanelOpen(page);
   await clickSubPill(page, 'PROMPTS');
-  await shot(page, '03-prompts.png', 'PROMPTS — prompt morphing');
+  await shot(page, '05-prompts.png', 'PROMPTS — prompt morphing');
   await clickSubPill(page, 'IMAGE');
-  await shot(page, '04-prompts-image.png', 'PROMPTS — image');
+  await shot(page, '06-prompts-image.png', 'PROMPTS — image');
   await clickSubPill(page, 'LORA');
-  await shot(page, '05-prompts-lora.png', 'PROMPTS — LoRA');
+  await shot(page, '07-prompts-lora.png', 'PROMPTS — LoRA');
   await clickSubPill(page, 'CONTROLNET');
-  await shot(page, '06-prompts-controlnet.png', 'PROMPTS — ControlNet');
+  await shot(page, '08-prompts-controlnet.png', 'PROMPTS — ControlNet');
+  await clickSubPill(page, 'STORY');
+  await shot(page, '09-prompts-story.png', 'PROMPTS — story generator');
 
   await clickTab(page, 'MOTION');
+  await ensureRightPanelOpen(page);
   await page.waitForSelector('[data-testid="motion-hero-stage"]', { timeout: 15_000 }).catch(() => null);
-  await shot(page, '07-motion.png', 'MOTION — hero pad');
+  await shot(page, '10-motion.png', 'MOTION — hero pad + sequencer summary');
   const motionDock = page.locator('[data-testid="motion-sequencer-dock"], .preview-bottom-dock');
   if ((await motionDock.count()) > 0) {
     await motionDock.first().scrollIntoViewIfNeeded().catch(() => null);
     await page.waitForTimeout(400);
   }
-  await shot(page, '08-motion-sequencer.png', 'MOTION — sequencer dock');
+  await shot(page, '11-motion-sequencer.png', 'MOTION — sequencer dock');
 
   await clickTab(page, 'MODULATION');
-  await shot(page, '09-modulation.png', 'MODULATION');
+  await ensureRightPanelOpen(page);
+  await shot(page, '12-modulation.png', 'MODULATION — LFO');
 
   await clickTab(page, 'AUDIO');
-  await shot(page, '10-audio.png', 'AUDIO — reactive panel');
+  await ensureRightPanelOpen(page);
+  await shot(page, '13-audio.png', 'AUDIO — reactive panel');
 
   await clickTab(page, 'SETTINGS');
   await ensureRightPanelOpen(page);
   await clickSubPill(page, 'RUNS');
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 20_000 }).catch(() => null);
   await page.waitForTimeout(600);
-  await shot(page, '11-runs.png', 'SETTINGS — runs monitor');
+  await shot(page, '14-runs.png', 'SETTINGS — runs monitor');
   await page.locator('[data-testid="runs-browser-tab-frames"]').click().catch(() => null);
   await page.waitForTimeout(500);
-  await shot(page, '12-runs-frames.png', 'SETTINGS — runs frames rail');
+  await shot(page, '15-runs-frames.png', 'SETTINGS — runs frames rail');
 
   await clickTab(page, 'SETTINGS');
   await ensureRightPanelOpen(page);
   for (const [file, pill, label] of [
-    ['13-settings-engine.png', 'ENGINE', 'SETTINGS — engine'],
-    ['14-settings-output.png', 'OUTPUT', 'SETTINGS — output / stream'],
-    ['15-settings-gpus.png', 'GPUS', 'SETTINGS — GPUs'],
-    ['16-settings-midi.png', 'CONTROLLERS / MIDI', 'SETTINGS — MIDI'],
-    ['17-settings-styles.png', 'STYLES', 'SETTINGS — styles'],
-    ['18-settings-collab.png', 'COLLAB', 'SETTINGS — collab'],
+    ['16-settings-engine.png', 'ENGINE', 'SETTINGS — engine'],
+    ['17-settings-output.png', 'OUTPUT', 'SETTINGS — output / stream'],
+    ['18-settings-gpus.png', 'GPUS', 'SETTINGS — GPUs'],
+    ['19-settings-midi.png', 'CONTROLLERS / MIDI', 'SETTINGS — MIDI'],
+    ['20-settings-styles.png', 'STYLES', 'SETTINGS — styles'],
+    ['21-settings-collab.png', 'COLLAB', 'SETTINGS — collab'],
+    ['22-settings-plugins.png', 'PLUGINS', 'SETTINGS — plugins registry'],
   ]) {
     await clickSubPill(page, pill);
     await page.waitForTimeout(500);
@@ -186,7 +205,7 @@ try {
   }, { timeout: 15_000 }).catch(() => null);
   await page.locator('[data-testid="library-tab-projects"]').click();
   await page.waitForTimeout(800);
-  await shot(page, '19-library-projects.png', 'Library — Projects');
+  await shot(page, '23-library-projects.png', 'Library — Projects');
 
   await page.locator('[data-testid="library-tab-videos"]').click();
   await page.waitForSelector('[data-testid="videos-browser"]', { timeout: 15_000 });
@@ -195,7 +214,7 @@ try {
     return !sk;
   }, { timeout: 15_000 }).catch(() => null);
   await page.waitForTimeout(600);
-  await shot(page, '20-library-videos.png', 'Library — Videos');
+  await shot(page, '24-library-videos.png', 'Library — Videos');
 
   await page.locator('[data-testid="library-tab-audio"]').click();
   await page.waitForSelector('[data-testid="audio-browser"]', { timeout: 15_000 });
@@ -204,7 +223,12 @@ try {
     return !sk;
   }, { timeout: 15_000 }).catch(() => null);
   await page.waitForTimeout(600);
-  await shot(page, '21-library-audio.png', 'Library — Audio');
+  await shot(page, '25-library-audio.png', 'Library — Audio');
+
+  await page.locator('[data-testid="library-tab-files"]').click().catch(() => null);
+  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 15_000 }).catch(() => null);
+  await page.waitForTimeout(800);
+  await shot(page, '26-library-files.png', 'Library — Files (VideoSwarm browser)');
 
   await page.locator('[data-testid="library-tab-projects"]').click();
   await page.waitForTimeout(400);
@@ -215,8 +239,9 @@ try {
   }
   await page.locator('[data-testid="library-workspace-tab-editor"]').click();
   await page.waitForSelector('[data-testid="editor-workspace"]', { timeout: 15_000 }).catch(() => null);
-  await page.waitForTimeout(800);
-  await shot(page, '22-library-editor.png', 'Library — video editor');
+  await page.waitForSelector('[data-testid="freecut-editor-frame"]', { timeout: 15_000 }).catch(() => null);
+  await page.waitForTimeout(5000);
+  await shot(page, '27-library-editor.png', 'Library — video editor (FreeCut)');
 
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await dismissRestoreModal(page);

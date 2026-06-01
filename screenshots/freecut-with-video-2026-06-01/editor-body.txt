@@ -1,0 +1,81 @@
+Defora Demo
+1920x1080 | 30fps
+EN
+Save
+Export
+Media
+Import
+Media
+Scenes
+ALL
+DATE
+
+No media yet
+
+Drop files here or click Import to add media.
+
+MP4
+WebM
+MOV
+MP3
+WAV
+JPG
+PNG
+00:00:00
+/
+00:09:29
+Auto
+PROPERTIES
+CANVAS
+W
+px
+H
+px
+Swap
+Reset
+Background
+#000000
+DURATION
+Duration
+00:00.00
+Frame Rate
+30 fps
+Total Frames
+0 fr
+TIMELINE
+[
+]
+TRACKS
+V1
+Clip Count
+A1
+Clip Count
+00:00:00:00
+00:00:01:00
+00:00:02:00
+00:00:03:00
+00:00:04:00
+00:00:05:00
+00:00:06:00
+00:00:07:00
+00:00:08:00
+00:00:09:00
+00:00:10:00
+00:00:11:00
+00:00:12:00
+00:00:13:00
+00:00:14:00
+00:00:15:00
+METERS
+MASTER
+-50
+-40
+-30
+-20
+-15
+-10
+-5
+0
+L
+R
+Idle

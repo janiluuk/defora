@@ -809,6 +809,14 @@ export default {
           vaeList: [],
           modelInfo: null,
           options: {},
+          mediator: {
+            host: '',
+            deforumPort: 8765,
+            deforumationPort: 8766,
+            deforumStatus: '',
+            deforumationStatus: '',
+            probing: false,
+          },
         },
         expandedLog: null,
         modelOptions: {},
@@ -2256,6 +2264,26 @@ export default {
         ...(this.forge.schedulers || []),
         ...FALLBACK_FORGE_SCHEDULERS,
       ].map((value) => String(value || '').trim()).filter(Boolean))];
+    },
+    sdForgeGpuNodes() {
+      return (this.gpuPool.nodes || []).filter((n) => n && n.backend === 'sd-forge');
+    },
+    mediatorHealthSummary() {
+      const nodes = this.sdForgeGpuNodes.filter((n) => n.mediator);
+      if (!nodes.length) {
+        const legacy = this.infrastructure && this.infrastructure.mediator;
+        if (legacy) {
+          const ok = legacy.status === 'healthy' && legacy.deforumStatus === 'healthy';
+          return { label: legacy.status || 'unknown', ok };
+        }
+        return { label: 'unknown', ok: false };
+      }
+      const healthy = nodes.filter(
+        (n) => n.mediator.deforumStatus === 'healthy' && n.mediator.deforumationStatus === 'healthy'
+      ).length;
+      if (healthy === nodes.length) return { label: 'healthy', ok: true };
+      if (healthy > 0) return { label: `${healthy}/${nodes.length} ok`, ok: false };
+      return { label: 'unreachable', ok: false };
     },
     activeDeforumFieldGroup() {
       return this.deforumFieldGroups.find((group) => group.id === this.deforumActiveTab) || this.deforumFieldGroups[0] || null;
@@ -7016,6 +7044,65 @@ normalizeGpuForgeSettings(raw = {}, fallback = {}) {
 gpuForgePreferredQuery(nodeId) {
   return nodeId ? `?preferredNode=${encodeURIComponent(nodeId)}` : '';
 },
+inferGpuMediatorHost(node = {}) {
+  const explicit = String((node.mediator && node.mediator.host) || (node.mediatorSettings && node.mediatorSettings.host) || '').trim();
+  if (explicit) return explicit.replace(/^https?:\/\//i, '').split(':')[0];
+  const fromName = String(node.name || '').trim();
+  if (fromName && !fromName.includes('.')) return fromName;
+  try {
+    const host = new URL(node.url || '').hostname;
+    if (host && !/^\d+\.\d+\.\d+\.\d+$/.test(host)) return host;
+    if (fromName) return fromName;
+    return host || 'localhost';
+  } catch (_e) {
+    return fromName || 'localhost';
+  }
+},
+normalizeGpuMediatorSettings(raw = {}, nodeHint = {}) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  const host = String(source.host || '').trim() || this.inferGpuMediatorHost(nodeHint);
+  const deforumPort = Number(source.deforumPort ?? source.deforum_port ?? 8765);
+  const deforumationPort = Number(source.deforumationPort ?? source.deforumation_port ?? 8766);
+  return {
+    host: host.replace(/^https?:\/\//i, '').split(':')[0],
+    deforumPort: Number.isFinite(deforumPort) ? deforumPort : 8765,
+    deforumationPort: Number.isFinite(deforumationPort) ? deforumationPort : 8766,
+  };
+},
+mediatorStatusClass(status) {
+  if (status === 'healthy') return 'st-healthy';
+  if (status === 'unreachable') return 'st-unhealthy';
+  return 'st-unknown';
+},
+async probeGpuForgeMediatorPorts() {
+  const modal = this.gpuPool.forgeModal;
+  if (!modal.open || !modal.nodeId) return;
+  modal.mediator.probing = true;
+  modal.status = 'Checking mediator ports…';
+  try {
+    const { data } = await apiFetch(
+      `/api/gpu-pool/nodes/${encodeURIComponent(modal.nodeId)}/mediator-probe`,
+      { method: 'POST' },
+      'mediator port probe'
+    );
+    const mediator = data && data.mediator ? data.mediator : null;
+    if (mediator) {
+      modal.mediator.host = mediator.host || modal.mediator.host;
+      modal.mediator.deforumPort = mediator.deforumPort ?? modal.mediator.deforumPort;
+      modal.mediator.deforumationPort = mediator.deforumationPort ?? modal.mediator.deforumationPort;
+      modal.mediator.deforumStatus = mediator.deforumStatus || '';
+      modal.mediator.deforumationStatus = mediator.deforumationStatus || '';
+      modal.status = `Deforum ${mediator.deforumPort}: ${mediator.deforumStatus}; Deforumation ${mediator.deforumationPort}: ${mediator.deforumationStatus}`;
+    } else {
+      modal.status = 'Port check finished.';
+    }
+    await this.refreshGpuPool(false);
+  } catch (err) {
+    modal.status = err.message || 'Mediator port check failed.';
+  } finally {
+    modal.mediator.probing = false;
+  }
+},
 onGpuForgeModalBackdropClick(event) {
   if (event?.target === event?.currentTarget) this.closeGpuForgeModal();
 },
@@ -7038,6 +7125,14 @@ closeGpuForgeModal() {
     vaeList: [],
     modelInfo: null,
     options: {},
+    mediator: {
+      host: '',
+      deforumPort: 8765,
+      deforumationPort: 8766,
+      deforumStatus: '',
+      deforumationStatus: '',
+      probing: false,
+    },
   };
 },
 async refreshGpuForgeModalOptions() {
@@ -7098,6 +7193,8 @@ async refreshGpuForgeModalOptions() {
 },
 async openGpuForgeModal(node) {
   const fallbackOptions = this.normalizeGpuForgeSettings(node && node.forgeSettings || {}, this.forge.options || {});
+  const mediatorHint = { name: node.name, url: node.url, mediator: node.mediator, mediatorSettings: node.mediatorSettings };
+  const mediatorDefaults = this.normalizeGpuMediatorSettings(node.mediator || node.mediatorSettings || {}, mediatorHint);
   this.gpuPool.editId = null;
   this.gpuPool.forgeModal = {
     open: true,
@@ -7117,6 +7214,14 @@ async openGpuForgeModal(node) {
     vaeList: [...(this.forge.vaeList || [])],
     modelInfo: null,
     options: fallbackOptions,
+    mediator: {
+      host: mediatorDefaults.host,
+      deforumPort: mediatorDefaults.deforumPort,
+      deforumationPort: mediatorDefaults.deforumationPort,
+      deforumStatus: (node.mediator && node.mediator.deforumStatus) || '',
+      deforumationStatus: (node.mediator && node.mediator.deforumationStatus) || '',
+      probing: false,
+    },
   };
   await this.refreshGpuForgeModalOptions();
 },
@@ -7129,6 +7234,10 @@ async persistGpuForgeModalNode() {
     priority: modal.priority || 1,
     model: modal.model || modal.currentModel || null,
     forgeSettings: this.normalizeGpuForgeSettings(modal.options || {}, this.forge.options || {}),
+    mediatorSettings: this.normalizeGpuMediatorSettings(modal.mediator || {}, {
+      name: modal.nodeName,
+      url: modal.url,
+    }),
   };
   const { data } = await apiFetch(`/api/gpu-pool/nodes/${encodeURIComponent(modal.nodeId)}`, {
     method: 'PUT',

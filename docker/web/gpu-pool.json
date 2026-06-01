@@ -15,7 +15,12 @@
       "priority": 1,
       "gpuModel": null,
       "model": null,
-      "forgeSettings": {}
+      "forgeSettings": {},
+      "mediatorSettings": {
+        "host": "vimage2",
+        "deforumPort": 8765,
+        "deforumationPort": 8766
+      }
     },
     {
       "id": "ae92f5c943692d95",
@@ -26,7 +31,12 @@
       "priority": 2,
       "gpuModel": null,
       "model": "SDXL/sd_xl_turbo_1.0_fp16.safetensors",
-      "forgeSettings": {}
+      "forgeSettings": {},
+      "mediatorSettings": {
+        "host": "vimage5",
+        "deforumPort": 8765,
+        "deforumationPort": 8766
+      }
     },
     {
       "id": "d2e136d3a7118d41",
