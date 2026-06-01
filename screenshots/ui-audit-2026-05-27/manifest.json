@@ -1,0 +1,115 @@
+{
+  "base": "http://127.0.0.1:46475",
+  "shots": [
+    {
+      "file": "01-live.png",
+      "label": "LIVE — main stage",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/01-live.png"
+    },
+    {
+      "file": "03-prompts.png",
+      "label": "PROMPTS — prompt morphing",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/03-prompts.png"
+    },
+    {
+      "file": "04-prompts-image.png",
+      "label": "PROMPTS — image",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/04-prompts-image.png"
+    },
+    {
+      "file": "05-prompts-lora.png",
+      "label": "PROMPTS — LoRA",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/05-prompts-lora.png"
+    },
+    {
+      "file": "06-prompts-controlnet.png",
+      "label": "PROMPTS — ControlNet",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/06-prompts-controlnet.png"
+    },
+    {
+      "file": "07-motion.png",
+      "label": "MOTION — hero pad",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/07-motion.png"
+    },
+    {
+      "file": "08-motion-sequencer.png",
+      "label": "MOTION — sequencer dock",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/08-motion-sequencer.png"
+    },
+    {
+      "file": "09-modulation.png",
+      "label": "MODULATION",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/09-modulation.png"
+    },
+    {
+      "file": "10-audio.png",
+      "label": "AUDIO — reactive panel",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/10-audio.png"
+    },
+    {
+      "file": "11-runs.png",
+      "label": "SETTINGS — runs monitor",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/11-runs.png"
+    },
+    {
+      "file": "12-runs-frames.png",
+      "label": "SETTINGS — runs frames rail",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/12-runs-frames.png"
+    },
+    {
+      "file": "13-settings-engine.png",
+      "label": "SETTINGS — engine",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/13-settings-engine.png"
+    },
+    {
+      "file": "14-settings-output.png",
+      "label": "SETTINGS — output / stream",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/14-settings-output.png"
+    },
+    {
+      "file": "15-settings-gpus.png",
+      "label": "SETTINGS — GPUs",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/15-settings-gpus.png"
+    },
+    {
+      "file": "16-settings-midi.png",
+      "label": "SETTINGS — MIDI",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/16-settings-midi.png"
+    },
+    {
+      "file": "17-settings-styles.png",
+      "label": "SETTINGS — styles",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/17-settings-styles.png"
+    },
+    {
+      "file": "18-settings-collab.png",
+      "label": "SETTINGS — collab",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/18-settings-collab.png"
+    },
+    {
+      "file": "19-library-projects.png",
+      "label": "Library — Projects",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/19-library-projects.png"
+    },
+    {
+      "file": "20-library-videos.png",
+      "label": "Library — Videos",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/20-library-videos.png"
+    },
+    {
+      "file": "21-library-audio.png",
+      "label": "Library — Audio",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/21-library-audio.png"
+    },
+    {
+      "file": "22-library-editor.png",
+      "label": "Library — video editor",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/22-library-editor.png"
+    },
+    {
+      "file": "00-main-overview.png",
+      "label": "Overview — default LIVE landing",
+      "path": "/home/jani/workspace/defora/screenshots/ui-audit-2026-05-27/00-main-overview.png"
+    }
+  ]
+}
