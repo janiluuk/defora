@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.65] - 2026-06-01
+
+## What's Changed
+
+- fix(scripts): encoder sh float backoff and post-deploy stack health check (19909d6)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.64...v0.6.65
+
+
 ## [0.6.64] - 2026-06-01
 
 ## What's Changed
