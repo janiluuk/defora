@@ -88,9 +88,14 @@ async function assertWebglStartup(page) {
   const rendered = await canvas.evaluate((c) => c.toDataURL("image/png").length > 8000);
   if (!rendered) throw new Error("WebGL canvas should contain rendered pixels on startup");
 
-  const webglTab = page.locator(".video-layer-tab.active .video-layer-tab__label").filter({ hasText: /^WebGL$/ });
-  if ((await webglTab.count()) === 0) {
-    throw new Error('Expected active preview layer tab "WebGL" on startup');
+  const webglSidebarItem = page
+    .locator(".layers-sidebar__item.layers-sidebar__item--active .layers-sidebar__item-label")
+    .filter({ hasText: /^WebGL$/ });
+  if ((await webglSidebarItem.count()) === 0) {
+    const activeName = ((await page.locator(".layers-sidebar__active-name").textContent()) || "").trim();
+    if (activeName !== "WebGL") {
+      throw new Error(`Expected active preview layer "WebGL" on startup, got "${activeName || "none"}"`);
+    }
   }
 
   const apiRuns = await page.request.get(`${base}/api/runs`);
