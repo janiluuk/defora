@@ -545,7 +545,7 @@
           </div>
           <div class="framesync-stack" style="margin-top:12px;">
             <div class="framesync-subtitle">Model</div>
-            <select class="framesync-select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
+            <select class="framesync-select" data-testid="controlnet-model-select" v-model="activeSlot.model" @change="updateControlNet(activeSlot)">
               <option v-for="m in activeControlNetModelChoices" :key="m.id" :value="m.name">{{ m.name }}{{ m.current && m.incompatible ? ' (current, incompatible)' : m.current ? ' (current)' : '' }}</option>
             </select>
             <div class="framesync-subtitle" style="margin-top:4px;">{{ controlNetModelSummary }}</div>

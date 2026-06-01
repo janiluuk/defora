@@ -268,11 +268,11 @@ describe("Deforumation Web UI", () => {
     expect(tabs.join(" ")).to.include("MOTION");
     expect(tabs.join(" ")).to.include("MODULATION");
     expect(tabs.join(" ")).to.include("AUDIO");
-    expect(tabs.join(" ")).to.include("RUNS");
     expect(tabs.join(" ")).to.include("SETTINGS");
-    expect(tabs.join(" ")).to.include("GENERATE");
+    expect(tabs.join(" ")).to.not.include("RUNS");    // RUNS moved to SETTINGS sub-tab
+    expect(tabs.join(" ")).to.not.include("GENERATE"); // GENERATE merged into MOTION
     expect(tabs.join(" ")).to.not.include("STREAM");
-    expect(tabs.length).to.equal(8);
+    expect(tabs.length).to.equal(6);
     expect(document.querySelector('[data-testid="top-nav-library"]')).to.exist;
   });
 
@@ -289,6 +289,7 @@ describe("Deforumation Web UI", () => {
     appVm.videoReady = true;
     appVm.deforumPlaying = true;
     appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.defaultAnimation.rememberCompositorLayerOnStartup = true;
     appVm.initVideoLayers();
     expect(appVm.showMainStageHls).to.equal(false);
     expect(appVm.showDeforumVideo).to.equal(false);
@@ -325,6 +326,7 @@ describe("Deforumation Web UI", () => {
     appVm.hlsPreviewStreamValid = true;
     appVm.hlsWatchEnabled = true;
     appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.defaultAnimation.rememberCompositorLayerOnStartup = true;
     appVm.initVideoLayers();
     expect(appVm.defaultAnimation.preferDeforumVideo).to.equal(true);
     expect(appVm.activeVideoLayerId).to.equal("deforum");
@@ -372,7 +374,8 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(false);
     expect(appVm.showFrameProcessing).to.equal(true);
     expect(appVm.showFrameProcessingOnStage).to.equal(false);
-    expect(appVm.showFrameProcessingInChrome).to.equal(true);
+    // previewGenerating suppresses the top-bar chip (shown on the Frame button itself)
+    expect(appVm.showFrameProcessingInChrome).to.equal(false);
     expect(appVm.frameProcessingLabel).to.match(/rendering preview frame/i);
 
     appVm.previewGenerating = false;
@@ -397,15 +400,30 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showPreviewStill).to.equal(true);
   });
 
-  it("keeps Deforum selected on cold start when preferring Deforum video", () => {
+  it("keeps Deforum selected on cold start when preferring Deforum video and remember layer is on", () => {
     appVm.activeVideoLayerId = "deforum";
     appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.defaultAnimation.rememberCompositorLayerOnStartup = true;
     appVm.deforumPlaying = false;
     appVm.videoReady = false;
 
     appVm.ensureStandbyAnimationAtStartup();
 
     expect(appVm.activeVideoLayerId).to.equal("deforum");
+  });
+
+  it("starts on WebGL on cold start when remember layer is off", () => {
+    appVm.activeVideoLayerId = "deforum";
+    appVm.defaultAnimation.preferDeforumVideo = true;
+    appVm.defaultAnimation.rememberCompositorLayerOnStartup = false;
+    appVm.deforumPlaying = false;
+    appVm.videoReady = false;
+
+    appVm.applyStartupVideoPreview();
+    appVm.ensureStandbyAnimationAtStartup();
+
+    expect(appVm.activeVideoLayerId).to.equal("webgl");
+    expect(appVm.showDefaultAnimation).to.equal(true);
   });
 
   it("falls back to WebGL when Deforum video is not preferred", () => {
@@ -420,22 +438,17 @@ describe("Deforumation Web UI", () => {
     expect(appVm.showDefaultAnimation).to.equal(true);
   });
 
-  it("docks the side panel on the video unless the stage is full-bleed", () => {
+  it("uses viewport edge dock for side panels", () => {
     appVm.currentTab = "LIVE";
-    appVm.sidePanelDock = "auto";
-    appVm.videoStageSize = "medium";
-    expect(appVm.sidePanelUsesEdgeDock).to.equal(false);
-
-    appVm.videoStageSize = "full";
-    expect(appVm.sidePanelUsesEdgeDock).to.equal(true);
-
-    appVm.sidePanelDock = "video";
-    appVm.videoStageSize = "full";
-    expect(appVm.sidePanelUsesEdgeDock).to.equal(false);
-
-    appVm.sidePanelDock = "edge";
+    appVm.viewportWidth = 1500;
     appVm.videoStageSize = "medium";
     expect(appVm.sidePanelUsesEdgeDock).to.equal(true);
+    expect(appVm.edgeDockOverlayMode).to.equal(false);
+    appVm.videoStageSize = "full";
+    expect(appVm.edgeDockOverlayMode).to.equal(true);
+    appVm.viewportWidth = 1200;
+    appVm.videoStageSize = "medium";
+    expect(appVm.edgeDockOverlayMode).to.equal(true);
   });
 
   it("scopes standby controls to the WebGL animation engine and resets them", async () => {
@@ -445,6 +458,11 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
     expect(document.querySelector("[data-testid='live-webgl-controls']")).to.exist;
+    // Default mode is now orbital
+    expect(document.body.textContent).to.include("Orbit size");
+
+    appVm.setDefaultAnimationMode("instancing");
+    await nextTick();
     expect(document.body.textContent).to.include("Instance count");
 
     appVm.setDefaultAnimationMode("volume");
@@ -688,7 +706,7 @@ describe("Deforumation Web UI", () => {
     let layerText = String(layerTabs && layerTabs.textContent || "");
     expect(layerText).to.include("WebGL");
     expect(layerText).to.not.include("Deforum");
-    expect(layerText).to.not.include("Both");
+    expect(layerText).to.not.include("Both"); // "Both" layer removed
     expect(layerText).to.not.include("Input");
     expect(document.querySelector("[data-testid='video-layer-add-toggle']")).to.exist;
 
@@ -1008,6 +1026,7 @@ describe("Deforumation Web UI", () => {
     appVm.cn.slots[0].weight = 1.23;
     appVm.switchTab("PROMPTS");
     appVm.switchSubTab("PROMPTS", "CONTROLNET");
+    appVm.rightPanelOpen = true;
     await nextTick();
     await nextTick();
 
@@ -1017,13 +1036,15 @@ describe("Deforumation Web UI", () => {
       "OpenPose",
     ]);
 
-    const modelOptions = [...document.querySelector(".framesync-select").querySelectorAll("option")].map((el) => el.textContent.trim());
+    const cnSelect = document.querySelector('[data-testid="controlnet-model-select"]');
+    const modelOptions = [...cnSelect.querySelectorAll("option")].map((el) => el.textContent.trim());
     expect(modelOptions.join(" ")).to.include("controlnet-sdxl-canny");
     expect(modelOptions.join(" ")).to.include("OpenPose");
     expect(modelOptions.join(" ")).to.include("control_v11p_sd15_canny (current, incompatible)");
-    expect(document.querySelector(".controlnet-weight-card")).to.exist;
-    expect(document.body.textContent).to.include("Showing 2 SDXL-compatible models.");
-    expect(document.body.textContent).to.include("Strong");
+    const panel = document.querySelector('[data-testid="controlnet-model-select"]').closest(".framesync-panel");
+    expect(panel.querySelector(".controlnet-weight-card")).to.exist;
+    expect(panel.textContent).to.include("Showing 2 SDXL-compatible models.");
+    expect(panel.textContent).to.include("Strong");
   });
 
   it("shows a per-slot toggle button in the ControlNet slot strip", async () => {
@@ -1134,8 +1155,8 @@ describe("Deforumation Web UI", () => {
     }
   });
 
-  it("renders the runs monitor on the RUNS tab (Perf drawer removed)", async () => {
-    // RUNS is now a first-class nav tab; the Perf drawer and its SYSTEM sub-tab were removed
+  it("renders the runs monitor via SETTINGS → RUNS (Perf drawer removed)", async () => {
+    // RUNS is now a SETTINGS sub-tab; switchTab('RUNS') redirects there
     appVm.switchTab("RUNS");
     appVm.runsAll = [
       { run_id: "run-001", status: "completed", started_at: "2026-05-26T09:00:00Z", has_thumbnail: false },
@@ -1146,7 +1167,8 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(appVm.currentTab).to.equal("RUNS");
+    expect(appVm.currentTab).to.equal("SETTINGS");
+    expect(appVm.currentSubTab.SETTINGS).to.equal("RUNS");
     expect(appVm.runsMonitorActive).to.equal(true);
     const runsBrowser = document.querySelector('[data-testid="runs-browser"]');
     expect(runsBrowser).to.exist;

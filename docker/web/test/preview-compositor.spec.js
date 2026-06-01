@@ -68,11 +68,11 @@ describe("preview compositor", () => {
     expect(style["--preview-compositor-crossfade-ms"]).to.equal("1200ms");
   });
 
-  it("setForgeLayerOpacityLfoLink toggles compositor LFO and selects blend", () => {
+  it("setForgeLayerOpacityLfoLink toggles compositor LFO and switches to deforum", () => {
     appVm.activeVideoLayerId = "webgl";
     appVm.setForgeLayerOpacityLfoLink(2);
     expect(appVm.defaultAnimation.forgeLayerOpacityLfoLink).to.equal(2);
-    expect(appVm.activeVideoLayerId).to.equal("blend");
+    expect(appVm.activeVideoLayerId).to.equal("deforum"); // blend removed; falls through to deforum
     appVm.setForgeLayerOpacityLfoLink(2);
     expect(appVm.defaultAnimation.forgeLayerOpacityLfoLink).to.equal(null);
   });

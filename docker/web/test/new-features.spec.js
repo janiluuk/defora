@@ -235,5 +235,26 @@ describe("New Features Tests", () => {
     it("has setupKeyboardShortcuts method", () => {
       expect(typeof appVm.setupKeyboardShortcuts).to.equal("function");
     });
+
+    it("navigates main tabs with arrow helpers", () => {
+      appVm.switchTab("LIVE");
+      appVm.navigateMainTab(1);
+      expect(appVm.currentTab).to.equal("PROMPTS");
+      appVm.navigateMainTab(-1);
+      expect(appVm.currentTab).to.equal("LIVE");
+    });
+
+    it("closes overlays on Escape via handleKeyboardEscape", () => {
+      appVm.videoLayerAddOpen = true;
+      expect(appVm.handleKeyboardEscape()).to.equal(true);
+      expect(appVm.videoLayerAddOpen).to.equal(false);
+    });
+
+    it("maps number keys to main nav tabs", () => {
+      const ids = appVm.mainTabIds();
+      expect(ids[0]).to.equal("LIVE");
+      expect(ids.includes("RUNS")).to.equal(false);   // RUNS moved to SETTINGS sub-tab
+      expect(ids.includes("GENERATE")).to.equal(false); // GENERATE merged into MOTION
+    });
   });
 });
