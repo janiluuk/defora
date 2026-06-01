@@ -99,7 +99,12 @@
             <button type="button" class="framesync-button framesync-button--compact" @click="openProjectInEditor(fullscreenProject)">
               Open in editor
             </button>
-            <button type="button" class="framesync-button framesync-button--compact" @click="closeFullscreen">
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              data-testid="library-fullscreen-close"
+              @click="closeFullscreen"
+            >
               Close
             </button>
           </div>
@@ -230,7 +235,10 @@ export default {
     },
     onFullscreenKey(event) {
       if (!this.fullscreenProject) return
-      if (event.key === 'Escape') this.closeFullscreen()
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        this.closeFullscreen()
+      }
     },
     openProjectInEditor(project) {
       if (!project?.videoPath) {

@@ -179,9 +179,12 @@ export async function waitForProjectCard(browserRoot, page, filenamePart, timeou
   const refreshBtn = browserRoot.locator('[data-testid="projects-refresh"], [data-testid="videos-refresh"]').first();
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
-    const card = browserRoot.locator(
-      `[data-testid="project-card"][data-video-path*="${filenamePart}"], [data-testid="video-card"][data-video-path*="${filenamePart}"]`,
-    ).first();
+    const card = browserRoot
+      .locator(
+        `[data-testid="project-card"][data-video-path*="${filenamePart}"], [data-testid="video-card"][data-video-path*="${filenamePart}"]`,
+      )
+      .filter({ visible: true })
+      .first();
     if ((await card.count()) > 0) return card;
     await refreshBtn.click().catch(() => null);
     await page.waitForTimeout(600);
