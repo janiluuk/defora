@@ -9,7 +9,7 @@ https://defora.dudeisland.eu/
 
 ## Current Browser Tour
 
-Top-level tabs (web UI): **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · SETTINGS** (RUNS / GENERATE / STREAM redirect — see [`docker/web/docs/UI-FEATURE-FLOW.md`](docker/web/docs/UI-FEATURE-FLOW.md)). Stream output: **Settings → Output**. Annotated screenshots: [`docs/ui-migration/00-README.md`](docs/ui-migration/00-README.md).
+Top-level tabs (web UI): **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · SETTINGS**. **Runs** lives under **Settings → Runs**; the motion **sequencer / generate** dock is on **MOTION**; stream output is **Settings → Output**. **Library** opens from the header icon (Projects, Videos, Audio, Files, Editor). Screenshots below were captured from the current build (June 2026). See also [`docker/web/docs/UI-FEATURE-FLOW.md`](docker/web/docs/UI-FEATURE-FLOW.md) and [`docs/ui-migration/00-README.md`](docs/ui-migration/00-README.md).
 
 <table>
 <tr>
@@ -43,16 +43,16 @@ Top-level tabs (web UI): **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · S
 <p>First-class reactive tab: quick-band pills (sub · bass · mid · …) above a tall spectrum hero. Frequency-to-parameter mapping cards with live meters.</p>
 </td>
 <td width="50%">
-<h4>RUNS</h4>
-<img src="screenshots/runs-tab.png" alt="Web UI Runs Tab" width="100%" />
-<p>Full-page runs monitor — active jobs, past runs, frames rail. Kill queued batches, inspect JSON diff, re-run or continue from detail pane.</p>
+<h4>SETTINGS — Runs</h4>
+<img src="screenshots/runs-tab.png" alt="Web UI Runs monitor" width="100%" />
+<p><b>Settings → Runs</b> — active jobs, past runs, and frames rail. Kill queued batches, inspect JSON diff, re-run or continue from the detail pane.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
-<h4>GENERATE</h4>
-<img src="screenshots/generate-tab.png" alt="Web UI Generate Tab" width="100%" />
-<p>Dedicated timeline dock under preview with playhead/duration/frame/FPS sync readout. Clips, keyframes, markers, and Apply-to-Deforum workflow.</p>
+<h4>MOTION — Sequencer</h4>
+<img src="screenshots/generate-tab.png" alt="Web UI Motion sequencer dock" width="100%" />
+<p><b>Motion tab</b> — animation sequencer timeline dock with playhead/duration/frame/FPS sync readout. Clips, keyframes, markers, and Apply-to-Deforum workflow (formerly the top-level GENERATE tab).</p>
 </td>
 <td width="50%">
 <h4>SETTINGS — Engine</h4>
@@ -68,8 +68,8 @@ Top-level tabs (web UI): **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · S
 </td>
 <td width="50%">
 <h4>LIBRARY</h4>
-<img src="screenshots/library-tab.png" alt="Web UI Library Tab" width="100%" />
-<p>Fullscreen workspace from the header Library icon. Browse Frames, Runs, Uploads, HLS, VideoSwarm; cloud connect; Open in editor.</p>
+<img src="screenshots/library-tab.png" alt="Web UI Library workspace" width="100%" />
+<p>Fullscreen workspace from the header <b>Library</b> icon. Tabs: <b>Projects</b>, <b>Videos</b>, <b>Audio</b>, <b>Files</b> (VideoSwarm), plus <b>Editor</b> (FreeCut handoff). Cloud connect and Open in video editor from project cards.</p>
 </td>
 </tr>
 </table>
