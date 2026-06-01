@@ -132,6 +132,8 @@
         />
       </details>
     </div>
+
+    <GenerateView :app="app" />
   </div>
 </template>
 
@@ -140,11 +142,12 @@ import UiIcon from '../UiIcon.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
 import DeforumControlPanel from '../DeforumControlPanel.vue'
 import DeforumMotionPads from '../DeforumMotionPads.vue'
+import GenerateView from './GenerateView.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, MotionPathPreview, DeforumControlPanel, DeforumMotionPads },
+  components: { UiIcon, MotionPathPreview, DeforumControlPanel, DeforumMotionPads, GenerateView },
   props: {
     app: { type: Object, required: true },
   },

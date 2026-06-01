@@ -649,6 +649,15 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector("[data-testid='live-webgl-controls']")).to.exist;
   });
 
+  it("opens engine deforum settings tab and uses FOV binding on F key", () => {
+    expect(typeof appVm.openEngineDeforumSettingsTab).to.equal("function");
+    expect(appVm.keyBindings.fov).to.equal("f");
+    appVm.openEngineDeforumSettingsTab("prompts");
+    expect(appVm.liveEngineDrawerOpen).to.equal(true);
+    expect(appVm.activeVideoLayerId).to.equal("deforum");
+    expect(appVm.deforumActiveTab).to.equal("prompts");
+  });
+
   it("crossfades prompt styles in performance slots", () => {
     appVm.promptStyles = [
       { id: "cubism", name: "Cubism", positive: "cubist painting", negative: "photo", source: "forge" },

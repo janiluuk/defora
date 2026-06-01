@@ -94,6 +94,15 @@
           <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
         </span>
       </div>
+      <span
+        v-if="morphOn"
+        class="ss-pill ss-pill--morph"
+        title="Prompt morph is enabled — use the LIVE stage morph HUD"
+        data-testid="status-morph-indicator"
+      >
+        <span class="ss-key">Morph</span>
+        <strong>on</strong>
+      </span>
     </div>
 
     <div class="ss-health">
@@ -246,27 +255,35 @@
           <div class="ss-help-section">
             <div class="ss-help-section__title">Navigation</div>
             <div class="ss-help-section__items">
-              <div><kbd>1</kbd>–<kbd>5</kbd> Switch tabs (LIVE→SETTINGS)</div>
+              <div><kbd>←</kbd> <kbd>→</kbd> Switch main tabs</div>
+              <div><kbd>↑</kbd> <kbd>↓</kbd> Switch sub-tabs (when available)</div>
+              <div><kbd>1</kbd>–<kbd>6</kbd> Jump to tab (LIVE … SETTINGS)</div>
+              <div><kbd>P</kbd> Controls drawer · <kbd>E</kbd> Engine drawer</div>
+              <div><kbd>Esc</kbd> Close overlays (library → engine → controls → sequencer)</div>
             </div>
           </div>
           <div class="ss-help-section">
-            <div class="ss-help-section__title">LIVE Tab</div>
+            <div class="ss-help-section__title">LIVE</div>
             <div class="ss-help-section__items">
-              <div><kbd>Space</kbd> Generate image</div>
-              <div><kbd>R</kbd> Reset Vibe & Camera params</div>
+              <div><kbd>Space</kbd> Generate preview frame</div>
+              <div><kbd>R</kbd> Reset vibe &amp; camera params</div>
+              <div>Live params + morph HUD on stage; schedules in <kbd>E</kbd> → Deforum</div>
             </div>
           </div>
           <div class="ss-help-section">
-            <div class="ss-help-section__title">PROMPTS Tab</div>
+            <div class="ss-help-section__title">PROMPTS · MODULATION · AUDIO</div>
             <div class="ss-help-section__items">
-              <div><kbd>M</kbd> Toggle prompt morphing</div>
+              <div><kbd>M</kbd> Toggle prompt morph (PROMPTS)</div>
+              <div><kbd>L</kbd> Toggle LFO master (MODULATION)</div>
+              <div><kbd>B</kbd> Beat macros (MODULATION → Beat)</div>
+              <div>Reference audio: MODULATION → Audio or AUDIO tab upload</div>
             </div>
           </div>
           <div class="ss-help-section">
-            <div class="ss-help-section__title">MODULATION Tab</div>
+            <div class="ss-help-section__title">Bindings</div>
             <div class="ss-help-section__items">
-              <div><kbd>L</kbd> Toggle LFO</div>
-              <div><kbd>B</kbd> Toggle Beat Macro (MODULATION → Beat)</div>
+              <div><kbd>F</kbd> FOV (not <kbd>E</kbd> — reserved for Engine drawer)</div>
+              <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><kbd>Q</kbd> Motion / camera nudges</div>
             </div>
           </div>
         </div>
@@ -300,6 +317,7 @@ export default {
     wsStatus:      { type: String,  default: 'disconnected' },
     session:       { type: String,  default: '' },
     sessions:      { type: Array, default: () => [] },
+    morphOn:       { type: Boolean, default: false },
   },
   data() {
     return {
@@ -549,6 +567,11 @@ export default {
 .ss-pill--live  { border-color: rgba(29, 158, 117, 0.4); }
 .ss-pill--error { border-color: rgba(226, 75, 74, 0.4); }
 .ss-pill--warn  { border-color: rgba(239, 159, 39, 0.35); }
+.ss-pill--morph {
+  border-color: color-mix(in srgb, var(--b-group) 50%, transparent);
+  color: var(--text-secondary);
+}
+.ss-pill--morph strong { color: var(--b-group); }
 
 .ss-key {
   font-size: 9px;

@@ -295,9 +295,10 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 34px;
+      gap: 6px;
+      min-width: 34px;
       height: 34px;
-      padding: 0;
+      padding: 0 10px;
       border-radius: var(--radius-pill);
       border: 0.5px solid var(--border);
       background: var(--bg-2);
@@ -313,6 +314,13 @@
       color: var(--library-accent);
       border-color: color-mix(in srgb, var(--library-accent) 45%, transparent);
       background: color-mix(in srgb, var(--library-accent) 10%, transparent);
+    }
+    .top-nav__action-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: inherit;
     }
     .sr-only {
       position: absolute;
@@ -605,6 +613,22 @@
       width: 14px;
       height: 14px;
       flex-shrink: 0;
+    }
+    .layers-sidebar__rail-head {
+      flex-shrink: 0;
+      padding: 4px 0 2px;
+      overflow: hidden;
+    }
+    .layers-sidebar--open .layers-sidebar__rail-head {
+      padding: 4px 10px 2px;
+    }
+    .layers-sidebar__rail-title {
+      font-size: 9px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      white-space: nowrap;
     }
     /* Active layer badge — visible in both states */
     .layers-sidebar__active-badge {
@@ -1407,11 +1431,74 @@
       flex-direction: column;
       gap: 8px;
     }
-    .live-view__engine-hint {
+    .live-view__summary-grid {
+      display: grid;
+      gap: 8px;
+      margin-top: 4px;
+    }
+    .live-view__summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .live-view__summary-value {
+      font-size: 12px;
+      color: var(--text-primary);
+    }
+    .live-view__param-list {
+      margin: 10px 0 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 6px;
+    }
+    .live-view__param-list-item {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--text-secondary);
+    }
+    .live-view__param-list-meta {
+      color: var(--text-dim);
+      font-size: 10px;
+    }
+    .live-view__summary-empty {
+      margin: 8px 0 0;
+    }
+    .live-view__shortcuts {
       padding: 12px;
     }
-    .live-view__engine-hint-copy {
-      margin: 8px 0 12px;
+    .live-view__shortcuts-copy {
+      margin: 8px 0 10px;
+    }
+    .live-view__shortcut-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .prompts-schedule-hint {
+      padding: 12px;
+    }
+    .prompts-schedule-hint__copy {
+      margin: 0 0 10px;
+    }
+    .animation-engine-panel__title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .animation-engine-panel__subtitle {
+      margin: 0;
+      font-size: 10px;
+    }
+    .modulation-audio-panel--audio-tab {
+      margin-bottom: 10px;
+    }
+    .modulation-audio-panel__sync-toggle {
+      margin-top: 12px;
     }
     .deforum-settings-stack {
       display: grid;

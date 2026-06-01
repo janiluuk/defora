@@ -175,6 +175,53 @@
       </template>
 
       <template v-else-if="modulationPane === 'AUDIO_REACTIVE'">
+        <div
+          v-if="isAudioTab"
+          class="framesync-panel modulation-audio-panel modulation-audio-panel--audio-tab"
+          data-testid="audio-tab-reference-upload"
+        >
+          <div class="framesync-header">
+            <div class="framesync-title">Reference <span class="framesync-accent">Audio</span></div>
+          </div>
+          <div class="framesync-subtitle modulation-audio-panel__intro">
+            Upload the track for band analysis and AV sync. Same file as Modulation → Audio.
+          </div>
+          <div
+            class="modulation-audio-dropzone"
+            :class="{ 'modulation-audio-dropzone--filled': audio.objectUrl }"
+            data-testid="audio-dropzone"
+            @dragover="onModulationAudioDragover"
+            @drop="onModulationAudioDrop"
+            @click="$refs.audioTabFileInput && $refs.audioTabFileInput.click()"
+          >
+            <input
+              ref="audioTabFileInput"
+              type="file"
+              accept="audio/*"
+              class="modulation-audio-dropzone__input"
+              @change="onAudioUpload"
+            >
+            <template v-if="audio.uploadedFile">
+              <span class="modulation-audio-dropzone__title">{{ audio.uploadedFile }}</span>
+              <span class="modulation-audio-dropzone__hint">{{ audioStatus || 'Ready' }}</span>
+              <button type="button" class="framesync-button framesync-button--compact" @click.stop="clearAudioFile">Remove</button>
+            </template>
+            <template v-else>
+              <span class="modulation-audio-dropzone__title">Drop audio here</span>
+              <span class="modulation-audio-dropzone__hint">or click to browse · max 50MB</span>
+            </template>
+          </div>
+          <label class="framesync-checkbox modulation-audio-panel__sync-toggle">
+            <input
+              type="checkbox"
+              data-testid="av-sync-enable"
+              v-model="avSyncEnabled"
+              :disabled="!audio.objectUrl"
+            >
+            Enable AV sync (HLS clock)
+          </label>
+        </div>
+
         <div class="framesync-panel audio-reactive-panel">
           <div
             class="framesync-header audio-reactive-panel__header"

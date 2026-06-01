@@ -46,6 +46,22 @@
       </div>
 
       <div class="rack">
+        <div class="framesync-panel prompts-schedule-hint" data-testid="prompts-schedule-hint">
+          <p class="framesync-subtitle prompts-schedule-hint__copy">
+            Frame-by-frame prompt and negative schedules are edited in the Engine drawer (Deforum → Prompts tab), not here.
+          </p>
+          <button
+            type="button"
+            class="framesync-button framesync-button--compact framesync-button--live"
+            data-testid="prompts-open-engine-schedules"
+            @click="openEngineDeforumSettingsTab('prompts')"
+          >
+            Open prompt schedules
+          </button>
+        </div>
+      </div>
+
+      <div class="rack">
         <div class="framesync-panel">
           <div class="framesync-header">
             <div class="framesync-title">Prompt <span class="framesync-accent">Morphing</span></div>

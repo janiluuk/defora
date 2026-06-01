@@ -16,9 +16,23 @@
 `LIVE` · `PROMPTS` · `MOTION` · `MODULATION` · `AUDIO` · `SETTINGS`  
 (No top-level RUNS / GENERATE / STREAM — those redirect; see §2.)
 
+### Restructure phases (implementation log)
+
+| Phase | Theme | Status |
+|-------|--------|--------|
+| **IA-1** | Docs: flow graph + index (`UI-FEATURE-FLOW.md`) | **Done** |
+| **IA-2** | Engine Deforum settings + panel docks + PLUGINS in Settings | **Done** |
+| **IA-3** | Discoverability: LIVE summary + `LiveParametersPanel`, prompt schedule link, help/popovers, FOV → `F`, morph status pill, layer rail labels | **Done** |
+| **IA-4** | AUDIO tab reference upload; merge MODULATION/AUDIO paths | **Done** |
+| **IA-5** | Orphans: `VideoSwarmBrowser`, compositor dedupe, GENERATE context | **Done** |
+
+Edit this table when you change the target layout in §10.
+
 ---
 
 ## 1. App shell (always visible)
+
+![App shell — LIVE tab, all panels closed](screenshots/01-app-shell.png)
 
 ```mermaid
 flowchart TB
@@ -318,16 +332,16 @@ flowchart LR
 
 ```mermaid
 flowchart TB
-  subgraph orphans["Not on any page today"]
-    O1["LiveParametersPanel"]
-    O2["CrossfaderPanel — imported, unused"]
-    O3["VideoSwarmBrowser — imported, unused"]
-    O4["LiveEngineControlsDock — imported, unused"]
-    O5["GenerateView full dock — only story strip used"]
+  subgraph orphans["Resolved in IA-3 / IA-5"]
+    O1["LiveParametersPanel → LIVE Controls"]
+    O2["CrossfaderPanel — removed; LoRA UI in PROMPTS"]
+    O3["VideoSwarmBrowser → Library → Files"]
+    O4["LiveEngineControlsDock — removed; use Engine drawer"]
+    O5["GenerateView dock → MOTION Controls"]
   end
 
-  subgraph dupes["Duplicated surfaces"]
-    D1["Compositor — Engine vs LiveEngineControls"]
+  subgraph dupes["Duplicated surfaces — known"]
+    D1["Compositor — single surface in Engine drawer"]
     D2["Deforum motion — MOTION tab vs Engine schedules"]
     D3["Deforum transport — Status strip vs Engine job head"]
     D4["Runs — Settings RUNS vs LIVE recent rail"]
@@ -378,7 +392,7 @@ flowchart TB
 | HLS on stage | Status strip | Config in Settings → OUTPUT |
 | Pinned params | LIVE stage HUD | Pins from engine params? |
 | Morph crossfader | LIVE stage HUD | Also PROMPTS morph |
-| Live vibe/camera sliders | **Nowhere** | `LiveParametersPanel` orphan |
+| Live vibe/camera sliders | LIVE → Controls | `LiveParametersPanel` |
 | WebGL visual sliders | Engine → WebGL | |
 | Deforum all settings | Engine → Deforum | |
 | Prompt schedules (strings) | Engine → Deforum → Prompts | Not PROMPTS tab |

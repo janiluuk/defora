@@ -197,25 +197,25 @@ Same as MODULATION → Reactive pane only. Reference audio upload is under **MOD
 
 ### High priority — discoverability
 
-1. **Primary prompt text** lives in engine drawer (Deforum → Prompts group), not PROMPTS tab. Add a prominent link in PROMPTS → PROMPTS: “Edit schedule strings in Engine → Deforum”.
-2. **LIVE context panel is empty** — replace redirect with a compact read-only summary of active layer + 2–3 top params, keeping full controls in engine drawer.
-3. **Library is icon-only** — add “Library” text on hover or a 9th quick-access entry in help.
-4. **Help popover outdated** — update to 8 tabs, `P`/`E`, arrow keys, Escape stack.
-5. **`E` key conflict** — default binding uses `e` for FOV nudge; document or rebind FOV to another key.
+1. ~~**Primary prompt text**~~ — **Done (IA-3):** PROMPTS → PROMPTS hint + “Open prompt schedules” → Engine → Deforum → Prompts.
+2. ~~**LIVE context panel**~~ — **Done (IA-3):** summary GlassPanel + `LiveParametersPanel` + engine shortcuts.
+3. ~~**Library icon-only**~~ — **Done (IA-3):** top nav shows “Library” label beside folder icon.
+4. ~~**Help popover**~~ — **Done (IA-3):** 6 tabs, `P`/`E`, arrows, Escape stack, FOV on `F`.
+5. ~~**`E` key conflict**~~ — **Done (IA-3):** FOV default binding `f`; `E` = Engine drawer only.
 
 ### Medium priority — duplicates
 
-6. **Two layer lists** — sidebar shows *running* layers; engine drawer shows *all built-in* layers. Label sidebar “Active preview” and engine “All layers & controls”.
+6. ~~**Two layer lists**~~ — **Done (IA-3):** sidebar “Active preview”; engine “All layers” + subtitle.
 7. **RUNS twice** — SETTINGS → RUNS duplicates RUNS tab. Remove embed or rename to “Storage paths”.
 8. **Deforum transport twice** — status strip and engine Deforum job panel. Keep strip for quick access; collapse job transport when stream is active.
-9. **Morph in three places** — LIVE HUD, PROMPTS/LORA hints, compositor. Add small morph indicator in status strip when morph enabled.
+9. ~~**Morph in three places**~~ — **Done (IA-3):** status strip “Morph on” pill when enabled (HUD remains primary control).
 
 ### Layout / placement
 
 10. **GENERATE tab order** — tab #8 after SETTINGS; consider placing after MOTION (#4).
 11. **Sequencer split** — editing in bottom dock, summary in context panel. Add persistent “Sequencer” label on bottom dock; merge MOTION+GENERATE context into one “Timeline” panel.
 12. **Recent runs rail** — LIVE only; also show on RUNS tab or as collapsible strip.
-13. **AUDIO tab** — merge with MODULATION or add audio upload directly on AUDIO tab.
+13. ~~**AUDIO tab**~~ — **Done (IA-4):** reference audio upload + AV sync toggle on AUDIO tab (same data as MODULATION → Audio).
 14. **Sequencer side editor** — consider moving to left viewport edge (4th dock) for consistency with other edge menus.
 15. **Pinned params** — expose pin toggle from LIVE HUD empty state (“Pin params from Engine drawer”).
 
