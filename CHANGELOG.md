@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.64] - 2026-06-01
+
+## What's Changed
+
+- fix(web): skip txt2img Forge fetch in CI offline mode (51baded)
+- feat(web): IA phases 3–5 discoverability, library Files tab, and cleanup (7ceb409)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.63...v0.6.64
+
+
 ## [0.6.63] - 2026-06-01
 
 ## What's Changed
