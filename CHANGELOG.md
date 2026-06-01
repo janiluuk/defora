@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.63] - 2026-06-01
+
+## What's Changed
+
+- feat(web): engine Deforum settings, panel docks, and IA flow docs (253ffec)
+- feat(web): left modulation panel, compositor defaults, and XY latch mode (3e4e31d)
+- fix(web): library fullscreen close and record-during-generation E2E (f8fc15c)
+- test(playwright): assert WebGL layer via layers sidebar on startup (cdc3059)
+- fix(web): audio reactive panel and Playwright smoke after nav changes (0e4b880)
+- test(playwright): expect six top nav tabs after UX nav cleanup (26ec3d1)
+- fix(web): use .mjs for motion-axis-options so Node 18 can import it (11be8ed)
+- fix(test): load motion-axis-options via loadEsm for Node 18 CI (4e73d3b)
+- chore(screenshots): refresh UI audit captures for May 2026 UX branch (fe63e67)
+- feat(web): library browser, audio-reactive bands, and compact XY motion pads (72dc580)
+- feat(ux): layers right-edge sidebar, Scenes, nav cleanup (fcc1d20)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.62...v0.6.63
+
+
 ## [0.6.62] - 2026-05-31
 
 ## What's Changed
