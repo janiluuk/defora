@@ -249,7 +249,7 @@
                 aria-hidden="true"
               >
                 <rect
-                  v-for="(h, bi) in audioMappingMiniBars[mapIndex]"
+                  v-for="(h, bi) in modulationMappingMiniBars[mapIndex]"
                   :key="bi"
                   :x="bi * 11"
                   :y="28 - Math.max(2, h * 26)"
@@ -438,7 +438,8 @@ export default {
       const sub = this.currentSubTab && this.currentSubTab.MODULATION
       return sub || 'LFO'
     },
-    audioMappingMiniBars() {
+    /** Local name avoids proxyAppView shadowing (App has no audioMappingMiniBars). */
+    modulationMappingMiniBars() {
       const bins = this.audioSpectrumBins
       const BAR_COUNT = 8
       const NYQUIST = 22050
@@ -461,7 +462,8 @@ export default {
       })
     },
     activeBandMiniBars() {
-      return this.audioMappingMiniBars[this.activeAudioMappingIndex] || Array(8).fill(0)
+      const rows = this.modulationMappingMiniBars
+      return (Array.isArray(rows) && rows[this.activeAudioMappingIndex]) || Array(8).fill(0)
     },
     activeBandLevelPct() {
       const lvl = this.audioMappingLevels[this.activeAudioMappingIndex] || 0
