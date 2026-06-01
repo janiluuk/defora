@@ -5063,6 +5063,11 @@ _buildSceneSnapshot(name) {
     activeLayerId: this.activeVideoLayerId,
   };
 },
+syncLayerCompositing() {
+  this.$nextTick(() => {
+    if (typeof this.onDefaultAnimationInput === 'function') this.onDefaultAnimationInput();
+  });
+},
 _applySceneSnapshot(scene) {
   if (!scene || !Array.isArray(scene.layers)) return;
   (this.videoLayers || []).forEach((layer) => {

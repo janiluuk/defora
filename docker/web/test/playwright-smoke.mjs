@@ -38,11 +38,10 @@ try {
   }
   await clickTab(page, 'PROMPTS');
   await ensureRightPanelOpen(page);
-  await page.waitForSelector('.sub-pill', { timeout: 30000 });
-  await page.locator('.sub-pill').filter({ hasText: /^PROMPTS$/ }).first().click();
+  await page.waitForSelector('[data-testid="right-panel-drawer"].live-drawer-shell--open', { timeout: 30000 });
   const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]');
   if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
-    const morphPanel = page.locator('.framesync-panel').filter({ hasText: 'Prompt Morphing' }).first();
+    const morphPanel = page.locator('.live-right-column .framesync-panel').filter({ hasText: 'Prompt Morphing' }).first();
     const morphEnabled = morphPanel.locator('.framesync-button.framesync-button--live').filter({ hasText: /^Enabled$/ }).first();
     if ((await morphEnabled.count()) === 0) {
       await morphPanel.locator('.framesync-button').filter({ hasText: /^Enabled$/ }).first().click();
@@ -54,8 +53,9 @@ try {
     throw new Error('Prompt morph LIVE hint not found on PROMPTS tab');
   }
   await clickTab(page, 'AUDIO');
-  await page.waitForTimeout(300);
-  const audioReactivePanel = page.locator('.audio-reactive-panel');
+  await ensureRightPanelOpen(page);
+  await page.waitForSelector('[data-testid="right-panel-drawer"].live-drawer-shell--open', { timeout: 30000 });
+  const audioReactivePanel = page.locator('.live-right-column .audio-reactive-panel');
   if ((await audioReactivePanel.count()) === 0) {
     throw new Error('Audio reactive panel not found on AUDIO tab');
   }
@@ -85,8 +85,9 @@ try {
     throw new Error('Runs monitor not found (Settings → RUNS or LIVE system drawer)');
   }
   await clickTab(page, 'SETTINGS');
-  await page.waitForTimeout(300);
-  await page.locator('.sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
+  await ensureRightPanelOpen(page);
+  await page.waitForSelector('[data-testid="right-panel-drawer"].live-drawer-shell--open', { timeout: 30000 });
+  await page.locator('.settings-subtabs .sub-pill').filter({ hasText: /^GPUS$/ }).first().click();
   await page.waitForTimeout(300);
   const infraPanel = page.locator('[data-testid="infrastructure-panel"]');
   if ((await infraPanel.count()) === 0) {
