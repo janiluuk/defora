@@ -714,3 +714,31 @@ describe("deforum batches across GPU pool", () => {
     expect(cancelCalls.length).to.be.at.least(1);
   });
 });
+
+describe("FreeCut SPA embed", () => {
+  let svc;
+  let request;
+
+  beforeEach(async () => {
+    svc = await start({ port: 0, enableMq: false });
+    request = supertest(`http://127.0.0.1:${svc.port}`);
+  });
+
+  afterEach(async () => {
+    if (svc && svc.close) await svc.close();
+  });
+
+  it("injects pathname fix for /freecut/projects so the client router matches", async () => {
+    const res = await request.get("/freecut/projects");
+    expect(res.status).to.equal(200);
+    expect(res.text).to.include("defora-freecut-path-fix");
+    expect(res.text).to.include('var r="/projects"');
+    expect(res.text).to.include('id="root"');
+  });
+
+  it("still serves hashed freecut assets", async () => {
+    const res = await request.get("/freecut/assets/index-BRurG7kq.js");
+    expect(res.status).to.equal(200);
+    expect(res.headers["content-type"] || "").to.match(/javascript/);
+  });
+});

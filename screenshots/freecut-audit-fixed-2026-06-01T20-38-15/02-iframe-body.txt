@@ -1,0 +1,7 @@
+FreeCut
+EN
+Import Project
+New Project
+Welcome to FreeCut
+
+Get started by creating your first video project. Choose your resolution, frame rate, and start editing!

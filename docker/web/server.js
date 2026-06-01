@@ -431,6 +431,25 @@ async function start(opts = {}) {
     return gpuPool.resolveForgeTarget(req, options);
   }
 
+  function resolveMediatorConnection(req, body = {}) {
+    const fromPool = gpuPool.resolveMediatorTarget(req);
+    const host =
+      body.mediator_host ||
+      body.mediatorHost ||
+      (fromPool && fromPool.host) ||
+      process.env.DEF_MEDIATOR_HOST ||
+      process.env.MEDIATOR_HOST ||
+      "localhost";
+    const port =
+      body.mediator_port ||
+      body.mediatorPort ||
+      (fromPool && fromPool.deforumationPort) ||
+      process.env.DEF_MEDIATOR_PORT ||
+      process.env.MEDIATOR_PORT ||
+      "8766";
+    return { host, port: String(port) };
+  }
+
   function forgeBaseUrl(req) {
     return forgeTarget(req).url;
   }
@@ -880,9 +899,31 @@ async function start(opts = {}) {
     process.env.FREECUT_DIR ||
     path.join(publicDir, "freecut");
   if (fs.existsSync(freecutDir)) {
-    app.use("/freecut", express.static(freecutDir, { maxAge: "300s" }));
-    app.use("/freecut", (_req, res) => {
-      res.sendFile(path.join(freecutDir, "index.html"));
+    const freecutIndexPath = path.join(freecutDir, "index.html");
+    let freecutIndexTemplate = null;
+    function freecutInnerRouteFromRequest(req) {
+      const raw = String(req.originalUrl || req.url || "").split("?")[0].split("#")[0];
+      let sub = raw.replace(/^\/freecut\/?/i, "/");
+      if (!sub || sub === "/" || sub === "/index.html") return "/projects";
+      return sub.startsWith("/") ? sub : `/${sub}`;
+    }
+    function sendFreecutSpa(req, res) {
+      try {
+        if (!freecutIndexTemplate) {
+          freecutIndexTemplate = fs.readFileSync(freecutIndexPath, "utf8");
+        }
+        const innerRoute = freecutInnerRouteFromRequest(req);
+        const inject = `<script>(function(){try{var r=${JSON.stringify(innerRoute)};if(window.location.pathname!==r){history.replaceState(null,"",r+window.location.search+window.location.hash);}}catch(_e){}})();</script>`;
+        const html = freecutIndexTemplate.replace("<head>", `<head>\n<!-- defora-freecut-path-fix -->\n${inject}\n`);
+        res.type("html").send(html);
+      } catch (err) {
+        console.error("[web] freecut SPA error", err);
+        res.status(500).send("FreeCut unavailable");
+      }
+    }
+    app.use("/freecut", express.static(freecutDir, { maxAge: "300s", fallthrough: true, index: false }));
+    app.use("/freecut", (req, res) => {
+      sendFreecutSpa(req, res);
     });
     const landingDir = path.join(freecutDir, "assets", "landing");
     if (fs.existsSync(landingDir)) {
@@ -1079,8 +1120,7 @@ async function start(opts = {}) {
     }
     const fps = parseInt(body.fps, 10) || 24;
     const live = !!body.live;
-    const mediatorHost = body.mediatorHost || process.env.DEF_MEDIATOR_HOST || "localhost";
-    const mediatorPort = body.mediatorPort || process.env.DEF_MEDIATOR_PORT || "8766";
+    const { host: mediatorHost, port: mediatorPort } = resolveMediatorConnection(req, body);
     const mappings = Array.isArray(body.mappings) ? body.mappings : [];
     let mappingArg;
     try {
@@ -5163,10 +5203,11 @@ async function start(opts = {}) {
   // Advanced Synchronization API endpoints
   app.post("/api/sync/ableton-link", async (req, res) => {
     const { bpm, mediator_host, mediator_port, fps } = req.body || {};
+    const mediator = resolveMediatorConnection(req, req.body || {});
     try {
       const args = ["-m", "defora_cli.ableton_link", "sync", "--bpm", String(bpm || 120)];
-      if (mediator_host) args.push("--mediator-host", mediator_host);
-      if (mediator_port) args.push("--mediator-port", String(mediator_port));
+      args.push("--mediator-host", mediator_host || mediator.host);
+      args.push("--mediator-port", String(mediator_port || mediator.port));
       if (fps) args.push("--fps", String(fps));
       execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
@@ -5199,14 +5240,15 @@ async function start(opts = {}) {
 
   app.post("/api/sync/timecode", async (req, res) => {
     const { mode, fps, midi_device, mediator_host, mediator_port } = req.body || {};
+    const mediator = resolveMediatorConnection(req, req.body || {});
     if (!mode || !["ltc", "mtc"].includes(mode)) {
       return res.status(400).json({ error: "mode required (ltc or mtc)" });
     }
     try {
       const args = ["-m", "defora_cli.timecode_sync", mode, "--fps", String(fps || 24)];
       if (midi_device) args.push("--midi-device", midi_device);
-      if (mediator_host) args.push("--mediator-host", mediator_host);
-      if (mediator_port) args.push("--mediator-port", String(mediator_port));
+      args.push("--mediator-host", mediator_host || mediator.host);
+      args.push("--mediator-port", String(mediator_port || mediator.port));
       execPythonModule(args, (error, stdout, stderr) => {
         if (error) {
           return res.status(500).json({ error: stderr || stdout || error.message });

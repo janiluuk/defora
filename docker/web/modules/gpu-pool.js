@@ -5,8 +5,12 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const fsp = fs.promises;
+const net = require("net");
 const path = require("path");
 const { skipBackgroundProbes: shouldSkipBackgroundProbes } = require("./ci-offline");
+
+const DEFAULT_DEFORUM_PORT = 8765;
+const DEFAULT_DEFORUMATION_PORT = 8766;
 
 const BACKENDS = ["sd-forge", "comfyui", "ollama"];
 const STRATEGIES = ["round_robin", "least_busy", "random", "priority"];
@@ -74,6 +78,109 @@ function nodeIdFromUrl(url) {
   return crypto.createHash("sha256").update(normalizeUrl(url)).digest("hex").slice(0, 16);
 }
 
+function normalizeHost(host) {
+  return String(host || "")
+    .trim()
+    .replace(/^https?:\/\//i, "")
+    .replace(/^wss?:\/\//i, "")
+    .split("/")[0]
+    .split(":")[0];
+}
+
+function hostnameFromUrl(url) {
+  try {
+    return normalizeHost(new URL(normalizeUrl(url)).hostname);
+  } catch (_e) {
+    return "";
+  }
+}
+
+function inferMediatorHost(node = {}) {
+  const explicit = normalizeHost(node.mediatorSettings && node.mediatorSettings.host);
+  if (explicit) return explicit;
+  const fromName = normalizeHost(node.name);
+  if (fromName && !fromName.includes(".")) return fromName;
+  const fromUrl = hostnameFromUrl(node.url);
+  if (fromUrl && !/^\d+\.\d+\.\d+\.\d+$/.test(fromUrl)) return fromUrl;
+  if (fromName) return fromName;
+  return fromUrl || "localhost";
+}
+
+function normalizeMediatorSettings(input = {}, node = {}) {
+  const raw = input && typeof input === "object" && !Array.isArray(input) ? input : {};
+  const host = normalizeHost(raw.host) || inferMediatorHost(node);
+  const deforumPort = Number(raw.deforumPort ?? raw.deforum_port ?? DEFAULT_DEFORUM_PORT);
+  const deforumationPort = Number(raw.deforumationPort ?? raw.deforumation_port ?? DEFAULT_DEFORUMATION_PORT);
+  return {
+    host,
+    deforumPort: Number.isFinite(deforumPort) ? deforumPort : DEFAULT_DEFORUM_PORT,
+    deforumationPort: Number.isFinite(deforumationPort) ? deforumationPort : DEFAULT_DEFORUMATION_PORT,
+  };
+}
+
+function mediatorPublicView(node, probe = {}) {
+  const settings = normalizeMediatorSettings(node.mediatorSettings, node);
+  const host = settings.host;
+  const deforumPort = settings.deforumPort;
+  const deforumationPort = settings.deforumationPort;
+  return {
+    ...settings,
+    address: `${host}:${deforumationPort}`,
+    deforumWsUrl: `ws://${host}:${deforumPort}`,
+    deforumationWsUrl: `ws://${host}:${deforumationPort}`,
+    deforumStatus: probe.deforumStatus || "unknown",
+    deforumationStatus: probe.deforumationStatus || "unknown",
+    lastChecked: probe.lastChecked || null,
+  };
+}
+
+function probeTcp(host, port, timeoutMs = 2000) {
+  return new Promise((resolve) => {
+    if (!host || !port) return resolve(false);
+    const socket = new net.Socket();
+    let settled = false;
+    const finish = (ok) => {
+      if (settled) return;
+      settled = true;
+      try {
+        socket.destroy();
+      } catch (_e) {
+        /* ignore */
+      }
+      resolve(ok);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once("connect", () => finish(true));
+    socket.once("timeout", () => finish(false));
+    socket.once("error", () => finish(false));
+    try {
+      socket.connect(port, host);
+    } catch (_e) {
+      finish(false);
+    }
+  });
+}
+
+async function probeMediatorPorts(node, timeoutMs = 2000, env = process.env) {
+  const settings = normalizeMediatorSettings(node.mediatorSettings, node);
+  if (shouldSkipBackgroundProbes(env)) {
+    return {
+      deforumStatus: "unknown",
+      deforumationStatus: "unknown",
+      lastChecked: new Date().toISOString(),
+    };
+  }
+  const [deforumOk, deforumationOk] = await Promise.all([
+    probeTcp(settings.host, settings.deforumPort, timeoutMs),
+    probeTcp(settings.host, settings.deforumationPort, timeoutMs),
+  ]);
+  return {
+    deforumStatus: deforumOk ? "healthy" : "unreachable",
+    deforumationStatus: deforumationOk ? "healthy" : "unreachable",
+    lastChecked: new Date().toISOString(),
+  };
+}
+
 function normalizeForgeSettings(input = {}) {
   const raw = input && typeof input === "object" && !Array.isArray(input) ? input : {};
   const out = {};
@@ -122,6 +229,10 @@ function defaultNode(input = {}) {
     progress: input.progress ?? null,
     etaRelative: input.etaRelative ?? null,
     forgeSettings: normalizeForgeSettings(input.forgeSettings),
+    mediatorSettings: normalizeMediatorSettings(input.mediatorSettings, {
+      name: input.name,
+      url: input.url || url,
+    }),
     requestLog: [],
   };
 }
@@ -178,7 +289,13 @@ function createGpuPool(options = {}) {
       if (typeof data.timeout === "number") state.timeout = data.timeout;
       if (typeof data.retryAttempts === "number") state.retryAttempts = data.retryAttempts;
       if (Array.isArray(data.nodes)) {
-        state.nodes = data.nodes.map((n) => defaultNode(n));
+        state.nodes = data.nodes.map((n) => {
+          const node = defaultNode(n);
+          if (node.backend === "sd-forge") {
+            node.mediatorSettings = normalizeMediatorSettings(node.mediatorSettings, node);
+          }
+          return node;
+        });
       }
     } catch (err) {
       if (err.code !== "ENOENT") console.error("[gpu-pool] load error", err.message);
@@ -203,6 +320,7 @@ function createGpuPool(options = {}) {
         gpuModel: n.gpuModel,
         model: n.model,
         forgeSettings: normalizeForgeSettings(n.forgeSettings),
+        mediatorSettings: normalizeMediatorSettings(n.mediatorSettings, n),
       })),
     };
     await fsp.writeFile(configPath, JSON.stringify(payload, null, 2), "utf-8");
@@ -234,6 +352,10 @@ function createGpuPool(options = {}) {
       progress: n.progress,
       etaRelative: n.etaRelative,
       forgeSettings: normalizeForgeSettings(n.forgeSettings),
+      mediator:
+        n.backend === "sd-forge"
+          ? mediatorPublicView(n, n._mediatorProbe || {})
+          : null,
       editable: !n.enabled,
       requestLog: (n.requestLog || []).slice(0, 30),
     };
@@ -668,6 +790,10 @@ function createGpuPool(options = {}) {
     } catch (err) {
       node.statsError = err.message;
     }
+
+    if (node.backend === "sd-forge") {
+      node._mediatorProbe = await probeMediatorPorts(node, 2000, env);
+    }
   }
 
   async function performHealthCheck() {
@@ -784,6 +910,7 @@ function createGpuPool(options = {}) {
               gpuModel: n.gpuModel,
               model: n.model,
               forgeSettings: n.forgeSettings,
+              mediatorSettings: n.mediatorSettings,
             })
           );
           state.nodes = mapped.nodes;
@@ -802,7 +929,8 @@ function createGpuPool(options = {}) {
 
     app.post("/api/gpu-pool/nodes", async (req, res) => {
       try {
-        const { url, name, backend, priority, gpuModel, model, enabled, forgeSettings } = req.body || {};
+        const { url, name, backend, priority, gpuModel, model, enabled, forgeSettings, mediatorSettings } =
+          req.body || {};
         const normalized = normalizeUrl(url);
         if (!normalized) return res.status(400).json({ error: "url required" });
         if (findNode(normalized)) return res.status(409).json({ error: "node already exists" });
@@ -814,6 +942,7 @@ function createGpuPool(options = {}) {
           gpuModel,
           model,
           forgeSettings,
+          mediatorSettings,
           enabled: enabled !== false,
         });
         state.nodes.push(node);
@@ -832,7 +961,7 @@ function createGpuPool(options = {}) {
         if (node.enabled) {
           return res.status(409).json({ error: "disable node before editing (only disabled nodes can be edited)" });
         }
-        const { url, name, backend, priority, gpuModel, model, forgeSettings } = req.body || {};
+        const { url, name, backend, priority, gpuModel, model, forgeSettings, mediatorSettings } = req.body || {};
         if (url) {
           const normalized = normalizeUrl(url);
           if (!normalized) return res.status(400).json({ error: "invalid url" });
@@ -851,6 +980,12 @@ function createGpuPool(options = {}) {
             ...(node.forgeSettings || {}),
             ...forgeSettings,
           });
+        }
+        if (mediatorSettings !== undefined) {
+          node.mediatorSettings = normalizeMediatorSettings(
+            { ...(node.mediatorSettings || {}), ...mediatorSettings },
+            node
+          );
         }
         await saveConfig();
         res.json({ success: true, node: publicNode(node) });
@@ -905,6 +1040,21 @@ function createGpuPool(options = {}) {
         res.json({ success: true, node: publicNode(node) });
       } catch (err) {
         console.error("[gpu-pool] enable node error:", err.message);
+        res.status(500).json({ error: err.message });
+      }
+    });
+
+    app.post("/api/gpu-pool/nodes/:id/mediator-probe", async (req, res) => {
+      try {
+        const node = findNode(req.params.id);
+        if (!node) return res.status(404).json({ error: "node not found" });
+        if (node.backend !== "sd-forge") {
+          return res.status(400).json({ error: "mediator probe only applies to sd-forge nodes" });
+        }
+        node._mediatorProbe = await probeMediatorPorts(node, 2000, env);
+        res.json({ success: true, mediator: mediatorPublicView(node, node._mediatorProbe) });
+      } catch (err) {
+        console.error("[gpu-pool] mediator probe error:", err.message);
         res.status(500).json({ error: err.message });
       }
     });
@@ -1076,6 +1226,27 @@ function createGpuPool(options = {}) {
     if (node) pushNodeLog(node, entry);
   }
 
+  function resolveMediatorForNode(node) {
+    if (!node || node.backend !== "sd-forge") return null;
+    return mediatorPublicView(node, node._mediatorProbe || {});
+  }
+
+  function resolveMediatorTarget(req) {
+    const target = resolveForgeTarget(req);
+    if (target.node) {
+      const mediator = resolveMediatorForNode(target.node);
+      if (mediator) {
+        return {
+          host: mediator.host,
+          deforumPort: mediator.deforumPort,
+          deforumationPort: mediator.deforumationPort,
+          node: target.node,
+        };
+      }
+    }
+    return null;
+  }
+
   return {
     init,
     state,
@@ -1088,6 +1259,9 @@ function createGpuPool(options = {}) {
     ensureDefaultModelPreloaded,
     modelsMatch,
     resolveOllamaTarget,
+    resolveMediatorForNode,
+    resolveMediatorTarget,
+    probeMediatorPorts,
     isLoadBalancing,
     trackJobStart,
     trackJobEnd,
@@ -1105,4 +1279,14 @@ function createGpuPool(options = {}) {
   };
 }
 
-module.exports = { createGpuPool, normalizeUrl, nodeIdFromUrl, defaultNode, BACKENDS, STRATEGIES };
+module.exports = {
+  createGpuPool,
+  normalizeUrl,
+  nodeIdFromUrl,
+  defaultNode,
+  BACKENDS,
+  STRATEGIES,
+  normalizeMediatorSettings,
+  inferMediatorHost,
+  probeTcp,
+};

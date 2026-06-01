@@ -6162,6 +6162,11 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .infra-mediator-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 8px;
+    }
     .infra-mediator-card {
       padding: 12px;
       border: 1px solid var(--border);
@@ -6169,6 +6174,11 @@
       background: var(--bg-1);
       display: grid;
       gap: 8px;
+    }
+    .gpu-forge-modal__mediator {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid var(--border);
     }
     .infra-mediator-card__head {
       display: flex;

@@ -299,6 +299,23 @@ Minimal control panel with hotkey bindings:
 - See `docs/mediator_setup.md` for mediator startup steps and for installing the sd-forge Deforum bridge from `deforumation/Deforum_Version/sd-forge/`.
 - Docker users: `docker-compose up --build mediator sd-forge` will start the mediator (ports 8765/8766) and a Forge container with the Deforumation-patched Deforum extension pre-installed (UI on port 7860).
 
+## vimage2 stack
+On `vimage2` (192.168.2.101) DeforumationQT runs alongside the SD-Forge Docker stack as systemd services:
+
+```bash
+./vimage2-deforumationqt status    # show SD-Forge, mediator, GUI status
+./vimage2-deforumationqt start     # start all services
+./vimage2-deforumationqt stop      # stop all services
+```
+
+| Service | Ports | Description |
+|---|---|---|
+| `forge` (Docker) | `7860` (public) | SD-Forge web UI + Deforum extension |
+| `deforumation-mediator.service` | `8765`/`8766` (public) | Mediator bridging Deforum ↔ Deforumation |
+| `deforumation-gui.service` | `8767` (local) | DeforumationQT Qt GUI (headless via Xvfb) |
+
+Set `VIMAGE2_HOST` (default `192.168.2.101`) if the IP differs.
+
 ## Environment knobs
 - `FORGE_API_BASE` — Python CLI target Forge server (e.g., `http://192.168.2.101:7860`).
 - `SD_FORGE_HOST` / `SD_FORGE_PORT` — **web stack** Forge hostname and port (Docker Compose defaults to `sd-forge:7860`).

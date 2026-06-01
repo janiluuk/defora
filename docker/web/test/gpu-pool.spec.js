@@ -167,6 +167,32 @@ describe("GPU pool API", () => {
     expect(savedNode.forgeSettings.width).to.equal(1536);
   });
 
+  it("persists mediator settings per sd-forge node and infers host from name", async () => {
+    const add = await request.post("/api/gpu-pool/nodes").send({
+      url: "http://192.168.2.104:7860",
+      name: "vimage5",
+      backend: "sd-forge",
+      enabled: false,
+      mediatorSettings: {
+        deforumPort: 8765,
+        deforumationPort: 8766,
+      },
+    });
+    expect(add.status).to.equal(200);
+    expect(add.body.node.mediator).to.be.an("object");
+    expect(add.body.node.mediator.host).to.equal("vimage5");
+    expect(add.body.node.mediator.deforumPort).to.equal(8765);
+    expect(add.body.node.mediator.deforumationPort).to.equal(8766);
+    expect(add.body.node.mediator.deforumWsUrl).to.equal("ws://vimage5:8765");
+
+    const id = add.body.node.id;
+    const probe = await request.post(`/api/gpu-pool/nodes/${id}/mediator-probe`);
+    expect(probe.status).to.equal(200);
+    expect(probe.body.mediator).to.be.an("object");
+    expect(probe.body.mediator.host).to.equal("vimage5");
+    expect(probe.body.mediator).to.include.keys("deforumStatus", "deforumationStatus");
+  });
+
   it("POST /api/gpu-pool/refresh returns node stats fields", async () => {
     await request.post("/api/gpu-pool/nodes").send({
       url: "http://127.0.0.1:9",

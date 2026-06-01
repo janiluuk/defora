@@ -858,7 +858,10 @@ describe("Deforumation Web UI", () => {
     expect(pageText).to.include("Edit SD-Forge instance");
     expect(pageText).to.include("Forge Alpha");
     expect(pageText).to.include("Apply options");
+    expect(pageText).to.include("Mediator");
+    expect(pageText).to.include("Check ports");
     expect(document.querySelector(".gpu-forge-modal")).to.exist;
+    expect(document.querySelector("[data-testid='gpu-forge-mediator-section']")).to.exist;
   });
 
   it("shows a 3D motion path preview above performance axis controls", async () => {
