@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.67] - 2026-06-01
+
+## What's Changed
+
+- chore(web): refresh batch-1 run fixture timestamps (df73c6f)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.66...v0.6.67
+
+
 ## [0.6.66] - 2026-06-01
 
 ## What's Changed
