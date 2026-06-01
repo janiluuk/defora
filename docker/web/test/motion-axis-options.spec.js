@@ -4,7 +4,7 @@ const { loadEsm } = require('./load-esm');
 
 describe('motion-axis-options', () => {
   it('returns 2D and 3D pad slot defaults', async () => {
-    const { defaultMotionXYPadSlots } = await loadEsm('..', 'src', 'utils', 'motion-axis-options.js');
+    const { defaultMotionXYPadSlots } = await loadEsm('..', 'src', 'utils', 'motion-axis-options.mjs');
     assert.equal(defaultMotionXYPadSlots(true).length, 2);
     assert.equal(defaultMotionXYPadSlots(false).length, 1);
   });
@@ -14,7 +14,7 @@ describe('motion-axis-options', () => {
       '..',
       'src',
       'utils',
-      'motion-axis-options.js',
+      'motion-axis-options.mjs',
     );
     const options = motionAxisOptionsForMode(true);
     const next = nextMotionAxisKey('translation_x', 'translation_y', options);

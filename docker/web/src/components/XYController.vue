@@ -60,7 +60,7 @@
 
 <script>
 import UiIcon from './UiIcon.vue'
-import { motionAxisDef, nextMotionAxisKey } from '../utils/motion-axis-options.js'
+import { motionAxisDef, nextMotionAxisKey } from '../utils/motion-axis-options.mjs'
 
 export default {
   name: 'XYController',
