@@ -11,6 +11,7 @@ import {
   openLibraryBrowser,
   openRunsMonitor,
   waitForNavTabs,
+  waitForProjectCard,
 } from './playwright-nav.mjs';
 
 async function dismissSessionModalIfOpen(page) {
@@ -97,13 +98,11 @@ try {
   }
 
   await openLibraryBrowser(page);
-  const rootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
-  await rootSelect.selectOption({ value: 'uploads' });
-  await page.waitForTimeout(600);
-  const tile = page.locator('.video-swarm-browser__tile[data-video-path*="demo-output.mp4"]').first();
-  await tile.waitFor({ state: 'visible', timeout: 15000 });
-  await tile.click();
-  const preview = page.locator('.video-swarm-browser__preview video, .video-swarm-browser__tile video').first();
+  const browserRoot = page.locator('[data-testid="projects-browser"]').first();
+  const card = await waitForProjectCard(browserRoot, page, 'demo-output.mp4');
+  await card.click();
+  await card.hover();
+  const preview = card.locator('video.library-browser__video').first();
   await preview.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null);
 
   await page.locator('[data-testid="open-in-video-editor"]').first().click();

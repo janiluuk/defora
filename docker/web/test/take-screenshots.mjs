@@ -159,11 +159,8 @@ try {
 
   // LIBRARY workspace
   await openLibraryBrowser(page);
-  const libRootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
-  if ((await libRootSelect.count()) > 0) {
-    await libRootSelect.selectOption({ value: 'uploads' }).catch(() => null);
-    await page.waitForTimeout(800);
-  }
+  await page.waitForSelector('[data-testid="library-browser"]', { timeout: 15000 }).catch(() => null);
+  await page.waitForTimeout(800);
   await shot(page, 'library-tab.png');
   await page.locator('[data-testid="close-library-workspace"]').click().catch(() => null);
   await page.waitForTimeout(400);

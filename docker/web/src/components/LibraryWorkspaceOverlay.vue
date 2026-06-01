@@ -20,7 +20,7 @@
             @click="setLibraryWorkspacePane('browser')"
           >
             <UiIcon name="folder" />
-            <span>Browser</span>
+            <span>Library</span>
           </button>
           <button
             type="button"

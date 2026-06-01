@@ -5,7 +5,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { chromium } from 'playwright';
-import { clickTab, ensureRightPanelClosed, ensureRightPanelOpen, openLibraryBrowser, waitForNavTabs } from './playwright-nav.mjs';
+import { clickTab, ensureRightPanelClosed, ensureRightPanelOpen, openLibraryBrowser, waitForNavTabs, waitForProjectCard } from './playwright-nav.mjs';
 import { startE2eServer } from './playwright-server.mjs';
 
 async function dismissSessionModalIfOpen(page) {
@@ -25,7 +25,9 @@ fs.mkdirSync(runsDir, { recursive: true });
 fs.mkdirSync(framesDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(sequencersDir, { recursive: true });
-fs.writeFileSync(path.join(uploadsDir, 'editor-handoff.mp4'), Buffer.from('defora-editor-mp4'));
+const editorProjectDir = path.join(uploadsDir, 'projects', 'editor-handoff');
+fs.mkdirSync(editorProjectDir, { recursive: true });
+fs.writeFileSync(path.join(editorProjectDir, 'editor-handoff.mp4'), Buffer.from('defora-editor-mp4'));
 
 const svc = await startE2eServer({
   port: 0,
@@ -56,12 +58,9 @@ try {
   await waitForNavTabs(page);
 
   await openLibraryBrowser(page);
-  const rootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
-  await rootSelect.selectOption({ value: 'uploads' });
-  await page.waitForTimeout(600);
-  const tile = page.locator('.video-swarm-browser__tile[data-video-path*="editor-handoff.mp4"]').first();
-  await tile.waitFor({ state: 'visible', timeout: 15000 });
-  await tile.click();
+  const browserRoot = page.locator('[data-testid="projects-browser"]').first();
+  const card = await waitForProjectCard(browserRoot, page, 'editor-handoff.mp4');
+  await card.click();
   await page.locator('[data-testid="open-in-video-editor"]').first().click();
   await page.waitForSelector('[data-testid="library-workspace-tab-editor"][aria-selected="true"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="editor-workspace"]', { timeout: 15000 });

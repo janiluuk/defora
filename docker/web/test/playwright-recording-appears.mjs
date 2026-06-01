@@ -11,7 +11,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { startE2eServer } from "./playwright-server.mjs";
-import { clickTab, openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
+import { clickTab, openLibraryBrowser, waitForNavTabs, waitForProjectCard } from "./playwright-nav.mjs";
 
 function tinyMp4Buffer() {
   // Not a valid playable MP4, but enough for listing + download endpoints.
@@ -91,53 +91,27 @@ try {
   if ((await recordBtn.count()) === 0) throw new Error("Record button not found in header transport");
   await recordBtn.click();
 
-  // Go to Library (VideoSwarm browser).
+  // Go to Library (Projects browser).
   const browserRoot = await openLibraryBrowser(page);
 
-  // Choose Uploads root (record output is processed into uploadsDir).
-  const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();
-  // Wait for roots to populate before selecting.
-  await page.waitForFunction(
-    (sel) => {
-      const el = document.querySelector(sel);
-      if (!el) return false;
-      return Array.from(el.querySelectorAll("option")).some((o) => (o.value || "").toLowerCase() === "uploads");
-    },
-    rootSelect ? ".video-swarm-browser__roots select.framesync-select" : ".video-swarm-browser__roots select",
-    { timeout: 15000 }
-  );
-  await rootSelect.selectOption({ value: "uploads" });
-
-  // Ensure filenames are visible (default is on; only toggle if currently off).
-  const namesChip = browserRoot.locator(".video-swarm-browser__chips .chip").filter({ hasText: /^Names$/ }).first();
-  if ((await namesChip.count()) > 0) {
-    const cls = (await namesChip.getAttribute("class")) || "";
-    if (!cls.includes("active")) {
-      await namesChip.click();
-    }
-  }
-
   // Poll until the processed file appears.
-  // NOTE: The browser view refresh is triggered by browsing (root change), not by a dedicated refresh API.
-  // Re-selecting the root forces a browse request.
   const deadline = Date.now() + 25000;
+  let foundCard = null;
   while (Date.now() < deadline) {
-    await rootSelect.selectOption({ value: "frames" }).catch(() => null);
-    await page.waitForTimeout(250);
-    await rootSelect.selectOption({ value: "uploads" }).catch(() => null);
-    await page.waitForTimeout(900);
     if (producedFilename) {
-      const tile = browserRoot.locator(`.video-swarm-browser__tile[data-video-path*="${producedFilename}"]`).first();
-      if ((await tile.count()) > 0) {
-        // Also verify the media endpoint can be requested (file exists + served).
-        const filePath = await tile.getAttribute("data-video-path");
-        if (!filePath) throw new Error("Expected tile data-video-path attribute");
+      const card = browserRoot.locator(`[data-testid="project-card"][data-video-path*="${producedFilename}"]`).first();
+      if ((await card.count()) > 0) {
+        const filePath = await card.getAttribute("data-video-path");
+        if (!filePath) throw new Error("Expected project card data-video-path attribute");
         const mediaRes = await page.request.get(`${base}/api/video-swarm/file?path=${encodeURIComponent(filePath)}`);
         if (!mediaRes.ok()) throw new Error(`Expected media 200, got ${mediaRes.status()}`);
+        foundCard = card;
         console.log(`OK: recording appeared in browser after processing: ${producedFilename}`);
         break;
       }
     }
+    await browserRoot.locator('[data-testid="projects-refresh"]').first().click().catch(() => null);
+    await page.waitForTimeout(900);
   }
 
   if (!producedFilename) throw new Error("Recording filename was not captured");
@@ -158,8 +132,7 @@ try {
   }
 
   // Ensure we actually saw it in the browser grid (loop broke).
-  const finalTile = browserRoot.locator(`.video-swarm-browser__tile[data-video-path*="${producedFilename}"]`).first();
-  if ((await finalTile.count()) === 0) {
+  if (!foundCard) {
     throw new Error(`Recording did not appear in browser within timeout: ${producedFilename}`);
   }
 } finally {

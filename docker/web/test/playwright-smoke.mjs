@@ -61,9 +61,23 @@ try {
   }
   await openLibraryBrowser(page);
   await page.waitForTimeout(300);
-  const storageBrowser = page.locator('.library-storage-browser');
-  if ((await storageBrowser.count()) === 0) {
-    throw new Error('Storage browser not found under LIBRARY');
+  const libraryBrowser = page.locator('[data-testid="library-browser"]');
+  if ((await libraryBrowser.count()) === 0) {
+    throw new Error('Library browser not found under Library workspace');
+  }
+  const projectsBrowser = page.locator('[data-testid="projects-browser"]');
+  if ((await projectsBrowser.count()) === 0) {
+    throw new Error('Projects panel not found under Library');
+  }
+  await page.locator('[data-testid="library-tab-videos"]').click();
+  const videosBrowser = page.locator('[data-testid="videos-browser"]');
+  if ((await videosBrowser.count()) === 0) {
+    throw new Error('Videos panel not found under Library');
+  }
+  await page.locator('[data-testid="library-tab-audio"]').click();
+  const audioBrowser = page.locator('[data-testid="audio-browser"]');
+  if ((await audioBrowser.count()) === 0) {
+    throw new Error('Audio panel not found under Library');
   }
   await openRunsMonitor(page);
   const runsBrowser = page.locator('[data-testid="runs-browser"]');

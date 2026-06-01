@@ -200,70 +200,14 @@ try {
   fs.writeFileSync(path.join(liveDir, "deforum.m3u8"), m3u8Content);
   console.log(`✓  HLS playlist written to ${liveDir}/deforum.m3u8`);
 
-  // ── 7. Navigate to Library → VideoSwarm browser ───────────────
-  const { openLibraryBrowser } = await import("./playwright-nav.mjs");
-  await openLibraryBrowser(page);
+  // ── 7. Navigate to Library → Projects browser ───────────────
+  const { openLibraryBrowser, waitForProjectCard } = await import("./playwright-nav.mjs");
+  const browserRoot = await openLibraryBrowser(page);
 
-  const browserRoot = page
-    .locator('.video-swarm-browser[data-testid="video-swarm-browser"]')
-    .first();
-  await browserRoot.waitFor({ state: "visible", timeout: 20_000 });
+  const card = await waitForProjectCard(browserRoot, page, videoName);
+  console.log(`✓  Encoded video visible in Projects library`);
 
-  const rootSelect = browserRoot
-    .locator(".video-swarm-browser__roots select.framesync-select")
-    .first();
-
-  // Wait for roots to load
-  await page.waitForFunction(
-    (sel) => {
-      const el = document.querySelector(sel);
-      return el && el.querySelectorAll("option").length > 1;
-    },
-    ".video-swarm-browser__roots select.framesync-select",
-    { timeout: 15_000 },
-  );
-
-  // ── 8a. Check Uploads root: MP4 tile must appear ─────────────────────────
-  await rootSelect.selectOption({ value: "uploads" });
-
-  // Enable filenames so the tile label is visible
-  const namesChip = browserRoot
-    .locator(".video-swarm-browser__chips .chip")
-    .filter({ hasText: /^Names$/ })
-    .first();
-  if ((await namesChip.count()) > 0) {
-    const cls = (await namesChip.getAttribute("class")) || "";
-    if (!cls.includes("active")) await namesChip.click();
-  }
-
-  // Poll until the tile appears (browse is triggered by root change)
-  const deadline = Date.now() + 20_000;
-  let tileFound = false;
-  while (Date.now() < deadline && !tileFound) {
-    // Re-trigger a browse by toggling root to force a refresh
-    await rootSelect.selectOption({ value: "frames" }).catch(() => null);
-    await page.waitForTimeout(200);
-    await rootSelect.selectOption({ value: "uploads" }).catch(() => null);
-    await page.waitForTimeout(600);
-
-    const tile = browserRoot
-      .locator(`.video-swarm-browser__tile[data-video-path*="${videoName}"]`)
-      .first();
-    if ((await tile.count()) > 0) {
-      tileFound = true;
-    }
-  }
-
-  if (!tileFound) {
-    throw new Error(`MP4 tile "${videoName}" did not appear in Uploads browser`);
-  }
-  console.log(`✓  Encoded video tile visible in VideoSwarm browser (Uploads root)`);
-
-  // ── 8b. Assert the server can serve the video file ───────────────────────
-  const tile = browserRoot
-    .locator(`.video-swarm-browser__tile[data-video-path*="${videoName}"]`)
-    .first();
-  const filePath = await tile.getAttribute("data-video-path");
+  const filePath = await card.getAttribute("data-video-path");
   if (!filePath) throw new Error("Expected data-video-path on tile");
 
   const mediaRes = await page.request.get(
@@ -278,24 +222,7 @@ try {
   }
   console.log(`✓  Video file served OK (HTTP ${mediaRes.status()}, ${contentType})`);
 
-  // ── 8c. Check HLS root: playlist tile must appear ────────────────────────
-  await rootSelect.selectOption({ value: "hls" });
-  await page.waitForTimeout(800);
-
-  // The HLS root lists .m3u8 and .ts as "videos"
-  const hlsDeadline = Date.now() + 10_000;
-  let hlsFound = false;
-  while (Date.now() < hlsDeadline && !hlsFound) {
-    await rootSelect.selectOption({ value: "frames" }).catch(() => null);
-    await page.waitForTimeout(200);
-    await rootSelect.selectOption({ value: "hls" }).catch(() => null);
-    await page.waitForTimeout(600);
-    // Look for any tile (m3u8 or ts segment)
-    const anyTile = browserRoot.locator(".video-swarm-browser__tile").first();
-    if ((await anyTile.count()) > 0) hlsFound = true;
-  }
-
-  // HLS root check is best-effort: the server only lists VIDEO_EXT files,
+  // ── 8c. HLS browse API (Projects UI no longer exposes HLS roots) ─────────
   // and .m3u8 / .ts may not be in that set.
   const hlsApiRes = await page.request.get(
     `${base}/api/video-swarm/browse?rootId=hls&path=${encodeURIComponent(liveDir)}&recursive=0&sort=name`,
@@ -324,7 +251,7 @@ try {
   console.log(`✓  /api/frames serves ${serverFrameCount} frame entries`);
 
   console.log(
-    `\nOK: ${TOTAL_FRAMES} frames generated → encoded to MP4 (${stat.size} bytes) → visible in VideoSwarm browser.\n`,
+    `\nOK: ${TOTAL_FRAMES} frames generated → encoded to MP4 (${stat.size} bytes) → visible in Projects library.\n`,
   );
 
 } finally {

@@ -215,6 +215,7 @@
             :mappings="audioMappings"
             :levels="audioMappingLevels"
             :active-index="activeAudioMappingIndex"
+            :preview-index="audioBandPreviewIndex"
             :spectrum-bins="audioSpectrumBins"
             :live="audioSpectrumEditorLive"
             :band-labels="audioSpectrumBandLabels"
@@ -232,6 +233,7 @@
               :class="{
                 'audio-reactive-mapping-card--active': activeAudioMappingIndex === mapIndex,
                 'audio-reactive-mapping-card--live': audioSpectrumPlaying || audioReactiveActive,
+                'audio-reactive-mapping-card--preview': audioBandPreviewIndex === mapIndex,
               }"
               @click="onAudioSpectrumSelectBand(mapIndex)"
             >
@@ -276,6 +278,69 @@
               >
                 {{ chip.label }}
               </button>
+            </div>
+
+            <div
+              class="audio-band-reactivity"
+              :class="{
+                'audio-band-reactivity--live': audioSpectrumPlaying || audioReactiveActive,
+                'audio-band-reactivity--preview': audioBandPreviewIndex === activeAudioMappingIndex,
+              }"
+            >
+              <div class="audio-band-reactivity__head">
+                <div>
+                  <div class="framesync-subtitle">Band reactivity</div>
+                  <div class="audio-band-reactivity__hint">
+                    Live level from the current audio in this bandwidth — output shows mapped parameter value.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="framesync-button framesync-button--compact"
+                  :class="{ 'framesync-button--live': audioBandPreviewIndex === activeAudioMappingIndex }"
+                  :disabled="!audio.objectUrl"
+                  data-testid="audio-band-preview"
+                  @click="toggleAudioBandPreview(activeAudioMappingIndex)"
+                >
+                  {{ audioBandPreviewIndex === activeAudioMappingIndex ? 'Stop preview' : 'Preview band' }}
+                </button>
+              </div>
+
+              <div class="audio-band-reactivity__viz">
+                <svg
+                  class="audio-band-reactivity__spectrum"
+                  :class="{ 'audio-band-reactivity__spectrum--live': audioSpectrumPlaying || audioReactiveActive }"
+                  viewBox="0 0 88 36"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <rect
+                    v-for="(h, bi) in activeBandMiniBars"
+                    :key="'react-bar-' + bi"
+                    :x="bi * 11"
+                    :y="36 - Math.max(2, h * 32)"
+                    width="9"
+                    :height="Math.max(2, h * 32)"
+                    class="audio-band-reactivity__spectrum-bar"
+                    :class="{ 'audio-band-reactivity__spectrum-bar--on': h > 0.04 }"
+                    rx="1.5"
+                  />
+                </svg>
+                <div class="audio-band-reactivity__meter-wrap">
+                  <div class="audio-band-reactivity__meter-label">Input</div>
+                  <div class="audio-band-reactivity__meter">
+                    <div
+                      class="audio-band-reactivity__meter-fill"
+                      :style="{ width: activeBandLevelPct + '%' }"
+                    ></div>
+                  </div>
+                  <div class="audio-band-reactivity__meter-value">{{ activeBandLevelPct }}%</div>
+                </div>
+                <div v-if="activeAudioMapping.param" class="audio-band-reactivity__output">
+                  <span class="audio-band-reactivity__output-label">→ {{ activeBandTargetLabel }}</span>
+                  <span class="audio-band-reactivity__output-value">{{ activeBandOutputPreview }}</span>
+                </div>
+              </div>
             </div>
 
             <div
@@ -394,6 +459,28 @@ export default {
         }
         return bars
       })
+    },
+    activeBandMiniBars() {
+      return this.audioMappingMiniBars[this.activeAudioMappingIndex] || Array(8).fill(0)
+    },
+    activeBandLevelPct() {
+      const lvl = this.audioMappingLevels[this.activeAudioMappingIndex] || 0
+      return Math.round(Math.max(0, Math.min(1, Number(lvl) || 0)) * 100)
+    },
+    activeBandTargetLabel() {
+      const m = this.activeAudioMapping
+      if (!m?.param) return 'Unmapped'
+      return this.lfoTargets.find((t) => t.key === m.param)?.label || m.param
+    },
+    activeBandOutputPreview() {
+      const m = this.activeAudioMapping
+      if (!m) return '—'
+      const lvl = Math.max(0, Math.min(1, Number(this.audioMappingLevels[this.activeAudioMappingIndex]) || 0))
+      const outMin = Number(m.out_min) || 0
+      const outMax = Number(m.out_max) || 1
+      const value = outMin + (outMax - outMin) * lvl
+      const step = Math.abs(outMax - outMin) > 10 ? 1 : 0.01
+      return Number.isFinite(value) ? value.toFixed(step >= 1 ? 0 : 2) : '—'
     },
   },
   methods: {

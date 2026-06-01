@@ -100,13 +100,14 @@
       <div class="framesync-stack" :style="compact ? 'margin-top:6px;' : 'margin-top:10px;'">
         <div class="framesync-subtitle">Animation style</div>
         <select class="framesync-select" :value="defaultAnimation.mode" @change="setDefaultAnimationMode($event.target.value)">
-          <option value="instancing">GPU instancing</option>
-          <option value="volume">Volume lighting</option>
+          <option value="customlights">Custom lights</option>
           <option value="orbital">Orbital pulse</option>
           <option value="nebula">Nebula drift</option>
-          <option value="raycast">Fat lines raycast</option>
-          <option value="marching">Marching cubes</option>
           <option value="ocean">Shader ocean</option>
+          <option value="marching">Marching cubes</option>
+          <option value="raycast">Fat lines raycast</option>
+          <option value="volume">Volume lighting</option>
+          <option value="instancing">GPU instancing</option>
         </select>
       </div>
       <template v-if="defaultAnimation.mode === 'instancing'">
@@ -116,6 +117,11 @@
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Color shift</span><input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.hue" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Shimmer</span><input class="framesync-input" type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Camera depth</span><input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.orbit" @input="onDefaultAnimationInput"></div>
+      </template>
+      <template v-else-if="defaultAnimation.mode === 'customlights'">
+        <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Speed</span><input class="framesync-input" type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput"></div>
+        <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Light radius</span><input class="framesync-input" type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput"></div>
+        <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Orbit spread</span><input class="framesync-input" type="range" min="0.2" max="2.5" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput"></div>
       </template>
       <div v-else-if="defaultAnimation.mode === 'volume'" class="slider-row"><span class="framesync-subtitle" style="margin:0;">Beam count</span><input class="framesync-input" type="range" min="3" max="12" step="1" v-model.number="defaultAnimation.beamCount" @input="onDefaultAnimationInput"></div>
       <div v-else-if="defaultAnimation.mode === 'orbital'" class="slider-row"><span class="framesync-subtitle" style="margin:0;">Orbit size</span><input class="framesync-input" type="range" min="0.1" max="2.0" step="0.01" v-model.number="defaultAnimation.orbit" @input="onDefaultAnimationInput"></div>

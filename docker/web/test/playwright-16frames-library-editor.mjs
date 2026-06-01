@@ -31,6 +31,7 @@ import {
   openLibraryBrowser,
   openLiveFramesPanel,
   waitForNavTabs,
+  waitForProjectCard,
 } from './playwright-nav.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -84,46 +85,6 @@ async function waitForFrameRailCount(page, count, timeoutMs = FRAME_TIMEOUT) {
     count,
     { timeout: timeoutMs },
   );
-}
-
-async function selectUploadsRoot(browserRoot, page) {
-  const rootSelect = browserRoot.locator('.video-swarm-browser__roots select.framesync-select').first();
-  await page.waitForFunction(
-    () => {
-      const el = document.querySelector('.video-swarm-browser__roots select.framesync-select');
-      if (!el) return false;
-      return Array.from(el.querySelectorAll('option')).some((o) => (o.value || '').toLowerCase() === 'uploads');
-    },
-    { timeout: 15000 },
-  );
-  await rootSelect.selectOption({ value: 'uploads' });
-  await browserRoot.locator('.video-swarm-browser__empty').filter({ hasText: /^Scanning folder/ }).waitFor({
-    state: 'detached',
-    timeout: 15000,
-  }).catch(() => null);
-  await page.waitForTimeout(400);
-}
-
-async function enableFilenames(browserRoot) {
-  const namesChip = browserRoot.locator('.video-swarm-browser__chips .chip').filter({ hasText: /^Names$/ }).first();
-  if ((await namesChip.count()) > 0) {
-    const cls = (await namesChip.getAttribute('class')) || '';
-    if (!cls.includes('active')) await namesChip.click();
-  }
-}
-
-async function waitForVideoTile(browserRoot, page, filename, timeoutMs = 25000) {
-  const rootSelect = browserRoot.locator('.video-swarm-browser__roots select.framesync-select').first();
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    await rootSelect.selectOption({ value: 'frames' }).catch(() => null);
-    await page.waitForTimeout(150);
-    await rootSelect.selectOption({ value: 'uploads' }).catch(() => null);
-    await page.waitForTimeout(600);
-    const tile = browserRoot.locator(`.video-swarm-browser__tile[data-video-path*="${filename}"]`).first();
-    if ((await tile.count()) > 0) return tile;
-  }
-  throw new Error(`Video tile "${filename}" did not appear within ${timeoutMs}ms`);
 }
 
 async function captureStep(page, dir, filename) {
@@ -207,7 +168,9 @@ try {
   console.log(`✓  ${railCount} frames visible in RUNS → Frames rail`);
 
   const videoName = `user_16frames_${Date.now()}.mp4`;
-  const videoPath = path.join(uploadsDir, videoName);
+  const projectDir = path.join(uploadsDir, 'projects', 'user-16frames');
+  fs.mkdirSync(projectDir, { recursive: true });
+  const videoPath = path.join(projectDir, videoName);
   encodeMp4FromFrames(framesDir, videoPath, TOTAL_FRAMES);
   const stat = fs.statSync(videoPath);
   if (stat.size < 200) throw new Error(`Encoded video too small: ${stat.size} bytes`);
@@ -221,20 +184,19 @@ try {
   }
 
   const browserRoot = await openLibraryBrowser(page);
-  await selectUploadsRoot(browserRoot, page);
-  await enableFilenames(browserRoot);
 
-  const tile = await waitForVideoTile(browserRoot, page, videoName);
-  await tile.scrollIntoViewIfNeeded();
+  const card = await waitForProjectCard(browserRoot, page, videoName);
+  await card.scrollIntoViewIfNeeded();
   await captureStep(page, screenshotDir, '03-library-video-tile.png');
 
-  await tile.click();
+  await card.click();
   await page.waitForTimeout(500);
-  const preview = page.locator('.video-swarm-browser__preview video, .video-swarm-browser__tile video').first();
+  await card.hover();
+  const preview = card.locator('video.library-browser__video').first();
   await preview.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null);
   await captureStep(page, screenshotDir, '04-library-video-preview.png');
 
-  const filePath = await tile.getAttribute('data-video-path');
+  const filePath = await card.getAttribute('data-video-path');
   if (!filePath) throw new Error('Expected data-video-path on video tile');
   const mediaRes = await page.request.get(
     `${base}/api/video-swarm/file?path=${encodeURIComponent(filePath)}`,

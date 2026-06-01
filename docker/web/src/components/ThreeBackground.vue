@@ -227,6 +227,10 @@ export default {
     this.oceanNormalsTexture = null
     this.instancingRoot = null
     this.instancingMesh = null
+    this.customLightsRoot = null
+    this.customLightsMaterial = null
+    this.customLightsLights = []
+    this.customLightsGlows = []
   },
   mounted() {
     if (typeof window === 'undefined') return
@@ -706,6 +710,102 @@ export default {
       material.uniforms.time.value = time * 0.005 * rate * (1 + audioLevel * 0.35)
       material.uniforms.sineTime.value = Math.sin(material.uniforms.time.value * 0.05)
     },
+    initCustomLightsScene() {
+      if (this.customLightsRoot) return
+      this.customLightsRoot = new THREE.Group()
+      this.customLightsRoot.visible = false
+      this.scene.add(this.customLightsRoot)
+
+      // 500k point cloud spanning a 3-unit cube, matching the original example
+      const count = 500000
+      const positions = new Float32Array(count * 3)
+      for (let i = 0; i < count; i++) {
+        positions[i * 3 + 0] = (Math.random() - 0.5) * 3
+        positions[i * 3 + 1] = (Math.random() - 0.5) * 3
+        positions[i * 3 + 2] = (Math.random() - 0.5) * 3
+      }
+      const geo = new THREE.BufferGeometry()
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+
+      // Custom shader: per-point lighting from three moving point lights
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          uL1: { value: new THREE.Vector3() },
+          uL2: { value: new THREE.Vector3() },
+          uL3: { value: new THREE.Vector3() },
+          uC1: { value: new THREE.Color(0xffaa00) },
+          uC2: { value: new THREE.Color(0x0044ff) },
+          uC3: { value: new THREE.Color(0x44ff88) },
+          uRadius: { value: 1.1 },
+        },
+        vertexShader: `
+          uniform vec3 uL1; uniform vec3 uL2; uniform vec3 uL3;
+          uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3;
+          uniform float uRadius;
+          varying vec3 vColor;
+          void main() {
+            vec3 wp = (modelMatrix * vec4(position, 1.0)).xyz;
+            float a1 = max(0.0, 1.0 - length(wp - uL1) / uRadius);
+            float a2 = max(0.0, 1.0 - length(wp - uL2) / uRadius);
+            float a3 = max(0.0, 1.0 - length(wp - uL3) / uRadius);
+            vColor = uC1 * a1 * a1 + uC2 * a2 * a2 + uC3 * a3 * a3;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            gl_PointSize = 1.5;
+          }
+        `,
+        fragmentShader: `
+          varying vec3 vColor;
+          void main() {
+            if (dot(vColor, vColor) < 0.002) discard;
+            gl_FragColor = vec4(vColor, 1.0);
+          }
+        `,
+        transparent: false,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      })
+      this.customLightsMaterial = mat
+      this.customLightsRoot.add(new THREE.Points(geo, mat))
+
+      // Small glowing spheres at each light position (visual anchors)
+      const glowGeo = new THREE.SphereGeometry(0.022, 16, 8)
+      const lightDefs = [0xffaa00, 0x0044ff, 0x44ff88]
+      this.customLightsGlows = lightDefs.map((hex) => {
+        const mesh = new THREE.Mesh(glowGeo, new THREE.MeshBasicMaterial({ color: hex }))
+        this.customLightsRoot.add(mesh)
+        return mesh
+      })
+      this.customLightsLights = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()]
+    },
+    updateCustomLightsScene(elapsed, config) {
+      if (!this.customLightsRoot || !this.customLightsMaterial) return
+      this.customLightsRoot.visible = true
+
+      const t = elapsed
+      const scale = 0.55 + clamp01(Number(config.spread) || 0.68) * 0.3
+      const spd = Math.max(0.1, Number(config.speed) || 0.75)
+      const T = t * spd
+
+      const l1 = this.customLightsLights[0]
+      const l2 = this.customLightsLights[1]
+      const l3 = this.customLightsLights[2]
+
+      l1.set(Math.sin(T * 0.7) * scale, Math.cos(T * 0.5) * scale, Math.cos(T * 0.3) * scale)
+      l2.set(Math.cos(T * 0.3) * scale, Math.sin(T * 0.5) * scale, Math.sin(T * 0.7) * scale)
+      l3.set(Math.sin(T * 0.7) * scale, Math.cos(T * 0.3) * scale, Math.sin(T * 0.5) * scale)
+
+      const u = this.customLightsMaterial.uniforms
+      u.uL1.value.copy(l1)
+      u.uL2.value.copy(l2)
+      u.uL3.value.copy(l3)
+      u.uRadius.value = 0.85 + clamp01(Number(config.glow) || 0.78) * 0.55
+
+      this.customLightsGlows[0].position.copy(l1)
+      this.customLightsGlows[1].position.copy(l2)
+      this.customLightsGlows[2].position.copy(l3)
+
+      this.customLightsRoot.rotation.y = T * 0.1
+    },
     createLfoGroups() {
       this.lfoGroups = Array.from({ length: 6 }).map((_, index) => {
         const colors = lfoColors()
@@ -752,7 +852,7 @@ export default {
     resolvedSettings() {
       const merged = { ...defaultSettings(), ...(this.settings || {}) }
       return {
-        mode: ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(merged.mode) ? merged.mode : 'instancing',
+        mode: ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean', 'customlights'].includes(merged.mode) ? merged.mode : 'instancing',
         instCount: clamp(Math.round(Number(merged.instCount) || defaultSettings().instCount), 1000, INSTANCING_MAX),
         beamCount: clamp(Math.round(Number(merged.beamCount) || 7), 3, 12),
         speed: clamp(Number(merged.speed) || 0.75, 0.1, 2.5),
@@ -1032,6 +1132,16 @@ export default {
         this.camera.position.set(0, 0, 3.2 + config.orbit * 0.8)
         this.camera.lookAt(0, 0, 0)
         return
+      } else if (config.mode === 'customlights') {
+        if (this.camera.fov !== 70) {
+          this.camera.fov = 70
+          this.camera.near = 0.1
+          this.camera.far = 10
+          this.camera.updateProjectionMatrix()
+        }
+        this.camera.position.set(0, 0, 1.5)
+        this.camera.lookAt(0, 0, 0)
+        return
       } else {
         if (this.camera.fov !== 45) {
           this.camera.fov = 45
@@ -1060,21 +1170,36 @@ export default {
         const marchingMode = config.mode === 'marching'
         const oceanMode = config.mode === 'ocean'
         const instancingMode = config.mode === 'instancing'
-        const presetMode = raycastMode || marchingMode || oceanMode || instancingMode
+        const customLightsMode = config.mode === 'customlights'
+        const presetMode = raycastMode || marchingMode || oceanMode || instancingMode || customLightsMode
         const delta = this.clock.getDelta()
 
         if (this.scene?.fog) {
-          this.scene.fog.density = instancingMode ? 0.006 : 0.045
+          this.scene.fog.density = instancingMode || customLightsMode ? 0 : 0.045
         }
 
         if (this.particleSystem) this.particleSystem.visible = !presetMode
         if (this.haloMesh) this.haloMesh.visible = !presetMode
         this.beamMeshes.forEach((beam) => { beam.visible = !presetMode && beam.visible })
         this.fogSprites.forEach((sprite) => { sprite.visible = !presetMode })
+        if (customLightsMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.initCustomLightsScene()
+          this.updateCustomLightsScene(elapsed, config)
+        } else if (this.customLightsRoot) {
+          this.customLightsRoot.visible = false
+        }
         if (raycastMode) {
           if (this.marchingRoot) this.marchingRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
           if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.customLightsRoot) this.customLightsRoot.visible = false
           this.restoreRendererToneMapping()
           if (this.scene) this.scene.environment = null
           this.lfoGroups.forEach((group) => { group.visible = false })

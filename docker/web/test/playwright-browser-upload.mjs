@@ -8,7 +8,7 @@ import { execSync } from "child_process";
 import { fileURLToPath } from "url";
 import { chromium } from "playwright";
 import { startE2eServer } from "./playwright-server.mjs";
-import { openLibraryBrowser, waitForNavTabs } from "./playwright-nav.mjs";
+import { openLibraryBrowser, waitForNavTabs, waitForProjectCard } from "./playwright-nav.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "../../..");
@@ -113,21 +113,16 @@ try {
 
   const browserRoot = await openLibraryBrowser(page);
 
-  const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();
-  await rootSelect.selectOption({ value: "uploads" });
-  await page.waitForTimeout(500);
+  const card = await waitForProjectCard(browserRoot, page, "vid_preview");
+  await card.waitFor({ state: "visible", timeout: 20000 });
 
-  const tile = browserRoot.locator('.video-swarm-browser__tile[data-video-path*="vid_preview"]').first();
-  await tile.waitFor({ state: "visible", timeout: 20000 });
-
-  const uiInput = browserRoot.locator('[data-testid="video-swarm-upload-input"]');
+  const uiInput = browserRoot.locator('[data-testid="projects-upload-input"]');
   await uiInput.setInputFiles(sampleVideo);
   await page.waitForTimeout(800);
 
-  const uiTile = browserRoot.locator('.video-swarm-browser__tile[data-video-path*="vid_preview"]').first();
-  await uiTile.waitFor({ state: "visible", timeout: 30000 });
+  const uiCard = await waitForProjectCard(browserRoot, page, "vid_preview", 30000);
 
-  const mediaPath = await uiTile.getAttribute("data-video-path");
+  const mediaPath = await uiCard.getAttribute("data-video-path");
   const mediaRes = await page.request.get(
     `${base}/api/video-swarm/file?path=${encodeURIComponent(mediaPath)}`,
   );

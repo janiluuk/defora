@@ -145,7 +145,7 @@ export async function waitForPastRunRow(page, runId, timeoutMs = 45000) {
   return row;
 }
 
-/** Legacy overlay or LIBRARY tab → VideoSwarm storage browser. */
+/** Legacy overlay or LIBRARY tab → Projects library. */
 export async function openLibraryBrowser(page) {
   const libraryBtn = page.locator('[data-testid="top-nav-library"]').first();
   if ((await libraryBtn.count()) > 0) {
@@ -160,9 +160,46 @@ export async function openLibraryBrowser(page) {
     await ensureRightPanelOpen(page);
     await clickTab(page, 'LIBRARY');
   }
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 30000 });
-  const browserRoot = page.locator('.video-swarm-browser[data-testid="video-swarm-browser"]').first();
+  await page.waitForSelector('[data-testid="library-browser"]', { timeout: 30000 });
+  await page.waitForSelector('[data-testid="projects-browser"]', { timeout: 30000 });
+  const browserRoot = page.locator('[data-testid="library-browser"]').first();
   await browserRoot.waitFor({ state: 'visible', timeout: 30000 });
+  await page.waitForFunction(() => {
+    const loading = document.querySelector('.library-browser__skeleton-grid');
+    const empty = document.querySelector('.library-browser__empty');
+    if (loading) return false;
+    if (!empty) return true;
+    return !/Loading projects/i.test(empty.textContent || '');
+  }, { timeout: 15000 }).catch(() => null);
+  return browserRoot;
+}
+
+/** Poll Projects or Videos grid until a card with matching video path fragment appears. */
+export async function waitForProjectCard(browserRoot, page, filenamePart, timeoutMs = 25000) {
+  const refreshBtn = browserRoot.locator('[data-testid="projects-refresh"], [data-testid="videos-refresh"]').first();
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const card = browserRoot.locator(
+      `[data-testid="project-card"][data-video-path*="${filenamePart}"], [data-testid="video-card"][data-video-path*="${filenamePart}"]`,
+    ).first();
+    if ((await card.count()) > 0) return card;
+    await refreshBtn.click().catch(() => null);
+    await page.waitForTimeout(600);
+  }
+  throw new Error(`Library card "${filenamePart}" did not appear within ${timeoutMs}ms`);
+}
+
+export async function openLibraryVideosTab(page) {
+  const browserRoot = page.locator('[data-testid="library-browser"]').first();
+  await browserRoot.locator('[data-testid="library-tab-videos"]').click();
+  await page.waitForSelector('[data-testid="videos-browser"]', { timeout: 15000 });
+  return browserRoot;
+}
+
+export async function openLibraryAudioTab(page) {
+  const browserRoot = page.locator('[data-testid="library-browser"]').first();
+  await browserRoot.locator('[data-testid="library-tab-audio"]').click();
+  await page.waitForSelector('[data-testid="audio-browser"]', { timeout: 15000 });
   return browserRoot;
 }
 

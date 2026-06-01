@@ -21,6 +21,7 @@ import {
   openLibraryBrowser,
   openLiveFramesPanel,
   waitForNavTabs,
+  waitForProjectCard,
 } from './playwright-nav.mjs';
 
 const TOTAL_FRAMES = 8;
@@ -61,73 +62,33 @@ function encodeMp4FromFrames(framesDir, outPath, frameCount, fps = 8) {
   );
 }
 
-async function selectUploadsRoot(browserRoot, page) {
-  const rootSelect = browserRoot.locator('.video-swarm-browser__roots select.framesync-select').first();
-  await page.waitForFunction(
-    () => {
-      const el = document.querySelector('.video-swarm-browser__roots select.framesync-select');
-      if (!el) return false;
-      return Array.from(el.querySelectorAll('option')).some((o) => (o.value || '').toLowerCase() === 'uploads');
-    },
-    { timeout: 15000 },
-  );
-  await rootSelect.selectOption({ value: 'uploads' });
-  await browserRoot.locator('.video-swarm-browser__empty').filter({ hasText: /^Scanning folder/ }).waitFor({
-    state: 'detached',
-    timeout: 15000,
-  }).catch(() => null);
-  await page.waitForTimeout(400);
-}
-
-async function enableFilenames(browserRoot) {
-  const namesChip = browserRoot.locator('.video-swarm-browser__chips .chip').filter({ hasText: /^Names$/ }).first();
-  if ((await namesChip.count()) > 0) {
-    const cls = (await namesChip.getAttribute('class')) || '';
-    if (!cls.includes('active')) await namesChip.click();
-  }
-}
-
-async function waitForVideoTile(browserRoot, page, filename, timeoutMs = 25000) {
-  const rootSelect = browserRoot.locator('.video-swarm-browser__roots select.framesync-select').first();
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    await rootSelect.selectOption({ value: 'frames' }).catch(() => null);
-    await page.waitForTimeout(150);
-    await rootSelect.selectOption({ value: 'uploads' }).catch(() => null);
-    await page.waitForTimeout(600);
-    const tile = browserRoot.locator(`.video-swarm-browser__tile[data-video-path*="${filename}"]`).first();
-    if ((await tile.count()) > 0) return tile;
-  }
-  throw new Error(`Video tile "${filename}" did not appear within ${timeoutMs}ms`);
-}
-
-async function assertTileThumbnailLoads(page, tile) {
-  await tile.scrollIntoViewIfNeeded();
-  await tile.hover();
+async function assertCardThumbnailLoads(page, card) {
+  await card.scrollIntoViewIfNeeded();
+  await card.hover();
   await page.waitForFunction(
     (sel) => {
-      const tileEl = document.querySelector(sel);
-      if (!tileEl) return false;
-      const video = tileEl.querySelector('video.video-swarm-browser__video');
+      const cardEl = document.querySelector(sel);
+      if (!cardEl) return false;
+      const video = cardEl.querySelector('video.library-browser__video');
       if (video && video.readyState >= 2) return true;
-      const img = tileEl.querySelector('img');
+      const img = cardEl.querySelector('img');
       if (img && img.complete && img.naturalWidth > 0) return true;
-      return !!tileEl.querySelector('.video-swarm-browser__placeholder');
+      return !!cardEl.querySelector('.library-browser__placeholder');
     },
-    `[data-video-path="${await tile.getAttribute('data-video-path')}"]`,
+    `[data-video-path="${await card.getAttribute('data-video-path')}"]`,
     { timeout: 15000 },
   );
 }
 
-async function assertWatchableInFullscreen(page, browserRoot, tile) {
-  await tile.dblclick();
-  const modal = browserRoot.page().locator('[data-testid="video-swarm-fullscreen"]').first();
+async function assertWatchableInFullscreen(page, card) {
+  await card.dblclick();
+  const modal = page.locator('[data-testid="projects-fullscreen"]').first();
   await modal.waitFor({ state: 'visible', timeout: 10000 });
-  const modalVideo = modal.locator('video.video-swarm-browser__modal-video').first();
+  const modalVideo = modal.locator('video.library-browser__modal-video').first();
   await modalVideo.waitFor({ state: 'visible', timeout: 10000 });
   await page.waitForFunction(
     () => {
-      const v = document.querySelector('[data-testid="video-swarm-fullscreen"] video');
+      const v = document.querySelector('[data-testid="projects-fullscreen"] video');
       return v && v.readyState >= 2 && v.videoWidth > 0;
     },
     { timeout: 15000 },
@@ -149,6 +110,8 @@ for (const d of [framesDir, runsDir, uploadsDir, sequencersDir, projectsDir, STA
 }
 
 const PREVIOUS_PROJECT = 'previous-project.mp4';
+const priorProjectDir = path.join(projectsDir, 'prior-orbit');
+fs.mkdirSync(priorProjectDir, { recursive: true });
 encodeMp4FromFrames(
   (() => {
     const priorFrames = path.join(STAGE_DIR, 'prior-frames');
@@ -158,7 +121,7 @@ encodeMp4FromFrames(
     }
     return priorFrames;
   })(),
-  path.join(projectsDir, PREVIOUS_PROJECT),
+  path.join(priorProjectDir, PREVIOUS_PROJECT),
   4,
 );
 
@@ -301,57 +264,23 @@ try {
   if (recStat.size < 200) throw new Error(`Recording file too small: ${recStat.size} bytes`);
 
   const browserRoot = await openLibraryBrowser(page);
-  await selectUploadsRoot(browserRoot, page);
-  await enableFilenames(browserRoot);
 
-  const projectsFolder = browserRoot
-    .locator('[data-testid="video-swarm-folder"]')
-    .filter({ has: browserRoot.locator('.video-swarm-browser__label', { hasText: 'projects' }) })
-    .first();
-  let projectsFolderEl = projectsFolder;
-  if ((await projectsFolder.count()) === 0) {
-    projectsFolderEl = browserRoot.locator('[data-testid="video-swarm-folder"][data-folder-path*="projects"]').first();
-  }
-  if ((await projectsFolderEl.count()) === 0) {
-    const browseRes = await page.request.get(
-      `${base}/api/video-swarm/browse?rootId=uploads&path=${encodeURIComponent(uploadsDir)}&recursive=0&sort=name-asc`,
-    );
-    const browseJson = browseRes.ok() ? await browseRes.json() : {};
-    const hasProjects = (browseJson.folders || []).some((f) => f && f.name === 'projects');
-    if (!hasProjects) {
-      throw new Error('Expected "projects" folder for previous project files');
-    }
-    await browserRoot.locator('button.framesync-button').filter({ hasText: /^Refresh$/ }).first().click();
-    await page.waitForTimeout(600);
-    projectsFolderEl = browserRoot.locator('[data-testid="video-swarm-folder"][data-folder-path*="projects"]').first();
-  }
-  if ((await projectsFolderEl.count()) === 0) {
-    throw new Error('Expected "projects" folder tile in Library browser');
-  }
-  await projectsFolderEl.click();
-  await page.waitForTimeout(500);
+  const previousCard = await waitForProjectCard(browserRoot, page, PREVIOUS_PROJECT);
+  await assertCardThumbnailLoads(page, previousCard);
 
-  const previousTile = browserRoot
-    .locator(`.video-swarm-browser__tile[data-video-path*="${PREVIOUS_PROJECT}"]`)
-    .first();
-  await previousTile.waitFor({ state: 'visible', timeout: 15000 });
-  await assertTileThumbnailLoads(page, previousTile);
-
-  await selectUploadsRoot(browserRoot, page);
-
-  const recordingTile = await waitForVideoTile(browserRoot, page, producedRecording);
-  await assertTileThumbnailLoads(page, recordingTile);
+  const recordingCard = await waitForProjectCard(browserRoot, page, producedRecording);
+  await assertCardThumbnailLoads(page, recordingCard);
 
   const mediaRes = await page.request.get(
-    `${base}/api/video-swarm/file?path=${encodeURIComponent(await recordingTile.getAttribute('data-video-path'))}`,
+    `${base}/api/video-swarm/file?path=${encodeURIComponent(await recordingCard.getAttribute('data-video-path'))}`,
   );
   if (!mediaRes.ok()) throw new Error(`Recording not servable: HTTP ${mediaRes.status()}`);
 
-  await assertWatchableInFullscreen(page, browserRoot, recordingTile);
+  await assertWatchableInFullscreen(page, recordingCard);
 
-  const rootTileCount = await browserRoot.locator('.video-swarm-browser__tile[data-video-path]').count();
-  if (rootTileCount < 1) {
-    throw new Error(`Expected new recording tile at uploads root, got ${rootTileCount}`);
+  const projectCount = await browserRoot.locator('[data-testid="project-card"]').count();
+  if (projectCount < 2) {
+    throw new Error(`Expected at least 2 project cards, got ${projectCount}`);
   }
 
   console.log(
