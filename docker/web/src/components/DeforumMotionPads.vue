@@ -22,11 +22,27 @@
       </code>
     </div>
 
+    <div class="deforum-motion-pads__mode-row">
+      <span class="deforum-motion-pads__mode-label">XY pad</span>
+      <button
+        type="button"
+        class="framesync-button framesync-button--compact deforum-motion-pads__mode-btn"
+        :class="{ 'framesync-button--live': !motionPadSpringBack }"
+        data-testid="motion-pad-latch-toggle"
+        :title="motionPadSpringBack ? 'Spring: puck returns to center when you let go' : 'Latch: puck stays where you leave it'"
+        @click="toggleMotionPadSpringBack()"
+      >
+        <UiIcon :name="motionPadSpringBack ? 'move' : 'lock'" />
+        {{ motionPadSpringBack ? 'Spring' : 'Latch' }}
+      </button>
+    </div>
+
     <div class="motion-controls-compact" data-testid="motion-controls-compact">
       <XYController
         v-for="slot in motionXYPadSlots"
         :key="slot.id"
         compact
+        :spring-back="motionPadSpringBack"
         :x="motionAxisTargetValue(slot.xAxis)"
         :y="motionAxisTargetValue(slot.yAxis)"
         :range-x="motionAxisRangeForKey(slot.xAxis)"
@@ -128,11 +144,12 @@
 
 <script>
 import XYController from './XYController.vue'
+import UiIcon from './UiIcon.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'DeforumMotionPads',
-  components: { XYController },
+  components: { XYController, UiIcon },
   props: {
     app: { type: Object, required: true },
     hero: { type: Boolean, default: false },

@@ -7,6 +7,7 @@
       {
         'xy-controller--dragging': dragging,
         'xy-controller--spring': springing,
+        'xy-controller--latched': !springBack,
       },
     ]"
     :data-testid="testId"
@@ -202,8 +203,6 @@ export default {
     },
     startSpringBack() {
       if (!this.springBack) {
-        this.normX = 0
-        this.normY = 0
         this.emitValues()
         return
       }
