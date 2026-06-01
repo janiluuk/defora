@@ -7,6 +7,7 @@
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='RUNS' || currentSubTab.SETTINGS==='SYSTEM'}" @click="switchSubTab('SETTINGS','RUNS')">RUNS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='MIDI'}" @click="switchSubTab('SETTINGS','MIDI')">CONTROLLERS / MIDI</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='STYLES'}" @click="switchSubTab('SETTINGS','STYLES')">STYLES</button>
+      <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='PLUGINS'}" @click="switchSubTab('SETTINGS','PLUGINS')">PLUGINS</button>
       <button class="sub-pill" :class="{active: currentSubTab.SETTINGS==='COLLAB'}" @click="switchSubTab('SETTINGS','COLLAB')">COLLAB</button>
     </div>
 
@@ -787,6 +788,26 @@
 
     <div v-else-if="currentSubTab.SETTINGS==='STYLES'">
       <StylesSettingsPanel :app="app" />
+    </div>
+
+    <div v-else-if="currentSubTab.SETTINGS==='PLUGINS'" class="settings-plugins-tab" data-testid="settings-plugins-registry">
+      <div class="rack">
+        <div class="framesync-panel">
+          <div class="framesync-header">
+            <div class="framesync-title">Plugins <span class="framesync-accent">Registry</span></div>
+            <button type="button" class="framesync-button" @click="refreshPlugins">Refresh</button>
+          </div>
+          <p class="framesync-subtitle settings-plugins-tab__intro">
+            Server-side animation and modulation plugins available to the live engine.
+          </p>
+          <ul v-if="pluginsRegistry.length" class="framesync-list settings-plugins-tab__list">
+            <li v-for="p in pluginsRegistry" :key="p.id || p.name">
+              {{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span>
+            </li>
+          </ul>
+          <p v-else class="framesync-subtitle settings-plugins-tab__empty">No plugins reported — try Refresh.</p>
+        </div>
+      </div>
     </div>
 
     <div v-else-if="currentSubTab.SETTINGS==='COLLAB'">

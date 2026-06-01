@@ -104,7 +104,7 @@
         <details
           class="animation-engine-layer-row__controls"
           :data-testid="'animation-engine-controls-' + layer.id"
-          :open="layer.kind === 'webgl'"
+          :open="layer.kind === 'webgl' || layer.kind === 'deforum'"
         >
           <summary class="animation-engine-layer-row__controls-summary">
             <span class="animation-engine-layer-row__controls-label">Controls</span>

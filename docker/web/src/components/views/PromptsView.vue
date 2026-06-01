@@ -148,18 +148,6 @@
           </div>
         </div>
       </div>
-
-      <div class="rack">
-        <div class="framesync-panel">
-          <div class="framesync-header">
-            <div class="framesync-title">Plugins <span class="framesync-accent">Registry</span></div>
-            <button class="framesync-button" @click="refreshPlugins">Refresh</button>
-          </div>
-          <ul v-if="pluginsRegistry.length" class="framesync-list" style="margin-top:4px; font-size:11px; padding-left:16px;">
-            <li v-for="p in pluginsRegistry" :key="p.id || p.name">{{ p.name || p.id }}<span v-if="p.description"> — {{ p.description }}</span></li>
-          </ul>
-        </div>
-      </div>
     </div>
 
     <div v-else-if="currentSubTab.PROMPTS==='IMAGE'">

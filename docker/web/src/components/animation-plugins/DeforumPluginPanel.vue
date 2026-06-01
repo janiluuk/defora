@@ -1,5 +1,5 @@
 <template>
-  <DeforumJobPanel :app="app" />
+  <DeforumJobPanel :app="app" engine-mode />
 </template>
 
 <script>

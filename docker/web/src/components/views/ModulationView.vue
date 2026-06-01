@@ -1,12 +1,11 @@
 <template>
   <div class="rack modulation-view">
     <div class="framesync-panel modulation-panel">
-      <div class="framesync-header">
+      <div v-if="!isAudioTab" class="framesync-header">
         <div class="framesync-title">
-          <template v-if="isAudioTab">Audio <span class="framesync-accent">Reactive</span></template>
-          <template v-else>Modulation <span class="framesync-accent">Patch Bay</span></template>
+          Modulation <span class="framesync-accent">Patch Bay</span>
         </div>
-        <span v-if="!isAudioTab" class="modulation-summary">{{ modulationSubtabSummary }}</span>
+        <span class="modulation-summary">{{ modulationSubtabSummary }}</span>
       </div>
       <div v-if="!isAudioTab" class="sub-pills modulation-subtabs">
         <button class="sub-pill" :class="{active: modulationPane === 'LFO'}" @click="switchSubTab('MODULATION','LFO')">LFO</button>
@@ -14,9 +13,6 @@
         <button class="sub-pill" :class="{active: modulationPane === 'AUDIO_REACTIVE'}" @click="openAudioTab()">Reactive</button>
         <button class="sub-pill" :class="{active: modulationPane === 'BEAT_MACROS'}" @click="switchSubTab('MODULATION','BEAT_MACROS')">Beat</button>
         <button class="sub-pill" :class="{active: modulationPane === 'MAPPINGS'}" @click="switchSubTab('MODULATION','MAPPINGS')">Mappings</button>
-      </div>
-      <div v-else class="framesync-subtitle modulation-audio-tab__intro">
-        Map frequency bands to live parameters. Use the spectrum hero and meter cards below, or upload reference audio under Modulation → Audio.
       </div>
 
       <template v-if="modulationPane === 'LFO'">
@@ -180,8 +176,11 @@
 
       <template v-else-if="modulationPane === 'AUDIO_REACTIVE'">
         <div class="framesync-panel audio-reactive-panel">
-          <div class="framesync-header">
-            <div class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
+          <div
+            class="framesync-header audio-reactive-panel__header"
+            :class="{ 'audio-reactive-panel__header--toolbar': isAudioTab }"
+          >
+            <div v-if="!isAudioTab" class="framesync-title">Audio <span class="framesync-accent">Reactive</span></div>
             <button
               type="button"
               class="framesync-button"
@@ -193,6 +192,7 @@
           </div>
           <div class="framesync-subtitle audio-reactive-panel__intro">
             Map frequency bands to live parameters. Meters animate from real audio analysis — drag bands on the spectrum to retune.
+            <span v-if="isAudioTab"> Upload reference audio under Modulation → Audio.</span>
           </div>
 
           <div v-if="activeAudioMapping || audioMappings.length" class="audio-band-presets audio-band-presets--hero">
