@@ -458,7 +458,11 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
     expect(document.querySelector("[data-testid='live-webgl-controls']")).to.exist;
-    // Default mode is now orbital
+    // Default mode is now customlights
+    expect(document.body.textContent).to.include("Light radius");
+
+    appVm.setDefaultAnimationMode("orbital");
+    await nextTick();
     expect(document.body.textContent).to.include("Orbit size");
 
     appVm.setDefaultAnimationMode("instancing");
@@ -511,17 +515,17 @@ describe("Deforumation Web UI", () => {
     expect(document.body.textContent).to.not.include("Blob count");
 
     appVm.resetDefaultAnimationSettings();
-    expect(appVm.defaultAnimation.mode).to.equal("instancing");
+    expect(appVm.defaultAnimation.mode).to.equal("customlights"); // new default
     expect(appVm.defaultAnimation.instCount).to.equal(12000);
     expect(appVm.defaultAnimation.speed).to.equal(0.75);
     expect(appVm.activeVideoLayerId).to.equal("deforum");
 
     appVm.selectVideoLayer("webgl");
     await nextTick();
-    expect(document.body.textContent).to.include("Instance count");
+    expect(document.body.textContent).to.include("Light radius"); // customlights controls
 
     appVm.setDefaultAnimationMode("invalid-mode");
-    expect(appVm.defaultAnimation.mode).to.equal("instancing");
+    expect(appVm.defaultAnimation.mode).to.equal("customlights"); // falls back to new default
   });
 
   it("toggles random seed (-1) vs fixed seed input", async () => {
@@ -734,7 +738,7 @@ describe("Deforumation Web UI", () => {
     appVm.paramPanelOpen = true;
     await nextTick();
     const engineSliders = document.querySelectorAll("[data-testid='live-webgl-controls'] input[type='range']");
-    expect(engineSliders.length).to.be.greaterThan(3);
+    expect(engineSliders.length).to.be.greaterThan(2);
     appVm.activeVideoLayerId = "deforum";
     appVm.paramPanelOpen = true;
     await nextTick();
@@ -853,6 +857,7 @@ describe("Deforumation Web UI", () => {
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.exist;
     expect(document.body.textContent).to.include("3D motion preview");
     expect(document.querySelector(".motion-pad-hero")).to.exist;
+    expect(document.querySelector("[data-testid='motion-controls-compact']")).to.exist;
     expect(document.querySelector(".motion-controls-2d")).to.not.exist;
   });
 
@@ -863,12 +868,11 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    expect(document.querySelector(".motion-controls-2d")).to.exist;
-    expect(document.body.textContent).to.include("Pan X / Y");
-    expect(document.body.textContent).to.include("Angle / Zoom");
+    expect(document.querySelector("[data-testid='motion-controls-compact']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-move']")).to.exist;
     expect(document.querySelector("[data-testid='motion-pad-look']")).to.exist;
-    expect(document.querySelector(".motion-axis-sliders:not(.motion-axis-sliders--2d)")).to.not.exist;
+    expect(document.querySelector("[data-testid='motion-pad-move-axis-x']")).to.exist;
+    expect(document.querySelector(".motion-axis-sliders--2d")).to.exist;
     expect(document.querySelector("[data-testid='motion-path-preview']")).to.not.exist;
 
     appVm.updateMotionPad({

@@ -1,8 +1,5 @@
 /**
- * Playwright E2E: Library storage browser lists folders and videos, and serves file media.
- *
- * Seeds nested folders + mp4 files under uploads/runs/frames, then verifies the UI
- * can navigate folders and that /api/video-swarm/file returns 200 for listed videos.
+ * Playwright E2E: Library Projects view lists work with frame counts and serves video media.
  */
 import fs from "fs";
 import os from "os";
@@ -23,48 +20,16 @@ async function dismissSessionModalIfOpen(page) {
   }
 }
 
-async function selectRoot(browserRoot, rootId) {
-  const rootSelect = browserRoot.locator(".video-swarm-browser__roots select.framesync-select").first();
-  await rootSelect.waitFor({ state: "visible", timeout: 15000 });
-  await rootSelect.selectOption({ value: rootId });
-  await browserRoot.locator(".video-swarm-browser__empty").filter({ hasText: /^Scanning folder/ }).waitFor({
-    state: "detached",
-    timeout: 15000,
-  }).catch(() => null);
-  await browserRoot.page().waitForTimeout(300);
+async function expectProjectCard(browserRoot, filenamePart) {
+  const card = browserRoot.locator(`[data-testid="project-card"][data-video-path*="${filenamePart}"]`).first();
+  await card.waitFor({ state: "visible", timeout: 15000 });
+  return card;
 }
 
-async function expectNoBrowseError(browserRoot) {
-  const status = browserRoot.locator(".video-swarm-browser__status");
-  if ((await status.count()) === 0) return;
-  const text = ((await status.textContent()) || "").trim();
-  if (/not found|browse failed|invalid path/i.test(text)) {
-    throw new Error(`Storage browser error: ${text}`);
-  }
-}
-
-async function expectVideoTile(browserRoot, filename) {
-  const tile = browserRoot.locator(`.video-swarm-browser__tile[data-video-path*="${filename}"]`).first();
-  await tile.waitFor({ state: "visible", timeout: 15000 });
-  return tile;
-}
-
-async function expectFolderTile(browserRoot, folderName) {
-  const folder = browserRoot
-    .locator('[data-testid="video-swarm-folder"]')
-    .filter({ has: browserRoot.locator(".video-swarm-browser__label", { hasText: folderName }) })
-    .first();
-  if ((await folder.count()) === 0) {
-    const fallback = browserRoot.locator(`[data-testid="video-swarm-folder"][data-folder-path*="${folderName}"]`).first();
-    await fallback.waitFor({ state: "visible", timeout: 15000 });
-    return fallback;
-  }
-  await folder.waitFor({ state: "visible", timeout: 15000 });
-  return folder;
-}
-
-async function assertMediaOk(page, base, filePath) {
-  const mediaRes = await page.request.get(`${base}/api/video-swarm/file?path=${encodeURIComponent(filePath)}`);
+async function assertMediaOk(page, base, filePath, rootId = "uploads") {
+  const mediaRes = await page.request.get(
+    `${base}/api/video-swarm/file?path=${encodeURIComponent(filePath)}&rootId=${encodeURIComponent(rootId)}`,
+  );
   if (!mediaRes.ok()) {
     throw new Error(`Expected media 200 for ${filePath}, got ${mediaRes.status()}`);
   }
@@ -80,18 +45,21 @@ fs.mkdirSync(framesDir, { recursive: true });
 fs.mkdirSync(uploadsDir, { recursive: true });
 fs.mkdirSync(sequencersDir, { recursive: true });
 
-const uploadsProjectDir = path.join(uploadsDir, "projects");
-fs.mkdirSync(uploadsProjectDir, { recursive: true });
-fs.writeFileSync(path.join(uploadsDir, "top-level.mp4"), tinyMp4Buffer());
-fs.writeFileSync(path.join(uploadsProjectDir, "nested-demo.mp4"), tinyMp4Buffer());
+const projectDir = path.join(uploadsDir, "projects", "orbit-demo");
+fs.mkdirSync(projectDir, { recursive: true });
+fs.writeFileSync(path.join(projectDir, "frame_00000.png"), "fake-png");
+fs.writeFileSync(path.join(projectDir, "frame_00001.png"), "fake-png");
+fs.writeFileSync(path.join(projectDir, "nested-demo.mp4"), tinyMp4Buffer());
 
 const runFolder = path.join(runsDir, "e2e-run-folder");
 fs.mkdirSync(runFolder, { recursive: true });
+fs.writeFileSync(path.join(runFolder, "run.json"), JSON.stringify({
+  run_id: "e2e-run-folder",
+  tag: "E2E run sample",
+  frame_count: 2,
+  status: "completed",
+}));
 fs.writeFileSync(path.join(runFolder, "run-output.mp4"), tinyMp4Buffer());
-
-const framesBatchDir = path.join(framesDir, "batch-a");
-fs.mkdirSync(framesBatchDir, { recursive: true });
-fs.writeFileSync(path.join(framesBatchDir, "batch-video.mp4"), tinyMp4Buffer());
 
 const svc = await startE2eServer({
   port: 0,
@@ -111,65 +79,39 @@ try {
   await dismissSessionModalIfOpen(page);
   await waitForNavTabs(page);
 
-  const browserRoot = await openLibraryBrowser(page);
+  const projectsRes = await page.request.get(`${base}/api/video-swarm/projects`);
+  if (!projectsRes.ok()) throw new Error(`GET /api/video-swarm/projects failed: ${projectsRes.status()}`);
+  const projectsJson = await projectsRes.json();
+  const projects = projectsJson.projects || [];
+  if (projects.length < 2) {
+    throw new Error(`Expected at least 2 projects, got ${projects.length}`);
+  }
+  const uploadProject = projects.find((p) => p.videoPath && p.videoPath.includes("nested-demo.mp4"));
+  const runProject = projects.find((p) => p.kind === "run" && p.videoPath && p.videoPath.includes("run-output.mp4"));
+  if (!uploadProject) throw new Error("Projects API missing uploads project video");
+  if (!runProject) throw new Error("Projects API missing run project video");
+  if (uploadProject.frameCount < 2) throw new Error("Expected frame count on uploads project");
 
-  const rootsRes = await page.request.get(`${base}/api/video-swarm/roots`);
-  if (!rootsRes.ok()) throw new Error(`GET /api/video-swarm/roots failed: ${rootsRes.status()}`);
-  const rootsJson = await rootsRes.json();
-  const rootIds = (rootsJson.roots || []).map((r) => r.id);
-  for (const id of ["uploads", "runs", "frames"]) {
-    if (!rootIds.includes(id)) throw new Error(`Expected root "${id}" in /api/video-swarm/roots`);
+  const browserRoot = await openLibraryBrowser(page);
+  const uploadCard = await expectProjectCard(browserRoot, "nested-demo.mp4");
+  const uploadPath = await uploadCard.getAttribute("data-video-path");
+  if (!uploadPath) throw new Error("Expected project card data-video-path");
+  await assertMediaOk(page, base, uploadPath, "uploads");
+
+  const runCard = await expectProjectCard(browserRoot, "run-output.mp4");
+  const runPath = await runCard.getAttribute("data-video-path");
+  if (!runPath) throw new Error("Expected run project data-video-path");
+  const runMediaRes = await page.request.get(`${base}/api/runs/e2e-run-folder/video/run-output.mp4`);
+  if (!runMediaRes.ok()) {
+    throw new Error(`Expected run video 200, got ${runMediaRes.status()}`);
   }
 
-  // Uploads: top-level video + projects folder → nested video
-  await selectRoot(browserRoot, "uploads");
-  await expectNoBrowseError(browserRoot);
-  const topTile = await expectVideoTile(browserRoot, "top-level.mp4");
-  const topPath = await topTile.getAttribute("data-video-path");
-  if (!topPath) throw new Error("Expected top-level tile data-video-path");
-  const projectsFolder = await expectFolderTile(browserRoot, "projects");
-  await projectsFolder.click();
-  await expectNoBrowseError(browserRoot);
-  const nestedTile = await expectVideoTile(browserRoot, "nested-demo.mp4");
-  const nestedPath = await nestedTile.getAttribute("data-video-path");
-  if (!nestedPath) throw new Error("Expected nested-demo tile data-video-path");
-  await assertMediaOk(page, base, nestedPath);
-  await assertMediaOk(page, base, topPath);
+  const titles = await browserRoot.locator(".library-browser__title").allTextContents();
+  if (titles.some((t) => /orbit-demo|e2e-run-folder|nested-demo|projects/i.test(t))) {
+    throw new Error(`Project titles should not expose raw folder names: ${titles.join(" | ")}`);
+  }
 
-  // Runs: navigate into run folder
-  await selectRoot(browserRoot, "runs");
-  await expectNoBrowseError(browserRoot);
-  const runFolderTile = await expectFolderTile(browserRoot, "e2e-run-folder");
-  await runFolderTile.click();
-  await expectNoBrowseError(browserRoot);
-  const runVideoTile = await expectVideoTile(browserRoot, "run-output.mp4");
-  const runVideoPath = await runVideoTile.getAttribute("data-video-path");
-  if (!runVideoPath) throw new Error("Expected run-output tile data-video-path");
-  await assertMediaOk(page, base, runVideoPath);
-
-  // Frames: navigate into batch folder
-  await selectRoot(browserRoot, "frames");
-  await expectNoBrowseError(browserRoot);
-  const batchFolder = await expectFolderTile(browserRoot, "batch-a");
-  await batchFolder.click();
-  await expectNoBrowseError(browserRoot);
-  const batchTile = await expectVideoTile(browserRoot, "batch-video.mp4");
-  const batchPath = await batchTile.getAttribute("data-video-path");
-  if (!batchPath) throw new Error("Expected batch-video tile data-video-path");
-  await assertMediaOk(page, base, batchPath);
-
-  // Backend browse should include folders at uploads root
-  const browseRes = await page.request.get(
-    `${base}/api/video-swarm/browse?rootId=uploads&path=${encodeURIComponent(uploadsDir)}&recursive=0&sort=name-asc`,
-  );
-  if (!browseRes.ok()) throw new Error(`Expected browse 200, got ${browseRes.status()}`);
-  const browseJson = await browseRes.json();
-  const hasFolder = Array.isArray(browseJson.folders) && browseJson.folders.some((f) => f && f.name === "projects");
-  const hasVideo = Array.isArray(browseJson.videos) && browseJson.videos.some((v) => v && v.name === "top-level.mp4");
-  if (!hasFolder) throw new Error("Backend browse missing projects folder");
-  if (!hasVideo) throw new Error("Backend browse missing top-level.mp4");
-
-  console.log("OK: storage browser shows folders + videos and serves file media");
+  console.log("OK: Projects library lists work with frame counts and serves video media");
 } finally {
   await browser.close();
   await svc.close();

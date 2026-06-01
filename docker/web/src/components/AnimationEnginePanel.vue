@@ -104,6 +104,7 @@
         <details
           class="animation-engine-layer-row__controls"
           :data-testid="'animation-engine-controls-' + layer.id"
+          :open="layer.kind === 'webgl'"
         >
           <summary class="animation-engine-layer-row__controls-summary">
             <span class="animation-engine-layer-row__controls-label">Controls</span>
@@ -125,57 +126,18 @@
         <CompositorControls :app="app" />
       </div>
     </details>
-
-    <div class="animation-engine-panel__sources">
-      <button
-        type="button"
-        class="framesync-button framesync-button--compact"
-        :class="{ active: videoLayerAddOpen }"
-        data-testid="video-layer-add-toggle"
-        @click="toggleVideoLayerAdd()"
-      >
-        + Add source
-      </button>
-      <div
-        v-if="currentTab === 'LIVE' && videoLayerAddOpen"
-        class="video-layer-add"
-        data-testid="video-layer-add"
-      >
-        <div class="chips video-layer-add__mode">
-          <button type="button" class="chip" :class="{ active: liveSourcePanel === 'library' }" @click="liveSourcePanel = 'library'; saveSessionState()">Video library</button>
-          <button type="button" class="chip" :class="{ active: liveSourcePanel === 'cloud' }" @click="liveSourcePanel = 'cloud'; saveSessionState()">Cloud drive</button>
-        </div>
-        <div v-if="liveSourcePanel === 'library'" style="margin-top:8px;">
-          <VideoSwarmBrowser :app="app" />
-        </div>
-        <div v-else style="margin-top:8px;">
-          <div class="framesync-row" style="grid-template-columns: 1fr 0.8fr; gap:10px;">
-            <input class="framesync-input" v-model.trim="cloudDriveDraft.url" placeholder="https://drive.google.com/...">
-            <select class="framesync-select" v-model="cloudDriveDraft.provider">
-              <option value="google_drive">Google Drive</option>
-              <option value="dropbox">Dropbox</option>
-              <option value="onedrive">OneDrive</option>
-            </select>
-          </div>
-          <div class="framesync-footer" style="margin-top:8px;">
-            <button type="button" class="framesync-button" @click="linkCloudDriveSource">Link cloud drive</button>
-          </div>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
 <script>
 import UiIcon from './UiIcon.vue'
-import VideoSwarmBrowser from './VideoSwarmBrowser.vue'
 import EngineLayerControls from './animation-plugins/EngineLayerControls.vue'
 import CompositorControls from './animation-plugins/CompositorControls.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'AnimationEnginePanel',
-  components: { UiIcon, VideoSwarmBrowser, EngineLayerControls, CompositorControls },
+  components: { UiIcon, EngineLayerControls, CompositorControls },
   props: { app: { type: Object, required: true } },
   setup(props) { return proxyAppView(props) },
 }

@@ -186,7 +186,7 @@
             >
               <span class="video-layer-empty__title">Input layer</span>
               <span class="framesync-subtitle">Pick a video from the library or link a cloud source.</span>
-              <button type="button" class="framesync-button" @click="openLibraryWorkspace('browser')">+ Add source</button>
+              <button type="button" class="framesync-button" @click="openLibraryWorkspace('browser', { asSource: true })">+ Add source</button>
             </div>
             <div
               v-if="activeVideoLayer && activeVideoLayer.kind === 'cloud'"
@@ -445,7 +445,7 @@
               class="layers-sidebar__add"
               data-testid="video-layer-add-toggle"
               title="Add video source (opens Library)"
-              @click="openLibraryWorkspace('browser')"
+              @click="openLibraryWorkspace('browser', { asSource: true })"
             >
               <span class="layers-sidebar__add-icon">+</span>
               <span class="layers-sidebar__item-label">Add source</span>
@@ -895,6 +895,9 @@ export default {
       videoSwarmVisibleStart: 0,
       videoSwarmVisibleEnd: 48,
       librarySubTab: 'BROWSER',
+      librarySelectedProject: null,
+      librarySelectedVideo: null,
+      librarySelectedAudio: null,
       liveEngineDrawerOpen: false,
       restoreSessionPromptOpen: false,
       viewportWidth: typeof window !== 'undefined' ? window.innerWidth : 1400,
@@ -1039,6 +1042,10 @@ export default {
         frames: 1,
       },
       xyPad: { dragging: false, activePad: null, padSize: 420, dragStartValues: null },
+      motionXYPadSlots: [
+        { id: 'primary', xAxis: 'translation_x', yAxis: 'translation_y' },
+        { id: 'look', xAxis: 'angle', yAxis: 'zoom' },
+      ],
       audio: { track: "", bpm: 114.8, uploadedFile: null, objectUrl: null },
       audioSpectrogramDataUrl: null,
       audioSpectrogramStatus: "",
@@ -1057,6 +1064,8 @@ export default {
         { param: "translation_z", band: "high", freq_min: 2000, freq_max: 8000, out_min: -5, out_max: 5 },
       ],
       audioMappingLevels: [0, 0, 0],
+      audioSelectedMappingIndex: 0,
+      audioBandPreviewIndex: -1,
       audioActiveBandTab: "low",
       audioSpectrumBins: [],
       _audioSpectrumPaintTs: 0,
@@ -1231,7 +1240,7 @@ export default {
         preferDeforumVideo: false,
         showStandbyClip: false,
         autoTransitionToDeforum: true,
-        mode: 'orbital',
+        mode: 'customlights',
         instCount: 12000,
         beamCount: 7,
         speed: 0.75,
@@ -1907,8 +1916,9 @@ export default {
       const mid = levels[1] || 0;
       const treble = levels[2] || 0;
       const level = levels.length ? levels.reduce((sum, value) => sum + value, 0) / levels.length : 0;
+      const referencePlaying = this.audioSpectrumPlaying;
       return {
-        active: level > 0.01,
+        active: level > 0.01 || referencePlaying,
         level,
         bass,
         mid,
@@ -2346,6 +2356,10 @@ export default {
       ];
     },
     activeAudioMappingIndex() {
+      const selected = Number(this.audioSelectedMappingIndex);
+      if (Number.isFinite(selected) && selected >= 0 && selected < this.audioMappings.length) {
+        return selected;
+      }
       const tabs = this.audioBandTabDefs;
       const key = this.audioActiveBandTab;
       const idx = tabs.findIndex((tab) => tab.key === key);
@@ -2776,6 +2790,20 @@ export default {
     motionMovePadRange() {
       return this.isDeforumMotion2d ? 1 : 10;
     },
+    motionAxisOptionsList() {
+      const keys = this.isDeforumMotion2d
+        ? ['translation_x', 'translation_y', 'angle', 'zoom']
+        : ['translation_x', 'translation_y', 'translation_z', 'zoom', 'rotation_z'];
+      const labels = {
+        translation_x: { key: 'translation_x', label: 'Pan X', shortLabel: 'X', icon: 'arrow-right' },
+        translation_y: { key: 'translation_y', label: 'Pan Y', shortLabel: 'Y', icon: 'chevron-up' },
+        translation_z: { key: 'translation_z', label: 'Depth Z', shortLabel: 'Z', icon: 'panel-bottom' },
+        angle: { key: 'angle', label: 'Angle', shortLabel: 'Ang', icon: 'rotate-ccw' },
+        zoom: { key: 'zoom', label: 'Zoom', shortLabel: 'Zm', icon: 'size-full' },
+        rotation_z: { key: 'rotation_z', label: 'Tilt', shortLabel: 'Tlt', icon: 'rotate-ccw' },
+      };
+      return keys.map((key) => labels[key]).filter(Boolean);
+    },
     motionPadPuckStyle() {
       return this.motionPadPuckStyleFor('move');
     },
@@ -2888,8 +2916,24 @@ export default {
     showDefaultAnimation(visible) {
       if (visible) this.$nextTick(() => this.kickstandbyAnimation());
     },
+    audioMappings: {
+      deep: true,
+      handler() {
+        if (this.audioBandPreviewIndex < 0) return;
+        const mapping = this.audioMappings[this.audioBandPreviewIndex];
+        if (mapping) this.updateAudioBandpassFilter(mapping);
+      },
+    },
     deforumGeneratedFrameCount(count) {
       if (count > 0) this.maybePromoteDeforumPreview();
+    },
+    isDeforumMotion2d(is2d) {
+      this.motionXYPadSlots = is2d
+        ? [
+          { id: 'primary', xAxis: 'translation_x', yAxis: 'translation_y' },
+          { id: 'look', xAxis: 'angle', yAxis: 'zoom' },
+        ]
+        : [{ id: 'primary', xAxis: 'translation_x', yAxis: 'translation_y' }];
     },
     deforumPlaying(playing) {
       if (playing) {
@@ -4286,7 +4330,7 @@ async stopOutboundStream() {
 },
 normalizeDefaultAnimationSettings(input = {}) {
   const next = input && typeof input === 'object' ? input : {};
-  const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean'].includes(next.mode) ? next.mode : 'instancing';
+  const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean', 'customlights'].includes(next.mode) ? next.mode : 'customlights';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
     showStandbyClip: !!next.showStandbyClip,
@@ -5218,7 +5262,8 @@ toggleLibraryWorkspace() {
   if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
   else this.openLibraryWorkspace('browser');
 },
-openLibraryWorkspace(pane = 'browser') {
+openLibraryWorkspace(pane = 'browser', options = {}) {
+  if (options && options.asSource) this.librarySourceMode = true;
   this.libraryWorkspaceOpen = true;
   this.libraryWorkspacePane = pane === 'editor' ? 'editor' : 'browser';
   void this.initSystemFilesBrowser();
@@ -5227,13 +5272,13 @@ openLibraryWorkspace(pane = 'browser') {
 closeLibraryWorkspace() {
   this.libraryWorkspaceOpen = false;
   this.libraryWorkspacePane = 'browser';
+  this.librarySourceMode = false;
   this.saveSessionState();
 },
 setLibraryWorkspacePane(pane) {
   const next = pane === 'editor' ? 'editor' : 'browser';
   if (this.libraryWorkspacePane === next) return;
   this.libraryWorkspacePane = next;
-  if (next === 'browser') void this.initSystemFilesBrowser();
   this.saveSessionState();
 },
 openLibraryVideoEditor() {
@@ -5243,7 +5288,15 @@ closeLibraryEditor() {
   this.setLibraryWorkspacePane('browser');
 },
 openInVideoEditor(video) {
-  const entry = video || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
+  const fromProject = this.librarySelectedProject?.videoPath
+    ? {
+        path: this.librarySelectedProject.videoPath,
+        rootId: this.librarySelectedProject.rootId || 'uploads',
+        name: this.librarySelectedProject.title,
+        url: this.librarySelectedProject.videoUrl,
+      }
+    : null;
+  const entry = video || fromProject || (this.systemFiles.videos || []).find((v) => v.path === (this.systemFiles.selectedPaths || [])[0]);
   if (!entry || !entry.path) {
     this.editorStatus = 'Select a video in the library first';
     this.editorStatusLive = false;
@@ -5253,11 +5306,116 @@ openInVideoEditor(video) {
   }
   this.editorPendingImportPath = entry.path;
   this.editorPendingImportRootId = entry.rootId || this.systemFiles.rootId || 'uploads';
-  this.editorPendingImportUrl = this.systemFilePlaybackUrl(entry);
+  this.editorPendingImportUrl = entry.url || this.systemFilePlaybackUrl(entry);
   this.editorFreecutRoute = 'projects';
   this.editorStatus = `Ready to import ${entry.name || 'video'}`;
   this.editorStatusLive = true;
   this.openLibraryWorkspace('editor');
+},
+useLibraryAudio(track, options = {}) {
+  if (!track?.audioPath) return;
+  const driveWebgl = options.webgl ?? !!this.librarySourceMode;
+  if (this.audio.objectUrl && String(this.audio.objectUrl).startsWith('blob:')) {
+    try { URL.revokeObjectURL(this.audio.objectUrl); } catch (_e) { /* ignore */ }
+  }
+  this.audio.track = track.audioPath;
+  this.audio.uploadedFile = track.title || track.audioName || 'Audio';
+  this.audio.objectUrl = track.audioUrl || null;
+  this.audioBeatMacrosCollapsed = true;
+  this.primeAudioSpectrumPlaceholder();
+  let setupDone = false;
+  const afterAnalyserReady = () => {
+    if (setupDone) return;
+    setupDone = true;
+    try { this.setupLiveAudioAnalyser(); } catch (_e) { /* ignore */ }
+    void this.playAvSyncAudioForVisualizer();
+    if (this.audio.objectUrl) {
+      this.audioSpectrogramStatus = 'Analyzing…';
+      this.scheduleAudioSpectrogramDecode(this._spectrogramGen);
+    }
+    if (driveWebgl) {
+      this.applyAudioAsWebglSource();
+    } else {
+      this.audioStatus = 'Audio loaded from library';
+      this.switchTab('AUDIO');
+    }
+  };
+  const scheduleSetup = () => {
+    const el = this.$refs && this.$refs.avSyncAudio;
+    if (!el || !this.audio.objectUrl) {
+      afterAnalyserReady();
+      return;
+    }
+    const run = () => {
+      el.removeEventListener('canplay', run);
+      afterAnalyserReady();
+    };
+    if (el.readyState >= 2) {
+      afterAnalyserReady();
+      return;
+    }
+    el.addEventListener('canplay', run);
+    if (typeof this.$nextTick === 'function') {
+      this.$nextTick(() => {
+        if (el.readyState >= 2) run();
+      });
+    }
+  };
+  if (typeof this.$nextTick === 'function') this.$nextTick(scheduleSetup);
+  else setTimeout(scheduleSetup, 0);
+  this.saveSessionState();
+},
+playAvSyncAudioForVisualizer() {
+  const el = this.$refs && this.$refs.avSyncAudio;
+  if (!el || !this.audio.objectUrl) return Promise.resolve();
+  el.loop = true;
+  try {
+    const playResult = el.play && el.play();
+    return playResult && typeof playResult.then === 'function'
+      ? playResult.catch(() => {})
+      : Promise.resolve();
+  } catch (_e) {
+    return Promise.resolve();
+  }
+},
+applyAudioAsWebglSource() {
+  const webgl = this.findVideoLayer('webgl');
+  if (webgl) {
+    webgl.previewVisible = true;
+    if (!Number.isFinite(Number(webgl.opacity)) || Number(webgl.opacity) <= 0) {
+      webgl.opacity = 1;
+    }
+  }
+  this.selectVideoLayer('webgl');
+  if (this.currentTab !== 'LIVE') this.switchTab('LIVE');
+  this.audioStatus = 'Audio driving WebGL visualizer';
+  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
+  else this.librarySourceMode = false;
+},
+applyLibrarySelectionAsSource() {
+  const audio = this.librarySelectedAudio;
+  if (audio?.audioPath) {
+    this.useLibraryAudio(audio, { webgl: true });
+    return;
+  }
+  const entry = this.librarySelectedProject?.videoPath
+    ? this.librarySelectedProject
+    : this.librarySelectedVideo;
+  if (!entry?.videoPath) {
+    this.liveSourceStatus = 'Select audio or video in the library first';
+    return;
+  }
+  this.inputLayerPlaybackUrl = entry.videoUrl || this.systemFilePlaybackUrl({
+    path: entry.videoPath,
+    rootId: entry.rootId || 'uploads',
+  });
+  this.inputLayerLabel = entry.title || entry.name || 'Input';
+  this.rebuildVideoLayers();
+  this.selectVideoLayer('input');
+  this.liveSourceStatus = `Assigned to Input layer: ${this.inputLayerLabel}`;
+  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
+  else this.librarySourceMode = false;
+  this.saveSessionState();
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -7378,6 +7536,9 @@ onMotionSmoothnessFramesChange(raw) {
   this.saveSessionState();
 },
 captureMotionPadSnapshot() {
+  const padId = this.xyPad.activePad;
+  const snap = padId ? this.captureMotionPadSnapshotForPad(padId) : null;
+  if (snap) return snap;
   return {
     translation_x: Number(this.motionPadValues.translation_x ?? 0),
     translation_y: Number(this.motionPadValues.translation_y ?? 0),
@@ -7385,20 +7546,68 @@ captureMotionPadSnapshot() {
     look_y: Number(this.motionPadValues.look_y ?? 0),
   };
 },
-commitMotionPadDrag(padKind) {
+motionXYPadSlotById(padId) {
+  return (this.motionXYPadSlots || []).find((slot) => slot.id === padId) || null;
+},
+motionAxisRangeForKey(axisKey) {
+  if (axisKey === 'translation_x' || axisKey === 'translation_y') {
+    return this.motionMovePadRange;
+  }
+  if (axisKey === 'translation_z') return 10;
+  if (axisKey === 'rotation_z') return 180;
+  return 1;
+},
+setMotionXYPadAxis(padId, channel, axisKey) {
+  const slot = this.motionXYPadSlotById(padId);
+  if (!slot || !axisKey) return;
+  const otherChannel = channel === 'x' ? 'y' : 'x';
+  const otherKey = slot[otherChannel === 'x' ? 'xAxis' : 'yAxis'];
+  if (axisKey === otherKey) return;
+  if (channel === 'x') slot.xAxis = axisKey;
+  else slot.yAxis = axisKey;
+  this.saveSessionState();
+},
+captureMotionPadSnapshotForPad(padId) {
+  const slot = this.motionXYPadSlotById(padId);
+  if (!slot) return null;
+  return {
+    padId,
+    xAxis: slot.xAxis,
+    yAxis: slot.yAxis,
+    x: this.motionAxisTargetValue(slot.xAxis),
+    y: this.motionAxisTargetValue(slot.yAxis),
+  };
+},
+commitMotionPadDrag(padId) {
   const start = this.xyPad.dragStartValues;
-  const end = this.captureMotionPadSnapshot();
-  if (!start || !end) return;
-  if (padKind === 'look') {
-    if (start.look_x !== end.look_x) this.applyMotionParamWithSmoothness('angle_2d', end.look_x);
-    if (start.look_y !== end.look_y) this.applyMotionParamWithSmoothness('zoom_2d', end.look_y);
+  if (!start) return;
+  const slot = this.motionXYPadSlotById(padId);
+  if (slot && start.xAxis && start.yAxis) {
+    const endX = this.motionAxisTargetValue(slot.xAxis);
+    const endY = this.motionAxisTargetValue(slot.yAxis);
+    if (start.x !== endX) {
+      const liveKey = this.motionAxisToLiveKey(slot.xAxis);
+      if (liveKey) this.applyMotionParamWithSmoothness(liveKey, endX);
+    }
+    if (start.y !== endY) {
+      const liveKey = this.motionAxisToLiveKey(slot.yAxis);
+      if (liveKey) this.applyMotionParamWithSmoothness(liveKey, endY);
+    }
     return;
   }
-  if (start.translation_x !== end.translation_x) {
-    this.applyMotionParamWithSmoothness('translation_x', end.translation_x);
-  }
-  if (start.translation_y !== end.translation_y) {
-    this.applyMotionParamWithSmoothness('translation_y', end.translation_y);
+  if (padId === 'look' || padId === 'move') {
+    const end = this.captureMotionPadSnapshot();
+    if (padId === 'look') {
+      if (start.look_x !== end.look_x) this.applyMotionParamWithSmoothness('angle_2d', end.look_x);
+      if (start.look_y !== end.look_y) this.applyMotionParamWithSmoothness('zoom_2d', end.look_y);
+      return;
+    }
+    if (start.translation_x !== end.translation_x) {
+      this.applyMotionParamWithSmoothness('translation_x', end.translation_x);
+    }
+    if (start.translation_y !== end.translation_y) {
+      this.applyMotionParamWithSmoothness('translation_y', end.translation_y);
+    }
   }
 },
 resetMotionToDefault() {
@@ -7930,7 +8139,9 @@ toggleLoraFamilyCollapse(familyKey) {
    this.audioActiveBandTab = tabKey;
  },
  onAudioSpectrumSelectBand(index) {
-   const tab = this.audioBandTabDefs[Number(index)];
+   const i = Number(index) || 0;
+   this.audioSelectedMappingIndex = i;
+   const tab = this.audioBandTabDefs[i];
    if (tab) this.setAudioActiveBandTab(tab.key);
  },
  updateAudioMappingBand({ index, freq_min, freq_max }) {
@@ -7938,10 +8149,16 @@ toggleLoraFamilyCollapse(familyKey) {
    if (!row) return;
    row.freq_min = freq_min;
    row.freq_max = freq_max;
+   if (this.audioBandPreviewIndex === index) this.updateAudioBandpassFilter(row);
  },
  removeAudioMapping(index) {
+   if (this.audioBandPreviewIndex === index) this.stopAudioBandPreview();
+   else if (this.audioBandPreviewIndex > index) this.audioBandPreviewIndex -= 1;
    this.audioMappings.splice(index, 1);
    this.audioMappingLevels.splice(index, 1);
+   if (this.audioSelectedMappingIndex >= this.audioMappings.length) {
+     this.audioSelectedMappingIndex = Math.max(0, this.audioMappings.length - 1);
+   }
  },
  applyAudioBandPreset(mapIndex, bandKey) {
    const spec = this.audioBandPresets[bandKey];
@@ -7949,6 +8166,51 @@ toggleLoraFamilyCollapse(familyKey) {
    if (!spec || !row) return;
    row.freq_min = spec.freq_min;
    row.freq_max = spec.freq_max;
+   if (this.audioBandPreviewIndex === mapIndex) this.updateAudioBandpassFilter(row);
+ },
+ toggleAudioBandPreview(mapIndex) {
+   if (!this.audio.objectUrl) {
+     this.audioStatus = 'Upload audio first';
+     return;
+   }
+   const idx = Number(mapIndex);
+   if (!Number.isFinite(idx) || idx < 0) return;
+   if (this.audioBandPreviewIndex === idx) {
+     this.stopAudioBandPreview();
+     this.audioStatus = 'Band preview off';
+     return;
+   }
+   if (!this._liveSpecAnalyser) {
+     try { this.setupLiveAudioAnalyser(); } catch (_e) { /* ignore */ }
+   }
+   void this.playAvSyncAudioForVisualizer();
+   this.audioBandPreviewIndex = idx;
+   const mapping = this.audioMappings[idx];
+   if (mapping) this.updateAudioBandpassFilter(mapping);
+   this.syncAudioBandPreviewGains();
+   if (mapping) {
+     this.audioStatus = `Previewing ${mapping.freq_min}–${mapping.freq_max} Hz`;
+   }
+ },
+ stopAudioBandPreview() {
+   this.audioBandPreviewIndex = -1;
+   this.syncAudioBandPreviewGains();
+ },
+ updateAudioBandpassFilter(mapping) {
+   const filter = this._liveSpecBandpass;
+   if (!filter || !mapping) return;
+   const fMin = Math.max(20, Number(mapping.freq_min) || 20);
+   const fMax = Math.min(20000, Math.max(fMin + 1, Number(mapping.freq_max) || fMin + 100));
+   const fc = Math.sqrt(fMin * fMax);
+   const bw = Math.max(1, fMax - fMin);
+   filter.type = 'bandpass';
+   filter.frequency.value = fc;
+   filter.Q.value = Math.max(0.1, Math.min(20, fc / bw));
+ },
+ syncAudioBandPreviewGains() {
+   const previewOn = this.audioBandPreviewIndex >= 0;
+   if (this._liveSpecGain) this._liveSpecGain.gain.value = previewOn ? 0 : 1;
+   if (this._liveSpecSoloGain) this._liveSpecSoloGain.gain.value = previewOn ? 1 : 0;
  },
 readImg2imgAsset(file, { mask = false } = {}) {
   if (!file) return;
@@ -8790,16 +9052,29 @@ audioBandWindowStyle(mapping) {
    } catch (_e3) {
      /* ignore */
    }
+   try {
+     if (this._liveSpecBandpass && typeof this._liveSpecBandpass.disconnect === "function") this._liveSpecBandpass.disconnect();
+   } catch (_e4) {
+     /* ignore */
+   }
+   try {
+     if (this._liveSpecSoloGain && typeof this._liveSpecSoloGain.disconnect === "function") this._liveSpecSoloGain.disconnect();
+   } catch (_e5) {
+     /* ignore */
+   }
    const ctx = this._liveSpecCtx;
    this._liveSpecCtx = null;
    this._liveSpecSource = null;
    this._liveSpecAnalyser = null;
    this._liveSpecGain = null;
+   this._liveSpecBandpass = null;
+   this._liveSpecSoloGain = null;
    this._liveSpecFreqBuf = null;
+   this.audioBandPreviewIndex = -1;
    if (ctx && typeof ctx.close === "function") {
      try {
        void ctx.close();
-     } catch (_e4) {
+     } catch (_e6) {
        /* ignore */
      }
    }
@@ -8818,14 +9093,28 @@ audioBandWindowStyle(mapping) {
      analyser.smoothingTimeConstant = 0.78;
      const gain = ctx.createGain();
      gain.gain.value = 1;
+     const bandpass = ctx.createBiquadFilter();
+     bandpass.type = 'bandpass';
+     const soloGain = ctx.createGain();
+     soloGain.gain.value = 0;
      source.connect(analyser);
      analyser.connect(gain);
      gain.connect(ctx.destination);
+     source.connect(bandpass);
+     bandpass.connect(soloGain);
+     soloGain.connect(ctx.destination);
      this._liveSpecCtx = ctx;
      this._liveSpecSource = source;
      this._liveSpecAnalyser = analyser;
      this._liveSpecGain = gain;
+     this._liveSpecBandpass = bandpass;
+     this._liveSpecSoloGain = soloGain;
      this._liveSpecFreqBuf = new Uint8Array(analyser.frequencyBinCount);
+     this.syncAudioBandPreviewGains();
+     if (this.audioBandPreviewIndex >= 0) {
+       const mapping = this.audioMappings[this.audioBandPreviewIndex];
+       if (mapping) this.updateAudioBandpassFilter(mapping);
+     }
      const onPlay = () => this.onLiveAudioPlay();
      const onPause = () => this.onLiveAudioPause();
      el.addEventListener("play", onPlay);
@@ -8977,6 +9266,7 @@ onAudioUpload(evt) {
    this.audioSpectrumBins = bins;
  },
  clearAudioFile() {
+   this.stopAudioBandPreview();
    this.disposeLiveAudioAnalyser();
    this.invalidateAudioSpectrogram();
    this.audio.uploadedFile = null;
@@ -10053,25 +10343,57 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    };
  },
  motionPadMouseDown(evt, padKind) {
-   this.xyPad.dragging = true;
-   this.xyPad.activePad = padKind;
-   this.xyPad.dragStartValues = this.captureMotionPadSnapshot();
+   this.motionPadDragStart(padKind);
    this.updateMotionPad(evt, padKind, { previewOnly: this.motionSmoothnessActive() });
    evt.preventDefault();
+ },
+ motionPadDragStart(padId) {
+   this.xyPad.dragging = true;
+   this.xyPad.activePad = padId;
+   this.xyPad.dragStartValues = this.captureMotionPadSnapshotForPad(padId)
+     || this.captureMotionPadSnapshot();
  },
  motionPadMouseMove(evt, padKind) {
    if (!this.xyPad.dragging || this.xyPad.activePad !== padKind) return;
    this.updateMotionPad(evt, padKind);
    evt.preventDefault();
  },
- motionPadMouseUp() {
-   const padKind = this.xyPad.activePad;
-   if (this.xyPad.dragging && padKind && this.motionSmoothnessActive()) {
-     this.commitMotionPadDrag(padKind);
+ motionPadMouseUp(padKind) {
+   const activePad = padKind || this.xyPad.activePad;
+   if (this.xyPad.dragging && activePad && this.motionSmoothnessActive()) {
+     this.commitMotionPadDrag(activePad);
    }
    this.xyPad.dragging = false;
    this.xyPad.activePad = null;
    this.xyPad.dragStartValues = null;
+ },
+ applyMotionPadAxisValues(xAxis, yAxis, x, y, opts = {}) {
+   const previewOnly = !!opts.previewOnly;
+   this.previewMotionAxis(xAxis, Number(x) || 0);
+   this.previewMotionAxis(yAxis, Number(y) || 0);
+   const pan = this.liveHudParamByKey('panx');
+   const pany = this.liveHudParamByKey('pany');
+   if (xAxis === 'translation_x' && pan && this.motionMovePadRange === 1) {
+     pan.val = this.motionPadValues.translation_x;
+   }
+   if (yAxis === 'translation_y' && pany && this.motionMovePadRange === 1) {
+     pany.val = this.motionPadValues.translation_y;
+   }
+   if (!previewOnly) {
+     const liveX = this.motionAxisToLiveKey(xAxis);
+     const liveY = this.motionAxisToLiveKey(yAxis);
+     if (liveX) this.emitMotionLiveParam(liveX, this.motionAxisTargetValue(xAxis));
+     if (liveY) this.emitMotionLiveParam(liveY, this.motionAxisTargetValue(yAxis));
+   }
+   if (!previewOnly && !this.deforumPlaying) this.schedulePreviewFrame();
+ },
+ applyMotionPadValues(padKind, x, y, opts = {}) {
+   const previewOnly = !!opts.previewOnly;
+   if (padKind === 'look') {
+     this.applyMotionPadAxisValues('angle', 'zoom', x, y, { previewOnly });
+     return;
+   }
+   this.applyMotionPadAxisValues('translation_x', 'translation_y', x, y, { previewOnly });
  },
  xyPadMouseDown(evt) {
    this.motionPadMouseDown(evt, 'move');
@@ -10102,29 +10424,11 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
    const normY = this.clampVal(1 - (y / height) * 2, -1, 1);
    const previewOnly = !!opts.previewOnly;
    if (padKind === 'look') {
-     this.motionPadValues.look_x = normX;
-     this.motionPadValues.look_y = normY;
-     this.motionPadValues.zoom = normY;
-     if (!previewOnly) {
-       this.emitMotionLiveParam('angle_2d', normX);
-       this.emitMotionLiveParam('zoom_2d', normY);
-     }
+     this.applyMotionPadValues('look', normX, normY, { previewOnly });
    } else {
      const range = this.motionMovePadRange;
-     const translation_x = normX * range;
-     const translation_y = normY * range;
-     this.motionPadValues.translation_x = translation_x;
-     this.motionPadValues.translation_y = translation_y;
-     const pan = this.liveHudParamByKey('panx');
-     const pany = this.liveHudParamByKey('pany');
-     if (pan && range === 1) pan.val = translation_x;
-     if (pany && range === 1) pany.val = translation_y;
-     if (!previewOnly) {
-       this.emitMotionLiveParam('translation_x', translation_x);
-       this.emitMotionLiveParam('translation_y', translation_y);
-     }
+     this.applyMotionPadValues('move', normX * range, normY * range, { previewOnly });
    }
-   if (!previewOnly && !this.deforumPlaying) this.schedulePreviewFrame();
  },
  // LoRA management methods
  async refreshLoras() {

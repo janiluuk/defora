@@ -8,10 +8,22 @@
   >
     <div class="framesync-panel library-storage-browser">
       <div v-if="!workspace" class="framesync-header library-storage-browser__header">
-        <div class="framesync-title"><span class="framesync-accent">Browser</span></div>
-        <span class="framesync-subtitle" style="margin:0;">Browse videos, then open a file in the editor to cut and export</span>
+        <div class="framesync-title">
+          <UiIcon class="framesync-title-icon" name="folder" />
+          <span class="framesync-accent">Library</span>
+        </div>
+        <span class="framesync-subtitle" style="margin:0;">Projects, videos, and audio — browse, preview, open in the editor</span>
       </div>
       <div class="library-storage-browser__actions">
+        <button
+          v-if="workspace && librarySourceMode"
+          type="button"
+          class="framesync-button framesync-button--compact framesync-button--live"
+          data-testid="use-library-as-source"
+          @click="applyLibrarySelectionAsSource()"
+        >
+          Use as source
+        </button>
         <button
           type="button"
           class="framesync-button framesync-button--compact framesync-button--live"
@@ -21,18 +33,19 @@
           Open in editor
         </button>
       </div>
-      <VideoSwarmBrowser :app="app" />
+      <LibraryBrowserShell :app="app" />
     </div>
   </div>
 </template>
 
 <script>
 import { proxyAppView } from './app-view-proxy.mjs'
-import VideoSwarmBrowser from '../VideoSwarmBrowser.vue'
+import UiIcon from '../UiIcon.vue'
+import LibraryBrowserShell from '../LibraryBrowserShell.vue'
 
 export default {
   name: 'LibraryView',
-  components: { VideoSwarmBrowser },
+  components: { UiIcon, LibraryBrowserShell },
   props: {
     app: { type: Object, required: true },
     workspace: { type: Boolean, default: false },
@@ -77,5 +90,6 @@ export default {
 .library-storage-browser {
   display: grid;
   gap: 12px;
+  min-height: 0;
 }
 </style>

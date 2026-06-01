@@ -187,11 +187,8 @@ try {
   await injectSea(page);
   await openLibraryBrowser(page);
   await injectSea(page);
-  const libRootSelect = page.locator('.video-swarm-browser__roots select.framesync-select').first();
-  if ((await libRootSelect.count()) > 0) {
-    await libRootSelect.selectOption({ value: 'uploads' }).catch(() => null);
-    await page.waitForTimeout(700);
-  }
+  await page.waitForSelector('[data-testid="library-browser"]', { timeout: 15000 }).catch(() => null);
+  await page.waitForTimeout(700);
   await shot(page, 'library-tab.png');
   await page.locator('[data-testid="close-library-workspace"]').click().catch(() => null);
   await page.waitForTimeout(300);

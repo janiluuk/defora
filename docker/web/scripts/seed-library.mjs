@@ -75,7 +75,22 @@ try {
   fs.unlinkSync(path.join(uploadsDir, 'preview_seed_example.png'));
 } catch (_e) {}
 
-// ── Uploads: default Library view = 1 folder + 1 video at root ─────────────
+// ── Uploads: default Library view = projects ───────────────────────────────
+const projectsDir = path.join(uploadsDir, 'projects');
+writeReadme(
+  projectsDir,
+  `User projects (Library → Projects)
+
+Each subfolder is one project with frames and/or an exported video.`,
+);
+const sampleProjectDir = path.join(projectsDir, 'sample-orbit');
+writeReadme(sampleProjectDir, 'Sample project — orbit clip with preview frames.');
+makeColorMp4(path.join(sampleProjectDir, 'orbit-preview.mp4'), 'orange', 'sample project video');
+for (let i = 0; i < 4; i++) {
+  writeTinyPng(path.join(sampleProjectDir, `frame_${String(i).padStart(5, '0')}.png`), `sample frame ${i}`);
+}
+
+// Top-level clips folder (legacy; not shown in Projects UI)
 const clipsDir = path.join(uploadsDir, 'clips');
 writeReadme(clipsDir, 'User clip folder — drop MP4/WebM here or use Library → + Video.');
 makeColorMp4(path.join(clipsDir, 'clip-orbit.mp4'), 'orange', 'clip A');
@@ -135,10 +150,6 @@ const exportsDir = path.join(videoswarmDir, 'exports');
 writeReadme(exportsDir, 'VideoSwarm exports — trim/editor output and manual staging.');
 makeColorMp4(path.join(exportsDir, 'export-sample.mp4'), 'green', 'videoswarm export');
 
-console.log('\nDone. Open Library tab and browse Uploads (default):');
-console.log('  Uploads (root)           — demo-preview.mp4 + clips/ folder');
-console.log('  Uploads → clips/         — sample user clips');
-console.log('  Uploads → clips/converted/ — img2img, recordings');
-console.log('  Frames                 — live frame_*.png strip');
-console.log('  Runs → demo-run-seed/  — completed run + demo-output.mp4');
-console.log('  VideoSwarm → exports/  — editor/export staging');
+console.log('\nDone. Open Library → Projects:');
+console.log('  Projects                 — sample-orbit (4 frames + video)');
+console.log('  Runs → demo-run-seed/     — completed run + demo-output.mp4');

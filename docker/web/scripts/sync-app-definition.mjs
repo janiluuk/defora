@@ -158,6 +158,12 @@ const FULL_STUB_SUFFIXES = [
   'LoraCrossfaderPanel.vue',
   'StylesSettingsPanel.vue',
   'VideoSwarmBrowser.vue',
+  'ProjectsBrowser.vue',
+  'VideosBrowser.vue',
+  'LibraryBrowserShell.vue',
+  'LibraryMediaCard.vue',
+  'LibraryAudioCard.vue',
+  'AudioBrowser.vue',
   'AnimationEnginePanel.vue',
   'LiveEngineControls.vue',
   'LiveEngineControlsDock.vue',
@@ -216,6 +222,11 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
       } else if (nestedRel.endsWith('MotionPathPreview.vue')) {
         if (!emittedComponentStubs.has(importName)) {
           lines.push(motionPathPreviewStub(importName));
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('XYController.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: { x: { type: Number, default: 0 }, y: { type: Number, default: 0 }, rangeX: { type: Number, default: 1 }, rangeY: { type: Number, default: 1 }, xAxis: { type: String, default: 'translation_x' }, yAxis: { type: String, default: 'translation_y' }, axisOptions: { type: Array, default: () => [] }, variant: { type: String, default: 'move' }, testId: { type: String, default: 'xy-controller' }, showReadout: { type: Boolean, default: true }, compact: { type: Boolean, default: true }, springBack: { type: Boolean, default: true }, springDurationMs: { type: Number, default: 280 } }, emits: ['input', 'drag-start', 'release', 'update:xAxis', 'update:yAxis'], components: { UiIcon: { props: ['name'], template: '<span class="ui-icon-stub"></span>' } }, template: '<div class="xy-controller xy-controller--compact" :data-testid="testId"><button :data-testid="testId + \\'-axis-x\\'"></button><button :data-testid="testId + \\'-axis-y\\'"></button><div class="xy-controller__pad motion-pad-hero"></div></div>' };`);
           emittedComponentStubs.add(importName);
         }
       } else if (nestedRel.endsWith('AnimateLcmPluginPanel.vue')) {

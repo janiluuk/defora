@@ -114,4 +114,85 @@ describe("video-swarm storage API", () => {
     assert.equal(browseBody.kind, "cloud");
     assert.equal(browseBody.cloudSource.id, sourceId);
   });
+
+  it("lists user projects with frame counts and video URLs", async () => {
+    const projectDir = path.join(uploadsDir, "projects", "demo-project");
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(path.join(projectDir, "frame_00000.png"), "fake-png");
+    fs.writeFileSync(path.join(projectDir, "frame_00001.png"), "fake-png");
+    fs.writeFileSync(path.join(projectDir, "export.mp4"), "fake-mp4");
+
+    const res = await fetch(`${base}/api/video-swarm/projects`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    const project = body.projects.find((p) => p.id === "uploads-project:demo-project");
+    assert.ok(project);
+    assert.equal(project.frameCount, 2);
+    assert.equal(project.hasVideo, true);
+    assert.ok(project.videoUrl.includes("/api/video-swarm/file"));
+    assert.ok(!project.title.includes("demo-project"));
+  });
+
+  it("lists loose uploads root videos as projects", async () => {
+    fs.writeFileSync(path.join(uploadsDir, "stage-recording.mp4"), "fake-mp4");
+
+    const res = await fetch(`${base}/api/video-swarm/projects`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    const loose = body.projects.find((p) => p.id === "uploads-loose:stage-recording.mp4");
+    assert.ok(loose);
+    assert.equal(loose.hasVideo, true);
+    assert.ok(!loose.title.includes("stage-recording"));
+  });
+
+  it("lists all generated videos with friendly titles", async () => {
+    const projectDir = path.join(uploadsDir, "projects", "clip-pack");
+    fs.mkdirSync(projectDir, { recursive: true });
+    fs.writeFileSync(path.join(projectDir, "export-a.mp4"), "fake-mp4-a");
+    fs.writeFileSync(path.join(uploadsDir, "defora_rec_test.mp4"), "fake-rec");
+
+    const res = await fetch(`${base}/api/video-swarm/videos`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    assert.ok(body.videos.length >= 2);
+    const recording = body.videos.find((v) => v.videoPath && v.videoPath.includes("defora_rec_test.mp4"));
+    const exportVid = body.videos.find((v) => v.videoPath && v.videoPath.includes("export-a.mp4"));
+    assert.ok(recording);
+    assert.ok(exportVid);
+    assert.match(recording.title, /Recording/i);
+    assert.ok(!recording.title.includes("defora_rec_test"));
+    assert.ok(!exportVid.title.includes("export-a"));
+  });
+
+  it("lists uploaded audio with friendly titles and serve URL", async () => {
+    fs.writeFileSync(path.join(uploadsDir, "1730000000-demo-track.wav"), "fake-wav");
+
+    const res = await fetch(`${base}/api/video-swarm/audio`);
+    assert.equal(res.status, 200);
+    const body = await res.json();
+    const track = body.audio.find((a) => a.audioPath && a.audioPath.includes("demo-track.wav"));
+    assert.ok(track);
+    assert.match(track.title, /Audio/i);
+    assert.ok(!track.title.includes("demo-track"));
+    assert.ok(track.audioUrl.includes("/api/video-swarm/file"));
+
+    const fileRes = await fetch(`${base}${track.audioUrl}`);
+    assert.equal(fileRes.status, 200);
+    assert.match(String(fileRes.headers.get("content-type") || ""), /audio/i);
+  });
+
+  it("uploads into a new project folder when dir=projects", async () => {
+    const buf = Buffer.from("defora-fake-project-upload");
+    const res = await fetch(`${base}/api/video-swarm/upload?name=clip.mp4&dir=projects`, {
+      method: "POST",
+      headers: { "Content-Type": "video/mp4" },
+      body: buf,
+    });
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.ok(body.path.includes(`${path.sep}projects${path.sep}project-`));
+    const listRes = await fetch(`${base}/api/video-swarm/projects`);
+    const list = await listRes.json();
+    assert.ok(list.projects.some((p) => p.videoPath === body.path));
+  });
 });

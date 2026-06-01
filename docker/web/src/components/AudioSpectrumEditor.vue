@@ -22,10 +22,17 @@
         :class="{
           'audio-spectrum-editor__band--active': index === activeIndex,
           'audio-spectrum-editor__band--dragging': dragState && dragState.index === index,
+          'audio-spectrum-editor__band--preview': index === previewIndex,
+          'audio-spectrum-editor__band--reactive': live && (levels[index] || 0) > 0.04,
         }"
-        :style="bandStyle(mapping)"
+        :style="bandStyle(mapping, index)"
       >
+        <div
+          class="audio-spectrum-editor__band-meter"
+          :style="{ height: bandMeterPct(index) + '%' }"
+        ></div>
         <span class="audio-spectrum-editor__band-label">{{ bandLabel(index) }}</span>
+        <span v-if="live" class="audio-spectrum-editor__band-level">{{ bandLevelPct(index) }}%</span>
       </div>
     </div>
     <div v-if="!live" class="audio-spectrum-editor__hint">Upload and play audio to see the live spectrum.</div>
@@ -48,6 +55,7 @@ export default {
     mappings: { type: Array, default: () => [] },
     levels: { type: Array, default: () => [] },
     activeIndex: { type: Number, default: 0 },
+    previewIndex: { type: Number, default: -1 },
     spectrumBins: { type: Array, default: () => [] },
     live: { type: Boolean, default: false },
     bandLabels: { type: Array, default: () => ['Low', 'Mid', 'High'] },
@@ -63,6 +71,12 @@ export default {
   },
   watch: {
     spectrumBins: {
+      handler() {
+        this.paint()
+      },
+      deep: true,
+    },
+    levels: {
       handler() {
         this.paint()
       },
@@ -108,18 +122,29 @@ export default {
     bandLabel(index) {
       return this.bandLabels[index] || `Band ${index + 1}`
     },
-    bandStyle(mapping) {
+    bandLevel(index) {
+      return Math.max(0, Math.min(1, Number(this.levels[index]) || 0))
+    },
+    bandLevelPct(index) {
+      return Math.round(this.bandLevel(index) * 100)
+    },
+    bandMeterPct(index) {
+      return Math.max(4, this.bandLevel(index) * 100)
+    },
+    bandStyle(mapping, index) {
       const minHz = AUDIO_SPECTRUM_MIN_HZ
       const maxHz = AUDIO_SPECTRUM_MAX_HZ
       const left = hzToRatio(mapping && mapping.freq_min, minHz, maxHz) * 100
       const right = hzToRatio(mapping && mapping.freq_max, minHz, maxHz) * 100
-      const index = this.mappings.indexOf(mapping)
+      const bandIndex = index != null ? index : this.mappings.indexOf(mapping)
       const fallbackColors = [this.cssVar('--band-low'), this.cssVar('--band-mid'), this.cssVar('--band-high')]
-      const color = this.bandColors[index] || fallbackColors[index] || this.cssVar('--live') || 'var(--live)'
+      const color = this.bandColors[bandIndex] || fallbackColors[bandIndex] || this.cssVar('--live') || 'var(--live)'
+      const level = this.bandLevel(bandIndex)
       return {
         left: `${Math.min(left, right)}%`,
         width: `${Math.max(2, Math.abs(right - left))}%`,
         '--band-color': color,
+        '--band-level': String(level),
       }
     },
     paint() {

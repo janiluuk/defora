@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Verify Library → Uploads shows 1 folder + 1 video at root.
+ * Verify Library → Projects lists seeded project cards (no raw folder names).
  */
 import { chromium } from 'playwright';
 
@@ -18,31 +18,25 @@ try {
   await page.locator('[data-testid="top-nav-library"]').click();
   await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 15000 });
   await page.locator('[data-testid="library-workspace-tab-browser"]').click();
-  await page.waitForSelector('[data-testid="video-swarm-browser"]', { timeout: 15000 });
-
-  const rootSelect = page.locator('[data-testid="video-swarm-root-select"]');
-  if (await rootSelect.count()) {
-    await rootSelect.selectOption('uploads');
-  }
+  await page.waitForSelector('[data-testid="projects-browser"]', { timeout: 15000 });
 
   await page.waitForFunction(() => {
-    const folders = document.querySelectorAll('[data-testid="video-swarm-folder"]');
-    const videos = document.querySelectorAll('[data-video-path]');
-    return folders.length >= 1 && videos.length >= 1;
+    const cards = document.querySelectorAll('[data-testid="project-card"]');
+    return cards.length >= 1;
   }, { timeout: 15000 });
 
-  const folderNames = await page.locator('[data-testid="video-swarm-folder"] .video-swarm-browser__label').allTextContents();
-  const videoNames = await page.locator('[data-video-path] .video-swarm-browser__label').allTextContents();
+  const titles = await page.locator('.library-browser__title').allTextContents();
+  const hasVideoCard = await page.locator('[data-testid="project-card"][data-video-path]').count();
 
-  console.log('Folders:', folderNames);
-  console.log('Videos:', videoNames);
+  console.log('Project titles:', titles);
 
-  const hasClips = folderNames.some((n) => /clips/i.test(n));
-  const hasDemo = videoNames.some((n) => /demo-preview\.mp4/i.test(n));
-  if (!hasClips || !hasDemo) {
-    throw new Error(`Expected clips folder + demo-preview.mp4, got folders=${folderNames.join(',')} videos=${videoNames.join(',')}`);
+  if (hasVideoCard < 1) {
+    throw new Error('Expected at least one project with video');
   }
-  console.log('OK: Library Uploads shows 1 folder (clips) and demo-preview.mp4');
+  if (titles.some((t) => /^(uploads|clips|projects|frames|runs)$/i.test(t.trim()))) {
+    throw new Error(`Project titles should not be raw folder names: ${titles.join(', ')}`);
+  }
+  console.log('OK: Library Projects shows user-facing project cards');
 } finally {
   await browser.close();
 }

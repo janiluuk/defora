@@ -1235,6 +1235,9 @@ async function start(opts = {}) {
   });
 
   const VIDEO_EXT = new Set([".mp4", ".webm", ".mov", ".mkv", ".m4v", ".avi"]);
+  const IMAGE_EXT = new Set([".png", ".jpg", ".jpeg", ".webp", ".gif"]);
+  const AUDIO_EXT = new Set([".wav", ".mp3", ".ogg", ".flac", ".m4a"]);
+  const projectsDir = path.join(uploadsDir, "projects");
 
   function videoSwarmRoots() {
     return [
@@ -1348,6 +1351,452 @@ async function start(opts = {}) {
       size: Number(video.size) || 0,
       mtimeMs: Number(video.mtimeMs) || Date.parse(video.addedAt) || 0,
       kind: "cloud",
+    }));
+  }
+
+  function formatProjectDate(isoOrMs) {
+    const d = new Date(isoOrMs);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  }
+
+  function buildProjectTitle({ meta, frameCount, video, updatedAt }) {
+    const tag = meta?.tag ? String(meta.tag).trim() : "";
+    if (tag) return tag.length > 56 ? `${tag.slice(0, 53)}…` : tag;
+    const prompt = meta?.prompt ? String(meta.prompt).trim() : "";
+    if (prompt) return prompt.length > 56 ? `${prompt.slice(0, 53)}…` : prompt;
+    const dateStr = formatProjectDate(updatedAt);
+    if (frameCount > 0 && video) return `${frameCount} frames · video · ${dateStr}`;
+    if (frameCount > 0) return `${frameCount} frames · ${dateStr}`;
+    if (video) return `Video · ${dateStr}`;
+    return `Project · ${dateStr}`;
+  }
+
+  function projectPlaybackUrls(entry) {
+    let videoUrl = null;
+    let thumbUrl = null;
+    if (entry.kind === "run" && entry.runId && entry.videoName) {
+      videoUrl = `/api/runs/${encodeURIComponent(entry.runId)}/video/${encodeURIComponent(entry.videoName)}`;
+    } else if (entry.videoPath) {
+      videoUrl = `/api/video-swarm/file?path=${encodeURIComponent(entry.videoPath)}&rootId=${encodeURIComponent(entry.rootId || "uploads")}`;
+    }
+    if (entry.kind === "run" && entry.runId && entry.thumbFrameName) {
+      thumbUrl = `/api/runs/${encodeURIComponent(entry.runId)}/frames/${encodeURIComponent(entry.thumbFrameName)}`;
+    } else if (entry.thumbPath) {
+      thumbUrl = `/api/video-swarm/file?path=${encodeURIComponent(entry.thumbPath)}&rootId=${encodeURIComponent(entry.rootId || "uploads")}`;
+    }
+    return { videoUrl, thumbUrl };
+  }
+
+  async function scanDirectoryForProjectAssets(dirPath, { maxDepth = 2 } = {}) {
+    const frameFiles = [];
+    let video = null;
+    let thumbPath = null;
+
+    async function walk(dir, depth) {
+      if (depth > maxDepth) return;
+      let entries;
+      try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const ent of entries) {
+        if (ent.name.startsWith(".")) continue;
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          await walk(full, depth + 1);
+          continue;
+        }
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (/^frame_\d+\.(png|jpg|jpeg|webp)$/i.test(ent.name)) {
+          frameFiles.push(full);
+          if (!thumbPath) thumbPath = full;
+        } else if (VIDEO_EXT.has(ext) && !video) {
+          const fst = await fsp.stat(full);
+          video = {
+            path: full,
+            name: ent.name,
+            size: fst.size,
+            mtimeMs: fst.mtimeMs,
+          };
+        } else if (IMAGE_EXT.has(ext) && !thumbPath) {
+          thumbPath = full;
+        }
+      }
+    }
+
+    await walk(dirPath, 0);
+    return {
+      frameCount: frameFiles.length,
+      video,
+      thumbPath,
+      thumbFrameName: thumbPath ? path.basename(thumbPath) : null,
+    };
+  }
+
+  async function listVideoSwarmProjects() {
+    await fsp.mkdir(projectsDir, { recursive: true });
+    const projects = [];
+
+    try {
+      const subs = await fsp.readdir(projectsDir, { withFileTypes: true });
+      for (const ent of subs) {
+        if (!ent.isDirectory()) continue;
+        const dirPath = path.join(projectsDir, ent.name);
+        const st = await fsp.stat(dirPath);
+        const assets = await scanDirectoryForProjectAssets(dirPath);
+        if (!assets.frameCount && !assets.video) continue;
+        const root = rootForResolvedPath(dirPath, videoSwarmRoots());
+        projects.push({
+          id: `uploads-project:${ent.name}`,
+          kind: "uploads-project",
+          runId: null,
+          rootId: root ? root.id : "uploads",
+          dirPath,
+          videoPath: assets.video?.path || null,
+          videoName: assets.video?.name || null,
+          thumbPath: assets.thumbPath,
+          thumbFrameName: assets.thumbFrameName,
+          frameCount: assets.frameCount,
+          updatedAt: new Date(Math.max(st.mtimeMs, assets.video?.mtimeMs || 0)).toISOString(),
+          meta: {},
+        });
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+
+    try {
+      const rootEntries = await fsp.readdir(uploadsDir, { withFileTypes: true });
+      for (const ent of rootEntries) {
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (!VIDEO_EXT.has(ext)) continue;
+        const full = path.join(uploadsDir, ent.name);
+        const fst = await fsp.stat(full);
+        const root = rootForResolvedPath(full, videoSwarmRoots());
+        projects.push({
+          id: `uploads-loose:${ent.name}`,
+          kind: "uploads-loose",
+          runId: null,
+          rootId: root ? root.id : "uploads",
+          dirPath: uploadsDir,
+          videoPath: full,
+          videoName: ent.name,
+          thumbPath: null,
+          thumbFrameName: null,
+          frameCount: 0,
+          updatedAt: new Date(fst.mtimeMs).toISOString(),
+          meta: {},
+        });
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+
+    try {
+      const runEntries = await fsp.readdir(runsDir, { withFileTypes: true });
+      for (const ent of runEntries) {
+        if (!ent.isDirectory() || ent.name.startsWith(".")) continue;
+        const dirPath = path.join(runsDir, ent.name);
+        const st = await fsp.stat(dirPath);
+        let meta = {};
+        try {
+          const raw = await fsp.readFile(path.join(dirPath, "run.json"), "utf8");
+          const manifest = JSON.parse(raw);
+          meta = {
+            tag: manifest.tag,
+            prompt: manifest.prompt_positive || manifest.prompt,
+            frame_count: manifest.frame_count,
+          };
+        } catch (_e) {
+          /* optional run.json */
+        }
+        const assets = await scanDirectoryForProjectAssets(dirPath);
+        const frameCount = assets.frameCount || Number(meta.frame_count) || 0;
+        if (!frameCount && !assets.video) continue;
+        projects.push({
+          id: `run:${ent.name}`,
+          kind: "run",
+          runId: ent.name,
+          rootId: "runs",
+          dirPath,
+          videoPath: assets.video?.path || null,
+          videoName: assets.video?.name || null,
+          thumbPath: assets.thumbPath,
+          thumbFrameName: assets.thumbFrameName,
+          frameCount,
+          updatedAt: new Date(Math.max(st.mtimeMs, assets.video?.mtimeMs || 0)).toISOString(),
+          meta,
+        });
+      }
+    } catch (_err) {
+      /* ignore */
+    }
+
+    projects.sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0));
+    return projects.map((entry) => {
+      const title = buildProjectTitle({
+        meta: entry.meta,
+        frameCount: entry.frameCount,
+        video: entry.videoPath,
+        updatedAt: entry.updatedAt,
+      });
+      const urls = projectPlaybackUrls(entry);
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        title,
+        frameCount: entry.frameCount,
+        hasVideo: Boolean(entry.videoPath),
+        videoPath: entry.videoPath,
+        videoName: entry.videoName,
+        rootId: entry.rootId,
+        runId: entry.runId,
+        updatedAt: entry.updatedAt,
+        videoUrl: urls.videoUrl,
+        thumbUrl: urls.thumbUrl,
+      };
+    });
+  }
+
+  function classifyVideoSource(name, rootId) {
+    if (/defora_rec/i.test(String(name || ""))) return "recording";
+    if (rootId === "runs") return "run";
+    return "upload";
+  }
+
+  function buildVideoTitle({ name, updatedAt, source }) {
+    const dateStr = formatProjectDate(updatedAt);
+    if (source === "recording") return `Recording · ${dateStr}`;
+    if (source === "run") return `Run export · ${dateStr}`;
+    return `Video · ${dateStr}`;
+  }
+
+  function formatVideoByteSize(size) {
+    const n = Number(size) || 0;
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+  }
+
+  function formatVideoMeta({ updatedAt, size }) {
+    const parts = [];
+    if (updatedAt) {
+      const d = new Date(updatedAt);
+      if (!Number.isNaN(d.getTime())) {
+        parts.push(d.toLocaleDateString(undefined, { month: "short", day: "numeric" }));
+      }
+    }
+    if (size > 0) parts.push(formatVideoByteSize(size));
+    return parts.join(" · ");
+  }
+
+  async function findThumbInDirectory(dirPath) {
+    try {
+      const items = await fsp.readdir(dirPath, { withFileTypes: true });
+      for (const ent of items) {
+        if (!ent.isFile()) continue;
+        if (/^frame_\d+\.(png|jpg|jpeg|webp)$/i.test(ent.name)) {
+          return path.join(dirPath, ent.name);
+        }
+      }
+      for (const ent of items) {
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (IMAGE_EXT.has(ext)) return path.join(dirPath, ent.name);
+      }
+    } catch (_e) {
+      /* ignore */
+    }
+    return null;
+  }
+
+  function runIdFromVideoPath(full) {
+    const rel = path.relative(runsDir, full);
+    if (!rel || rel.startsWith("..")) return null;
+    const seg = rel.split(path.sep).filter(Boolean);
+    return seg.length ? seg[0] : null;
+  }
+
+  async function listVideoSwarmVideos() {
+    const videos = [];
+    const seen = new Set();
+    const roots = videoSwarmRoots();
+
+    async function pushVideo(full, rootId) {
+      const resolved = path.resolve(full);
+      if (seen.has(resolved)) return;
+      seen.add(resolved);
+      let fst;
+      try {
+        fst = await fsp.stat(full);
+      } catch {
+        return;
+      }
+      if (!fst.isFile()) return;
+      const dirPath = path.dirname(full);
+      const thumbPath = await findThumbInDirectory(dirPath);
+      const videoName = path.basename(full);
+      const source = classifyVideoSource(videoName, rootId);
+      const runId = rootId === "runs" ? runIdFromVideoPath(full) : null;
+      videos.push({
+        id: `video:${rootId}:${resolved}`,
+        kind: rootId === "runs" ? "run" : "video",
+        source,
+        runId,
+        rootId,
+        videoPath: full,
+        videoName,
+        thumbPath,
+        thumbFrameName: thumbPath ? path.basename(thumbPath) : null,
+        size: fst.size,
+        updatedAt: new Date(fst.mtimeMs).toISOString(),
+      });
+    }
+
+    async function walk(dir, rootId, depth = 0) {
+      if (depth > 14) return;
+      let entries;
+      try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const ent of entries) {
+        if (ent.name.startsWith(".")) continue;
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          await walk(full, rootId, depth + 1);
+          continue;
+        }
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (!VIDEO_EXT.has(ext)) continue;
+        await pushVideo(full, rootId);
+      }
+    }
+
+    for (const root of roots) {
+      if (!root?.path || String(root.id || "").startsWith("cloud:")) continue;
+      if (root.id === "hls") continue;
+      await walk(root.path, root.id);
+    }
+
+    videos.sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0));
+    return videos.map((entry) => {
+      const title = buildVideoTitle({
+        name: entry.videoName,
+        updatedAt: entry.updatedAt,
+        source: entry.source,
+      });
+      const urls = projectPlaybackUrls(entry);
+      return {
+        id: entry.id,
+        kind: entry.kind,
+        source: entry.source,
+        title,
+        meta: formatVideoMeta({ updatedAt: entry.updatedAt, size: entry.size }),
+        videoPath: entry.videoPath,
+        videoName: entry.videoName,
+        rootId: entry.rootId,
+        runId: entry.runId,
+        updatedAt: entry.updatedAt,
+        videoUrl: urls.videoUrl,
+        thumbUrl: urls.thumbUrl,
+        size: entry.size,
+      };
+    });
+  }
+
+  function audioFileUrl(entry) {
+    if (!entry?.audioPath) return null;
+    return `/api/video-swarm/file?path=${encodeURIComponent(entry.audioPath)}&rootId=${encodeURIComponent(entry.rootId || "uploads")}`;
+  }
+
+  function classifyAudioSource(name, rootId) {
+    if (rootId === "runs") return "run";
+    return "upload";
+  }
+
+  function buildAudioTitle({ updatedAt, source }) {
+    const dateStr = formatProjectDate(updatedAt);
+    if (source === "run") return `Run audio · ${dateStr}`;
+    return `Audio · ${dateStr}`;
+  }
+
+  async function listVideoSwarmAudio() {
+    const items = [];
+    const seen = new Set();
+    const roots = videoSwarmRoots();
+
+    async function pushAudio(full, rootId) {
+      const resolved = path.resolve(full);
+      if (seen.has(resolved)) return;
+      seen.add(resolved);
+      let fst;
+      try {
+        fst = await fsp.stat(full);
+      } catch {
+        return;
+      }
+      if (!fst.isFile()) return;
+      const audioName = path.basename(full);
+      items.push({
+        id: `audio:${rootId}:${resolved}`,
+        kind: "audio",
+        source: classifyAudioSource(audioName, rootId),
+        rootId,
+        audioPath: full,
+        audioName,
+        size: fst.size,
+        updatedAt: new Date(fst.mtimeMs).toISOString(),
+      });
+    }
+
+    async function walk(dir, rootId, depth = 0) {
+      if (depth > 14) return;
+      let entries;
+      try {
+        entries = await fsp.readdir(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const ent of entries) {
+        if (ent.name.startsWith(".")) continue;
+        const full = path.join(dir, ent.name);
+        if (ent.isDirectory()) {
+          await walk(full, rootId, depth + 1);
+          continue;
+        }
+        if (!ent.isFile()) continue;
+        const ext = path.extname(ent.name).toLowerCase();
+        if (!AUDIO_EXT.has(ext)) continue;
+        await pushAudio(full, rootId);
+      }
+    }
+
+    for (const root of roots) {
+      if (!root?.path || String(root.id || "").startsWith("cloud:")) continue;
+      if (root.id === "hls") continue;
+      await walk(root.path, root.id);
+    }
+
+    items.sort((a, b) => Date.parse(b.updatedAt || 0) - Date.parse(a.updatedAt || 0));
+    return items.map((entry) => ({
+      id: entry.id,
+      kind: entry.kind,
+      source: entry.source,
+      title: buildAudioTitle({ updatedAt: entry.updatedAt, source: entry.source }),
+      meta: formatVideoMeta({ updatedAt: entry.updatedAt, size: entry.size }),
+      audioPath: entry.audioPath,
+      audioName: entry.audioName,
+      rootId: entry.rootId,
+      updatedAt: entry.updatedAt,
+      audioUrl: audioFileUrl(entry),
+      size: entry.size,
     }));
   }
 
@@ -1478,9 +1927,16 @@ async function start(opts = {}) {
       const safeName = sanitizeUploadFileName(req.query.name || req.headers["x-filename"]);
       const extOk = path.extname(safeName).toLowerCase();
       const finalName = VIDEO_EXT.has(extOk) ? safeName : `${safeName.replace(/\.[^.]+$/, "")}.mp4`;
-      const targetDir = String(req.query.dir || "uploads").trim() === "videoswarm" ? videoswarmDir : uploadsDir;
+      const dirMode = String(req.query.dir || "uploads").trim();
+      let targetDir = uploadsDir;
+      if (dirMode === "videoswarm") {
+        targetDir = videoswarmDir;
+      } else if (dirMode === "projects") {
+        const projectId = `project-${Date.now()}`;
+        targetDir = path.join(projectsDir, projectId);
+      }
       await fsp.mkdir(targetDir, { recursive: true });
-      const targetPath = path.join(targetDir, `${Date.now()}-${finalName}`);
+      const targetPath = path.join(targetDir, dirMode === "projects" ? finalName : `${Date.now()}-${finalName}`);
       await fsp.writeFile(targetPath, req.body);
       const root = rootForResolvedPath(targetPath, videoSwarmRoots());
       res.status(201).json({
@@ -1624,6 +2080,36 @@ async function start(opts = {}) {
     }
   });
 
+  app.get("/api/video-swarm/projects", async (_req, res) => {
+    try {
+      const projects = await listVideoSwarmProjects();
+      res.json({ projects, count: projects.length });
+    } catch (err) {
+      console.error("[api] video-swarm projects", err);
+      res.status(500).json({ error: err.message || "projects unavailable" });
+    }
+  });
+
+  app.get("/api/video-swarm/videos", async (_req, res) => {
+    try {
+      const videos = await listVideoSwarmVideos();
+      res.json({ videos, count: videos.length });
+    } catch (err) {
+      console.error("[api] video-swarm videos", err);
+      res.status(500).json({ error: err.message || "videos unavailable" });
+    }
+  });
+
+  app.get("/api/video-swarm/audio", async (_req, res) => {
+    try {
+      const audio = await listVideoSwarmAudio();
+      res.json({ audio, count: audio.length });
+    } catch (err) {
+      console.error("[api] video-swarm audio", err);
+      res.status(500).json({ error: err.message || "audio unavailable" });
+    }
+  });
+
   app.get("/api/video-swarm/browse", async (req, res) => {
     try {
       const rootId = String(req.query.rootId || "").trim();
@@ -1669,6 +2155,26 @@ async function start(opts = {}) {
       const st = await fsp.stat(filePath);
       if (!st.isFile()) return res.status(404).json({ error: "not a file" });
       const ext = path.extname(filePath).toLowerCase();
+      if (IMAGE_EXT.has(ext)) {
+        const imageType =
+          ext === ".png" ? "image/png"
+            : ext === ".webp" ? "image/webp"
+              : ext === ".gif" ? "image/gif"
+                : "image/jpeg";
+        res.type(imageType);
+        return res.sendFile(filePath);
+      }
+      if (AUDIO_EXT.has(ext)) {
+        const audioType =
+          ext === ".wav" ? "audio/wav"
+            : ext === ".mp3" ? "audio/mpeg"
+              : ext === ".ogg" ? "audio/ogg"
+                : ext === ".flac" ? "audio/flac"
+                  : ext === ".m4a" ? "audio/mp4"
+                    : "application/octet-stream";
+        res.type(audioType);
+        return res.sendFile(filePath);
+      }
       const type =
         ext === ".webm" ? "video/webm"
           : ext === ".mov" ? "video/quicktime"
