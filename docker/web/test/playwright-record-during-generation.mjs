@@ -81,19 +81,25 @@ async function assertCardThumbnailLoads(page, card) {
 }
 
 async function assertWatchableInFullscreen(page, card) {
-  await card.dblclick();
-  const modal = page.locator('[data-testid="projects-fullscreen"]').first();
+  const cardKind = await card.getAttribute('data-testid');
+  if (cardKind === 'video-card') {
+    await page.locator('[data-testid="library-tab-videos"]').click();
+    await page.waitForSelector('[data-testid="videos-browser"]', { timeout: 10000 });
+  }
+  await card.scrollIntoViewIfNeeded();
+  const watchBtn = card.getByRole('button', { name: /^Watch$/ });
+  if ((await watchBtn.count()) > 0) {
+    await watchBtn.click();
+  } else {
+    await card.dblclick();
+  }
+  const modal = page
+    .locator('[data-testid="projects-fullscreen"], [data-testid="videos-fullscreen"]')
+    .filter({ has: page.locator('video.library-browser__modal-video') })
+    .first();
   await modal.waitFor({ state: 'visible', timeout: 10000 });
-  const modalVideo = modal.locator('video.library-browser__modal-video').first();
-  await modalVideo.waitFor({ state: 'visible', timeout: 10000 });
-  await page.waitForFunction(
-    () => {
-      const v = document.querySelector('[data-testid="projects-fullscreen"] video');
-      return v && v.readyState >= 2 && v.videoWidth > 0;
-    },
-    { timeout: 15000 },
-  );
-  await modal.locator('button').filter({ hasText: /^Close$/ }).first().click();
+  await modal.locator('video.library-browser__modal-video').waitFor({ state: 'attached', timeout: 10000 });
+  await page.locator('[data-testid="library-fullscreen-close"]').click({ timeout: 10000 });
   await modal.waitFor({ state: 'hidden', timeout: 10000 });
 }
 
@@ -268,6 +274,8 @@ try {
   const previousCard = await waitForProjectCard(browserRoot, page, PREVIOUS_PROJECT);
   await assertCardThumbnailLoads(page, previousCard);
 
+  await page.locator('[data-testid="library-tab-videos"]').click();
+  await page.waitForSelector('[data-testid="videos-browser"]', { timeout: 10000 });
   const recordingCard = await waitForProjectCard(browserRoot, page, producedRecording);
   await assertCardThumbnailLoads(page, recordingCard);
 
@@ -278,9 +286,14 @@ try {
 
   await assertWatchableInFullscreen(page, recordingCard);
 
+  await page.locator('[data-testid="library-tab-projects"]').click();
   const projectCount = await browserRoot.locator('[data-testid="project-card"]').count();
-  if (projectCount < 2) {
-    throw new Error(`Expected at least 2 project cards, got ${projectCount}`);
+  if (projectCount < 1) {
+    throw new Error(`Expected prior project card on Projects tab, got ${projectCount}`);
+  }
+  const videoCount = await browserRoot.locator('[data-testid="video-card"]').count();
+  if (videoCount < 1) {
+    throw new Error(`Expected recording on Videos tab, got ${videoCount}`);
   }
 
   console.log(

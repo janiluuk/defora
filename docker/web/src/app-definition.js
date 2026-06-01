@@ -9173,6 +9173,12 @@ emitMotionLiveParam(key, val) {
      return true;
    }
    if (this.libraryWorkspaceOpen) {
+     if (typeof document !== 'undefined') {
+       const libraryVideoModal = document.querySelector(
+         '[data-testid="projects-fullscreen"], [data-testid="videos-fullscreen"]',
+       );
+       if (libraryVideoModal) return false;
+     }
      this.closeLibraryWorkspace();
      return true;
    }
