@@ -892,6 +892,32 @@ describe("Deforumation Web UI", () => {
     expect(appVm.motionPadValues.look_y).to.equal(-1);
   });
 
+  it("latch mode keeps XY pad values after release instead of springing to center", async () => {
+    appVm.switchTab("MOTION");
+    appVm.rightPanelOpen = true;
+    appVm.deforumSettings.animation_mode = "2D";
+    appVm.motionPadSpringBack = false;
+    await nextTick();
+    await nextTick();
+
+    const toggle = document.querySelector("[data-testid='motion-pad-latch-toggle']");
+    expect(toggle).to.exist;
+    expect(toggle.textContent).to.include("Latch");
+
+    appVm.motionPadDragStart("move");
+    appVm.applyMotionPadAxisValues("translation_x", "translation_y", 0.6, -0.4, { previewOnly: true });
+    appVm.motionPadMouseUp("move");
+    expect(appVm.motionPadValues.translation_x).to.equal(0.6);
+    expect(appVm.motionPadValues.translation_y).to.equal(-0.4);
+
+    appVm.motionPadSpringBack = true;
+    appVm.motionPadDragStart("move");
+    appVm.applyMotionPadAxisValues("translation_x", "translation_y", 0.8, 0.2, { previewOnly: true });
+    appVm.motionPadMouseUp("move");
+    expect(appVm.motionPadValues.translation_x).to.equal(0.8);
+    expect(appVm.motionPadValues.translation_y).to.equal(0.2);
+  });
+
   it("shows motion sequencer below preview and motion controls on the side", async () => {
     appVm.switchTab("MOTION");
     appVm.rightPanelOpen = true;

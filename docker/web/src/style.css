@@ -942,6 +942,13 @@
       opacity: 1;
       pointer-events: auto;
     }
+    .video-feed--hls.video-feed--forge-reveal.video-feed--visible {
+      animation: video-feed-forge-reveal 0.8s ease forwards;
+    }
+    @keyframes video-feed-forge-reveal {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
     .video-feed--blended {
       mix-blend-mode: screen;
       pointer-events: auto;
@@ -2035,8 +2042,11 @@
       .layout.layout--edge-engine-open:not(.layout--edge-overlay) {
         --edge-right-reserve: calc(var(--edge-right-reserve, 0px) + min(420px, 32vw));
       }
-      .layout.layout--edge-context-open:not(.layout--edge-overlay) {
+      .layout.layout--edge-context-open:not(.layout--edge-context-left):not(.layout--edge-overlay) {
         --edge-right-reserve: calc(var(--edge-right-reserve, 0px) + min(420px, 32vw));
+      }
+      .layout.layout--edge-context-left:not(.layout--edge-overlay) {
+        --edge-left-reserve: calc(var(--edge-left-reserve, 0px) + min(420px, 32vw));
       }
       .layout:not(.layout--edge-overlay) .preview {
         margin-left: var(--edge-left-reserve, 0px);
@@ -7274,6 +7284,43 @@
       border-right: none;
       border-left: 1px solid rgba(255, 255, 255, 0.1);
     }
+
+    /* Context panel — viewport left edge (modulation / prompts / motion) */
+    .live-drawer-shell--left {
+      right: auto;
+      left: 0;
+      transition: left 0.32s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .layout.layout--edge-engine-open .edge-dock-host .live-drawer-shell--left {
+      left: 0;
+      right: auto;
+    }
+    .live-drawer-shell--left .live-right-column {
+      border-radius: 0 14px 14px 0;
+      border-right: 1px solid rgba(255, 255, 255, 0.08);
+      border-left: none;
+      box-shadow: 12px 0 32px rgba(0, 0, 0, 0.35);
+      transform: translateX(-100%);
+    }
+    .live-drawer-shell--left.live-drawer-shell--open .live-right-column {
+      transform: translateX(0);
+    }
+    .live-drawer-shell--left .live-overlay-btn--side.edge-dock-tab--context {
+      left: 0;
+      right: auto;
+      border-radius: 0 10px 10px 0;
+      border-left: none;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .live-drawer-shell--left.live-drawer-shell--open .live-overlay-btn--side.edge-dock-tab--context {
+      left: auto;
+      right: 0;
+      transform: translate(100%, -50%);
+      border-radius: 0 10px 10px 0;
+      border-left: none;
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
     .edge-dock-tab__label--context {
       writing-mode: vertical-rl;
       text-orientation: mixed;
@@ -7710,6 +7757,29 @@
       flex-direction: column;
       gap: 10px;
       min-height: 0;
+    }
+    .deforum-motion-pads__mode-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 0 2px;
+    }
+    .deforum-motion-pads__mode-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+    }
+    .deforum-motion-pads__mode-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .deforum-motion-pads__mode-btn .ui-icon {
+      width: 14px;
+      height: 14px;
     }
     .motion-controls-compact {
       display: flex;

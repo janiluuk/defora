@@ -101,6 +101,7 @@
       'layout--edge-layers-open': layersSidebarOpen,
       'layout--edge-engine-open': showEngineDrawerShell && liveEngineDrawerOpen,
       'layout--edge-context-open': !libraryWorkspaceOpen && rightPanelOpen,
+      'layout--edge-context-left': !libraryWorkspaceOpen && rightPanelOpen,
       'layout--edge-overlay': edgeDockOverlayMode,
     }">
       <!-- Left: video + mini timeline -->
@@ -164,8 +165,8 @@
               data-testid="preview-still-frame"
             />
             <video
-              :class="['video-feed', 'video-feed--hls', { 'video-feed--visible': showDeforumVideo, 'video-feed--blended': isBlendLayerActive && showDeforumVideo }]"
-              :style="showDeforumVideo && isBlendLayerActive ? forgeOverlayStyle : null"
+              :class="['video-feed', 'video-feed--hls', { 'video-feed--visible': showDeforumVideo, 'video-feed--blended': isBlendLayerActive && showDeforumVideo, 'video-feed--forge-reveal': deforumLayerAutoFadeIn }]"
+              :style="showDeforumVideo && showForgeOverWebgl ? forgeOverlayStyle : null"
               id="player"
               ref="videoEl"
               muted
@@ -510,7 +511,7 @@
         </aside>
 
         <div
-          class="live-drawer-shell live-drawer-shell--side"
+          class="live-drawer-shell live-drawer-shell--side live-drawer-shell--left"
           :class="{ 'live-drawer-shell--open': rightPanelOpen }"
           data-testid="right-panel-drawer"
         >
@@ -524,7 +525,7 @@
             @click="toggleRightPanel"
           >
             <span class="live-overlay-btn__arrow-wrap">
-              <UiIcon class="live-overlay-btn__state" :name="rightPanelOpen ? 'chevron-right' : 'chevron-left'" />
+              <UiIcon class="live-overlay-btn__state" :name="contextPanelChevronIcon" />
             </span>
             <span class="edge-dock-tab__label edge-dock-tab__label--context">{{ rightPanelEdgeLabel }}</span>
           </button>
@@ -683,7 +684,7 @@ export default {
       paramPanelOpen: false,
       deforumPanelOpen: false,
       liveDrawerOpen: true,
-      rightPanelOpen: false,
+      rightPanelOpen: true,
       sidePanelDock: 'auto', // auto | edge | video
       sidePanelDockBounds: { top: 0, left: 0, height: 0 },
       _sidePanelDockOnResize: null,
@@ -1041,6 +1042,7 @@ export default {
         enabled: false,
         frames: 1,
       },
+      motionPadSpringBack: true,
       xyPad: { dragging: false, activePad: null, padSize: 420, dragStartValues: null },
       motionXYPadSlots: [
         { id: 'primary', xAxis: 'translation_x', yAxis: 'translation_y' },
@@ -1274,11 +1276,11 @@ export default {
         ocCloudCoverage: 0.4,
         ocCloudDensity: 0.5,
         ocCloudElevation: 0.5,
-        forgeLayerOpacity: 0.88,
+        forgeLayerOpacity: 0,
         rememberCompositorLayerOnStartup: false,
         previewCompositorCrossfadeMs: 800,
         forgeLayerOpacityLfoLink: null,
-        forgeLayerOpacityLfoBase: 0.88,
+        forgeLayerOpacityLfoBase: 0,
       },
       frameRailRunId: null,
       thumbs: [],
@@ -1703,6 +1705,19 @@ export default {
       }
       return this.rightPanelOpen ? 'Collapse controls' : 'Show controls';
     },
+    contextPanelChevronIcon() {
+      return this.rightPanelOpen ? 'chevron-left' : 'chevron-right';
+    },
+    shouldAutoRevealDeforumVideo() {
+      if (!this.showMainStageHls) return false;
+      if (!this.isDeforumLayerActive && !this.isBlendLayerActive) return false;
+      return this.deforumGeneratedFrameCount > 0 || (this.deforumPlaying && this.videoReady);
+    },
+    deforumLayerAutoFadeIn() {
+      if (!this.showDeforumVideo || !this.shouldAutoRevealDeforumVideo) return false;
+      const layer = this.findVideoLayer('deforum');
+      return layer ? this.readVideoLayerOpacity(layer) <= 0.001 : false;
+    },
     sidePanelDockStyle() {
       if (this.sidePanelUsesEdgeDock) return null;
       const b = this.sidePanelDockBounds || {};
@@ -1725,9 +1740,10 @@ export default {
     showDeforumVideo() {
       if (!this.showMainStageHls) return false;
       if (this.isBlendLayerActive) {
-        if (!this.layerKindVisible('blend')) return false;
+        if (!this.layerKindVisible('blend') && !this.shouldAutoRevealDeforumVideo) return false;
       } else if (this.isForgeAnimationLayerActive) {
-        if (!this.layerKindVisible(this.activeVideoLayer?.kind)) return false;
+        const kind = this.activeVideoLayer?.kind;
+        if (!this.layerKindVisible(kind) && !(kind === 'deforum' && this.shouldAutoRevealDeforumVideo)) return false;
       } else {
         return false;
       }
@@ -1800,11 +1816,17 @@ export default {
       if (this.isWebglSoloPreview) return 0;
       const layer = this.activeVideoLayer;
       if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
-        if (!this.layerKindVisible(layer.kind)) return 0;
-        return this.readVideoLayerOpacity(layer);
+        const stored = this.readVideoLayerOpacity(layer);
+        if (this.isVideoLayerPreviewVisible(layer) && stored <= 0.001) {
+          if (layer.kind === 'deforum' && this.shouldAutoRevealDeforumVideo) return 1;
+          if (!this.isVideoLayerPreviewVisible(layer) || !this.layerKindVisible(layer.kind)) return 0;
+        } else if (!this.layerKindVisible(layer.kind)) {
+          return 0;
+        }
+        return stored;
       }
       const raw = Number(this.defaultAnimation?.forgeLayerOpacity);
-      return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0.88;
+      return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
     },
     webglLayerStyle() {
       return this.videoLayerRenderStyle('webgl');
@@ -1814,10 +1836,24 @@ export default {
     },
     forgeOverlayStyle() {
       const opacity = this.effectiveForgeLayerOpacity;
+      const ms = Math.max(
+        0,
+        Math.min(5000, Math.round(Number(this.defaultAnimation?.previewCompositorCrossfadeMs) || 800)),
+      );
       if (opacity <= 0) {
-        return { opacity: '0', visibility: 'hidden', pointerEvents: 'none' };
+        return {
+          opacity: '0',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          transition: `opacity ${ms}ms ease, visibility 0s linear ${ms}ms`,
+        };
       }
-      return { opacity: String(opacity), visibility: 'visible', pointerEvents: 'none' };
+      return {
+        opacity: String(opacity),
+        visibility: 'visible',
+        pointerEvents: 'none',
+        transition: `opacity ${ms}ms ease`,
+      };
     },
     previewStageStyle() {
       const ms = Math.max(
@@ -1904,7 +1940,13 @@ export default {
     },
     showPreviewStill() {
       if (this.isWebglSoloPreview) return false;
-      if (this.effectiveForgeLayerOpacity <= 0) return false;
+      const layer = this.activeVideoLayer;
+      if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
+        const stored = this.readVideoLayerOpacity(layer);
+        if (stored <= 0.001 && (this.showDeforumVideo || this.shouldAutoRevealDeforumVideo)) return false;
+      } else if (this.effectiveForgeLayerOpacity <= 0) {
+        return false;
+      }
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
         || this.isForgeAnimationLayerActive
         || this.isBlendLayerActive;
@@ -3029,6 +3071,7 @@ export default {
     this.initVideoLayers();
     this.initDefaultScene();
     this.applyStartupVideoPreview();
+    this.applyContextPanelStartupDefaults();
     this.ensureStandbyAnimationAtStartup();
     this.syncMotionPadFromPayload(this.motionPresets[this.motionSelectedPreset] || { translation_x: 0, translation_y: 0 });
     this.applyCrossfadeMorph();
@@ -4371,7 +4414,7 @@ normalizeDefaultAnimationSettings(input = {}) {
     ocCloudCoverage: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudCoverage)) ? Number(next.ocCloudCoverage) : 0.4)),
     ocCloudDensity: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudDensity)) ? Number(next.ocCloudDensity) : 0.5)),
     ocCloudElevation: Math.max(0, Math.min(1, Number.isFinite(Number(next.ocCloudElevation)) ? Number(next.ocCloudElevation) : 0.5)),
-    forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0.88)),
+    forgeLayerOpacity: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacity)) ? Number(next.forgeLayerOpacity) : 0)),
     rememberCompositorLayerOnStartup: !!next.rememberCompositorLayerOnStartup,
     previewCompositorCrossfadeMs: Math.max(
       0,
@@ -4381,7 +4424,7 @@ normalizeDefaultAnimationSettings(input = {}) {
       const id = Number(next.forgeLayerOpacityLfoLink);
       return id >= 1 && id <= 6 ? id : null;
     })(),
-    forgeLayerOpacityLfoBase: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacityLfoBase)) ? Number(next.forgeLayerOpacityLfoBase) : (Number(next.forgeLayerOpacity) || 0.88))),
+    forgeLayerOpacityLfoBase: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacityLfoBase)) ? Number(next.forgeLayerOpacityLfoBase) : (Number(next.forgeLayerOpacity) || 0))),
   };
 },
 onDefaultAnimationInput() {
@@ -4662,9 +4705,9 @@ rebuildVideoLayers() {
     }
     if (kind === 'deforum' || kind === 'wan' || kind === 'blend') {
       const raw = Number(this.defaultAnimation?.forgeLayerOpacity);
-      return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0.88;
+      return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
     }
-    return 1;
+    return kind === 'webgl' ? 1 : 0;
   };
   const custom = (this.liveSources || []).map((source) => ({
     id: source.id,
@@ -4701,7 +4744,7 @@ readVideoLayerOpacity(layer) {
   if (Number.isFinite(raw)) return Math.max(0, Math.min(1, raw));
   if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
     const forgeRaw = Number(this.defaultAnimation?.forgeLayerOpacity);
-    return Number.isFinite(forgeRaw) ? Math.max(0, Math.min(1, forgeRaw)) : 0.88;
+    return Number.isFinite(forgeRaw) ? Math.max(0, Math.min(1, forgeRaw)) : 0;
   }
   return 1;
 },
@@ -4923,6 +4966,17 @@ applyStartupVideoPreview() {
       webgl.previewVisible = true;
       webgl.opacity = 1;
     }
+    (this.videoLayers || []).forEach((layer) => {
+      if (!layer || !layer.builtin) return;
+      if (layer.id === 'webgl') return;
+      if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
+        layer.opacity = 0;
+        if (layer.id !== 'deforum') layer.previewVisible = false;
+      } else if (layer.kind === 'input') {
+        layer.opacity = 0;
+      }
+    });
+    this.applyForgeLayerOpacity(0, { commitBase: true });
   }
   this.defaultAnimation = this.normalizeDefaultAnimationSettings({
     ...this.defaultAnimation,
@@ -4930,6 +4984,27 @@ applyStartupVideoPreview() {
     autoTransitionToDeforum: this.defaultAnimation?.autoTransitionToDeforum !== false,
   });
   this.$nextTick(() => this.kickstandbyAnimation());
+},
+applyContextPanelStartupDefaults() {
+  let panelPrefLoaded = false;
+  try {
+    const raw = window.localStorage?.getItem(this.sessionStorageKey());
+    if (raw) {
+      const s = JSON.parse(raw);
+      panelPrefLoaded = typeof s.rightPanelOpen === 'boolean' || typeof s.liveDrawerOpen === 'boolean';
+    }
+  } catch (_e) {}
+  if (!panelPrefLoaded) {
+    this.rightPanelOpen = true;
+    this.liveDrawerOpen = true;
+  }
+  let savedTab = 'LIVE';
+  try {
+    savedTab = window.localStorage?.getItem('defora_tab') || 'LIVE';
+  } catch (_e) {}
+  if (savedTab === 'LIVE' && !this.libraryWorkspaceOpen) {
+    this.switchTab('MODULATION');
+  }
 },
 promoteToDeforum() {
   this.selectVideoLayer('deforum', { userInitiated: true });
@@ -5114,12 +5189,14 @@ initDefaultScene() {
       }
     }
   } catch (_) {}
-  // No saved scenes — apply built-in default: WebGL + Deforum at 50%
+  // No saved scenes — WebGL full opacity; other engines hidden until user raises opacity or frames arrive
   (this.videoLayers || []).forEach((l) => {
-    if (l.id === 'webgl') { l.opacity = 0.5; l.previewVisible = true; }
-    else if (l.id === 'deforum') { l.opacity = 0.5; l.previewVisible = true; }
-    else { l.previewVisible = false; l.opacity = typeof l.opacity === 'number' ? l.opacity : 1; }
+    if (l.id === 'webgl') { l.opacity = 1; l.previewVisible = true; }
+    else if (l.id === 'deforum') { l.opacity = 0; l.previewVisible = true; }
+    else if (l.id === 'wan') { l.opacity = 0; l.previewVisible = false; }
+    else { l.previewVisible = false; l.opacity = 0; }
   });
+  this.applyForgeLayerOpacity(0, { commitBase: true });
   this.syncLayerCompositing();
 },
 closeVideoLayer(id) {
@@ -7479,6 +7556,10 @@ readMotionScheduleValue(liveKey, frame) {
   const scheduleKey = this.motionLiveKeyToScheduleKey(liveKey);
   const raw = this.deforumSettings && this.deforumSettings[scheduleKey];
   return readScheduleValueAtFrame(raw, frame);
+},
+toggleMotionPadSpringBack() {
+  this.motionPadSpringBack = !this.motionPadSpringBack;
+  this.saveSessionState();
 },
 motionSmoothnessActive() {
   const smooth = this.motionSmoothness || {};
@@ -10371,8 +10452,19 @@ updateSequencerKeyframe({ trackId, keyframe, t, v }) {
  },
  motionPadMouseUp(padKind) {
    const activePad = padKind || this.xyPad.activePad;
-   if (this.xyPad.dragging && activePad && this.motionSmoothnessActive()) {
-     this.commitMotionPadDrag(activePad);
+   if (this.xyPad.dragging && activePad) {
+     const slot = this.motionXYPadSlotById(activePad);
+     if (slot && !this.motionPadSpringBack) {
+       this.applyMotionPadAxisValues(
+         slot.xAxis,
+         slot.yAxis,
+         this.motionAxisTargetValue(slot.xAxis),
+         this.motionAxisTargetValue(slot.yAxis),
+         { previewOnly: false },
+       );
+     } else if (this.motionSmoothnessActive()) {
+       this.commitMotionPadDrag(activePad);
+     }
    }
    this.xyPad.dragging = false;
    this.xyPad.activePad = null;
@@ -11197,6 +11289,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       const frames = Math.round(Number(s.motionSmoothness.frames));
       this.motionSmoothness.frames = Number.isFinite(frames) ? Math.max(1, Math.min(999, frames)) : 1;
     }
+    if (typeof s.motionPadSpringBack === 'boolean') {
+      this.motionPadSpringBack = s.motionPadSpringBack;
+    }
     if (Number.isFinite(Number(s.seedFixedBackup)) && Number(s.seedFixedBackup) >= 0) {
       this.seedFixedBackup = Number(s.seedFixedBackup);
     }
@@ -11285,6 +11380,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
       },
+      motionPadSpringBack: !!this.motionPadSpringBack,
       seedFixedBackup: Number.isFinite(Number(this.seedFixedBackup)) && this.seedFixedBackup >= 0
         ? this.seedFixedBackup
         : null,
