@@ -49,7 +49,7 @@
             @click="toggleLibraryWorkspace()"
           >
             <UiIcon name="folder" />
-            <span class="sr-only">Library</span>
+            <span class="top-nav__action-label">Library</span>
           </button>
         </div>
       </nav>
@@ -73,6 +73,7 @@
           :ws-status="wsStatus"
           :session="session"
           :sessions="sessionCatalog"
+          :morph-on="prompts.morphOn"
           @toggle-play="toggleDeforumPlay"
           @stop-play="stopDeforumPlay"
           @toggle-record="toggleStreamRecord"
@@ -418,6 +419,9 @@
             <UiIcon class="edge-dock-tab__icon" :name="layersSidebarChevronIcon" />
             <span class="edge-dock-tab__label">Layers</span>
           </button>
+          <div class="layers-sidebar__rail-head">
+            <span class="layers-sidebar__rail-title">Active preview</span>
+          </div>
           <div class="layers-sidebar__active-badge">
             <span
               class="layers-sidebar__active-dot video-layer-tab__dot"
@@ -542,7 +546,6 @@
             <LiveView v-if="currentTab === 'LIVE'" :app="appViewModel" />
             <PromptsView v-else-if="currentTab === 'PROMPTS'" :app="appViewModel" />
             <MotionView v-else-if="currentTab === 'MOTION'" :app="appViewModel" />
-            <GenerateView v-else-if="currentTab === 'GENERATE'" :app="appViewModel" />
             <ModulationView v-else-if="currentTab === 'MODULATION' || currentTab === 'AUDIO'" :app="appViewModel" />
             <SettingsView v-else-if="currentTab === 'SETTINGS'" :app="appViewModel" />
             <RunsBrowserPanel v-else-if="currentTab === 'RUNS'" :app="appViewModel" />
@@ -645,10 +648,7 @@ import LiveParamRow from './components/LiveParamRow.vue'
 import UiIcon from './components/UiIcon.vue'
 import SequencerControlsPanel from './components/SequencerControlsPanel.vue'
 import ThreeBackground from './components/ThreeBackground.vue'
-import CrossfaderPanel from './components/CrossfaderPanel.vue'
-import VideoSwarmBrowser from './components/VideoSwarmBrowser.vue'
 import LiveView from './components/views/LiveView.vue'
-import LiveEngineControlsDock from './components/LiveEngineControlsDock.vue'
 import AnimationEnginePanel from './components/AnimationEnginePanel.vue'
 import LibraryWorkspaceOverlay from './components/LibraryWorkspaceOverlay.vue'
 import EditorView from './components/views/EditorView.vue'
@@ -662,7 +662,7 @@ import { paintSpectrumBars } from './utils/audio-spectrum.js'
 
 export default {
   name: 'App',
-  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, CrossfaderPanel, VideoSwarmBrowser, LiveView, LiveEngineControlsDock, AnimationEnginePanel, LibraryWorkspaceOverlay, EditorView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
+  components: { StatusStrip, GlassPanel, LiveParamRow, UiIcon, SequencerControlsPanel, GenerateView, ThreeBackground, LiveView, AnimationEnginePanel, LibraryWorkspaceOverlay, EditorView, PromptsView, MotionView, ModulationView, SettingsView, RunsBrowserPanel },
   data() {
     return {
        showFrames: false,
@@ -1226,7 +1226,7 @@ export default {
         "translation_y": "s",
         "rotation_y": "d",
         "rotation_z": "q",
-        "fov": "e",
+        "fov": "f",
         "cfg": "z",
         "strength": "x",
         "noise_multiplier": "c",
@@ -2296,6 +2296,29 @@ export default {
           max: p.max,
           pct: Math.round(((p.val - p.min) / ((p.max - p.min) || 1)) * 100),
         }));
+    },
+    liveActiveLayerLabel() {
+      const layer = this.findVideoLayer(this.activeVideoLayerId);
+      return layer?.label || '—';
+    },
+    liveContextSummaryParams() {
+      const modulating = this.modulatingNowItems || [];
+      if (modulating.length) return modulating.slice(0, 4);
+      const pinned = (this.pinnedParamItems || []).slice(0, 4);
+      if (pinned.length) {
+        return pinned.map((p) => ({
+          key: p.key,
+          label: p.label,
+          val: p.val,
+          source: this.paramSources[p.key] || 'Manual',
+        }));
+      }
+      return [...(this.liveVibe || []), ...(this.liveCam || [])].slice(0, 3).map((p) => ({
+        key: p.key,
+        label: p.label,
+        val: p.val,
+        source: this.paramSources[p.key] || 'Manual',
+      }));
     },
     audioReactiveActive() {
       return ['Audio sent to mediator', 'Streaming'].includes(this.audioStatus);
@@ -5023,6 +5046,14 @@ applyContextPanelStartupDefaults() {
 },
 promoteToDeforum() {
   this.selectVideoLayer('deforum', { userInitiated: true });
+},
+openEngineDeforumSettingsTab(tabId = 'canvas') {
+  const allowed = (this.deforumFieldGroups || []).map((g) => g.id);
+  const next = allowed.includes(tabId) ? tabId : 'canvas';
+  this.liveEngineDrawerOpen = true;
+  this.promoteToDeforum();
+  this.deforumActiveTab = next;
+  this.saveSessionState();
 },
 applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {}) {
   const next = this.clampVal(Number(value) || 0, 0, 1);
@@ -8845,7 +8876,7 @@ audioBandWindowStyle(mapping) {
      "translation_y": "s",
      "rotation_y": "d",
      "rotation_z": "q",
-     "fov": "e",
+     "fov": "f",
      "cfg": "z",
      "strength": "x",
      "noise_multiplier": "c",

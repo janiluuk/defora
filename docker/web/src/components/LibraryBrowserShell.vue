@@ -42,6 +42,18 @@
         <UiIcon name="mic" />
         <span>Audio</span>
       </button>
+      <button
+        type="button"
+        role="tab"
+        class="sub-pill library-browser__tab"
+        :class="{ active: activeTab === 'files' }"
+        :aria-selected="activeTab === 'files' ? 'true' : 'false'"
+        data-testid="library-tab-files"
+        @click="setTab('files')"
+      >
+        <UiIcon name="folder" />
+        <span>Files</span>
+      </button>
     </div>
     <ProjectsBrowser
       v-show="activeTab === 'projects'"
@@ -61,6 +73,11 @@
       :app="app"
       :active="activeTab === 'audio'"
     />
+    <VideoSwarmBrowser
+      v-show="activeTab === 'files'"
+      class="library-browser__pane library-browser__pane--files"
+      :app="app"
+    />
   </div>
 </template>
 
@@ -69,21 +86,22 @@ import UiIcon from './UiIcon.vue'
 import ProjectsBrowser from './ProjectsBrowser.vue'
 import VideosBrowser from './VideosBrowser.vue'
 import AudioBrowser from './AudioBrowser.vue'
+import VideoSwarmBrowser from './VideoSwarmBrowser.vue'
 
 export default {
   name: 'LibraryBrowserShell',
-  components: { UiIcon, ProjectsBrowser, VideosBrowser, AudioBrowser },
+  components: { UiIcon, ProjectsBrowser, VideosBrowser, AudioBrowser, VideoSwarmBrowser },
   props: {
     app: { type: Object, required: true },
     initialTab: { type: String, default: 'projects' },
   },
   data() {
-    const tab = ['projects', 'videos', 'audio'].includes(this.initialTab) ? this.initialTab : 'projects'
+    const tab = ['projects', 'videos', 'audio', 'files'].includes(this.initialTab) ? this.initialTab : 'projects'
     return { activeTab: tab }
   },
   methods: {
     setTab(tab) {
-      this.activeTab = ['projects', 'videos', 'audio'].includes(tab) ? tab : 'projects'
+      this.activeTab = ['projects', 'videos', 'audio', 'files'].includes(tab) ? tab : 'projects'
     },
   },
 }

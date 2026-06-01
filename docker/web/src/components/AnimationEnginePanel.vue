@@ -15,9 +15,12 @@
     </div>
 
     <div class="animation-engine-panel__head">
-      <div class="framesync-title">
-        <UiIcon class="framesync-title-icon" name="film" />
-        <span class="framesync-accent">Layers</span>
+      <div class="animation-engine-panel__title-block">
+        <div class="framesync-title">
+          <UiIcon class="framesync-title-icon" name="film" />
+          <span class="framesync-accent">All layers</span>
+        </div>
+        <span class="framesync-subtitle animation-engine-panel__subtitle">Compositor &amp; per-layer controls</span>
       </div>
       <div class="animation-engine-panel__head-actions">
         <button
