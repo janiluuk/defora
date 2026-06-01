@@ -6,7 +6,7 @@ import { chromium } from 'playwright';
 import { clickTab, dismissSessionModalIfOpen, ensureRightPanelOpen, getTabLabels, openLibraryBrowser, openRunsMonitor, waitForNavTabs } from './playwright-nav.mjs';
 
 const base = process.env.BASE_URL || 'http://127.0.0.1:3999';
-const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'RUNS', 'SETTINGS', 'GENERATE'];
+const expected = ['LIVE', 'PROMPTS', 'MOTION', 'MODULATION', 'AUDIO', 'SETTINGS'];
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -82,7 +82,7 @@ try {
   await openRunsMonitor(page);
   const runsBrowser = page.locator('[data-testid="runs-browser"]');
   if ((await runsBrowser.count()) === 0) {
-    throw new Error('Runs monitor not found on RUNS tab');
+    throw new Error('Runs monitor not found (Settings → RUNS or LIVE system drawer)');
   }
   await clickTab(page, 'SETTINGS');
   await page.waitForTimeout(300);

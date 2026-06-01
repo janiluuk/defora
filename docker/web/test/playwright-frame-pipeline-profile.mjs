@@ -33,7 +33,7 @@ import os from "os";
 import path from "path";
 import { chromium } from "playwright";
 import { startE2eServer } from "./playwright-server.mjs";
-import { clickTab, openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
+import { openLiveFramesPanel, waitForNavTabs } from "./playwright-nav.mjs";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -51,10 +51,7 @@ function fmt(ms) {
 }
 
 async function openFramesPanel(page) {
-  await clickTab(page, 'RUNS');
-  await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 15_000 });
-  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
-  await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15_000 });
+  await openLiveFramesPanel(page);
 }
 
 // ── setup ─────────────────────────────────────────────────────────────────────
