@@ -33,19 +33,34 @@ function isPrivateHost(host) {
   return false;
 }
 
-function isBlockedExternalUrl(url) {
+function isForgeApiPath(pathname) {
+  const path = String(pathname || "");
+  return (
+    path.startsWith("/sdapi/")
+    || path.startsWith("/deforum_api/")
+    || path.startsWith("/controlnet")
+  );
+}
+
+function isLoopbackHost(host) {
+  const h = String(host || "").toLowerCase();
+  return h === "localhost" || h === "127.0.0.1" || h === "::1";
+}
+
+function isBlockedExternalUrl(url, env = process.env) {
   try {
     const parsed = new URL(String(url));
     const host = parsed.hostname.toLowerCase();
-    if (host === "localhost" || host === "127.0.0.1" || host === "::1") return false;
     const path = parsed.pathname || "";
+    if (blockExternalFetches(env) && isLoopbackHost(host) && isForgeApiPath(path)) {
+      return true;
+    }
+    if (isLoopbackHost(host)) return false;
     if (
-      path.startsWith("/sdapi/") ||
-      path.startsWith("/deforum_api/") ||
-      path.startsWith("/controlnet") ||
-      path === "/api/tags" ||
-      path === "/api/generate" ||
-      path === "/system_stats"
+      isForgeApiPath(path)
+      || path === "/api/tags"
+      || path === "/api/generate"
+      || path === "/system_stats"
     ) {
       return true;
     }
@@ -62,7 +77,7 @@ function installCiFetchGuard(env = process.env) {
   const nativeFetch = global.fetch.bind(global);
   const guarded = async function deforaCiGuardedFetch(input, init) {
     const url = typeof input === "string" ? input : input?.url || String(input);
-    if (isBlockedExternalUrl(url)) {
+    if (isBlockedExternalUrl(url, env)) {
       const err = new Error("External services disabled in CI");
       err.name = "CiOfflineError";
       err.ciOffline = true;
@@ -79,6 +94,8 @@ module.exports = {
   skipBackgroundProbes,
   isQuietMode,
   blockExternalFetches,
+  isForgeApiPath,
+  isLoopbackHost,
   isBlockedExternalUrl,
   installCiFetchGuard,
 };

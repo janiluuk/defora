@@ -3464,6 +3464,11 @@ async function start(opts = {}) {
     }
 
     try {
+      if (externalBlocked()) {
+        const bypassed = await respondWithDeforumFallback("CI offline");
+        if (bypassed !== false) return;
+        return res.status(503).json({ ok: false, error: "Forge preview unavailable in CI", ciOffline: true });
+      }
       if (shouldBypassTxt2img(target)) {
         const bypassed = await respondWithDeforumFallback("txt2img temporarily bypassed after recent Forge failures");
         if (bypassed !== false) return;
@@ -3516,10 +3521,15 @@ async function start(opts = {}) {
         node: target.node ? { name: target.node.name, url: target.node.url } : null,
       });
     } catch (err) {
-      console.error("[api] txt2img error", err);
+      if (!externalBlocked() && !err.ciOffline) {
+        console.error("[api] txt2img error", err);
+      }
       recordTxt2imgFailure(target);
       const fallback = await respondWithDeforumFallback(String(err.message || err));
       if (fallback !== false) return;
+      if (externalBlocked()) {
+        return res.status(503).json({ ok: false, error: "Forge preview unavailable in CI", ciOffline: true });
+      }
       res.status(502).json({ error: String(err.message || err) });
     } finally {
       target.release();
