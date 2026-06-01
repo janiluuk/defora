@@ -36,11 +36,19 @@ docker-compose up --build
 
 Then open http://localhost:8080 in your browser.
 
+## Documentation
+
+UI structure and panel placement:
+
+- [`docs/UI-FEATURE-FLOW.md`](docs/UI-FEATURE-FLOW.md) — editable Mermaid flow graphs (canonical map for restructuring)
+- [`docs/UX-NAVIGATION-MAP.md`](docs/UX-NAVIGATION-MAP.md) — shortcuts, z-index, collision audit
+- [`docs/README.md`](docs/README.md) — how to use the docs when changing navigation
+
 ## Development
 
 - `public/` - Static HTML/CSS/JS assets for the web UI
 - `server.js` - Express server with WebSocket support
-- `src/` - Additional JavaScript modules
+- `src/` - Vue app (`src/App.vue`, `src/components/`)
 - `test/` - Test specifications
 
 ### Note on node_modules

@@ -9,7 +9,7 @@ https://defora.dudeisland.eu/
 
 ## Current Browser Tour
 
-Eight top-level tabs: **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · RUNS · SETTINGS · GENERATE**. Stream output moved to **Settings → Output**. Annotated screenshots: [`docs/ui-migration/00-README.md`](docs/ui-migration/00-README.md).
+Top-level tabs (web UI): **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · SETTINGS** (RUNS / GENERATE / STREAM redirect — see [`docker/web/docs/UI-FEATURE-FLOW.md`](docker/web/docs/UI-FEATURE-FLOW.md)). Stream output: **Settings → Output**. Annotated screenshots: [`docs/ui-migration/00-README.md`](docs/ui-migration/00-README.md).
 
 <table>
 <tr>

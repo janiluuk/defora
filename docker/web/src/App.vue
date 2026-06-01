@@ -407,11 +407,16 @@
         >
           <button
             type="button"
-            class="layers-sidebar__toggle"
-            :title="layersSidebarOpen ? 'Collapse layers' : 'Expand layers'"
-            @click="layersSidebarOpen = !layersSidebarOpen; saveSessionState()"
+            class="layers-sidebar__toggle edge-dock-tab edge-dock-tab--layers"
+            :class="{ 'edge-dock-tab--panel-open': layersSidebarOpen }"
+            :aria-expanded="layersSidebarOpen ? 'true' : 'false'"
+            :aria-label="layersSidebarToggleLabel"
+            :title="layersSidebarToggleLabel"
+            data-testid="layers-sidebar-toggle"
+            @click="layersSidebarToggle"
           >
-            <UiIcon :name="layersSidebarOpen ? 'chevron-right' : 'chevron-left'" />
+            <UiIcon class="edge-dock-tab__icon" :name="layersSidebarChevronIcon" />
+            <span class="edge-dock-tab__label">Layers</span>
           </button>
           <div class="layers-sidebar__active-badge">
             <span
@@ -496,13 +501,14 @@
           <button
             type="button"
             class="edge-dock-tab edge-dock-tab--engine"
-            :class="{ 'edge-dock-tab--inside': liveEngineDrawerOpen }"
+            :class="{ 'edge-dock-tab--inside': liveEngineDrawerOpen, 'edge-dock-tab--panel-open': liveEngineDrawerOpen }"
             :aria-expanded="liveEngineDrawerOpen ? 'true' : 'false'"
-            :title="liveEngineDrawerOpen ? 'Hide animation engine (E)' : 'Show animation engine (E)'"
+            :aria-label="engineDrawerToggleLabel"
+            :title="engineDrawerToggleLabel"
             data-testid="engine-drawer-toggle"
             @click="toggleEngineDrawer"
           >
-            <UiIcon class="edge-dock-tab__icon" :name="liveEngineDrawerOpen ? 'chevron-right' : 'chevron-left'" />
+            <UiIcon class="edge-dock-tab__icon" :name="engineDrawerChevronIcon" />
             <span class="edge-dock-tab__label">Engine</span>
           </button>
           <div v-show="liveEngineDrawerOpen" class="engine-drawer-panel">
@@ -517,17 +523,16 @@
         >
           <button
             type="button"
-            class="live-overlay-btn live-overlay-btn--side edge-dock-tab edge-dock-tab--context"
-            :class="{ 'live-overlay-btn--open': rightPanelOpen }"
-            :title="rightPanelToggleTitle + ' (P)'"
+            class="edge-dock-tab edge-dock-tab--context"
+            :class="{ 'edge-dock-tab--panel-open': rightPanelOpen }"
             :aria-expanded="rightPanelOpen ? 'true' : 'false'"
+            :aria-label="contextPanelToggleLabel"
+            :title="contextPanelToggleLabel"
             data-testid="right-panel-toggle"
             @click="toggleRightPanel"
           >
-            <span class="live-overlay-btn__arrow-wrap">
-              <UiIcon class="live-overlay-btn__state" :name="contextPanelChevronIcon" />
-            </span>
-            <span class="edge-dock-tab__label edge-dock-tab__label--context">{{ rightPanelEdgeLabel }}</span>
+            <UiIcon class="edge-dock-tab__icon" :name="contextPanelChevronIcon" />
+            <span class="edge-dock-tab__label edge-dock-tab__label--context">Controls</span>
           </button>
           <div
             v-show="rightPanelOpen"
@@ -615,7 +620,6 @@ function pluginByLayerKind(kind) {
   return plugins.find((p) => p.layerKind === kind) || null;
 }
 
-const CONTROLNET_GROUP_IDS = new Set(['controlnet'])
 
 const TIMELINE_TRACK_COLORS = [
   'rgb(45, 226, 255)',
@@ -702,7 +706,7 @@ export default {
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
         : Math.floor(Math.random() * 2147483647),
-      deforumFieldGroups: DEFORUM_FIELD_GROUPS.filter((g) => !CONTROLNET_GROUP_IDS.has(g.id)),
+      deforumFieldGroups: [...DEFORUM_FIELD_GROUPS],
       deforumFieldEnabled: createDeforumFieldEnabledMap(),
        deforumActiveTab: 'canvas',
        deforumSectionOpen: {},
@@ -1707,6 +1711,21 @@ export default {
     },
     contextPanelChevronIcon() {
       return this.rightPanelOpen ? 'chevron-left' : 'chevron-right';
+    },
+    contextPanelToggleLabel() {
+      return this.rightPanelOpen ? 'Hide controls panel' : 'Show controls panel';
+    },
+    engineDrawerToggleLabel() {
+      return this.liveEngineDrawerOpen ? 'Hide engine panel' : 'Show engine panel';
+    },
+    engineDrawerChevronIcon() {
+      return this.liveEngineDrawerOpen ? 'chevron-right' : 'chevron-left';
+    },
+    layersSidebarToggleLabel() {
+      return this.layersSidebarOpen ? 'Hide layers panel' : 'Show layers panel';
+    },
+    layersSidebarChevronIcon() {
+      return this.layersSidebarOpen ? 'chevron-right' : 'chevron-left';
     },
     shouldAutoRevealDeforumVideo() {
       if (!this.showMainStageHls) return false;
@@ -3004,6 +3023,7 @@ export default {
       if (this.currentTab !== 'SETTINGS') return;
       this.syncRunsMonitorPolling();
       if (sub === 'SYSTEM') void this.refreshRuns();
+      if (sub === 'PLUGINS') void this.refreshPlugins();
     },
     runsAutoRefresh() {
       this.syncRunsMonitorPolling();
@@ -3916,22 +3936,17 @@ export default {
       this.runsStatus = 'Failed to copy JSON';
     }
   },
+ layersSidebarToggle() {
+   this.layersSidebarOpen = !this.layersSidebarOpen;
+   this.saveSessionState();
+ },
  toggleRightPanel() {
-   const opening = !this.rightPanelOpen;
-   if (opening && this.edgeDockSingleRightPanel && this.liveEngineDrawerOpen && this.showEngineDrawerShell) {
-     this.liveEngineDrawerOpen = false;
-   }
-   this.rightPanelOpen = opening;
+   this.rightPanelOpen = !this.rightPanelOpen;
    this.liveDrawerOpen = this.rightPanelOpen;
    this.saveSessionState();
  },
  toggleEngineDrawer() {
-   const opening = !this.liveEngineDrawerOpen;
-   if (opening && this.edgeDockSingleRightPanel && this.rightPanelOpen) {
-     this.rightPanelOpen = false;
-     this.liveDrawerOpen = false;
-   }
-   this.liveEngineDrawerOpen = opening;
+   this.liveEngineDrawerOpen = !this.liveEngineDrawerOpen;
    this.saveSessionState();
  },
  updateSidePanelDockBounds() {
@@ -7901,7 +7916,7 @@ emitMotionLiveParam(key, val) {
      return ['PROMPTS', 'IMAGE', 'LORA', 'CONTROLNET', 'STORY'];
    }
    if (this.currentTab === 'SETTINGS') {
-     return ['ENGINE', 'OUTPUT', 'GPUS', 'RUNS', 'MIDI', 'STYLES', 'COLLAB'];
+     return ['ENGINE', 'OUTPUT', 'GPUS', 'RUNS', 'MIDI', 'STYLES', 'PLUGINS', 'COLLAB'];
    }
    if (this.currentTab === 'MODULATION' || this.currentTab === 'AUDIO') {
      return ['LFO', 'AV_SYNC', 'AUDIO_REACTIVE', 'BEAT_MACROS', 'MAPPINGS'];
@@ -12721,6 +12736,7 @@ deforumToggleKeyForPath(keyPath) {
   return DEFORUM_DERIVED_TOGGLE_KEYS[keyPath] || keyPath;
 },
 isDeforumFieldToggleable(keyPath) {
+  if (/^cn_\d+_/.test(String(keyPath || ''))) return false;
   if (DEFORUM_NON_TOGGLEABLE_KEYS.has(keyPath)) return false;
   const toggleKey = this.deforumToggleKeyForPath(keyPath);
   return DEFORUM_FIELD_KEYS.includes(toggleKey);
@@ -12734,7 +12750,13 @@ isDeforumFieldGroupDisabledByAnimationMode(groupId) {
   return this.deforumMode2d3d === '2D' && groupId === DEFORUM_MOTION_3D_GROUP_ID;
 },
 isDeforumFieldEnabled(keyPath) {
-  if (String(keyPath || '').startsWith('cn_')) return false;
+  const key = String(keyPath || '');
+  const cnField = key.match(/^cn_(\d+)_(\w+)$/);
+  if (cnField) {
+    const unit = cnField[1];
+    if (cnField[2] === 'enabled') return true;
+    return !!getNestedValue(this.deforumSettings, `cn_${unit}_enabled`);
+  }
   if (this.isDeforumFieldDisabledByAnimationMode(keyPath)) return false;
   if (!this.isDeforumFieldToggleable(keyPath)) return true;
   const toggleKey = this.deforumToggleKeyForPath(keyPath);
@@ -12751,7 +12773,8 @@ setDeforumMode2d3d(mode) {
   }
 },
 setDeforumFieldEnabled(keyPath, enabled) {
-  if (String(keyPath || '').startsWith('cn_')) return;
+  const key = String(keyPath || '');
+  if (/^cn_\d+_/.test(key)) return;
   const toggleKey = this.deforumToggleKeyForPath(keyPath);
   if (!this.isDeforumFieldToggleable(toggleKey)) return;
   this.deforumFieldEnabled = {
@@ -12802,7 +12825,6 @@ onDeforumSeedInput(raw) {
   this.onDeforumFieldInput("seed", n, "number");
 },
  onDeforumFieldInput(keyPath, raw, kind) {
-  if (String(keyPath || '').startsWith('cn_')) return;
   if (this.isDeforumFieldDisabledByAnimationMode(keyPath)) return;
    let value = raw;
    if (kind === 'number') {

@@ -213,22 +213,40 @@ export const DEFORUM_FIELD_GROUPS = [
       { key: 'steps_schedule', label: 'Steps', type: 'text' },
     ],
   },
-  {
-    id: 'controlnet',
-    label: 'ControlNet 1',
-    fields: [
-      { key: 'cn_1_enabled', label: 'Enabled', type: 'bool' },
-      { key: 'cn_1_weight', label: 'Weight schedule', type: 'text' },
-      { key: 'cn_1_guidance_start', label: 'Guidance start', type: 'text' },
-      { key: 'cn_1_guidance_end', label: 'Guidance end', type: 'text' },
-      { key: 'cn_1_module', label: 'Module', type: 'text' },
-      { key: 'cn_1_model', label: 'Model', type: 'text' },
-      { key: 'cn_1_processor_res', label: 'Processor res', type: 'slider', min: 64, max: 2048, step: 1 },
-      { key: 'cn_1_threshold_a', label: 'Threshold A', type: 'slider', min: 0, max: 255, step: 1 },
-      { key: 'cn_1_threshold_b', label: 'Threshold B', type: 'slider', min: 0, max: 255, step: 1 },
-    ],
-  },
 ];
+
+function controlNetFieldGroup(index) {
+  const p = `cn_${index}_`;
+  const label = index === 1 ? 'ControlNet 1' : `ControlNet ${index}`;
+  return {
+    id: index === 1 ? 'controlnet' : `controlnet_${index}`,
+    label,
+    fields: [
+      { key: `${p}enabled`, label: 'Enabled', type: 'bool' },
+      { key: `${p}module`, label: 'Module', type: 'text' },
+      { key: `${p}model`, label: 'Model', type: 'text' },
+      { key: `${p}weight`, label: 'Weight schedule', type: 'text' },
+      { key: `${p}guidance_start`, label: 'Guidance start', type: 'text' },
+      { key: `${p}guidance_end`, label: 'Guidance end', type: 'text' },
+      { key: `${p}processor_res`, label: 'Processor res', type: 'slider', min: 64, max: 2048, step: 1 },
+      { key: `${p}threshold_a`, label: 'Threshold A', type: 'slider', min: 0, max: 255, step: 1 },
+      { key: `${p}threshold_b`, label: 'Threshold B', type: 'slider', min: 0, max: 255, step: 1 },
+      { key: `${p}control_mode`, label: 'Control mode', type: 'text' },
+      { key: `${p}resize_mode`, label: 'Resize mode', type: 'text' },
+      { key: `${p}pixel_perfect`, label: 'Pixel perfect', type: 'bool' },
+      { key: `${p}low_vram`, label: 'Low VRAM', type: 'bool' },
+      { key: `${p}vid_path`, label: 'Video path', type: 'text' },
+    ],
+  };
+}
+
+DEFORUM_FIELD_GROUPS.push(
+  controlNetFieldGroup(1),
+  controlNetFieldGroup(2),
+  controlNetFieldGroup(3),
+  controlNetFieldGroup(4),
+  controlNetFieldGroup(5),
+);
 
 /** Eight performance macros — flat schedule @ frame 0 (keep in sync with CommonVisualStrip / common-visual.mjs). */
 export const DEFORUM_MACRO_KNOBS = [
@@ -243,7 +261,11 @@ export const DEFORUM_MACRO_KNOBS = [
 ];
 
 export const DEFORUM_FIELD_KEYS = DEFORUM_FIELD_GROUPS.flatMap((group) =>
-  group.fields.map((field) => field.key)
+  group.fields.map((field) => field.key),
+);
+
+export const DEFORUM_CONTROLNET_GROUP_IDS = new Set(
+  DEFORUM_FIELD_GROUPS.filter((g) => String(g.id).startsWith('controlnet')).map((g) => g.id),
 );
 
 /** Engine fields that should stay editable without schedule on/off toggles. */

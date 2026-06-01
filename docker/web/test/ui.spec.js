@@ -739,11 +739,18 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     const engineSliders = document.querySelectorAll("[data-testid='live-webgl-controls'] input[type='range']");
     expect(engineSliders.length).to.be.greaterThan(2);
-    appVm.activeVideoLayerId = "deforum";
-    appVm.paramPanelOpen = true;
+    appVm.selectVideoLayer("deforum");
+    appVm.deforumAdvancedOpen = false;
+    appVm.deforumVerifyResults = null;
     await nextTick();
-    const paramSliders = document.querySelectorAll(".param-drawer input[type='range']");
-    expect(paramSliders.length).to.be.greaterThan(5);
+    await nextTick();
+    expect(document.querySelector("[data-testid='deforum-settings-body']")).to.exist;
+    const deforumFields = document.querySelectorAll("[data-testid='deforum-settings-body'] .deforum-field");
+    expect(deforumFields.length).to.be.greaterThan(3);
+    appVm.deforumActiveTab = "sampling";
+    await nextTick();
+    const deforumSliders = document.querySelectorAll("[data-testid='deforum-settings-body'] input[type='range']");
+    expect(deforumSliders.length).to.be.greaterThan(0);
     appVm.switchTab("MOTION");
     appVm.rightPanelOpen = true;
     await nextTick();
@@ -751,11 +758,11 @@ describe("Deforumation Web UI", () => {
     expect(titles.join(" ")).to.include("Motion");
     appVm.switchTab("LIVE");
     appVm.liveEngineDrawerOpen = true;
-    appVm.activeVideoLayerId = "deforum";
-    appVm.paramPanelOpen = true;
+    appVm.selectVideoLayer("deforum");
     await nextTick();
-    const liveLabels = [...document.querySelectorAll(".param-drawer .framesync-subtitle, .framesync-title")].map((t) => t.textContent.trim());
-    expect(liveLabels.join(" ")).to.match(/Camera|Style|Parameters/);
+    await nextTick();
+    const deforumTabLabels = [...document.querySelectorAll(".deforum-settings-tabs .sub-pill")].map((t) => t.textContent.trim());
+    expect(deforumTabLabels.join(" ")).to.match(/Sampling|ControlNet/);
   });
 
   it("shows prompt morph controls", async () => {
