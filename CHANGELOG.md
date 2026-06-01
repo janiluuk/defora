@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.66] - 2026-06-01
+
+## What's Changed
+
+- feat(web): GPU mediator probes, FreeCut embed fix, and vimage2 stack helper (6c55b16)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.65...v0.6.66
+
+
 ## [0.6.65] - 2026-06-01
 
 ## What's Changed
