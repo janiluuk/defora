@@ -20,9 +20,12 @@ describe("ci-offline", () => {
   });
 
   it("blocks forge and private-network URLs when offline", () => {
-    assert.equal(isBlockedExternalUrl("http://192.168.2.101:7860/sdapi/v1/options"), true);
+    const offline = { DEFORA_CI_OFFLINE: "1" };
+    assert.equal(isBlockedExternalUrl("http://192.168.2.101:7860/sdapi/v1/options", offline), true);
+    assert.equal(isBlockedExternalUrl("http://127.0.0.1:7860/sdapi/v1/options", offline), true);
     assert.equal(isBlockedExternalUrl("http://127.0.0.1:7860/sdapi/v1/options"), false);
-    assert.equal(isBlockedExternalUrl("http://ollama-a:11434/api/tags"), true);
+    assert.equal(isBlockedExternalUrl("http://127.0.0.1:9/health", offline), false);
+    assert.equal(isBlockedExternalUrl("http://ollama-a:11434/api/tags", offline), true);
   });
 
   it("does not block external fetches with GITHUB_ACTIONS alone", () => {
@@ -36,6 +39,10 @@ describe("ci-offline", () => {
       installCiFetchGuard({ DEFORA_CI_OFFLINE: "1" });
       await assert.rejects(
         () => global.fetch("http://192.168.2.101:7860/sdapi/v1/options"),
+        /External services disabled in CI/
+      );
+      await assert.rejects(
+        () => global.fetch("http://127.0.0.1:9/sdapi/v1/txt2img"),
         /External services disabled in CI/
       );
       const res = await global.fetch("http://127.0.0.1:9/health");
