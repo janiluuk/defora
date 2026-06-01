@@ -203,6 +203,26 @@ deploy_stream_node() {
 
 deploy_stream_node
 
+echo ""
+echo "==> Waiting for web service to be healthy..."
+HEALTH_URL="http://${HOST}:${WEB_PORT}/api/health"
+for i in $(seq 1 12); do
+  if curl -sf --max-time 5 "$HEALTH_URL" >/dev/null 2>&1; then
+    echo "    Ready after $((i * 5 - 5))s"
+    break
+  fi
+  if [[ "$i" -eq 12 ]]; then
+    echo "    Web not responding after 60s — check logs on host"
+  else
+    printf "    Not ready yet (%ds elapsed), retrying...\n" "$((i * 5))"
+    sleep 5
+  fi
+done
+
+echo ""
+echo "==> Post-deploy stack health check"
+"${ROOT}/scripts/stack-e2e-check.sh" --host "${HOST}" || true
+
 BASE_URL="http://${HOST}:${WEB_PORT}"
 STREAM_HTTP_PORT="${STREAM_HTTP_PORT:-80}"
 MEDIATOR_HOST_EFFECTIVE="${DEF_MEDIATOR_HOST:-${MEDIATOR_HOST:-vimage2}}"

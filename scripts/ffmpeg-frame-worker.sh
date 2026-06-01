@@ -93,12 +93,7 @@ announce_wait() {
 
 sleep_with_backoff() {
   sleep "$idle_sleep"
-  if [ "$idle_sleep" -lt "$IDLE_MAX_SLEEP" ]; then
-    idle_sleep=$(( idle_sleep * 2 ))
-    if [ "$idle_sleep" -gt "$IDLE_MAX_SLEEP" ]; then
-      idle_sleep="$IDLE_MAX_SLEEP"
-    fi
-  fi
+  idle_sleep=$(awk "BEGIN { v=$idle_sleep*2; print (v>$IDLE_MAX_SLEEP?$IDLE_MAX_SLEEP:v) }")
 }
 
 while true; do
