@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.68] - 2026-06-02
+
+## What's Changed
+
+- docs: refresh README tour screenshots for June 2026 UI (1443cdd)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.67...v0.6.68
+
+
 ## [0.6.67] - 2026-06-01
 
 ## What's Changed
