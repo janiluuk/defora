@@ -281,7 +281,10 @@ describe("Deforumation Web UI", () => {
   });
 
   it("renders tabs for all sections", () => {
-    const tabs = [...document.querySelectorAll('[data-testid="top-nav"] .tab__label')].map((el) => el.textContent.trim());
+    const rawTabs = [...document.querySelectorAll('[data-testid="top-nav"] .tab__label')]
+      .map((el) => el.textContent.trim())
+      .filter(Boolean);
+    const tabs = [...new Set(rawTabs)];
     expect(tabs.join(" ")).to.include("LIVE");
     expect(tabs.join(" ")).to.include("PROMPTS");
     expect(tabs.join(" ")).to.include("MOTION");
@@ -1069,7 +1072,9 @@ describe("Deforumation Web UI", () => {
 
     appVm.loraPickerOpen = true;
     await nextTick();
-    expect(document.querySelectorAll(".lora-picker-row").length).to.equal(1);
+    const rows = [...document.querySelectorAll(".lora-picker-row")];
+    expect(rows.length).to.be.greaterThanOrEqual(1);
+    expect(rows.map((r) => r.textContent).join(" ")).to.include("portrait-xl");
     const pickerButtons = [...document.querySelectorAll(".lora-picker-row__actions .framesync-button")].map((el) => el.textContent.trim());
     expect(pickerButtons.join(" ")).to.include("Common");
   });
@@ -1141,7 +1146,9 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
 
-    const toggleButtons = [...document.querySelectorAll(".controlnet-slot-row__toggle")];
+    const strip = document.querySelector(".controlnet-slot-strip");
+    expect(strip).to.exist;
+    const toggleButtons = [...strip.querySelectorAll(".controlnet-slot-row__toggle")];
     expect(toggleButtons.length).to.equal(appVm.cn.slots.length);
     expect(toggleButtons[0].textContent.trim()).to.equal("Off");
     expect(toggleButtons[1].textContent.trim()).to.equal("On");

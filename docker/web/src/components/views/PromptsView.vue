@@ -512,8 +512,12 @@
             <div class="framesync-subtitle lora-crossfader-hint__copy">
               LoRA morph blend is on the <strong>LIVE</strong> stage (Morph HUD, bottom-right). Assign LoRAs to Common, A, and B below — crossfade weights are controlled from LIVE.
             </div>
-            <button type="button" class="framesync-button framesync-button--compact" @click="switchTab('LIVE')">
-              Open LIVE morph
+            <button
+              type="button"
+              class="framesync-button framesync-button--compact"
+              @click="switchTab('LIVE'); setLiveBottomDrawerTab('CROSSFADER')"
+            >
+              Open crossfader
             </button>
           </div>
           <div class="framesync-footer" style="margin-top:12px;">
