@@ -78,6 +78,25 @@ function ensureGlobalAnimationFrame(win) {
 
 ensureGlobalAnimationFrame(typeof window !== "undefined" ? window : null);
 
+// JSDOM does not implement media playback; the app calls video.play()/load().
+if (globalThis.HTMLMediaElement && globalThis.HTMLMediaElement.prototype) {
+  globalThis.HTMLMediaElement.prototype.play = async () => {};
+  globalThis.HTMLMediaElement.prototype.load = () => {};
+}
+
+// Node's fetch requires absolute URLs; app-definition uses relative /api/* paths in tests.
+if (typeof globalThis.fetch === "function") {
+  const realFetch = globalThis.fetch.bind(globalThis);
+  globalThis.fetch = (input, init) => {
+    try {
+      const url = typeof input === "string" ? new URL(input, "http://localhost").toString() : input;
+      return realFetch(url, init);
+    } catch (_e) {
+      return realFetch(input, init);
+    }
+  };
+}
+
 function installFileReaderMock({ failRead = false } = {}) {
   const MockFileReader = class {
     readAsDataURL() {
