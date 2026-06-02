@@ -117,7 +117,6 @@
         </p>
 
         <div v-else class="deforum-settings-stack">
-          <LiveParametersPanel v-if="!engineMode" :app="app" />
           <DeforumControlPanel
             :app="app"
             visual-plugin-id="deforum"
@@ -125,6 +124,7 @@
             :show-motion-pads="!engineMode"
             :show-settings="true"
           />
+          <LiveParametersPanel v-if="engineMode" :app="app" />
         </div>
       </div>
   </div>

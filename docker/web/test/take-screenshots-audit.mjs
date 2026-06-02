@@ -98,6 +98,15 @@ try {
   await page.waitForTimeout(pauseMs(600, 120));
   await shot(page, '02-live-controls.png', 'LIVE — Controls drawer (summary + live params)');
 
+  const bottomDrawerToggle = page.locator('[data-testid="bottom-drawer-toggle"]').first();
+  if ((await bottomDrawerToggle.count()) > 0) {
+    await bottomDrawerToggle.click({ force: true });
+    await page.waitForTimeout(pauseMs(700, 180));
+    await shot(page, '02b-live-bottom-drawer.png', 'LIVE — bottom drawer (MODULATION/CROSSFADER/SYSTEM)');
+    await bottomDrawerToggle.click({ force: true });
+    await page.waitForTimeout(pauseMs(450, 120));
+  }
+
   const engineToggle = page.locator('[data-testid="engine-drawer-toggle"]').first();
   if ((await engineToggle.count()) > 0) {
     const expanded = await engineToggle.getAttribute('aria-expanded');
@@ -109,10 +118,10 @@ try {
   const layersToggle = page.locator('[data-testid="layers-sidebar-toggle"]').first();
   if ((await layersToggle.count()) > 0) {
     const layersOpen = await layersToggle.getAttribute('aria-expanded');
-    if (layersOpen !== 'true') await layersToggle.click();
+    if (layersOpen !== 'true') await layersToggle.click({ force: true });
     await page.waitForTimeout(pauseMs(500, 120));
     await shot(page, '04-live-layers-rail.png', 'LIVE — layers rail');
-    if (layersOpen !== 'true') await layersToggle.click();
+    if (layersOpen !== 'true') await layersToggle.click({ force: true });
   }
 
   await clickTab(page, 'PROMPTS');

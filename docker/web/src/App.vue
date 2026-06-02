@@ -87,6 +87,7 @@
           @new-session="createNewSession"
           @purge-session="purgeSession"
           @restore-session="restoreSession"
+          @reset-layout="resetUiLayoutDefaults"
         />
       </header>
     </div>
@@ -171,6 +172,20 @@
           :class="{ 'top-drawer-shell--open': liveBottomDrawerOpen }"
           data-testid="bottom-drawer"
         >
+        <button
+          type="button"
+          class="top-drawer-fab top-drawer-fab--stage"
+          :class="{ 'top-drawer-fab--active': liveBottomDrawerOpen }"
+          :aria-expanded="liveBottomDrawerOpen ? 'true' : 'false'"
+          aria-label="Toggle bottom drawer"
+          title="Toggle bottom drawer"
+          data-testid="bottom-drawer-toggle"
+          @click="toggleLiveBottomDrawer()"
+        >
+          <span class="top-drawer-fab__icon-wrap" aria-hidden="true">
+            <UiIcon class="top-drawer-fab__icon" name="panel-bottom" />
+          </span>
+        </button>
         <div class="live-top-drawer__tabs">
           <button
             type="button"
@@ -907,6 +922,8 @@ export default {
       libraryFullscreen: false,
       libraryWorkspaceOpen: false,
       libraryWorkspacePane: 'browser',
+      liveBottomDrawerOpen: false,
+      liveBottomDrawerTab: 'MODULATION', // MODULATION | CROSSFADER | SYSTEM
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
       seedFixedBackup: DEFORUM_DEFAULT_SETTINGS.seed >= 0
         ? DEFORUM_DEFAULT_SETTINGS.seed
@@ -2473,7 +2490,7 @@ export default {
     engineCurrentCfgScale() {
       const fallback = Number(this.forge.options && this.forge.options.cfg_scale)
         || Number((this.liveVibe.find((param) => param.key === 'cfgscale') || {}).val)
-        || 7;
+        || 1;
       return this.readFirstNumericValue(
         (this.deforumSettings && (this.deforumSettings.cfg_scale_schedule || this.deforumSettings.distilled_cfg_scale_schedule)) || '',
         fallback
@@ -3513,6 +3530,25 @@ export default {
     const next = this.sanitizeSessionName(`session_${stamp}`);
     this.selectSession(next);
   },
+  resetUiLayoutDefaults() {
+    this.paramPanelOpen = false;
+    this.deforumPanelOpen = false;
+    this.liveDrawerOpen = true;
+    this.rightPanelOpen = true;
+    this.sidePanelDock = 'auto';
+    this.videoStageSize = 'full';
+    this.liveAnimationBoxOpen = false;
+    this.enginePanelDetailsOpen = false;
+    this.enginePanelDetailsTab = 'ENGINE';
+    this.liveEngineDrawerOpen = false;
+    this.layersSidebarOpen = false;
+    this.libraryFullscreen = false;
+    this.libraryWorkspaceOpen = false;
+    this.libraryWorkspacePane = 'browser';
+    this.generateDockExpanded = false;
+    this.motionSequencerSideOpen = false;
+    this.saveSessionState();
+  },
   purgeSession(name) {
     try {
       if (typeof window === 'undefined' || !window.localStorage) return;
@@ -4242,6 +4278,17 @@ export default {
   },
  layersSidebarToggle() {
    this.layersSidebarOpen = !this.layersSidebarOpen;
+   this.saveSessionState();
+ },
+ setLiveBottomDrawerTab(tab) {
+   const allowed = ['MODULATION', 'CROSSFADER', 'SYSTEM'];
+   const next = allowed.includes(tab) ? tab : 'MODULATION';
+   this.liveBottomDrawerTab = next;
+   this.liveBottomDrawerOpen = true;
+   this.saveSessionState();
+ },
+ toggleLiveBottomDrawer() {
+   this.liveBottomDrawerOpen = !this.liveBottomDrawerOpen;
    this.saveSessionState();
  },
  toggleRightPanel() {
@@ -11581,6 +11628,10 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
      }
      if (typeof s.liveEngineDrawerOpen === 'boolean') this.liveEngineDrawerOpen = s.liveEngineDrawerOpen;
     if (typeof s.layersSidebarOpen === 'boolean') this.layersSidebarOpen = s.layersSidebarOpen;
+    if (typeof s.liveBottomDrawerOpen === 'boolean') this.liveBottomDrawerOpen = s.liveBottomDrawerOpen;
+    if (typeof s.liveBottomDrawerTab === 'string' && (s.liveBottomDrawerTab === 'MODULATION' || s.liveBottomDrawerTab === 'CROSSFADER' || s.liveBottomDrawerTab === 'SYSTEM')) {
+      this.liveBottomDrawerTab = s.liveBottomDrawerTab;
+    }
     if (s.currentSubTab && s.currentSubTab.LIVE) {
       this.currentSubTab.LIVE = this.normalizeLiveSubTab(s.currentSubTab.LIVE);
     }
@@ -11770,6 +11821,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       sidePanelDock: this.sidePanelDock,
       liveEngineDrawerOpen: this.liveEngineDrawerOpen,
       layersSidebarOpen: this.layersSidebarOpen,
+      liveBottomDrawerOpen: this.liveBottomDrawerOpen,
+      liveBottomDrawerTab: this.liveBottomDrawerTab,
       currentSubTab: { ...this.currentSubTab },
       liveSources: this.liveSources,
       liveSourcePanel: this.liveSourcePanel,

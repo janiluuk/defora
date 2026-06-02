@@ -4,17 +4,17 @@
  */
 
 export const DEFORUM_DEFAULT_SETTINGS = {
-  W: 768,
-  H: 432,
+  W: 512,
+  H: 512,
   show_info_on_ui: false,
   tiling: false,
   restore_faces: false,
   seed_resize_from_w: 0,
   seed_resize_from_h: 0,
-  seed: 1693,
+  seed: -1,
   sampler: 'Euler',
   scheduler: 'sgm_uniform',
-  steps: 2,
+  steps: 4,
   batch_name: 'floral_neu',
   seed_behavior: 'random',
   seed_iter_N: 1,
@@ -43,7 +43,7 @@ export const DEFORUM_DEFAULT_SETTINGS = {
   cfg_scale_schedule: '0:(1)',
   distilled_cfg_scale_schedule: '0: (1)',
   enable_steps_scheduling: false,
-  steps_schedule: '0: (2)',
+  steps_schedule: '0: (4)',
   prompts: {
     '0':
       '<lora:floralv2:1.2>silhouette black big wild flowers and wild plants and berries, red background, many different flowers, layered silhouettes, folk art style floral graphics, flat folk art style illustration, layered composition, detailed composition, natural colors, medium high contrast',
