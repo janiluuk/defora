@@ -110,6 +110,17 @@ describe("web server frames API", () => {
     expect(res.body.error).to.be.a("string");
   });
 
+  it("POST /api/wan/merge-settings returns Wan Video deforum payload", async () => {
+    const res = await request
+      .post("/api/wan/merge-settings")
+      .send({ maxFrames: 96, fps: 12, prompt: "ocean", wanEngine: { wan_speed_preset: "Turbo" } });
+    expect(res.status).to.equal(200);
+    expect(res.body.settings.animation_mode).to.equal("Wan Video");
+    expect(res.body.settings.max_frames).to.equal(96);
+    expect(res.body.settings.fps).to.equal(12);
+    expect(String(res.body.settings.animation_prompts || "")).to.include("ocean");
+  });
+
   it("sequencer API lists, saves, loads timelines", async () => {
     let res = await request.get("/api/sequencer");
     expect(res.status).to.equal(200);

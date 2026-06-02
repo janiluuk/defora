@@ -169,6 +169,15 @@ export function verifyDeforumSettings(settings, opts = {}) {
     if (!String(settings.animation_prompts || settings.prompts?.['0'] || settings.prompts?.[0] || '').trim()) {
       pushIssue(warnings, 'animation_prompts', 'Wan Video needs at least one prompt', 'Set prompts in the Prompts tab or animation_prompts schedule');
     }
+    if (settings.use_init && !String(settings.init_image || '').trim()) {
+      pushIssue(errors, 'init_image', 'Wan I2V init is enabled but no init image is set', 'Upload an image under WAN → Image init (I2V)');
+    }
+    if (settings.use_init) {
+      const strength = Number(settings.strength);
+      if (!Number.isFinite(strength) || strength < 0.05) {
+        pushIssue(warnings, 'strength', 'Wan init strength is very low', 'Try 0.5–0.95 for strong I2V conditioning on the first frame');
+      }
+    }
   } else if (mode === '2D') {
     if (scheduleHasNonZero(settings.translation_z)) {
       pushIssue(warnings, 'translation_z', '3D zoom schedule is non-zero while mode is 2D', 'Ignored in 2D — use zoom / angle instead');

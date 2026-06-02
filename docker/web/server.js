@@ -2785,6 +2785,204 @@ async function start(opts = {}) {
     }
   });
 
+  /** Merge Wan engine UI state into Deforum settings (no Forge). Used by E2E and tooling. */
+  app.post("/api/wan/merge-settings", async (req, res) => {
+    const body = req.body || {};
+    try {
+      const { mergeWanEngineIntoDeforumSettings, normalizeWanEngine } = await import(
+        "./src/shared/wan-engine-config.mjs"
+      );
+      const maxFrames = Math.max(1, Math.min(99999, parseInt(body.maxFrames, 10) || 96));
+      const fps = Math.max(1, Math.min(60, parseInt(body.fps, 10) || 12));
+      const wanEngine = normalizeWanEngine(body.wanEngine && typeof body.wanEngine === "object" ? body.wanEngine : {});
+      const positive = String(body.prompt || "cinematic ocean waves at dusk").trim();
+      let baseSettings = {};
+      if (fs.existsSync(deforumSettingsFile)) {
+        try { baseSettings = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8")); } catch (_e) { /* ignore */ }
+      }
+      const settings = mergeWanEngineIntoDeforumSettings(
+        { ...baseSettings, max_frames: maxFrames, fps, prompts: { 0: positive } },
+        wanEngine,
+        { positivePrompt: positive },
+      );
+      res.json({ settings, wanEngine, maxFrames, fps });
+    } catch (err) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  let wanGenerateBatchId = null;
+  let wanGenerateRunning = false;
+
+  /** Submit a Wan Video batch to Forge (full clip, not single-frame preview). */
+  app.post("/api/wan/generate", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({ ok: false, skipped: true, reason: "ci_offline" });
+    }
+    if (wanGenerateRunning) {
+      return res.json({ ok: true, batchId: wanGenerateBatchId, status: "already_running" });
+    }
+    const body = req.body || {};
+    const maxFrames = Math.max(1, Math.min(480, parseInt(body.maxFrames, 10) || 96));
+    const fps = Math.max(1, Math.min(60, parseInt(body.fps, 10) || 12));
+    const target = previewForgeTarget(req);
+    try {
+      const { mergeWanEngineIntoDeforumSettings, normalizeWanEngine } = await import(
+        "./src/shared/wan-engine-config.mjs"
+      );
+      let baseSettings = {};
+      if (fs.existsSync(deforumSettingsFile)) {
+        try { baseSettings = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8")); } catch (_e) { /* ignore */ }
+      }
+      const wanEngine = normalizeWanEngine(
+        body.wanEngine && typeof body.wanEngine === "object" ? body.wanEngine : {},
+      );
+      const positive = String(
+        body.prompt || baseSettings.prompts?.["0"] || baseSettings.animation_prompts_positive || "cinematic scene",
+      ).trim();
+      const settings = mergeWanEngineIntoDeforumSettings(
+        {
+          ...baseSettings,
+          max_frames: maxFrames,
+          fps,
+          skip_video_creation: false,
+          motion_preview_mode: false,
+        },
+        wanEngine,
+        { positivePrompt: positive },
+      );
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available" });
+      }
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 15000);
+      let response;
+      try {
+        response = await fetch(`${target.url}/deforum_api/batches`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ deforum_settings: settings }),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(t);
+      }
+      if (!response.ok) {
+        const text = await response.text();
+        return res.status(502).json({ error: "wan batch submit failed", detail: text.slice(0, 300) });
+      }
+      const data = await response.json();
+      wanGenerateBatchId = data.batch_id || null;
+      wanGenerateRunning = true;
+      if (wanGenerateBatchId) {
+        persistRunJobSnapshot(wanGenerateBatchId, {
+          kind: "wan_generate",
+          maxFrames,
+          fps,
+          settings,
+          node: target.node ? { name: target.node.name, url: target.node.url } : null,
+        });
+      }
+      broadcast({ type: "wan_generate_started", batchId: wanGenerateBatchId, maxFrames, fps });
+      console.log(`[wan] Started ${maxFrames}-frame Wan Video batch at ${fps}fps, batchId=${wanGenerateBatchId}`);
+      res.json({
+        ok: true,
+        batchId: wanGenerateBatchId,
+        maxFrames,
+        fps,
+        animation_mode: settings.animation_mode,
+      });
+      if (wanGenerateBatchId) {
+        (async () => {
+          for (let i = 0; i < 600; i++) {
+            await sleep(2000);
+            try {
+              const pr = await fetch(`${target.url}/deforum_api/batches/${wanGenerateBatchId}`);
+              if (!pr.ok) break;
+              const pd = await pr.json();
+              const st = String(pd.status || pd.state || "").toLowerCase();
+              if (["completed", "failed", "cancelled", "canceled", "done"].includes(st)) {
+                wanGenerateRunning = false;
+                await updateRunManifest(wanGenerateBatchId, {
+                  status: normalizeForgeRunStatus(st),
+                  completed_at: new Date().toISOString(),
+                });
+                broadcast({ type: "wan_generate_done", batchId: wanGenerateBatchId, status: st });
+                console.log(`[wan] Batch ${wanGenerateBatchId} ${st}`);
+                break;
+              }
+            } catch (_e) { break; }
+          }
+          wanGenerateRunning = false;
+        })();
+      }
+    } catch (err) {
+      wanGenerateRunning = false;
+      console.error("[api] wan generate error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
+    }
+  });
+
+  app.get("/api/wan/generate/status", (_req, res) => {
+    res.json({ running: wanGenerateRunning, batchId: wanGenerateBatchId });
+  });
+
+  /** Trigger Wan model download on Forge via a 1-frame Wan Video preview (wan_auto_download). */
+  app.post("/api/wan/download-models", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({ ok: false, skipped: true, reason: "ci_offline" });
+    }
+    const body = req.body || {};
+    const packageId = String(body.packageId || "vace-1.3b").trim();
+    const target = previewForgeTarget(req);
+    try {
+      const {
+        mergeWanEngineIntoDeforumSettings,
+        normalizeWanEngine,
+        wanEngineForDownloadPackage,
+        getWanDownloadPackage,
+      } = await import("./src/shared/wan-engine-config.mjs");
+      const pkg = getWanDownloadPackage(packageId);
+      const wanEngine = normalizeWanEngine(
+        wanEngineForDownloadPackage(packageId, {
+          ...(body.wanEngine && typeof body.wanEngine === "object" ? body.wanEngine : {}),
+        }),
+      );
+      const positive = String(body.prompt || "defora wan model download probe").trim();
+      const settings = mergeWanEngineIntoDeforumSettings(
+        { W: 864, H: 480, prompts: { 0: positive } },
+        wanEngine,
+        { positivePrompt: positive },
+      );
+      const result = await renderDeforumPreview(settings, target);
+      res.json({
+        ok: !!(result && result.ok),
+        packageId: pkg.id,
+        hfRepo: pkg.hfRepo || null,
+        hfCommand: pkg.hfCommand || null,
+        downloadTriggered: true,
+        ...result,
+      });
+    } catch (err) {
+      let pkg = null;
+      try {
+        const { getWanDownloadPackage } = await import("./src/shared/wan-engine-config.mjs");
+        pkg = getWanDownloadPackage(packageId);
+      } catch (_e) { /* ignore */ }
+      res.status(502).json({
+        error: String(err.message || err),
+        detail: err.detail,
+        packageId,
+        manual: true,
+        hfCommand: pkg?.hfCommand || null,
+      });
+    } finally {
+      target.release();
+    }
+  });
+
   /** Render a single Deforum frame via Forge /deforum_api/batches (max_frames=1). */
   app.post("/api/deforum/preview", async (req, res) => {
     const body = req.body || {};

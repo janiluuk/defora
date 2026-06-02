@@ -240,3 +240,28 @@ export async function dismissSessionModalIfOpen(page) {
     await modal.waitFor({ state: 'hidden', timeout: 10000 });
   }
 }
+
+/** LIVE → WAN Video layer → engine drawer with Wan plugin panel. */
+export async function openWanEnginePanel(page) {
+  await clickTab(page, 'LIVE');
+  await ensureRightPanelOpen(page);
+  const engineToggle = page.locator('[data-testid="engine-drawer-toggle"]').first();
+  if ((await engineToggle.count()) > 0) {
+    const engineOpen = await engineToggle.getAttribute('aria-expanded');
+    if (engineOpen !== 'true') await engineToggle.click();
+  }
+  await page.waitForSelector('[data-testid="animation-engine-panel"]', { timeout: 20000 });
+  const wanRow = page.locator('[data-testid="animation-engine-wan"]').first();
+  if ((await wanRow.count()) === 0) {
+    throw new Error('WAN Video row not found in animation engine panel');
+  }
+  await wanRow.click();
+  const wanControls = page.locator('[data-testid="animation-engine-controls-wan"]').first();
+  if ((await wanControls.count()) > 0) {
+    const isOpen = await wanControls.evaluate((el) => el.open);
+    if (!isOpen) {
+      await wanControls.locator('summary.animation-engine-layer-row__controls-summary').click();
+    }
+  }
+  await page.locator('[data-testid="wan-plugin-panel"]').waitFor({ state: 'visible', timeout: 20000 });
+}
