@@ -96,7 +96,7 @@ try {
   const runRow = await waitForPastRunRow(page, runId);
 
   await runRow.click();
-  const details = page.locator('[data-testid="runs-detail-card"]');
+  const details = page.locator('[data-testid="runs-detail-card"]').first();
   await details.waitFor({ state: "visible", timeout: 10000 });
 
   const text = (await details.innerText()).replace(/\s+/g, " ").trim();

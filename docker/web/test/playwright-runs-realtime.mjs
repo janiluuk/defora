@@ -47,10 +47,10 @@ try {
 
   await openRunsMonitor(page);
 
-  const launchBtn = page.locator('[data-testid="runs-launch-test"]');
+  const launchBtn = page.locator('[data-testid="runs-launch-test"]').first();
   await launchBtn.waitFor({ state: "visible", timeout: 10000 });
 
-  const log = page.locator('[data-testid="runs-job-log"]');
+  const log = page.locator('[data-testid="runs-job-log"]').first();
   await launchBtn.click();
 
   await page.waitForFunction(
@@ -76,7 +76,7 @@ try {
 
   const logText = (await log.textContent()) || "";
 
-  await page.locator('[data-testid="runs-browser-tab-past"]').click();
+  await page.locator('[data-testid="runs-browser-tab-past"]').first().click();
 
   const row = page
     .locator(".runs-browser__table tbody tr")

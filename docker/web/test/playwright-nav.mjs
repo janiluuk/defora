@@ -121,13 +121,13 @@ export async function openRunsMonitor(page, { tab = 'active' } = {}) {
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 30000 });
   await Promise.resolve();
   if (tab === 'past') {
-    await page.locator('[data-testid="runs-browser-tab-past"]').click();
+    await page.locator('[data-testid="runs-browser-tab-past"]').first().click();
     await page.waitForSelector(
       '.runs-browser__table-wrap:not(.runs-browser__table-wrap--active) .runs-browser__table',
       { timeout: 30000 },
     );
   } else if (tab === 'frames') {
-    await page.locator('[data-testid="runs-browser-tab-frames"]').click();
+    await page.locator('[data-testid="runs-browser-tab-frames"]').first().click();
     await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 30000 });
   } else {
     await page.waitForSelector('[data-testid="runs-active-jobs"]', { timeout: 30000 });
@@ -230,7 +230,7 @@ export async function openLiveFramesPanel(page) {
     await openLiveSystemDrawer(page);
   }
   await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 15000 });
-  await page.locator('[data-testid="runs-browser-tab-frames"]').click();
+  await page.locator('[data-testid="runs-browser-tab-frames"]').first().click();
   await page.waitForSelector('[data-testid="runs-browser-frames"]', { timeout: 15000 });
 }
 
