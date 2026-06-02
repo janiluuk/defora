@@ -194,7 +194,14 @@
               </div>
             </div>
             <div class="engine-model-picker__header-actions">
-              <button type="button" class="framesync-button" :disabled="forge.loading" @click="refreshForgeModels()">Refresh</button>
+              <button type="button" class="framesync-button" :disabled="forge.loading" @click="refreshForgeModels()">
+                <span v-if="forge.loading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                  <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                  <span>Refresh</span>
+                  <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                </span>
+                <template v-else>Refresh</template>
+              </button>
               <button type="button" class="framesync-button" @click="closeEngineModelPicker()">Close</button>
             </div>
           </div>
@@ -341,7 +348,14 @@
           </div>
           <div class="framesync-footer" style="margin-top:12px;">
             <button class="framesync-button" v-for="p in availablePresets" :key="p" :class="{active: currentPreset===p}" @click="loadPreset(p)">{{ p }}</button>
-            <button class="framesync-button" @click="refreshPresets">Refresh</button>
+            <button class="framesync-button" :disabled="presetsLoading" @click="refreshPresets">
+              <span v-if="presetsLoading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Refresh</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <template v-else>Refresh</template>
+            </button>
           </div>
           <div class="framesync-stack" style="margin-top:12px;">
             <div class="framesync-subtitle">New preset name</div>
@@ -355,7 +369,14 @@
 
           <div class="framesync-header" style="margin-top:20px; padding-top:12px; border-top:1px solid var(--border);">
             <div class="framesync-title">Shared <span class="framesync-accent">Presets</span></div>
-            <button class="framesync-button" @click="refreshSharedPresets">Refresh</button>
+            <button class="framesync-button" :disabled="sharedPresetsLoading" @click="refreshSharedPresets">
+              <span v-if="sharedPresetsLoading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Refresh</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <template v-else>Refresh</template>
+            </button>
           </div>
           <div class="framesync-row" style="grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;">
             <div class="framesync-stack">
@@ -394,7 +415,12 @@
               @click="refreshServiceHealth"
               :disabled="serviceHealth.loading"
             >
-              Refresh
+              <span v-if="serviceHealth.loading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Refresh</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <template v-else>Refresh</template>
             </button>
           </div>
 
@@ -472,7 +498,12 @@
           <div class="framesync-header">
             <div class="framesync-title">Stack <span class="framesync-accent">Services</span></div>
             <button class="framesync-button framesync-button--compact" @click="refreshGpuPool(true)" :disabled="infrastructure.loading || gpuPool.loading">
-              Refresh
+              <span v-if="infrastructure.loading || gpuPool.loading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Refresh</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <template v-else>Refresh</template>
             </button>
           </div>
 
@@ -586,7 +617,14 @@
               <div class="gpu-pool-healthy-count">{{ gpuPool.healthyNodes }} / {{ gpuPool.nodes.length }}</div>
             </div>
             <div class="framesync-stack" style="justify-content:flex-end;">
-              <button class="framesync-button" @click="refreshGpuPool(true)" :disabled="gpuPool.loading">Refresh stats</button>
+              <button class="framesync-button" @click="refreshGpuPool(true)" :disabled="gpuPool.loading">
+                <span v-if="gpuPool.loading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                  <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                  <span>Refresh stats</span>
+                  <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+                </span>
+                <template v-else>Refresh stats</template>
+              </button>
             </div>
           </div>
           <div class="framesync-row" style="grid-template-columns: 2fr 1fr; gap:10px; margin-top:10px;">
@@ -744,7 +782,14 @@
           </div>
 
           <div class="framesync-footer" style="margin-top:12px;">
-            <button class="framesync-button" :disabled="gpuPool.forgeModal.loading" @click="refreshGpuForgeModalOptions()">Refresh Forge</button>
+            <button class="framesync-button" :disabled="gpuPool.forgeModal.loading" @click="refreshGpuForgeModalOptions()">
+              <span v-if="gpuPool.forgeModal.loading" class="lazy-loading-indicator lazy-loading-indicator--button">
+                <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+                <span>Refresh Forge</span>
+                <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+              </span>
+              <template v-else>Refresh Forge</template>
+            </button>
             <button class="framesync-button" :disabled="gpuPool.forgeModal.applying || gpuPool.forgeModal.saving" @click="applyGpuForgeModalOptions()">Apply options</button>
             <button class="framesync-button" :disabled="gpuPool.forgeModal.saving || gpuPool.forgeModal.applying" @click="saveGpuForgeModal()">Save instance</button>
           </div>

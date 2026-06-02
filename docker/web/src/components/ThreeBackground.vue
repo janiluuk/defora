@@ -12,6 +12,8 @@ import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js
 import { MarchingCubes } from 'three/addons/objects/MarchingCubes.js'
 import { Water } from 'three/addons/objects/Water.js'
 import { Sky } from 'three/addons/objects/Sky.js'
+import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js'
+import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
 
 function clamp01(value) {
   const n = Number(value)
@@ -30,6 +32,44 @@ function lfoColors() {
 }
 
 const INSTANCING_MAX = 50000
+
+const WEBGL_ANIMATION_MODES = [
+  'instancing',
+  'volume',
+  'orbital',
+  'nebula',
+  'raycast',
+  'marching',
+  'ocean',
+  'interactive_points',
+  'interactive_raycast_points',
+  'lensflares',
+]
+
+const INTERACTIVE_POINTS_VERTEX = `
+attribute float size;
+attribute vec3 customColor;
+varying vec3 vColor;
+void main() {
+  vColor = customColor;
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = size * (300.0 / -mvPosition.z);
+  gl_Position = projectionMatrix * mvPosition;
+}
+`
+
+const INTERACTIVE_POINTS_FRAGMENT = `
+uniform vec3 color;
+uniform sampler2D pointTexture;
+uniform float alphaTest;
+varying vec3 vColor;
+void main() {
+  vec4 outColor = vec4(color * vColor, 1.0);
+  outColor = outColor * texture2D(pointTexture, gl_PointCoord);
+  if (outColor.a < alphaTest) discard;
+  gl_FragColor = outColor;
+}
+`
 
 const INSTANCING_VERTEX = `
 attribute vec3 offset;
@@ -250,6 +290,10 @@ export default {
     if (typeof document !== 'undefined' && this._visibilityHandler) {
       document.removeEventListener('visibilitychange', this._visibilityHandler)
     }
+    const host = this.$refs.host
+    if (host && this._onPointerMove) {
+      host.removeEventListener('pointermove', this._onPointerMove)
+    }
     this.teardownScene()
   },
   methods: {
@@ -385,7 +429,12 @@ export default {
       this.createMarchingField()
       this.createOceanScene()
       this.createInstancingField()
+      this.createInteractivePointsScene()
+      this.createInteractiveRaycastScene()
+      this.createLensflaresScene()
       this.createLfoGroups()
+      this.raycaster = new THREE.Raycaster()
+      this.bindPointerHandlers()
       this.handleResize()
 
       window.addEventListener('resize', this.handleResize)
@@ -1186,6 +1235,23 @@ export default {
         this.camera.position.set(24 + Math.sin(elapsed * 0.08) * 2, 16 + Math.cos(elapsed * 0.06) * 1.5, 38)
         this.camera.lookAt(0, 6, 0)
         return
+      } else if (config.mode === 'interactive_points') {
+        this.camera.position.set(0, 0, 12 + config.orbit * 4)
+        this.camera.lookAt(0, 0, 0)
+        return
+      } else if (config.mode === 'interactive_raycast_points') {
+        if (!this._raycastCameraSeeded) {
+          this.camera.position.set(8, 8, 8)
+          this.camera.lookAt(0, 0, 0)
+          this._raycastCameraSeeded = true
+        }
+        return
+      } else if (config.mode === 'lensflares') {
+        const orbit = elapsed * (0.05 + config.speed * 0.08)
+        const radius = 18 + config.orbit * 4
+        this.camera.position.set(Math.cos(orbit) * radius, 6 + Math.sin(elapsed * 0.12) * 2, Math.sin(orbit) * radius)
+        this.camera.lookAt(0, 0, 0)
+        return
       } else if (config.mode === 'instancing') {
         if (this.camera.fov !== 50) {
           this.camera.fov = 50
@@ -1272,6 +1338,9 @@ export default {
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
           if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
           this.restoreRendererToneMapping()
           if (this.scene) this.scene.environment = null
           this.lfoGroups.forEach((group) => { group.visible = false })
@@ -1280,21 +1349,62 @@ export default {
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.marchingRoot) this.marchingRoot.visible = false
           if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
           this.lfoGroups.forEach((group) => { group.visible = false })
           this.updateOceanScene(elapsed, config, delta)
         } else if (instancingMode) {
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.marchingRoot) this.marchingRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
           this.restoreRendererToneMapping()
           if (this.scene) this.scene.environment = null
           this.lfoGroups.forEach((group) => { group.visible = false })
           this.updateInstancingScene(elapsed, config, audioLevel * tabBoost)
+        } else if (interactivePointsMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateInteractivePoints(elapsed, config, audioLevel * tabBoost)
+        } else if (interactiveRaycastMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateInteractiveRaycastPoints(elapsed, config, delta, audioLevel * tabBoost)
+        } else if (lensflaresMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updateLensflares(elapsed, config)
         } else {
           if (this.instancingRoot) this.instancingRoot.visible = false
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.marchingRoot) this.marchingRoot.visible = false
           if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
+          this.applyLensflareSceneStyle(false)
           this.restoreRendererToneMapping()
           if (this.scene) this.scene.environment = null
           this.updateParticles(elapsed, audioLevel * tabBoost, pulse)

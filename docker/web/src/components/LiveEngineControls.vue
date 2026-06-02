@@ -172,7 +172,7 @@
         <div v-if="!compact" class="slider-row"><span class="framesync-subtitle" style="margin:0;">Cloud density</span><input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudDensity" @input="onDefaultAnimationInput"></div>
         <div v-if="!compact" class="slider-row"><span class="framesync-subtitle" style="margin:0;">Cloud elevation</span><input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudElevation" @input="onDefaultAnimationInput"></div>
       </template>
-      <template v-else-if="!['raycast', 'marching', 'ocean', 'instancing'].includes(defaultAnimation.mode)">
+      <template v-else-if="!['raycast', 'marching', 'ocean', 'instancing', 'interactive_points', 'interactive_raycast_points', 'lensflares'].includes(defaultAnimation.mode)">
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Speed</span><input class="framesync-input" type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Spread</span><input class="framesync-input" type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Glow</span><input class="framesync-input" type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput"></div>

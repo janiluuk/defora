@@ -29,7 +29,14 @@
         >
           Disabled
         </button>
-        <button type="button" class="framesync-button" @click="refreshLoras">Refresh LoRAs</button>
+        <button type="button" class="framesync-button" :disabled="lorasLoading" @click="refreshLoras">
+          <span v-if="lorasLoading" class="lazy-loading-indicator lazy-loading-indicator--button">
+            <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+            <span>Refresh LoRAs</span>
+            <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          </span>
+          <template v-else>Refresh LoRAs</template>
+        </button>
       </div>
     </div>
 
