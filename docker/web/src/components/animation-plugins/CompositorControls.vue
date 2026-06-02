@@ -93,6 +93,36 @@
         </button>
       </article>
 
+      <article class="compositor-card" data-testid="compositor-deforum-backdrop">
+        <div class="compositor-card__row">
+          <div class="compositor-card__copy">
+            <span class="compositor-card__label">Deforum frame in WebGL</span>
+            <span class="compositor-card__hint">Latest generated frame as standby background</span>
+          </div>
+          <label class="compositor-card__toggle">
+            <input
+              type="checkbox"
+              :checked="defaultAnimation.deforumBackdropEnabled !== false"
+              data-testid="deforum-backdrop-enabled"
+              @change="defaultAnimation.deforumBackdropEnabled = $event.target.checked; onDefaultAnimationInput(); syncDeforumBackdropToWebGL()"
+            >
+          </label>
+        </div>
+        <div v-if="defaultAnimation.deforumBackdropEnabled !== false" class="compositor-card__slider-row">
+          <span class="compositor-card__hint">Backdrop mix {{ Math.round((defaultAnimation.deforumBackdropMix || 0) * 100) }}%</span>
+          <input
+            class="framesync-input compositor-card__range"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            v-model.number="defaultAnimation.deforumBackdropMix"
+            data-testid="deforum-backdrop-mix"
+            @input="onDefaultAnimationInput(); syncDeforumBackdropToWebGL()"
+          >
+        </div>
+      </article>
+
       <article class="compositor-card compositor-card--lfo" data-testid="compositor-lfo-links">
         <span class="compositor-card__label">Forge mix LFO</span>
         <p class="compositor-card__hint compositor-card__hint--block">

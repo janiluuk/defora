@@ -124,4 +124,4 @@ cd docker/web && npm run build && node test/take-screenshots.mjs
 | U-27 | Done | Single morph crossfader on LIVE (PROMPTS hint + slot editors only) |
 | U-28 | Done | Generate timeline dock |
 | U-29 | Done | Settings progressive disclosure; SYSTEM → RUNS |
-| U-30 | Open | Token / hex sweep, remaining emoji → UiIcon |
+| U-30 | Done | Token / hex sweep; library + remove controls use UiIcon |

@@ -2,7 +2,7 @@
 
 This document outlines the current status, unfinished features, and planned future development for Defora — an audio-visual instrument for Stable Diffusion.
 
-**Last Updated**: 2026-05-30 | **Version**: 0.6.52 (web package) / roadmap track 0.3.x
+**Last Updated**: 2026-06-02 | **Version**: 0.6.69 (web package) / roadmap track 0.3.x
 
 ---
 
@@ -64,8 +64,9 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 
 ### Recommended order
 
-1. **X2 / X3–X4** — GlassPanel usage and `--live` / `--accent` on remaining surfaces
-2. **Mo4 follow-ups** — Apply `--mono` to generate dock sync readout and morph HUD if desired
+1. **Preview compositor Phase 3** — Done (forge LFO mix, run frame rail, WebGL deforum backdrop)
+2. **Test plan** — GPU E2E (`npm run test:gpu-e2e`) and perf regression (`npm run test:perf-regression`) opt-in
+3. **X2 / X3–X4** — Further GlassPanel / token polish on secondary panels as needed
 
 ---
 
@@ -199,11 +200,11 @@ Cross-checking [README.md](README.md) with this roadmap surfaced the following *
 | **18** | **Runs compare export** | `POST /api/runs/compare`; prompt fields in UI; CSV/JSON download | **Done** (item 12) |
 | **19** | **Forge routes + GPU pool** | sd-models, loras, forge options use pool target | **Done** (item 13) |
 | **20** | **Nightly Docker E2E** | `.github/workflows/nightly-docker-e2e.yml` | **Done** (item 14) |
-| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Partial** |
-| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Partial** |
-| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Partial** |
-| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Partial** |
-| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Open** |
+| **U-21** | **UX: first-class nav tabs** | AUDIO, RUNS, GENERATE in top nav; STREAM → SETTINGS Output | **Done** |
+| **U-22** | **UX: remove Perf drawer** | Delete dead `liveBottomDrawerOpen` paths | **Done** |
+| **U-23** | **UX: LIVE stage HUDs** | Mount morph + modulating-now GlassPanels; filmstrip | **Done** |
+| **U-24** | **UX: modulation cards** | Waveform-first LFO cards, compact meta | **Done** |
+| **U-25** | **UX: audio meter-first** | Band meters + quick presets | **Done** |
 | **U-26** | **UX: motion XY hero** | Promote pad to view hero | **Done** |
 | **U-27** | **UX: prompts crossfader** | One morph source on LIVE | **Done** |
 | **U-28** | **UX: generate dock** | Timeline under preview | **Done** |
@@ -343,7 +344,7 @@ Defora is in **active development** with a strong foundation of core features im
 
 ### 🔴 UX design migration (2026-05-30)
 
-See [UX design migration](#ux-design-migration-2026-05-30-audit). Phases **U-21–U-30** track the mockup-aligned UI pass (nav structure, stage HUDs, modulation/motion polish, token audit). **None complete end-to-end**; U-22 drawer template removal and animation-engine plugin layers are partial wins.
+See [UX design migration](#ux-design-migration-2026-05-30-audit). Phases **U-21–U-30** are **Done**; preview compositor Phase 3 shipped (see `docs/web-preview-compositor-roadmap.md`).
 
 ### 🔴 Audit backlog (2026-05-23)
 
@@ -439,8 +440,8 @@ See [Audit findings](#audit-findings-2026-05-23) for the full A-01–A-32 list. 
 - ✅ Full `docker compose up` E2E — nightly workflow (`nightly-docker-e2e.yml`, `SKIP_DOCKER_E2E=0`); PR CI uses compose config smoke only
 
 **Next Steps**:
-1. Add tests with actual SD-Forge GPU generation (requires GPU)
-2. Implement automated performance regression testing
+1. Run GPU generation E2E: `SKIP_GPU_E2E=0 WEB_BASE_URL=… npm run test:gpu-e2e` (lab Forge required)
+2. Run perf regression: `WEB_TEST_PORT=… npm run test:perf-regression` (see `test/perf-regression.spec.js`)
 3. Add cross-browser testing for Web UI
 
 ---

@@ -3,6 +3,7 @@
     class="morph-crossfader-panel"
     :style="crossfadeWeightStyle"
   >
+    <GlassPanel size="md" class="morph-crossfader-hero-glass">
     <div class="morph-crossfader-hero">
       <div class="framesync-header morph-crossfader-hero__header">
         <div class="framesync-title">Morph <span class="framesync-accent">Crossfader</span></div>
@@ -47,6 +48,7 @@
         <button type="button" class="framesync-button" @click="addCrossfadeSlot">+ Add</button>
       </div>
     </div>
+    </GlassPanel>
 
     <div class="prompt-ab-summary morph-crossfader-deck morph-crossfader-deck--split">
       <div
@@ -67,7 +69,9 @@
             >
               <div class="morph-crossfader__card-head">
                 <div class="prompt-ab-card__name">{{ slotCardTitle(slot, 'A') }}</div>
-                <button type="button" class="framesync-button framesync-button--danger framesync-button--compact morph-crossfader__remove" @click="removeCrossfadeSlot(slot.id)" title="Remove">✕</button>
+                <button type="button" class="framesync-icon-button morph-crossfader__remove" @click="removeCrossfadeSlot(slot.id)" title="Remove" aria-label="Remove slot">
+                  <UiIcon name="close" />
+                </button>
               </div>
               <div class="morph-crossfader__card-body">
                 <template v-if="slot.type === 'prompt'">
@@ -155,11 +159,13 @@
 
 <script>
 import Crossfader from './Crossfader.vue'
+import GlassPanel from './GlassPanel.vue'
+import UiIcon from './UiIcon.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'MorphCrossfaderPanel',
-  components: { Crossfader },
+  components: { Crossfader, GlassPanel, UiIcon },
   props: {
     app: { type: Object, required: true },
   },

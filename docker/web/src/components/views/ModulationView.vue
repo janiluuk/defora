@@ -1,5 +1,6 @@
 <template>
   <div class="rack modulation-view">
+    <GlassPanel size="lg" class="modulation-panel-glass">
     <div class="framesync-panel modulation-panel">
       <div v-if="!isAudioTab" class="framesync-header">
         <div class="framesync-title">
@@ -457,6 +458,7 @@
         </div>
       </template>
     </div>
+    </GlassPanel>
   </div>
 </template>
 
@@ -465,11 +467,12 @@ import Waveform from '../Waveform.vue'
 import TargetCell from '../TargetCell.vue'
 import AudioSpectrumEditor from '../AudioSpectrumEditor.vue'
 import ModulationMappingsPanel from '../ModulationMappingsPanel.vue'
+import GlassPanel from '../GlassPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'ModulationView',
-  components: { Waveform, TargetCell, AudioSpectrumEditor, ModulationMappingsPanel },
+  components: { Waveform, TargetCell, AudioSpectrumEditor, ModulationMappingsPanel, GlassPanel },
   props: {
     app: { type: Object, required: true },
   },
