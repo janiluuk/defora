@@ -1548,6 +1548,92 @@ function visibleWanControlFields(wanEngine) {
     return true;
   });
 }
+// --- inlined from animation-plugins/animatelcm-engine-config.mjs (ESM source; do not edit) ---
+/** AnimateLCM video engine (Forge Deforum animation_mode). */
+
+const ANIMATELCM_ANIMATION_MODE = 'AnimateLCM';
+
+const ANIMATELCM_MOTION_TYPES = [
+  { id: 'static', label: 'Static' },
+  { id: 'pan', label: 'Pan' },
+  { id: 'zoom', label: 'Zoom' },
+  { id: 'orbit', label: 'Orbit' },
+  { id: 'handheld', label: 'Handheld' },
+  { id: 'custom', label: 'Custom' },
+];
+
+const DEFAULT_ANIMATELCM_ENGINE = {
+  motion_type: 'pan',
+  motion_preset: 'Static',
+  alcm_motion_amount: 1.0,
+  alcm_strength: 0.75,
+  alcm_cfg: 7.0,
+  alcm_steps: 4,
+  alcm_noise: 0.05,
+  alcm_contrast: 1.0,
+  alcm_zoom: 1.0,
+  alcm_pan_x: 0,
+  alcm_pan_y: 0,
+  alcm_seed: -1,
+};
+
+const ANIMATELCM_CONTROL_FIELDS = [
+  { key: 'motion_type', label: 'Motion type', type: 'select', options: ANIMATELCM_MOTION_TYPES.map((t) => t.id) },
+  { key: 'motion_preset', label: 'Motion preset', type: 'text' },
+  { key: 'alcm_motion_amount', label: 'Motion amount', type: 'number', min: 0, max: 2, step: 0.05 },
+  { key: 'alcm_strength', label: 'Strength', type: 'number', min: 0, max: 1.5, step: 0.01 },
+  { key: 'alcm_cfg', label: 'CFG', type: 'number', min: 0, max: 30, step: 0.1 },
+  { key: 'alcm_steps', label: 'AnimateLCM steps', type: 'number', min: 1, max: 20, step: 1 },
+  { key: 'alcm_noise', label: 'Noise', type: 'number', min: 0, max: 0.5, step: 0.005 },
+  { key: 'alcm_contrast', label: 'Contrast', type: 'number', min: 0, max: 2, step: 0.01 },
+  { key: 'alcm_zoom', label: 'Zoom', type: 'number', min: 0.5, max: 2, step: 0.01 },
+  { key: 'alcm_pan_x', label: 'Pan X', type: 'number', min: -10, max: 10, step: 0.05 },
+  { key: 'alcm_pan_y', label: 'Pan Y', type: 'number', min: -10, max: 10, step: 0.05 },
+  { key: 'alcm_seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
+];
+
+function normalizeAnimateLcmEngine(raw = {}) {
+  const out = { ...DEFAULT_ANIMATELCM_ENGINE };
+  for (const field of ANIMATELCM_CONTROL_FIELDS) {
+    if (raw[field.key] === undefined) continue;
+    if (field.type === 'number') {
+      const num = Number(raw[field.key]);
+      if (Number.isFinite(num)) out[field.key] = num;
+    } else {
+      out[field.key] = String(raw[field.key]);
+    }
+  }
+  return out;
+}
+
+function mergeAnimateLcmIntoDeforumSettings(settings, animateLcmEngine, { positivePrompt = '' } = {}) {
+  const alcm = { ...DEFAULT_ANIMATELCM_ENGINE, ...(animateLcmEngine || {}) };
+  const promptSchedule =
+    settings?.prompts && typeof settings.prompts === 'object' && !Array.isArray(settings.prompts)
+      ? { ...settings.prompts }
+      : {};
+  const primary = String(positivePrompt || '').trim();
+  if (primary) promptSchedule['0'] = primary;
+  const merged = {
+    ...settings,
+    animation_mode: ANIMATELCM_ANIMATION_MODE,
+    skip_video_creation: false,
+  };
+  if (Object.keys(promptSchedule).length) {
+    merged.prompts = promptSchedule;
+  }
+  for (const key of Object.keys(DEFAULT_ANIMATELCM_ENGINE)) {
+    if (alcm[key] !== undefined) merged[key] = alcm[key];
+  }
+  if (alcm.alcm_seed != null && Number.isFinite(Number(alcm.alcm_seed))) {
+    merged.seed = Number(alcm.alcm_seed);
+  }
+  if (Number.isFinite(Number(alcm.alcm_steps))) {
+    merged.steps = Math.max(1, Math.round(Number(alcm.alcm_steps)));
+    merged.steps_schedule = `0: (${merged.steps})`;
+  }
+  return merged;
+}
 // --- inlined from animation-plugins/common-visual.mjs (ESM source; do not edit) ---
 /**
  * Shared 8-macro visual strip — per-plugin field mapping.
@@ -2036,9 +2122,11 @@ module.exports = {
         { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
+        { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
+      animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
@@ -3068,6 +3156,15 @@ module.exports = {
     },
     isWanLayerActive() {
       return this.activeVideoLayer?.kind === 'wan';
+    },
+    isAnimateLcmLayerActive() {
+      return this.activeVideoLayer?.kind === 'animatelcm';
+    },
+    animateLcmMotionTypes() {
+      return ANIMATELCM_MOTION_TYPES;
+    },
+    animateLcmControlFields() {
+      return ANIMATELCM_CONTROL_FIELDS;
     },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
@@ -12609,6 +12706,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.wanEngine && typeof s.wanEngine === 'object') {
       this.wanEngine = normalizeWanEngine(s.wanEngine);
     }
+    if (s.animateLcmEngine && typeof s.animateLcmEngine === 'object') {
+      this.animateLcmEngine = normalizeAnimateLcmEngine(s.animateLcmEngine);
+    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
@@ -12701,6 +12801,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
+      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -12792,6 +12893,7 @@ getCurrentSessionSnapshotRaw() {
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
+      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -13759,7 +13861,7 @@ effectiveNegativePrompt(base) {
 },
 effectiveDeforumSettingsForRender() {
   const settings = JSON.parse(JSON.stringify(this.activeDeforumSettings()));
-  const basePositive = this.isWanLayerActive
+  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive)
     ? (this.buildMorphedPrompt() || String(this.prompts.pos || "").trim())
     : (
       getNestedValue(settings, "prompts.0")
@@ -13770,7 +13872,7 @@ effectiveDeforumSettingsForRender() {
   const positive = this.effectivePositivePrompt(basePositive);
   setNestedValue(settings, "prompts.0", positive);
   settings.negative_prompts = this.effectiveNegativePrompt(baseNegative);
-  if (this.lcmEngineEnabled && !this.isWanLayerActive) {
+  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive) {
     const steps = Math.max(1, Math.round(Number(this.lcmEngine.steps) || 1));
     settings.steps = steps;
     settings.steps_schedule = `0: (${steps})`;
@@ -13778,10 +13880,54 @@ effectiveDeforumSettingsForRender() {
   if (this.isWanLayerActive) {
     return mergeWanEngineIntoDeforumSettings(settings, this.wanEngine, { positivePrompt: positive });
   }
+  if (this.isAnimateLcmLayerActive) {
+    return mergeAnimateLcmIntoDeforumSettings(settings, this.animateLcmEngine, { positivePrompt: positive });
+  }
   if (settings.animation_mode === WAN_ANIMATION_MODE) {
     settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
   }
+  if (settings.animation_mode === ANIMATELCM_ANIMATION_MODE) {
+    settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
+  }
   return settings;
+},
+onAnimateLcmFieldChange(key, rawValue, type = 'text') {
+  if (!key) return;
+  let next;
+  if (type === 'number') {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) return;
+    next = num;
+  } else {
+    next = String(rawValue ?? '');
+  }
+  this.animateLcmEngine = { ...this.animateLcmEngine, [key]: next };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+setAnimateLcmMotionType(type) {
+  this.animateLcmEngine = { ...this.animateLcmEngine, motion_type: type };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+},
+applyAnimateLcmMotionPreset(name) {
+  const PRESETS = {
+    Static:   { motion_type: 'static',   alcm_motion_amount: 0.5,  alcm_zoom: 1.0,  alcm_pan_x: 0,   alcm_pan_y: 0,   alcm_noise: 0.03 },
+    Orbit:    { motion_type: 'orbit',    alcm_motion_amount: 1.2,  alcm_zoom: 1.01, alcm_pan_x: 0.3, alcm_pan_y: 0,   alcm_noise: 0.05 },
+    Tunnel:   { motion_type: 'zoom',     alcm_motion_amount: 1.0,  alcm_zoom: 1.04, alcm_pan_x: 0,   alcm_pan_y: 0,   alcm_noise: 0.04 },
+    Handheld: { motion_type: 'handheld', alcm_motion_amount: 0.8,  alcm_zoom: 1.0,  alcm_pan_x: 0.1, alcm_pan_y: 0.1, alcm_noise: 0.08 },
+    Chaos:    { motion_type: 'custom',   alcm_motion_amount: 1.5,  alcm_zoom: 1.02, alcm_pan_x: 0.5, alcm_pan_y: 0.3, alcm_noise: 0.12 },
+  };
+  const preset = PRESETS[name];
+  if (!preset) return;
+  this.animateLcmEngine = { ...this.animateLcmEngine, ...preset, motion_preset: name };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
 onWanEngineFieldChange(key, rawValue, type = 'text') {
   if (!key || !this.wanEngine) return;
