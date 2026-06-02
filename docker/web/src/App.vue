@@ -607,6 +607,14 @@ import {
   WAN_ANIMATION_MODE,
 } from './shared/wan-engine-config.mjs'
 import {
+  DEFAULT_ANIMATELCM_ENGINE,
+  ANIMATELCM_CONTROL_FIELDS,
+  ANIMATELCM_MOTION_TYPES,
+  ANIMATELCM_ANIMATION_MODE,
+  normalizeAnimateLcmEngine,
+  mergeAnimateLcmIntoDeforumSettings,
+} from './animation-plugins/animatelcm-engine-config.mjs'
+import {
   COMMON_VISUAL_PARAMS,
   bindingFor,
   isCommonVisualEnabled,
@@ -866,9 +874,11 @@ export default {
         { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true },
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
+        { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
+      animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
@@ -1898,6 +1908,15 @@ export default {
     },
     isWanLayerActive() {
       return this.activeVideoLayer?.kind === 'wan';
+    },
+    isAnimateLcmLayerActive() {
+      return this.activeVideoLayer?.kind === 'animatelcm';
+    },
+    animateLcmMotionTypes() {
+      return ANIMATELCM_MOTION_TYPES;
+    },
+    animateLcmControlFields() {
+      return ANIMATELCM_CONTROL_FIELDS;
     },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
@@ -11439,6 +11458,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     if (s.wanEngine && typeof s.wanEngine === 'object') {
       this.wanEngine = normalizeWanEngine(s.wanEngine);
     }
+    if (s.animateLcmEngine && typeof s.animateLcmEngine === 'object') {
+      this.animateLcmEngine = normalizeAnimateLcmEngine(s.animateLcmEngine);
+    }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
       const frames = Math.round(Number(s.motionSmoothness.frames));
@@ -11531,6 +11553,7 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
+      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -11622,6 +11645,7 @@ getCurrentSessionSnapshotRaw() {
         loraTag: String((this.lcmEngine && this.lcmEngine.loraTag) || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
+      animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -12589,7 +12613,7 @@ effectiveNegativePrompt(base) {
 },
 effectiveDeforumSettingsForRender() {
   const settings = JSON.parse(JSON.stringify(this.activeDeforumSettings()));
-  const basePositive = this.isWanLayerActive
+  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive)
     ? (this.buildMorphedPrompt() || String(this.prompts.pos || "").trim())
     : (
       getNestedValue(settings, "prompts.0")
@@ -12600,7 +12624,7 @@ effectiveDeforumSettingsForRender() {
   const positive = this.effectivePositivePrompt(basePositive);
   setNestedValue(settings, "prompts.0", positive);
   settings.negative_prompts = this.effectiveNegativePrompt(baseNegative);
-  if (this.lcmEngineEnabled && !this.isWanLayerActive) {
+  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive) {
     const steps = Math.max(1, Math.round(Number(this.lcmEngine.steps) || 1));
     settings.steps = steps;
     settings.steps_schedule = `0: (${steps})`;
@@ -12608,10 +12632,54 @@ effectiveDeforumSettingsForRender() {
   if (this.isWanLayerActive) {
     return mergeWanEngineIntoDeforumSettings(settings, this.wanEngine, { positivePrompt: positive });
   }
+  if (this.isAnimateLcmLayerActive) {
+    return mergeAnimateLcmIntoDeforumSettings(settings, this.animateLcmEngine, { positivePrompt: positive });
+  }
   if (settings.animation_mode === WAN_ANIMATION_MODE) {
     settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
   }
+  if (settings.animation_mode === ANIMATELCM_ANIMATION_MODE) {
+    settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
+  }
   return settings;
+},
+onAnimateLcmFieldChange(key, rawValue, type = 'text') {
+  if (!key) return;
+  let next;
+  if (type === 'number') {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) return;
+    next = num;
+  } else {
+    next = String(rawValue ?? '');
+  }
+  this.animateLcmEngine = { ...this.animateLcmEngine, [key]: next };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+setAnimateLcmMotionType(type) {
+  this.animateLcmEngine = { ...this.animateLcmEngine, motion_type: type };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+},
+applyAnimateLcmMotionPreset(name) {
+  const PRESETS = {
+    Static:   { motion_type: 'static',   alcm_motion_amount: 0.5,  alcm_zoom: 1.0,  alcm_pan_x: 0,   alcm_pan_y: 0,   alcm_noise: 0.03 },
+    Orbit:    { motion_type: 'orbit',    alcm_motion_amount: 1.2,  alcm_zoom: 1.01, alcm_pan_x: 0.3, alcm_pan_y: 0,   alcm_noise: 0.05 },
+    Tunnel:   { motion_type: 'zoom',     alcm_motion_amount: 1.0,  alcm_zoom: 1.04, alcm_pan_x: 0,   alcm_pan_y: 0,   alcm_noise: 0.04 },
+    Handheld: { motion_type: 'handheld', alcm_motion_amount: 0.8,  alcm_zoom: 1.0,  alcm_pan_x: 0.1, alcm_pan_y: 0.1, alcm_noise: 0.08 },
+    Chaos:    { motion_type: 'custom',   alcm_motion_amount: 1.5,  alcm_zoom: 1.02, alcm_pan_x: 0.5, alcm_pan_y: 0.3, alcm_noise: 0.12 },
+  };
+  const preset = PRESETS[name];
+  if (!preset) return;
+  this.animateLcmEngine = { ...this.animateLcmEngine, ...preset, motion_preset: name };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
 onWanEngineFieldChange(key, rawValue, type = 'text') {
   if (!key || !this.wanEngine) return;
