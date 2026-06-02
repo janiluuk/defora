@@ -35,9 +35,40 @@
       </button>
     </div>
 
+    <div class="animatelcm-plugin-panel__motion-loras">
+      <div class="framesync-subtitle">Motion LoRA</div>
+      <div class="chips">
+        <button
+          v-for="lora in animateLcmMotionLoras"
+          :key="'alcm-lora-' + lora.id"
+          type="button"
+          class="chip"
+          :class="{ active: activeMotionLoras.includes(lora.id) }"
+          :data-testid="'animatelcm-motion-lora-' + lora.id"
+          :title="lora.id"
+          @click="toggleAnimateLcmMotionLora(lora.id)"
+        >
+          {{ lora.label }}
+        </button>
+      </div>
+      <div v-if="activeMotionLoras.length > 0" class="animatelcm-plugin-panel__lora-weight">
+        <div class="framesync-subtitle">LoRA weight</div>
+        <input
+          type="number"
+          class="framesync-input"
+          data-testid="animatelcm-motion-lora-weight"
+          min="0"
+          max="1.5"
+          step="0.05"
+          :value="animateLcmEngine.motion_lora_weight"
+          @input="onAnimateLcmFieldChange('motion_lora_weight', $event.target.value, 'number')"
+        >
+      </div>
+    </div>
+
     <div class="wan-engine-controls__grid">
       <template v-for="field in animateLcmControlFields" :key="'alcm-field-' + field.key">
-        <div v-if="field.key === 'motion_type' || field.key === 'motion_preset'" />
+        <div v-if="field.key === 'motion_type' || field.key === 'motion_preset' || field.key === 'motion_lora_weight'" />
         <div v-else class="framesync-stack wan-engine-controls__field">
           <div class="framesync-subtitle">{{ field.label }}</div>
           <input
@@ -66,6 +97,11 @@ export default {
   computed: {
     motionQuickPresets() {
       return ['Static', 'Orbit', 'Tunnel', 'Handheld', 'Chaos'];
+    },
+    activeMotionLoras() {
+      return Array.isArray(this.animateLcmEngine?.motion_loras)
+        ? this.animateLcmEngine.motion_loras
+        : [];
     },
   },
 }
