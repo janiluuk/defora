@@ -1304,6 +1304,8 @@ export default {
         previewCompositorCrossfadeMs: 800,
         forgeLayerOpacityLfoLink: null,
         forgeLayerOpacityLfoBase: 0,
+        deforumBackdropEnabled: true,
+        deforumBackdropMix: 0.35,
       },
       frameRailRunId: null,
       thumbs: [],
@@ -3657,13 +3659,16 @@ export default {
     this.runsDetailJsonShowDiffOnly = false;
     if (run._isBatch) {
       this.runsDetailView = { ...run };
+      this.frameRailRunId = null;
       return;
     }
+    this.frameRailRunId = run.run_id || null;
     if (typeof fetch !== "function") return;
     try {
       const res = await fetch(`/api/runs/${run.run_id}`);
       if (!res.ok) return;
       this.runsDetailView = await res.json();
+      this.frameRailRunId = this.runsDetailView?.run_id || this.frameRailRunId;
     } catch (_e) {
       this.runsStatus = "Failed to load run details";
     }
@@ -4169,6 +4174,10 @@ export default {
   this.runsBrowserTab = tab;
   if (tab === 'frames') {
     this.showFrames = true;
+    const detail = this.runsDetailView;
+    if (detail?.run_id && Array.isArray(detail.frames) && detail.frames.length) {
+      this.frameRailRunId = detail.run_id;
+    }
     void this.refreshFrames();
   } else if (tab === 'active' || tab === 'past') {
     void this.refreshRuns();
@@ -4514,6 +4523,8 @@ normalizeDefaultAnimationSettings(input = {}) {
       return id >= 1 && id <= 6 ? id : null;
     })(),
     forgeLayerOpacityLfoBase: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacityLfoBase)) ? Number(next.forgeLayerOpacityLfoBase) : (Number(next.forgeLayerOpacity) || 0))),
+    deforumBackdropEnabled: next.deforumBackdropEnabled !== false,
+    deforumBackdropMix: Math.max(0, Math.min(1, Number.isFinite(Number(next.deforumBackdropMix)) ? Number(next.deforumBackdropMix) : 0.35)),
   };
 },
 onDefaultAnimationInput() {
@@ -5118,6 +5129,30 @@ applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {
     }
   });
   if (!fromModulation) this.onDefaultAnimationInput();
+  this.syncDeforumBackdropToWebGL();
+},
+syncDeforumBackdropToWebGL() {
+  const bg = this.$refs.threeBackgroundRef;
+  if (!bg || typeof bg.setDeforumBackdropFromUrl !== 'function') return;
+  if (this.defaultAnimation?.deforumBackdropEnabled === false) {
+    if (typeof bg.clearDeforumBackdrop === 'function') bg.clearDeforumBackdrop();
+    return;
+  }
+  const showOnWebgl = this.isWebglLayerActive || this.isBlendLayerActive;
+  if (!showOnWebgl) {
+    if (typeof bg.clearDeforumBackdrop === 'function') bg.clearDeforumBackdrop();
+    return;
+  }
+  const thumb = (this.thumbs || []).slice(-1)[0];
+  const src = thumb && (thumb.src || thumb.url || thumb.path);
+  if (!src) {
+    if (typeof bg.clearDeforumBackdrop === 'function') bg.clearDeforumBackdrop();
+    return;
+  }
+  const baseMix = this.clampVal(Number(this.defaultAnimation?.deforumBackdropMix ?? 0.35), 0, 1);
+  const forgeOp = this.effectiveForgeLayerOpacity;
+  const opacity = this.isBlendLayerActive ? baseMix * (1 - forgeOp) : baseMix;
+  bg.setDeforumBackdropFromUrl(src, { opacity });
 },
 setForgeLayerOpacityLfoLink(lfoId) {
   const nextId = Number(lfoId || 0);
@@ -6256,7 +6291,10 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         && Number(this.prompts.loraCrossfaderLfoLink || 0) === lfo.id
         && lfo.id >= 1
         && lfo.id <= 6;
-      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader)) return;
+      const drivesForgeOpacity = Number(this.defaultAnimation?.forgeLayerOpacityLfoLink || 0) === lfo.id
+        && lfo.id >= 1
+        && lfo.id <= 6;
+      if (!lfo.on || (!lfo.targets.length && !drivesMorphBlend && !drivesLoraCrossfader && !drivesForgeOpacity)) return;
       const depth = this.clampVal(lfo.depth ?? 0, 0, 1);
       const inc = dtSec * this.lfoRateRadPerSec(lfo);
       const phase = (lfo.phase || 0) + inc;
@@ -6284,6 +6322,17 @@ interpolatedLfoPhase(lfo, now = this.getNow()) {
         const amp = depth * 0.5;
         const value = this.clampVal(base + wave * amp, 0, 1);
         this.applyLoraCrossfader(value, { fromModulation: true });
+      }
+
+      if (drivesForgeOpacity) {
+        const base = this.clampVal(
+          Number(this.defaultAnimation.forgeLayerOpacityLfoBase ?? this.defaultAnimation.forgeLayerOpacity ?? 0) || 0,
+          0,
+          1,
+        );
+        const amp = depth * 0.5;
+        const value = this.clampVal(base + wave * amp, 0, 1);
+        this.applyForgeLayerOpacity(value, { fromModulation: true });
       }
 
       lfo.targets.forEach((targetKey) => {
@@ -8750,6 +8799,7 @@ toggleLfoTarget(lfo, targetKey) {
       }
      }
     this.framesRefreshBackoffMs = this.nextFramesPollDelay();
+    this.syncDeforumBackdropToWebGL();
    } catch (e) {
      console.warn("frames fetch failed", e);
     this.framesRefreshBackoffMs = this.nextFramesPollDelay({ failed: true });

@@ -20,4 +20,20 @@ describe('animatelcm-engine-config', () => {
     assert.equal(merged.motion_type, 'orbit');
     assert.equal(merged.prompts['0'], 'a fox');
   });
+
+  it('injects motion LoRA tags into prompt frames', async () => {
+    const { mergeAnimateLcmIntoDeforumSettings } = await loadEsm(
+      '..',
+      'src',
+      'animation-plugins',
+      'animatelcm-engine-config.mjs',
+    );
+    const merged = mergeAnimateLcmIntoDeforumSettings(
+      { prompts: { 0: 'fox', 30: 'wolf' } },
+      { motion_loras: ['v2_lora_ZoomIn'], motion_lora_weight: 0.65 },
+      { positivePrompt: 'fox' },
+    );
+    assert.match(merged.prompts['0'], /<lora:v2_lora_ZoomIn:0\.65>/);
+    assert.match(merged.prompts['30'], /<lora:v2_lora_ZoomIn:0\.65>/);
+  });
 });

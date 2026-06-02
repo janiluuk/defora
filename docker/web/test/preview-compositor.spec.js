@@ -77,6 +77,48 @@ describe("preview compositor", () => {
     expect(appVm.defaultAnimation.forgeLayerOpacityLfoLink).to.equal(null);
   });
 
+  it("normalizeDefaultAnimationSettings clamps deforum backdrop mix", () => {
+    appVm.defaultAnimation.deforumBackdropMix = 4;
+    appVm.defaultAnimation = appVm.normalizeDefaultAnimationSettings(appVm.defaultAnimation);
+    expect(appVm.defaultAnimation.deforumBackdropMix).to.equal(1);
+    expect(appVm.defaultAnimation.deforumBackdropEnabled).to.equal(true);
+  });
+
+  it("syncDeforumBackdropToWebGL forwards latest thumb to ThreeBackground", () => {
+    const calls = [];
+    const mockBg = {
+      setDeforumBackdropFromUrl(url, opts) {
+        calls.push({ url, opts });
+      },
+      clearDeforumBackdrop() {},
+    };
+    Object.defineProperty(appVm.$refs, "threeBackgroundRef", {
+      value: mockBg,
+      configurable: true,
+    });
+    appVm.thumbs = [{ src: "/api/frames/frame_00001.png", name: "frame_00001.png" }];
+    appVm.activeVideoLayerId = "webgl";
+    appVm.defaultAnimation.deforumBackdropEnabled = true;
+    appVm.defaultAnimation.deforumBackdropMix = 0.4;
+    appVm.syncDeforumBackdropToWebGL();
+    expect(calls).to.have.length(1);
+    expect(calls[0].url).to.include("frame_00001.png");
+    expect(calls[0].opts.opacity).to.equal(0.4);
+  });
+
+  it("runLfos modulates forge layer opacity when LFO linked", () => {
+    appVm.defaultAnimation.forgeLayerOpacity = 0.2;
+    appVm.defaultAnimation.forgeLayerOpacityLfoBase = 0.2;
+    appVm.defaultAnimation.forgeLayerOpacityLfoLink = 2;
+    appVm.lfos[1].on = true;
+    appVm.lfos[1].depth = 1;
+    appVm.lfos[1].phase = 0;
+    appVm.lfos[1].shape = "Sine";
+    appVm.lastLfoTick = appVm.getNow() - 50;
+    appVm.runLfos();
+    expect(appVm.defaultAnimation.forgeLayerOpacity).to.be.within(0, 1);
+  });
+
   it("frameStripThumbs uses run detail frames when frame rail is linked", () => {
     appVm.thumbs = [{ src: "/frames/live.png", name: "live.png" }];
     appVm.runsDetailView = {

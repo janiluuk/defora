@@ -312,14 +312,14 @@
                       <td style="padding:4px 8px;">
                         <span v-if="getKeyBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
                           <kbd style="background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-family:monospace; font-size:10px; color:var(--success);">{{ getKeyBinding(t.key) }}</kbd>
-                          <button style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;" @click="clearKeyBinding(t.key)">✕</button>
+                          <button type="button" class="framesync-icon-button" aria-label="Clear key binding" @click="clearKeyBinding(t.key)"><UiIcon name="close" /></button>
                         </span>
                         <span v-else style="color:var(--text-dim);">—</span>
                       </td>
                       <td style="padding:4px 8px;">
                         <span v-if="getMidiBinding(t.key)" style="display:inline-flex; align-items:center; gap:4px;">
                           <span style="background:var(--bg-2); border:1px solid var(--border-strong); border-radius:3px; padding:2px 6px; font-size:10px; color:var(--warn);">CC {{ getMidiBinding(t.key) }}</span>
-                          <button style="border:none; background:transparent; color:var(--error); cursor:pointer; padding:0; font-size:9px;" @click="clearMidiBinding(t.key)">✕</button>
+                          <button type="button" class="framesync-icon-button" aria-label="Clear MIDI binding" @click="clearMidiBinding(t.key)"><UiIcon name="close" /></button>
                         </span>
                         <span v-else style="color:var(--text-dim);">—</span>
                       </td>
@@ -955,7 +955,7 @@
           <div v-if="Object.keys(collab.locks).length" style="font-size:11px; margin-top:6px;">
             <span v-for="(who, param) in collab.locks" :key="param" class="pill" style="margin:2px 4px 2px 0;">
               {{ param }} → {{ who }}
-              <button type="button" style="border:none;background:transparent;color:var(--error);cursor:pointer;margin-left:4px;" @click="unlockParam(param)">✕</button>
+              <button type="button" class="framesync-icon-button" aria-label="Unlock parameter" @click="unlockParam(param)"><UiIcon name="close" /></button>
             </span>
           </div>
           <div v-else style="font-size:11px; color:var(--text-dim); margin-top:6px;">No active locks.</div>
@@ -980,11 +980,12 @@ import RunsBrowserPanel from '../RunsBrowserPanel.vue'
 import StreamView from './StreamView.vue'
 import StylesSettingsPanel from '../StylesSettingsPanel.vue'
 import GlassPanel from '../GlassPanel.vue'
+import UiIcon from '../UiIcon.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'SettingsView',
-  components: { RunsBrowserPanel, StreamView, StylesSettingsPanel, GlassPanel },
+  components: { RunsBrowserPanel, StreamView, StylesSettingsPanel, GlassPanel, UiIcon },
   props: {
     app: { type: Object, required: true },
   },

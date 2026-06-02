@@ -242,7 +242,7 @@
                     title="Cancel queued batch"
                   >Kill</button>
                   <button v-if="!run._isBatch" class="framesync-button runs-browser__action" @click="rerunRun(run)" title="Rerun">↻</button>
-                  <button v-if="!run._isBatch" class="framesync-button framesync-button--danger framesync-button--compact runs-browser__action" @click="deleteRun(run)" title="Delete">✕</button>
+                  <button v-if="!run._isBatch" type="button" class="framesync-icon-button runs-browser__action" @click="deleteRun(run)" title="Delete" aria-label="Delete run"><UiIcon name="close" /></button>
                 </div>
               </td>
             </tr>
@@ -516,13 +516,14 @@
 <script>
 import { proxyAppView } from './views/app-view-proxy.mjs'
 import FrameRailPanel from './FrameRailPanel.vue'
+import UiIcon from './UiIcon.vue'
 
 export default {
   name: 'RunsBrowserPanel',
   props: {
     app: { type: Object, required: true },
   },
-  components: { FrameRailPanel },
+  components: { FrameRailPanel, UiIcon },
   setup(props) {
     return proxyAppView(props)
   },

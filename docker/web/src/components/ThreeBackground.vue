@@ -231,6 +231,10 @@ export default {
     this.customLightsMaterial = null
     this.customLightsLights = []
     this.customLightsGlows = []
+    this.deforumBackdropMesh = null
+    this.deforumBackdropTexture = null
+    this.deforumBackdropUrl = ''
+    this.deforumBackdropOpacity = 0
   },
   mounted() {
     if (typeof window === 'undefined') return
@@ -277,6 +281,65 @@ export default {
       this.handleResize()
       if (this.rafId == null) this.animate()
     },
+    createDeforumBackdrop() {
+      if (!this.scene || this.deforumBackdropMesh) return
+      const geometry = new THREE.PlaneGeometry(36, 20)
+      const material = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      })
+      this.deforumBackdropMesh = new THREE.Mesh(geometry, material)
+      this.deforumBackdropMesh.position.z = -14
+      this.deforumBackdropMesh.renderOrder = -200
+      this.deforumBackdropMesh.visible = false
+      this.scene.add(this.deforumBackdropMesh)
+    },
+    updateDeforumBackdropOpacity(opacity) {
+      const next = clamp01(opacity)
+      this.deforumBackdropOpacity = next
+      if (!this.deforumBackdropMesh) return
+      const material = this.deforumBackdropMesh.material
+      material.opacity = next
+      this.deforumBackdropMesh.visible = next > 0.001 && !!material.map
+    },
+    setDeforumBackdropFromUrl(url, { opacity = 0.35 } = {}) {
+      if (!url || !this.scene) return
+      if (!this.deforumBackdropMesh) this.createDeforumBackdrop()
+      const nextOpacity = clamp01(opacity)
+      if (this.deforumBackdropUrl === url && this.deforumBackdropTexture) {
+        this.updateDeforumBackdropOpacity(nextOpacity)
+        return
+      }
+      const loader = new THREE.TextureLoader()
+      loader.load(
+        url,
+        (texture) => {
+          texture.colorSpace = THREE.SRGBColorSpace
+          if (this.deforumBackdropTexture) this.deforumBackdropTexture.dispose()
+          this.deforumBackdropTexture = texture
+          this.deforumBackdropUrl = url
+          this.deforumBackdropMesh.material.map = texture
+          this.deforumBackdropMesh.material.needsUpdate = true
+          this.updateDeforumBackdropOpacity(nextOpacity)
+        },
+        undefined,
+        () => {},
+      )
+    },
+    clearDeforumBackdrop() {
+      this.deforumBackdropUrl = ''
+      this.updateDeforumBackdropOpacity(0)
+      if (this.deforumBackdropTexture) {
+        this.deforumBackdropTexture.dispose()
+        this.deforumBackdropTexture = null
+      }
+      if (this.deforumBackdropMesh?.material) {
+        this.deforumBackdropMesh.material.map = null
+      }
+    },
     initScene() {
       const host = this.$refs.host
       if (!host) return
@@ -313,6 +376,7 @@ export default {
       this.beamMap = beamTexture()
       this.mistMap = radialTexture(0.55, 0.12)
 
+      this.createDeforumBackdrop()
       this.createParticles()
       this.createHalo()
       this.createVolumeBeams()
@@ -1311,6 +1375,11 @@ export default {
         if (this.instancingMesh.geometry) this.instancingMesh.geometry.dispose()
         if (this.instancingMesh.material) this.instancingMesh.material.dispose()
       }
+      if (this.deforumBackdropTexture) this.deforumBackdropTexture.dispose()
+      if (this.deforumBackdropMesh) {
+        if (this.deforumBackdropMesh.geometry) this.deforumBackdropMesh.geometry.dispose()
+        if (this.deforumBackdropMesh.material) this.deforumBackdropMesh.material.dispose()
+      }
 
       this.renderer = null
       this.scene = null
@@ -1345,6 +1414,10 @@ export default {
       this.oceanSettingsKey = ''
       this.instancingRoot = null
       this.instancingMesh = null
+      this.deforumBackdropMesh = null
+      this.deforumBackdropTexture = null
+      this.deforumBackdropUrl = ''
+      this.deforumBackdropOpacity = 0
     },
   },
 }

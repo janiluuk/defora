@@ -273,7 +273,7 @@
         :title="folder.name"
         @click="openSystemFolder(folder)"
       >
-        <div class="video-swarm-browser__folder-icon" aria-hidden="true">📁</div>
+        <UiIcon class="video-swarm-browser__folder-icon" name="folder" aria-hidden="true" />
         <div v-if="systemFiles.showFilenames" class="video-swarm-browser__label">{{ folder.name }}</div>
       </button>
       <button
@@ -303,7 +303,7 @@
           :src="systemFileMediaUrl(video.path)"
           @loadeddata="onVideoLoaded(video.path)"
         />
-        <div v-else class="video-swarm-browser__placeholder">▶</div>
+        <UiIcon v-else class="video-swarm-browser__placeholder" name="play" aria-hidden="true" />
         <div v-if="systemFiles.showFilenames" class="video-swarm-browser__label">{{ video.name }}</div>
         <div class="video-swarm-browser__meta">{{ formatVideoSwarmFileSize(video.size) }}</div>
       </button>
@@ -387,8 +387,11 @@ const APP_METHODS = [
   'saveSessionState',
 ]
 
+import UiIcon from './UiIcon.vue'
+
 export default {
   name: 'VideoSwarmBrowser',
+  components: { UiIcon },
   props: {
     app: { type: Object, required: true },
   },
