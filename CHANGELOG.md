@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.69] - 2026-06-02
+
+## What's Changed
+
+- perf(web): speed up screenshot E2E and preview frame polling (103c539)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.68...v0.6.69
+
+
 ## [0.6.68] - 2026-06-02
 
 ## What's Changed
