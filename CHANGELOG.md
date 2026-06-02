@@ -3,6 +3,26 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.72] - 2026-06-02
+
+## What's Changed
+
+- fix(test): relax Playwright strict locators for duplicated dock UI (3d44c22)
+- fix(test): tolerate duplicate morph hint in Playwright smoke (c06e4c8)
+- fix(test): dedupe nav tabs in Playwright smoke (bddc3e7)
+- fix(web): repair LiveView template closing tags (279bd2a)
+- fix(web): link LoRA hint to LIVE crossfader drawer (e906a8a)
+- fix(test): stub media playback and absolute fetch in jsdom ui tests (5ff61bf)
+- assets(web): add ThreeBackground texture sprites (5552922)
+- UI: add animated loading indicators across refresh actions (e1f0104)
+- fix(web): harden Playwright CI for runs Past tab and upload fixture (9cea022)
+- fix(web): align Playwright E2E with top-nav and runs browser tabs (34bd2dd)
+- Move main nav and drawers to top; put frame rail under System → Frames. (e86931f)
+- Move crossfader to bottom drawer and pin engine controls on Live panel. (185de8a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.71...v0.6.72
+
+
 ## [0.6.71] - 2026-06-02
 
 ## What's Changed
