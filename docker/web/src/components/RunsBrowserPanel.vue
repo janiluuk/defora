@@ -10,7 +10,14 @@
             <template v-else>{{ runsFiltered.length }} / {{ runsPastCount }}</template>
           </span>
           <span v-if="runsLastRefreshedLabel" class="runs-monitor__refreshed">{{ runsLastRefreshedLabel }}</span>
-          <button class="framesync-button" :disabled="runsLoading" @click="refreshRuns()">Refresh</button>
+          <button class="framesync-button" :disabled="runsLoading" @click="refreshRuns()">
+            <span v-if="runsLoading" class="lazy-loading-indicator lazy-loading-indicator--button">
+              <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+              <span>Refresh</span>
+              <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+            </span>
+            <template v-else>Refresh</template>
+          </button>
         </div>
       </div>
 
@@ -60,7 +67,12 @@
           :disabled="runsLaunching"
           @click="launchTestRun"
         >
-          {{ runsLaunching ? 'Launching…' : 'Launch test job' }}
+          <span v-if="runsLaunching" class="lazy-loading-indicator lazy-loading-indicator--button">
+            <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
+            <span>Launch test job</span>
+            <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
+          </span>
+          <template v-else>Launch test job</template>
         </button>
         <label class="framesync-checkbox runs-monitor__auto">
           <input type="checkbox" v-model="runsAutoRefresh" @change="onRunsAutoRefreshChange">

@@ -2258,6 +2258,7 @@ module.exports = {
       sharedPresetsLoading: false,
       pluginsLoading: false,
       lorasLoading: false,
+      cnLoading: false,
       deforumSettingsLoading: false,
       deforumSettingsSaving: false,
       paramPanelOpen: false,
@@ -3978,6 +3979,9 @@ module.exports = {
         raycast: 'Raycast',
         marching: 'Marching',
         ocean: 'Ocean',
+        interactive_points: 'Interactive points',
+        interactive_raycast_points: 'Raycast points',
+        lensflares: 'Lens flares',
       };
       return `Standby — ${labels[mode] || 'Instancing'}`;
     },
@@ -11207,11 +11211,15 @@ onAudioUpload(evt) {
  },
  // ControlNet methods
  async loadControlNetModels() {
+   this.cnLoading = true;
    try {
      const { data } = await apiFetch("/api/controlnet/models", {}, "controlnet models");
      this.cn.availableModels = data.models || [];
      this.cn.source = data.source || "unknown";
-   } catch (_) {}
+   } catch (_) {
+   } finally {
+     this.cnLoading = false;
+   }
  },
  updateControlNet(slot) {
    // Send ControlNet parameters to mediator

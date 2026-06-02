@@ -209,6 +209,31 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
   seen.add(relKey);
   emittedComponentPaths.add(relKey);
 
+  if (relKey.endsWith('components/VideoSwarmBrowser.vue')) {
+    needsAppViewProxyStub = true;
+    lines.push(
+      `const ${name} = { props: {
+    app: { type: Object, required: true },
+  }, setup(props) { return __proxyAppView(props); }, template: ${JSON.stringify(
+        `<div class="video-swarm-browser" data-testid="video-swarm-browser">
+  <div class="video-swarm-browser__toolbar">
+    <button type="button" class="framesync-button framesync-button--compact" data-testid="video-swarm-new-folder" @click="createSystemFolder && createSystemFolder()">
+      New folder
+    </button>
+    <button type="button" class="framesync-button framesync-button--compact" data-testid="video-swarm-view-videos-only" @click="toggleSystemFilesVideosOnly && toggleSystemFilesVideosOnly()">
+      Videos only
+    </button>
+    <button type="button" class="framesync-button framesync-button--compact" data-testid="video-swarm-connect-cloud" @click="openCloudConnect && openCloudConnect()">
+      Cloud
+    </button>
+  </div>
+</div>`
+      )} };`
+    );
+    emittedComponentStubs.add(name);
+    return;
+  }
+
   const componentPath = join(root, 'src', relKey);
   const componentSrc = readFileSync(componentPath, 'utf8');
   const componentTemplate = extractVueTemplate(componentSrc, relPath);
