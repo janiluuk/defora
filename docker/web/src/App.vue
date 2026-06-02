@@ -610,6 +610,7 @@ import {
   DEFAULT_ANIMATELCM_ENGINE,
   ANIMATELCM_CONTROL_FIELDS,
   ANIMATELCM_MOTION_TYPES,
+  ANIMATELCM_MOTION_LORAS,
   ANIMATELCM_ANIMATION_MODE,
   normalizeAnimateLcmEngine,
   mergeAnimateLcmIntoDeforumSettings,
@@ -1914,6 +1915,9 @@ export default {
     },
     animateLcmMotionTypes() {
       return ANIMATELCM_MOTION_TYPES;
+    },
+    animateLcmMotionLoras() {
+      return ANIMATELCM_MOTION_LORAS;
     },
     animateLcmControlFields() {
       return ANIMATELCM_CONTROL_FIELDS;
@@ -12664,6 +12668,15 @@ setAnimateLcmMotionType(type) {
   this.syncDeforumSettingsJson();
   this.saveSessionState();
   this.queueDeforumSettingsSave();
+},
+toggleAnimateLcmMotionLora(id) {
+  const current = Array.isArray(this.animateLcmEngine.motion_loras) ? this.animateLcmEngine.motion_loras : [];
+  const next = current.includes(id) ? current.filter((l) => l !== id) : [...current, id];
+  this.animateLcmEngine = { ...this.animateLcmEngine, motion_loras: next };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
 },
 applyAnimateLcmMotionPreset(name) {
   const PRESETS = {
