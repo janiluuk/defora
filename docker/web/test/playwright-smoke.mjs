@@ -39,7 +39,7 @@ try {
   await clickTab(page, 'PROMPTS');
   await ensureRightPanelOpen(page);
   await page.waitForSelector('[data-testid="right-panel-drawer"].live-drawer-shell--open', { timeout: 30000 });
-  const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]');
+  const morphHint = page.locator('[data-testid="prompt-morph-live-hint"]').first();
   if ((await morphHint.count()) === 0 || !(await morphHint.isVisible())) {
     const morphPanel = page.locator('.live-right-column .framesync-panel').filter({ hasText: 'Prompt Morphing' }).first();
     const morphEnabled = morphPanel.locator('.framesync-button.framesync-button--live').filter({ hasText: /^Enabled$/ }).first();
