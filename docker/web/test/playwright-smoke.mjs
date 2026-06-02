@@ -16,7 +16,7 @@ try {
   await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 60000 });
   await dismissSessionModalIfOpen(page);
   await waitForNavTabs(page);
-  const trimmed = await getTabLabels(page);
+  const trimmed = [...new Set(await getTabLabels(page))];
   for (const name of expected) {
     if (!trimmed.includes(name)) {
       throw new Error(`Missing tab "${name}" — got: ${trimmed.join(', ')}`);
