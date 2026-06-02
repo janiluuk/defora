@@ -10,6 +10,12 @@ export function escapeRegex(text) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+const E2E_FAST = process.env.E2E_FAST === '1' || process.env.FAST_SHOTS === '1';
+
+function navPauseMs(normalMs) {
+  return E2E_FAST ? Math.min(150, normalMs) : normalMs;
+}
+
 export async function waitForNavTabs(page, timeout = 30000) {
   await page.waitForSelector(NAV_TAB_SELECTOR, { timeout });
 }
@@ -139,7 +145,7 @@ export async function waitForPastRunRow(page, runId, timeoutMs = 45000) {
   while ((await row.count()) === 0 && Date.now() < deadline) {
     await page.locator('button.framesync-button').filter({ hasText: /^Refresh$/ }).first().click().catch(() => null);
     await Promise.resolve();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(navPauseMs(500));
   }
   await row.waitFor({ state: 'visible', timeout: Math.max(5000, deadline - Date.now()) });
   return row;
@@ -187,7 +193,7 @@ export async function waitForProjectCard(browserRoot, page, filenamePart, timeou
       .first();
     if ((await card.count()) > 0) return card;
     await refreshBtn.click().catch(() => null);
-    await page.waitForTimeout(600);
+    await page.waitForTimeout(navPauseMs(600));
   }
   throw new Error(`Library card "${filenamePart}" did not appear within ${timeoutMs}ms`);
 }

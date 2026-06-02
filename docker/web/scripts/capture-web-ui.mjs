@@ -1,13 +1,22 @@
 /**
  * Capture README screenshots (screenshots/*.png) with seeded E2E server.
  * Usage: cd docker/web && node scripts/capture-web-ui.mjs
+ * Fast:  E2E_FAST=1 node scripts/capture-web-ui.mjs
  */
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { execSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { chromium } from 'playwright';
+import { seedE2eMedia } from '../test/e2e-media-fixture.mjs';
+import {
+  attachLiveDemoVideo,
+  E2E_FAST,
+  pauseMs,
+  prepareScreenshotPage,
+  settle,
+  waitForLibrarySkeletonGone,
+} from '../test/playwright-screenshot-helpers.mjs';
 import {
   clickTab,
   ensureRightPanelOpen,
@@ -25,48 +34,24 @@ const outDir = process.env.OUT_DIR
 fs.mkdirSync(outDir, { recursive: true });
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'defora-readme-shots-'));
-const framesDir = path.join(tmpDir, 'frames');
 const uploadsDir = path.join(tmpDir, 'uploads');
-const projectsDir = path.join(uploadsDir, 'projects', 'demo-orbit');
-fs.mkdirSync(framesDir, { recursive: true });
-fs.mkdirSync(projectsDir, { recursive: true });
-
-const colors = [
-  'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta',
-  'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta',
-  'red', 'orange', 'yellow', 'green', 'cyan', 'blue', 'violet', 'magenta',
-];
-for (let i = 0; i < 24; i++) {
-  const out = path.join(framesDir, `frame_${String(i).padStart(5, '0')}.png`);
-  execSync(
-    `ffmpeg -y -f lavfi -i color=c=${colors[i]}:size=960x540:d=1 -frames:v 1 "${out}"`,
-    { stdio: 'pipe' },
-  );
-  if (i < 4) {
-    fs.copyFileSync(out, path.join(projectsDir, `frame_${String(i).padStart(5, '0')}.png`));
-  }
-}
-
-const videoPath = path.join(uploadsDir, 'preview_demo.mp4');
-const projectVideo = path.join(projectsDir, 'orbit-export.mp4');
-execSync(
-  `ffmpeg -y -framerate 8 -i "${framesDir}/frame_%05d.png" -frames:v 24 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -crf 28 "${videoPath}"`,
-  { stdio: 'pipe' },
-);
-execSync(
-  `ffmpeg -y -framerate 4 -i "${projectsDir}/frame_%05d.png" -frames:v 4 -c:v libx264 -pix_fmt yuv420p -preset ultrafast -crf 28 "${projectVideo}"`,
-  { stdio: 'pipe' },
-);
+seedE2eMedia({
+  framesDir: path.join(tmpDir, 'frames'),
+  uploadsDir,
+  projectsDir: path.join(uploadsDir, 'projects', 'demo-orbit'),
+  frameCount: E2E_FAST ? 4 : 8,
+});
 
 const svc = await startE2eServer({
   port: 0,
   root: tmpDir,
-  framesDir,
+  framesDir: path.join(tmpDir, 'frames'),
   uploadsDir,
   runsDir: path.join(tmpDir, 'runs'),
   sequencersDir: path.join(tmpDir, 'seq'),
 });
 const base = `http://127.0.0.1:${svc.port}`;
+const demoVideoRel = 'preview_demo.mp4';
 
 /** @type {Array<{ file: string, capture: (page: import('playwright').Page) => Promise<void> }>} */
 const shots = [
@@ -74,7 +59,7 @@ const shots = [
     file: 'main.png',
     capture: async (page) => {
       await clickTab(page, 'LIVE');
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(pauseMs(600, 120));
     },
   },
   {
@@ -82,15 +67,7 @@ const shots = [
     capture: async (page) => {
       await clickTab(page, 'LIVE');
       await ensureRightPanelOpen(page);
-      await page.evaluate((videoSrc) => {
-        const player = document.getElementById('player') || document.querySelector('video');
-        if (player?.tagName === 'VIDEO') {
-          player.src = videoSrc;
-          player.load();
-          player.play().catch(() => {});
-        }
-      }, `${base}/api/video-swarm/file?path=${encodeURIComponent(videoPath)}`);
-      await page.waitForTimeout(1200);
+      await attachLiveDemoVideo(page, base, demoVideoRel);
     },
   },
   {
@@ -130,11 +107,7 @@ const shots = [
     capture: async (page) => {
       await clickTab(page, 'MOTION');
       await ensureRightPanelOpen(page);
-      const dock = page.locator('[data-testid="motion-sequencer-dock"], .preview-bottom-dock').first();
-      if ((await dock.count()) > 0) {
-        await dock.scrollIntoViewIfNeeded().catch(() => null);
-      }
-      await page.waitForTimeout(500);
+      await scrollMotionDock(page);
     },
   },
   {
@@ -142,11 +115,7 @@ const shots = [
     capture: async (page) => {
       await clickTab(page, 'MOTION');
       await ensureRightPanelOpen(page);
-      const dock = page.locator('[data-testid="motion-sequencer-dock"], .preview-bottom-dock').first();
-      if ((await dock.count()) > 0) {
-        await dock.scrollIntoViewIfNeeded().catch(() => null);
-      }
-      await page.waitForTimeout(500);
+      await scrollMotionDock(page);
     },
   },
   {
@@ -170,7 +139,7 @@ const shots = [
       await ensureRightPanelOpen(page);
       await clickSubPill(page, 'RUNS');
       await page.waitForSelector('[data-testid="runs-browser"]', { timeout: 20_000 }).catch(() => null);
-      await page.waitForTimeout(600);
+      await page.waitForTimeout(pauseMs(600, 120));
     },
   },
   {
@@ -179,7 +148,7 @@ const shots = [
       await clickTab(page, 'SETTINGS');
       await ensureRightPanelOpen(page);
       await clickSubPill(page, 'ENGINE');
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(pauseMs(500, 120));
     },
   },
   {
@@ -188,55 +157,47 @@ const shots = [
       await clickTab(page, 'SETTINGS');
       await ensureRightPanelOpen(page);
       await clickSubPill(page, 'OUTPUT');
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(pauseMs(500, 120));
     },
   },
   {
     file: 'library-tab.png',
     capture: async (page) => {
       await openLibraryBrowser(page);
-      await page.waitForSelector('[data-testid="library-browser"]', { timeout: 15_000 });
-      await waitForLibraryReady(page);
+      await waitForLibrarySkeletonGone(page);
       await page.locator('[data-testid="library-tab-projects"]').click();
-      await page.waitForTimeout(800);
+      await page.waitForTimeout(pauseMs(800, 150));
     },
   },
 ];
-
-async function dismissRestoreModal(page) {
-  const modal = page.locator('.restore-session-modal');
-  if ((await modal.count()) > 0) {
-    await page.locator('.restore-session-modal button').filter({ hasText: /^Discard$/ }).first().click();
-    await modal.waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => null);
-  }
-}
 
 async function clickSubPill(page, label) {
   const pill = page.locator('.sub-pill').filter({ hasText: new RegExp(`^${label}$`) }).first();
   if ((await pill.count()) > 0) {
     await pill.click({ force: true });
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(pauseMs(500, 120));
   }
 }
 
-async function waitForLibraryReady(page) {
-  await page.waitForFunction(() => {
-    const sk = document.querySelector('.library-browser__skeleton-grid');
-    return !sk;
-  }, { timeout: 15_000 }).catch(() => null);
+async function scrollMotionDock(page) {
+  const dock = page.locator('[data-testid="motion-sequencer-dock"], .preview-bottom-dock').first();
+  if ((await dock.count()) > 0) {
+    await dock.scrollIntoViewIfNeeded().catch(() => null);
+  }
+  await page.waitForTimeout(pauseMs(500, 120));
 }
 
 const browser = await chromium.launch({ headless: true });
 const page = await browser.newPage({ viewport: { width: 1600, height: 1040 } });
 
 try {
-  await page.goto(base, { waitUntil: 'domcontentloaded', timeout: 60_000 });
-  await dismissRestoreModal(page);
+  await prepareScreenshotPage(page, base);
   await waitForNavTabs(page);
 
   for (const shot of shots) {
     await shot.capture(page);
     const fp = path.join(outDir, shot.file);
+    await settle(page);
     await page.screenshot({ path: fp, fullPage: false });
     console.log('wrote', fp);
   }

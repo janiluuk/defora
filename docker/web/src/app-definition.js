@@ -8131,7 +8131,7 @@ nextFramesPollDelay({ failed = false } = {}) {
     return Math.min(10000, Math.max(1000, current * 2));
   }
   if (this.deforumPlaying) return 400;
-  if (this.previewGenerating) return 750;
+  if (this.previewGenerating) return this.wsStatus === "connected" ? 400 : 750;
   if (this.wsStatus !== "connected") return 1500;
   return 3000;
 },
