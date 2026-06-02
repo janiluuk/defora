@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.70] - 2026-06-02
+
+## What's Changed
+
+- feat(web): AnimateLCM motion LoRA selector in engine panel controls (72796ef)
+- feat(web): wire AnimateLCM engine into animation engine panel (7d73e8a)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.69...v0.6.70
+
+
 ## [0.6.69] - 2026-06-02
 
 ## What's Changed
