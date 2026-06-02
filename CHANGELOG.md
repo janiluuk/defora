@@ -3,6 +3,16 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.71] - 2026-06-02
+
+## What's Changed
+
+- feat(web): WAN engine panel, I2V init, and 96-frame E2E tests (83db497)
+- feat(web): roadmap batch — compositor phase 3, AnimateLCM LoRAs, UX polish (34173f8)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.70...v0.6.71
+
+
 ## [0.6.70] - 2026-06-02
 
 ## What's Changed
