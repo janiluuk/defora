@@ -32,7 +32,9 @@ Edit this table when you change the target layout in §10.
 
 ## 1. App shell (always visible)
 
-![App shell — LIVE tab, all panels closed](screenshots/01-app-shell.png)
+![App shell — LIVE tab, all panels closed](screenshots/audit-2026-06-02/00-main-overview.png)
+
+![LIVE — bottom drawer open](screenshots/audit-2026-06-02/02b-live-bottom-drawer.png)
 
 ```mermaid
 flowchart TB
@@ -51,6 +53,7 @@ flowchart TB
     CTRL["Controls drawer — left — P"]
     ENG["Engine drawer — right — E"]
     LAY["Layers rail — far right"]
+    BOT["Bottom drawer — toggle + tabs"]
   end
 
   LIB_BTN --> LIB["Library overlay"]
@@ -118,8 +121,8 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph live_ctrl["Controls drawer — LIVE"]
-    LV_HINT["Live controls — placeholder"]
-    LV_OPEN["Button: Open Deforum parameters"]
+    LV_SUM["Live summary"]
+    LV_SHORT["Engine shortcuts (open Deforum / prompts / WebGL)"]
   end
 
   subgraph live_stage["Stage — LIVE only"]
@@ -133,6 +136,7 @@ flowchart TB
     L_LIST["Layer list — opacity / visibility"]
     L_WEBGL["WebGL → visual sliders"]
     L_DEF["Deforum → job + settings editor"]
+    L_PARAMS["Parameters → vibe/camera sliders (moved here)"]
     L_WAN["WAN → plugin panel"]
     L_IN["Input → source hint"]
     L_COMP["Compositor section"]
@@ -144,11 +148,7 @@ flowchart TB
     L_SCENES["Scenes save/load"]
   end
 
-  LV_OPEN --> L_DEF
-
-  subgraph live_missing["⚠ Missing / unreachable today"]
-    LIVE_PARAMS["LiveParametersPanel — vibe/camera — not mounted"]
-  end
+  LV_SHORT --> L_DEF
 ```
 
 ---
@@ -204,6 +204,11 @@ flowchart TB
     SEQ_MAIN["Sequencer timeline + transport"]
     SEQ_SIDE["Sequencer side editor drawer"]
     GEN_STORY["Story strip — if generator active"]
+  end
+
+  subgraph motion_drawer["Bottom drawer (toggle)"]
+    BD_TOGGLE["Button: bottom drawer toggle (center)"]
+    BD_TABS["Tabs: MODULATION / CROSSFADER / SYSTEM"]
   end
 
   subgraph motion_eng["Engine — Deforum"]

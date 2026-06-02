@@ -1,0 +1,151 @@
+{
+  "base": "http://127.0.0.1:40475",
+  "fast": false,
+  "shots": [
+    {
+      "file": "00-main-overview.png",
+      "label": "Overview — default LIVE landing",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/00-main-overview.png"
+    },
+    {
+      "file": "01-live.png",
+      "label": "LIVE — main stage",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/01-live.png"
+    },
+    {
+      "file": "02-live-controls.png",
+      "label": "LIVE — Controls drawer (summary + live params)",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/02-live-controls.png"
+    },
+    {
+      "file": "02b-live-bottom-drawer.png",
+      "label": "LIVE — bottom drawer (MODULATION/CROSSFADER/SYSTEM)",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/02b-live-bottom-drawer.png"
+    },
+    {
+      "file": "03-live-engine-drawer.png",
+      "label": "LIVE — engine drawer",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/03-live-engine-drawer.png"
+    },
+    {
+      "file": "04-live-layers-rail.png",
+      "label": "LIVE — layers rail",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/04-live-layers-rail.png"
+    },
+    {
+      "file": "05-prompts.png",
+      "label": "PROMPTS — prompt morphing",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/05-prompts.png"
+    },
+    {
+      "file": "06-prompts-image.png",
+      "label": "PROMPTS — image",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/06-prompts-image.png"
+    },
+    {
+      "file": "07-prompts-lora.png",
+      "label": "PROMPTS — LoRA",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/07-prompts-lora.png"
+    },
+    {
+      "file": "08-prompts-controlnet.png",
+      "label": "PROMPTS — ControlNet",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/08-prompts-controlnet.png"
+    },
+    {
+      "file": "09-prompts-story.png",
+      "label": "PROMPTS — story generator",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/09-prompts-story.png"
+    },
+    {
+      "file": "10-motion.png",
+      "label": "MOTION — hero pad + sequencer summary",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/10-motion.png"
+    },
+    {
+      "file": "11-motion-sequencer.png",
+      "label": "MOTION — sequencer dock",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/11-motion-sequencer.png"
+    },
+    {
+      "file": "12-modulation.png",
+      "label": "MODULATION — LFO",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/12-modulation.png"
+    },
+    {
+      "file": "13-audio.png",
+      "label": "AUDIO — reactive panel",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/13-audio.png"
+    },
+    {
+      "file": "14-runs.png",
+      "label": "SETTINGS — runs monitor",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/14-runs.png"
+    },
+    {
+      "file": "15-runs-frames.png",
+      "label": "SETTINGS — runs frames rail",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/15-runs-frames.png"
+    },
+    {
+      "file": "16-settings-engine.png",
+      "label": "SETTINGS — engine",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/16-settings-engine.png"
+    },
+    {
+      "file": "17-settings-output.png",
+      "label": "SETTINGS — output / stream",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/17-settings-output.png"
+    },
+    {
+      "file": "18-settings-gpus.png",
+      "label": "SETTINGS — GPUs",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/18-settings-gpus.png"
+    },
+    {
+      "file": "19-settings-midi.png",
+      "label": "SETTINGS — MIDI",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/19-settings-midi.png"
+    },
+    {
+      "file": "20-settings-styles.png",
+      "label": "SETTINGS — styles",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/20-settings-styles.png"
+    },
+    {
+      "file": "21-settings-collab.png",
+      "label": "SETTINGS — collab",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/21-settings-collab.png"
+    },
+    {
+      "file": "22-settings-plugins.png",
+      "label": "SETTINGS — plugins registry",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/22-settings-plugins.png"
+    },
+    {
+      "file": "23-library-projects.png",
+      "label": "Library — Projects",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/23-library-projects.png"
+    },
+    {
+      "file": "24-library-videos.png",
+      "label": "Library — Videos",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/24-library-videos.png"
+    },
+    {
+      "file": "25-library-audio.png",
+      "label": "Library — Audio",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/25-library-audio.png"
+    },
+    {
+      "file": "26-library-files.png",
+      "label": "Library — Files (VideoSwarm browser)",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/26-library-files.png"
+    },
+    {
+      "file": "27-library-editor.png",
+      "label": "Library — video editor (FreeCut)",
+      "path": "/home/jani/workspace/defora/docker/web/docs/screenshots/audit-2026-06-02/27-library-editor.png"
+    }
+  ]
+}

@@ -32,8 +32,6 @@
         </p>
       </div>
 
-      <LiveParametersPanel :app="app" />
-
       <div class="framesync-panel live-view__shortcuts">
         <div class="framesync-header">
           <div class="framesync-title">Engine <span class="framesync-accent">shortcuts</span></div>
@@ -73,12 +71,10 @@
 </template>
 
 <script>
-import LiveParametersPanel from '../LiveParametersPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'LiveView',
-  components: { LiveParametersPanel },
   props: {
     app: { type: Object, required: true },
   },

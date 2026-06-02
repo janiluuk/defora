@@ -194,6 +194,16 @@
       </button>
       <button
         type="button"
+        class="ss-btn ss-btn--ghost"
+        title="Reset UI layout to defaults"
+        aria-label="Reset UI layout"
+        data-testid="session-reset-layout"
+        @click.stop="$emit('reset-layout')"
+      >
+        Reset
+      </button>
+      <button
+        type="button"
         class="ss-btn ss-btn--ghost ss-session__new"
         title="New session"
         aria-label="New session"
@@ -298,7 +308,7 @@ import UiIcon from './UiIcon.vue'
 export default {
   name: 'StatusStrip',
   components: { UiIcon },
-  emits: ['toggle-play', 'stop-play', 'toggle-record', 'start-hls-watch', 'stop-hls-watch', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus', 'select-session', 'new-session', 'purge-session', 'restore-session'],
+  emits: ['toggle-play', 'stop-play', 'toggle-record', 'start-hls-watch', 'stop-hls-watch', 'generate-preview', 'toggle-ws', 'open-midi', 'open-gpus', 'select-session', 'new-session', 'purge-session', 'restore-session', 'reset-layout'],
   props: {
     playing:       { type: Boolean, default: false },
     recording:     { type: Boolean, default: false },
