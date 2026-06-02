@@ -13,7 +13,7 @@ const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
 // Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
-const UTIL_MODULES = ['utils/morph-utils.mjs', 'utils/deforum-settings-schema.mjs', 'utils/deforum-settings-verify.mjs', 'utils/api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/animatelcm-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
+const UTIL_MODULES = ['animation-plugins/motion-loras.mjs', 'utils/morph-utils.mjs', 'utils/deforum-settings-schema.mjs', 'utils/deforum-settings-verify.mjs', 'utils/api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/animatelcm-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -37,7 +37,13 @@ function esmToInlineCjs(src) {
 
 function inlineUtilModule(mod) {
   const path = join(root, 'src', mod);
-  const body = esmToInlineCjs(readFileSync(path, 'utf8'));
+  let body = esmToInlineCjs(readFileSync(path, 'utf8'));
+  if (mod !== 'animation-plugins/motion-loras.mjs') {
+    body = body.replace(
+      /import\s+\{[^}]*\}\s+from\s+['"](?:\.\/motion-loras\.mjs|\.\.\/animation-plugins\/motion-loras\.mjs|\.\/(?:\.\.\/)?animation-plugins\/motion-loras\.mjs)['"];?\s*/g,
+      '',
+    );
+  }
   return `// --- inlined from ${mod} (ESM source; do not edit) ---\n${body}\n`;
 }
 
@@ -61,12 +67,21 @@ let script = scriptMatch[1].trim();
 script = script.replace(/import\s+['"]\.\/style\.css['"];?\s*/g, '');
 
 let inlinedUtils = '';
+let motionLorasInlined = false;
 for (const mod of UTIL_MODULES) {
   const re = new RegExp(
     `import\\s+\\{([\\s\\S]*?)\\}\\s+from\\s+['"]\\.\\/${mod.replace('.', '\\.')}['"];?`
   );
   const m = script.match(re);
   if (m) {
+    if (
+      !motionLorasInlined &&
+      (mod === 'shared/wan-engine-config.mjs' ||
+        mod === 'animation-plugins/animatelcm-engine-config.mjs')
+    ) {
+      inlinedUtils += inlineUtilModule('animation-plugins/motion-loras.mjs');
+      motionLorasInlined = true;
+    }
     inlinedUtils += inlineUtilModule(mod);
     script = script.replace(m[0], '');
   }

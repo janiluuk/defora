@@ -11,16 +11,9 @@ export const ANIMATELCM_MOTION_TYPES = [
   { id: 'custom', label: 'Custom' },
 ];
 
-export const ANIMATELCM_MOTION_LORAS = [
-  { id: 'v2_lora_ZoomIn',               label: 'Zoom In' },
-  { id: 'v2_lora_ZoomOut',              label: 'Zoom Out' },
-  { id: 'v2_lora_PanLeft',              label: 'Pan ←' },
-  { id: 'v2_lora_PanRight',             label: 'Pan →' },
-  { id: 'v2_lora_TiltUp',               label: 'Tilt ↑' },
-  { id: 'v2_lora_TiltDown',             label: 'Tilt ↓' },
-  { id: 'v2_lora_RollingClockwise',     label: 'Roll ↻' },
-  { id: 'v2_lora_RollingAnticlockwise', label: 'Roll ↺' },
-];
+import { MOTION_LORAS } from './motion-loras.mjs';
+
+export const ANIMATELCM_MOTION_LORAS = MOTION_LORAS;
 
 export const DEFAULT_ANIMATELCM_ENGINE = {
   motion_type: 'pan',

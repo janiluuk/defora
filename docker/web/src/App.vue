@@ -603,8 +603,17 @@ import {
   mergeWanEngineIntoDeforumSettings,
   normalizeWanEngine,
   parseWanResolution,
+  pickWanResolutionForSize,
   visibleWanControlFields,
   WAN_ANIMATION_MODE,
+  WAN_SPEED_PRESET_NAMES,
+  WAN_MOTION_PRESET_NAMES,
+  WAN_MOTION_LORAS,
+  WAN_DOWNLOAD_PACKAGES,
+  WAN_I2V_MODEL_OPTIONS,
+  getWanSpeedPreset,
+  getWanMotionPreset,
+  wanEngineForDownloadPackage,
 } from './shared/wan-engine-config.mjs'
 import {
   DEFAULT_ANIMATELCM_ENGINE,
@@ -879,6 +888,8 @@ export default {
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
+      wanDownloadStatus: '',
+      wanDownloadBusy: false,
       animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
@@ -1936,6 +1947,24 @@ export default {
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
+    },
+    wanSpeedPresetNames() {
+      return WAN_SPEED_PRESET_NAMES;
+    },
+    wanMotionPresetNames() {
+      return WAN_MOTION_PRESET_NAMES;
+    },
+    wanMotionLoras() {
+      return WAN_MOTION_LORAS;
+    },
+    wanDownloadPackages() {
+      return WAN_DOWNLOAD_PACKAGES;
+    },
+    wanI2vModelOptions() {
+      return WAN_I2V_MODEL_OPTIONS;
+    },
+    activeWanMotionLoras() {
+      return Array.isArray(this.wanEngine?.motion_loras) ? this.wanEngine.motion_loras : [];
     },
     isBlendLayerActive() {
       return this.activeVideoLayer?.kind === 'blend';
@@ -12767,6 +12796,138 @@ onWanEngineFieldChange(key, rawValue, type = 'text') {
   this.saveSessionState();
   this.queueDeforumSettingsSave();
   if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+readWanInitImage(file) {
+  if (!file || !file.type?.startsWith?.('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result || '');
+    if (!dataUrl) return;
+    this.applyWanInitImageDataUrl(dataUrl);
+  };
+  reader.onerror = () => {};
+  reader.readAsDataURL(file);
+},
+handleWanInitImageFile(evt) {
+  const f = evt?.target?.files?.[0];
+  if (f) this.readWanInitImage(f);
+  if (evt?.target) evt.target.value = '';
+},
+handleWanInitImageDrop(evt) {
+  const file = evt?.dataTransfer?.files?.[0];
+  if (file) this.readWanInitImage(file);
+},
+clearWanInitImage() {
+  this.wanEngine = normalizeWanEngine({
+    ...this.wanEngine,
+    wan_init_image: null,
+    wan_use_init_image: false,
+  });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+useImg2imgAsWanInit() {
+  const dataUrl = this.img2img?.dataUrl;
+  if (!dataUrl) return;
+  this.applyWanInitImageDataUrl(dataUrl);
+},
+applyWanInitImageDataUrl(dataUrl) {
+  const i2vModel = String(this.wanEngine?.wan_i2v_model || '');
+  const patch = {
+    wan_init_image: dataUrl,
+    wan_use_init_image: true,
+  };
+  if (!i2vModel || i2vModel === 'Use T2V Model (No Continuity)') {
+    patch.wan_i2v_model = '1.3B VACE';
+  }
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...patch });
+  this.syncWanInitResolutionFromDataUrl(dataUrl);
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+syncWanInitResolutionFromDataUrl(dataUrl) {
+  if (!dataUrl || typeof Image === 'undefined') return;
+  const img = new Image();
+  img.onload = () => {
+    const picked = pickWanResolutionForSize(img.naturalWidth, img.naturalHeight);
+    if (picked) {
+      this.wanEngine = normalizeWanEngine({ ...this.wanEngine, wan_resolution: picked });
+      const size = parseWanResolution(picked);
+      if (size) this.syncResolutionAcrossControls(size.width, size.height, { syncGpuModal: true });
+    }
+    this.syncDeforumSettingsJson();
+    this.saveSessionState();
+  };
+  img.src = dataUrl;
+},
+applyWanSpeedPreset(name) {
+  const preset = getWanSpeedPreset(name);
+  if (!preset) return;
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...preset });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+applyWanMotionPreset(name) {
+  const preset = getWanMotionPreset(name);
+  if (!preset) return;
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...preset });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+toggleWanMotionLora(id) {
+  const current = Array.isArray(this.wanEngine.motion_loras) ? this.wanEngine.motion_loras : [];
+  const next = current.includes(id) ? current.filter((l) => l !== id) : [...current, id];
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, motion_loras: next });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+async requestWanModelDownload(packageId = 'vace-1.3b') {
+  if (this.wanDownloadBusy) return;
+  this.wanDownloadBusy = true;
+  this.wanDownloadStatus = 'Queuing download on Forge…';
+  const patch = wanEngineForDownloadPackage(packageId, this.wanEngine);
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...patch });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  try {
+    const positive = this.buildMorphedPrompt() || String(this.prompts.pos || '').trim() || 'defora wan model download probe';
+    const res = await fetch('/api/wan/download-models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        packageId,
+        wanEngine: this.wanEngine,
+        prompt: positive,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || data.detail || res.statusText || 'Download request failed');
+    }
+    const pkg = WAN_DOWNLOAD_PACKAGES.find((p) => p.id === packageId);
+    this.wanDownloadStatus = data.ok
+      ? `Download triggered via Forge (${data.batchId || 'preview job'}). ${pkg?.label || packageId}`
+      : (data.reason || 'Skipped');
+    if (data.manual && pkg?.hfCommand) {
+      this.wanDownloadStatus += ` — or run: ${pkg.hfCommand}`;
+    }
+  } catch (err) {
+    const pkg = WAN_DOWNLOAD_PACKAGES.find((p) => p.id === packageId);
+    this.wanDownloadStatus = `${err.message || err}${pkg?.hfCommand ? ` — manual: ${pkg.hfCommand}` : ''}`;
+  } finally {
+    this.wanDownloadBusy = false;
+    this.queueDeforumSettingsSave();
+  }
 },
 async maybeCaptureActiveStyleExample(imagePath) {
   if (!this.promptStyleAutoExample || !this.activePromptStyleId || !imagePath) return;

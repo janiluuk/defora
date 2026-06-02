@@ -1666,6 +1666,46 @@
     .wan-engine-controls__field .framesync-subtitle {
       margin-bottom: 4px;
     }
+    .wan-engine-controls__speed,
+    .wan-engine-controls__motion,
+    .wan-engine-controls__loras,
+    .wan-engine-controls__init,
+    .wan-engine-controls__download {
+      margin-bottom: 12px;
+    }
+    .wan-engine-controls__init-drop {
+      margin: 8px 0;
+      min-height: 120px;
+    }
+    .wan-engine-controls__init-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+    .wan-engine-controls__init-i2v {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 10px 12px;
+    }
+    .wan-engine-controls__download-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 6px 0 8px;
+    }
+    .wan-engine-controls__download-status {
+      margin-top: 6px;
+      color: var(--live-text);
+      font-size: 11px;
+    }
+    .wan-engine-controls__advanced {
+      margin-top: 8px;
+    }
+    .wan-engine-controls__advanced > summary {
+      cursor: pointer;
+      margin-bottom: 8px;
+    }
     .animation-engine-card--wan.animation-engine-card--active {
       border-color: rgba(120, 200, 255, 0.55);
       box-shadow: 0 0 0 1px rgba(120, 200, 255, 0.25);

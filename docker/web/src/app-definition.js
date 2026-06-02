@@ -793,6 +793,15 @@ function verifyDeforumSettings(settings, opts = {}) {
     if (!String(settings.animation_prompts || settings.prompts?.['0'] || settings.prompts?.[0] || '').trim()) {
       pushIssue(warnings, 'animation_prompts', 'Wan Video needs at least one prompt', 'Set prompts in the Prompts tab or animation_prompts schedule');
     }
+    if (settings.use_init && !String(settings.init_image || '').trim()) {
+      pushIssue(errors, 'init_image', 'Wan I2V init is enabled but no init image is set', 'Upload an image under WAN → Image init (I2V)');
+    }
+    if (settings.use_init) {
+      const strength = Number(settings.strength);
+      if (!Number.isFinite(strength) || strength < 0.05) {
+        pushIssue(warnings, 'strength', 'Wan init strength is very low', 'Try 0.5–0.95 for strong I2V conditioning on the first frame');
+      }
+    }
   } else if (mode === '2D') {
     if (scheduleHasNonZero(settings.translation_z)) {
       pushIssue(warnings, 'translation_z', '3D zoom schedule is non-zero while mode is 2D', 'Ignored in 2D — use zoom / angle instead');
@@ -1242,12 +1251,200 @@ function mergeLoraIntoPrompt(positive, loraTag) {
   if (!base) return tag;
   return `${base}, ${tag}`;
 }
+// --- inlined from animation-plugins/motion-loras.mjs (ESM source; do not edit) ---
+/** Shared Deforum motion LoRA ids (AnimateLCM + Wan prompt injection). */
+
+const MOTION_LORAS = [
+  { id: 'v2_lora_ZoomIn', label: 'Zoom In' },
+  { id: 'v2_lora_ZoomOut', label: 'Zoom Out' },
+  { id: 'v2_lora_PanLeft', label: 'Pan ←' },
+  { id: 'v2_lora_PanRight', label: 'Pan →' },
+  { id: 'v2_lora_TiltUp', label: 'Tilt ↑' },
+  { id: 'v2_lora_TiltDown', label: 'Tilt ↓' },
+  { id: 'v2_lora_RollingClockwise', label: 'Roll ↻' },
+  { id: 'v2_lora_RollingAnticlockwise', label: 'Roll ↺' },
+];
 // --- inlined from shared/wan-engine-config.mjs (ESM source; do not edit) ---
 /** Wan 2.1 video engine (sd-forge-deforum `animation_mode: "Wan Video"`). */
 
 const WAN_ANIMATION_MODE = "Wan Video";
 
+/** Reuse Deforum motion LoRA ids — injected into Wan animation_prompts schedule. */
+const WAN_MOTION_LORAS = MOTION_LORAS;
+
+const WAN_SPEED_PRESET_NAMES = ['Turbo', 'Fast', 'Balanced', 'Quality'];
+
+/** LCM-like fast paths: fewer steps + flash attention (Forge Wan docs: 5–15 for tests). */
+const WAN_SPEED_PRESETS = {
+  Turbo: {
+    wan_speed_preset: 'Turbo',
+    wan_inference_steps: 8,
+    wan_flash_attention_mode: 'Force Flash Attention',
+    wan_enable_interpolation: false,
+    wan_guidance_scale: 6,
+    wan_frame_overlap: 1,
+  },
+  Fast: {
+    wan_speed_preset: 'Fast',
+    wan_inference_steps: 12,
+    wan_flash_attention_mode: 'Force Flash Attention',
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.35,
+    wan_guidance_scale: 7,
+    wan_frame_overlap: 2,
+  },
+  Balanced: {
+    wan_speed_preset: 'Balanced',
+    wan_inference_steps: 20,
+    wan_flash_attention_mode: 'Auto (Recommended)',
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.5,
+    wan_guidance_scale: 7.5,
+    wan_frame_overlap: 2,
+  },
+  Quality: {
+    wan_speed_preset: 'Quality',
+    wan_inference_steps: 35,
+    wan_flash_attention_mode: 'Auto (Recommended)',
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.65,
+    wan_guidance_scale: 8,
+    wan_frame_overlap: 3,
+  },
+};
+
+const WAN_MOTION_PRESET_NAMES = ['Static', 'Dolly', 'Pan', 'Handheld', 'Cinematic'];
+
+const WAN_MOTION_PRESETS = {
+  Static: {
+    wan_motion_preset: 'Static',
+    wan_motion_strength: 0.45,
+    wan_motion_strength_override: true,
+    wan_movement_sensitivity: 0.6,
+    wan_frame_overlap: 1,
+    wan_enable_interpolation: false,
+  },
+  Dolly: {
+    wan_motion_preset: 'Dolly',
+    wan_motion_strength: 1.0,
+    wan_motion_strength_override: true,
+    wan_movement_sensitivity: 1.0,
+    wan_frame_overlap: 2,
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.45,
+  },
+  Pan: {
+    wan_motion_preset: 'Pan',
+    wan_motion_strength: 0.9,
+    wan_motion_strength_override: true,
+    wan_movement_sensitivity: 1.15,
+    wan_frame_overlap: 2,
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.5,
+  },
+  Handheld: {
+    wan_motion_preset: 'Handheld',
+    wan_motion_strength: 0.75,
+    wan_motion_strength_override: true,
+    wan_movement_sensitivity: 1.35,
+    wan_frame_overlap: 3,
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.55,
+  },
+  Cinematic: {
+    wan_motion_preset: 'Cinematic',
+    wan_motion_strength: 1.1,
+    wan_motion_strength_override: true,
+    wan_movement_sensitivity: 0.85,
+    wan_frame_overlap: 4,
+    wan_enable_interpolation: true,
+    wan_interpolation_strength: 0.7,
+  },
+};
+
+/** HuggingFace packages Forge Wan auto-download can fetch (see sd-forge-deforum docs/wan). */
+const WAN_DOWNLOAD_PACKAGES = [
+  {
+    id: 'vace-1.3b',
+    label: 'VACE 1.3B (~17GB)',
+    hfRepo: 'Wan-AI/Wan2.1-VACE-1.3B',
+    t2vModel: '1.3B VACE',
+    preferredSize: '1.3B VACE (Recommended)',
+    hfCommand: 'huggingface-cli download Wan-AI/Wan2.1-VACE-1.3B --local-dir models/wan',
+  },
+  {
+    id: 'vace-14b',
+    label: 'VACE 14B (~75GB)',
+    hfRepo: 'Wan-AI/Wan2.1-VACE-14B',
+    t2vModel: '14B VACE',
+    preferredSize: '14B VACE',
+    hfCommand: 'huggingface-cli download Wan-AI/Wan2.1-VACE-14B --local-dir models/wan',
+  },
+  {
+    id: 't2v-1.3b',
+    label: 'T2V 1.3B (~17GB)',
+    hfRepo: 'Wan-AI/Wan2.1-T2V-1.3B',
+    t2vModel: '1.3B T2V',
+    preferredSize: 'Legacy Models',
+    hfCommand: 'huggingface-cli download Wan-AI/Wan2.1-T2V-1.3B --local-dir models/wan',
+  },
+  {
+    id: 'i2v-1.3b',
+    label: 'I2V 1.3B (~17GB)',
+    hfRepo: 'Wan-AI/Wan2.1-I2V-1.3B',
+    i2vModel: '1.3B I2V',
+    preferredSize: 'Legacy Models',
+    hfCommand: 'huggingface-cli download Wan-AI/Wan2.1-I2V-1.3B --local-dir models/wan',
+  },
+  {
+    id: 'i2v-14b',
+    label: 'I2V 14B (~75GB)',
+    hfRepo: 'Wan-AI/Wan2.1-I2V-14B',
+    i2vModel: '14B I2V',
+    preferredSize: 'Legacy Models',
+    hfCommand: 'huggingface-cli download Wan-AI/Wan2.1-I2V-14B --local-dir models/wan',
+  },
+  {
+    id: 'qwen-3b',
+    label: 'Qwen 2.5-VL-3B (prompt enhancer)',
+    kind: 'qwen',
+    qwenModel: 'Qwen2.5-VL-3B',
+    hfRepo: 'Qwen/Qwen2.5-VL-3B-Instruct',
+    hfCommand: 'huggingface-cli download Qwen/Qwen2.5-VL-3B-Instruct --local-dir models/qwen',
+  },
+];
+
+const _WAN_MOTION_LORA_IDS = new Set(WAN_MOTION_LORAS.map((l) => l.id));
+const _WAN_UI_ONLY_KEYS = new Set([
+  'wan_speed_preset',
+  'wan_motion_preset',
+  'motion_loras',
+  'motion_lora_weight',
+  'wan_use_init_image',
+  'wan_init_image',
+  'wan_i2v_init_strength',
+]);
+
+function getWanDownloadPackage(id) {
+  return WAN_DOWNLOAD_PACKAGES.find((p) => p.id === id) || WAN_DOWNLOAD_PACKAGES[0];
+}
+
+function getWanSpeedPreset(name) {
+  return WAN_SPEED_PRESETS[name] || WAN_SPEED_PRESETS.Balanced;
+}
+
+function getWanMotionPreset(name) {
+  return WAN_MOTION_PRESETS[name] || WAN_MOTION_PRESETS.Static;
+}
+
 const DEFAULT_WAN_ENGINE = {
+  wan_speed_preset: 'Balanced',
+  wan_motion_preset: 'Static',
+  motion_loras: [],
+  motion_lora_weight: 0.8,
+  wan_use_init_image: false,
+  wan_init_image: null,
+  wan_i2v_init_strength: 0.85,
   wan_t2v_model: "1.3B VACE",
   wan_i2v_model: "Use Primary Model",
   wan_auto_download: true,
@@ -1467,6 +1664,29 @@ function parseWanResolution(value) {
   return { width: Number(match[1]), height: Number(match[2]) };
 }
 
+/** Pick closest Wan resolution preset for an init image aspect ratio. */
+function pickWanResolutionForSize(width, height) {
+  const w = Number(width);
+  const h = Number(height);
+  if (!Number.isFinite(w) || !Number.isFinite(h) || w < 1 || h < 1) return null;
+  const aspect = w / h;
+  let best = WAN_RESOLUTION_OPTIONS[0];
+  let bestScore = Infinity;
+  for (const opt of WAN_RESOLUTION_OPTIONS) {
+    const size = parseWanResolution(opt);
+    if (!size) continue;
+    const optAspect = size.width / size.height;
+    const aspectDiff = Math.abs(Math.log(aspect / optAspect));
+    const sizeDiff = Math.abs(size.width - w) + Math.abs(size.height - h);
+    const score = aspectDiff * 1000 + sizeDiff;
+    if (score < bestScore) {
+      bestScore = score;
+      best = opt;
+    }
+  }
+  return best;
+}
+
 function buildAnimationPromptsJson(settings, positiveFallback = "") {
   const existing = settings?.animation_prompts;
   if (typeof existing === "string" && existing.trim().startsWith("{")) {
@@ -1496,6 +1716,17 @@ function mergeWanEngineIntoDeforumSettings(settings, wanEngine, { positivePrompt
       : {};
   const primary = String(positivePrompt || "").trim();
   if (primary) promptSchedule["0"] = primary;
+
+  const loraTags = (Array.isArray(wan.motion_loras) ? wan.motion_loras : [])
+    .filter((id) => _WAN_MOTION_LORA_IDS.has(id))
+    .map((id) => `<lora:${id}:${Number(wan.motion_lora_weight ?? 0.8).toFixed(2)}>`)
+    .join(' ');
+  if (loraTags) {
+    for (const frame of Object.keys(promptSchedule)) {
+      promptSchedule[frame] = `${String(promptSchedule[frame] || '').trimEnd()} ${loraTags}`.trimStart();
+    }
+  }
+
   const merged = {
     ...settings,
     animation_mode: WAN_ANIMATION_MODE,
@@ -1511,6 +1742,7 @@ function mergeWanEngineIntoDeforumSettings(settings, wanEngine, { positivePrompt
       ?? "",
   };
   for (const key of Object.keys(DEFAULT_WAN_ENGINE)) {
+    if (_WAN_UI_ONLY_KEYS.has(key)) continue;
     if (wan[key] !== undefined) merged[key] = wan[key];
   }
   const size = parseWanResolution(wan.wan_resolution);
@@ -1521,6 +1753,21 @@ function mergeWanEngineIntoDeforumSettings(settings, wanEngine, { positivePrompt
   if (wan.wan_seed != null && Number.isFinite(Number(wan.wan_seed))) {
     merged.seed = Number(wan.wan_seed);
   }
+  const initImage = String(wan.wan_init_image || merged.init_image || '').trim();
+  if (wan.wan_use_init_image && initImage) {
+    merged.use_init = true;
+    merged.init_image = initImage;
+    const initStrength = Number(wan.wan_i2v_init_strength);
+    if (Number.isFinite(initStrength)) {
+      merged.strength = Math.max(0, Math.min(1, initStrength));
+    }
+    if (wan.wan_strength_override !== false) {
+      merged.wan_strength_override = true;
+      merged.wan_fixed_strength = merged.strength;
+    }
+  } else if (wan.wan_use_init_image === false) {
+    merged.use_init = false;
+  }
   return merged;
 }
 
@@ -1528,6 +1775,24 @@ function normalizeWanEngine(raw = {}) {
   const out = { ...DEFAULT_WAN_ENGINE };
   for (const key of Object.keys(DEFAULT_WAN_ENGINE)) {
     if (raw[key] === undefined) continue;
+    if (key === 'motion_loras' && Array.isArray(raw.motion_loras)) {
+      out.motion_loras = raw.motion_loras.filter((id) => _WAN_MOTION_LORA_IDS.has(id));
+      continue;
+    }
+    if (key === 'wan_init_image') {
+      const img = raw.wan_init_image;
+      out.wan_init_image = img == null || img === '' ? null : String(img);
+      continue;
+    }
+    if (key === 'wan_use_init_image') {
+      out.wan_use_init_image = !!raw.wan_use_init_image && !!String(raw.wan_init_image || '').trim();
+      continue;
+    }
+    if (key === 'wan_i2v_init_strength') {
+      const num = Number(raw.wan_i2v_init_strength);
+      if (Number.isFinite(num)) out.wan_i2v_init_strength = Math.max(0, Math.min(1, num));
+      continue;
+    }
     const field = WAN_ENGINE_CONTROL_FIELDS.find((f) => f.key === key);
     if (field?.type === "boolean") {
       out[key] = !!raw[key];
@@ -1538,15 +1803,40 @@ function normalizeWanEngine(raw = {}) {
       out[key] = String(raw[key]);
     }
   }
+  if (!String(out.wan_init_image || '').trim()) {
+    out.wan_init_image = null;
+    out.wan_use_init_image = false;
+  }
   return out;
 }
 
 function visibleWanControlFields(wanEngine) {
   const wan = wanEngine || DEFAULT_WAN_ENGINE;
+  const hasInit = wan.wan_use_init_image && String(wan.wan_init_image || '').trim();
   return WAN_ENGINE_CONTROL_FIELDS.filter((field) => {
+    if (_WAN_UI_ONLY_KEYS.has(field.key)) return false;
+    if (hasInit && field.key === 'wan_i2v_model') return false;
     if (typeof field.when === "function") return field.when(wan);
     return true;
   });
+}
+
+function wanEngineForDownloadPackage(packageId, base = {}) {
+  const pkg = getWanDownloadPackage(packageId);
+  const patch = {
+    ...base,
+    wan_auto_download: true,
+    wan_model_path: base.wan_model_path || 'models/wan',
+  };
+  if (pkg.kind === 'qwen') {
+    patch.wan_qwen_auto_download = true;
+    patch.wan_qwen_model = pkg.qwenModel || 'Qwen2.5-VL-3B';
+    return patch;
+  }
+  if (pkg.t2vModel) patch.wan_t2v_model = pkg.t2vModel;
+  if (pkg.i2vModel) patch.wan_i2v_model = pkg.i2vModel;
+  if (pkg.preferredSize) patch.wan_preferred_size = pkg.preferredSize;
+  return patch;
 }
 // --- inlined from animation-plugins/animatelcm-engine-config.mjs (ESM source; do not edit) ---
 /** AnimateLCM video engine (Forge Deforum animation_mode). */
@@ -1562,16 +1852,7 @@ const ANIMATELCM_MOTION_TYPES = [
   { id: 'custom', label: 'Custom' },
 ];
 
-const ANIMATELCM_MOTION_LORAS = [
-  { id: 'v2_lora_ZoomIn',               label: 'Zoom In' },
-  { id: 'v2_lora_ZoomOut',              label: 'Zoom Out' },
-  { id: 'v2_lora_PanLeft',              label: 'Pan ←' },
-  { id: 'v2_lora_PanRight',             label: 'Pan →' },
-  { id: 'v2_lora_TiltUp',               label: 'Tilt ↑' },
-  { id: 'v2_lora_TiltDown',             label: 'Tilt ↓' },
-  { id: 'v2_lora_RollingClockwise',     label: 'Roll ↻' },
-  { id: 'v2_lora_RollingAnticlockwise', label: 'Roll ↺' },
-];
+const ANIMATELCM_MOTION_LORAS = MOTION_LORAS;
 
 const DEFAULT_ANIMATELCM_ENGINE = {
   motion_type: 'pan',
@@ -1875,7 +2156,7 @@ const DeforumJobPanel = { props: {
     engineMode: { type: Boolean, default: false },
   }, setup(props) { return __proxyAppView(props); }, components: { UiIcon: UiIcon, LiveParametersPanel: LiveParametersPanel, DeforumControlPanel: DeforumControlPanel }, template: "<div class=\"rack deforum-job-panel\" data-testid=\"deforum-settings-panel\">\n      <div class=\"framesync-panel deforum-job-panel__head\">\n        <div class=\"framesync-header\">\n          <div class=\"framesync-title\">\n            <UiIcon class=\"framesync-title-icon\" name=\"film\" />\n            <span class=\"framesync-accent\">Deforum</span>\n          </div>\n          <span\n            class=\"perf-mode-badge\"\n            :class=\"deforumPlaying ? 'mode-animate' : 'mode-preview'\"\n          >\n            {{ deforumPlaying ? 'Animating' : 'Ready' }}\n          </span>\n        </div>\n        <p class=\"framesync-subtitle deforum-job-panel__summary\">\n          Batch <strong>{{ deforumSettings.batch_name || '—' }}</strong>\n          · {{ deforumSettings.max_frames || 0 }} frames @ {{ deforumSettings.fps || 24 }} fps\n        </p>\n        <div class=\"deforum-job-panel__transport\">\n          <button type=\"button\" class=\"framesync-button\" :class=\"{ active: deforumPlaying }\" @click=\"toggleDeforumPlay\">\n            {{ deforumPlaying ? 'Pause job' : 'Play job' }}\n          </button>\n          <button type=\"button\" class=\"framesync-button\" @click=\"stopDeforumPlay\">Stop</button>\n        </div>\n        <div v-if=\"deforumSettingsStatus\" class=\"framesync-subtitle deforum-job-panel__status\">{{ deforumSettingsStatus }}</div>\n      </div>\n      <div class=\"param-drawer-body deforum-settings-body\">\n        <div class=\"deforum-settings-toolbar\">\n          <button type=\"button\" class=\"framesync-button\" :disabled=\"deforumSettingsLoading\" @click=\"loadDeforumSettings\">\n            <span v-if=\"deforumSettingsLoading\" class=\"lazy-loading-indicator lazy-loading-indicator--button\">\n              <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n              <span>Reload</span>\n            </span>\n            <template v-else>↻ Reload</template>\n          </button>\n          <button type=\"button\" class=\"framesync-button\" :disabled=\"deforumSettingsSaving\" @click=\"saveDeforumSettings\">\n            <span v-if=\"deforumSettingsSaving\" class=\"lazy-loading-indicator lazy-loading-indicator--button\">\n              <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n              <span>Save</span>\n            </span>\n            <template v-else>💾 Save</template>\n          </button>\n          <button\n            type=\"button\"\n            class=\"framesync-button\"\n            :class=\"{ 'framesync-button--loading': previewGenerating }\"\n            :disabled=\"previewGenerating\"\n            @click=\"generateDeforumPreviewFrame\"\n          >\n            <span v-if=\"previewGenerating\" class=\"lazy-loading-indicator lazy-loading-indicator--button\">\n              <span class=\"lazy-loading-indicator__spinner\" aria-hidden=\"true\"></span>\n              <span>Regenerate frame</span>\n            </span>\n            <template v-else>🖼 Regenerate frame</template>\n          </button>\n          <label class=\"deforum-advanced-toggle\">\n            <input type=\"checkbox\" v-model=\"deforumAdvancedOpen\"> JSON\n          </label>\n          <button\n            type=\"button\"\n            class=\"framesync-button\"\n            data-testid=\"deforum-settings-verify\"\n            title=\"Check settings for errors and optimization hints\"\n            @click=\"runDeforumSettingsVerify\"\n          >\n            Verify\n          </button>\n        </div>\n\n        <div v-if=\"deforumAdvancedOpen\" class=\"deforum-advanced-json\">\n          <textarea\n            class=\"framesync-input deforum-json-editor\"\n            v-model=\"deforumSettingsJson\"\n            rows=\"12\"\n            spellcheck=\"false\"\n            @blur=\"applyDeforumSettingsJson\"\n          ></textarea>\n          <p v-if=\"deforumSettingsJsonError\" class=\"deforum-json-error\">{{ deforumSettingsJsonError }}</p>\n        </div>\n\n        <div\n          v-else-if=\"deforumVerifyResults && (deforumVerifyResults.errors.length || deforumVerifyResults.warnings.length)\"\n          class=\"deforum-verify-results\"\n          data-testid=\"deforum-verify-results\"\n        >\n          <div class=\"deforum-verify-results__head\">\n            <span class=\"framesync-subtitle\" style=\"margin:0;\">Verification</span>\n            <span class=\"deforum-verify-results__counts\">\n              <span v-if=\"deforumVerifyResults.errors.length\" class=\"deforum-verify-results__badge deforum-verify-results__badge--error\">\n                {{ deforumVerifyResults.errors.length }} error{{ deforumVerifyResults.errors.length === 1 ? '' : 's' }}\n              </span>\n              <span v-if=\"deforumVerifyResults.warnings.length\" class=\"deforum-verify-results__badge deforum-verify-results__badge--warn\">\n                {{ deforumVerifyResults.warnings.length }} hint{{ deforumVerifyResults.warnings.length === 1 ? '' : 's' }}\n              </span>\n            </span>\n          </div>\n          <ul v-if=\"deforumVerifyResults.errors.length\" class=\"deforum-verify-results__list deforum-verify-results__list--error\">\n            <li v-for=\"(issue, idx) in deforumVerifyResults.errors\" :key=\"'deforum-verr-' + idx\">\n              <strong>{{ issue.field }}</strong> — {{ issue.message }}\n              <span v-if=\"issue.hint\" class=\"deforum-verify-results__hint\">{{ issue.hint }}</span>\n            </li>\n          </ul>\n          <ul v-if=\"deforumVerifyResults.warnings.length\" class=\"deforum-verify-results__list deforum-verify-results__list--warn\">\n            <li v-for=\"(issue, idx) in deforumVerifyResults.warnings\" :key=\"'deforum-vwarn-' + idx\">\n              <strong>{{ issue.field }}</strong> — {{ issue.message }}\n              <span v-if=\"issue.hint\" class=\"deforum-verify-results__hint\">{{ issue.hint }}</span>\n            </li>\n          </ul>\n        </div>\n        <p\n          v-else-if=\"deforumVerifyResults && !deforumVerifyResults.errors.length && !deforumVerifyResults.warnings.length\"\n          class=\"deforum-verify-results deforum-verify-results--ok\"\n          data-testid=\"deforum-verify-results\"\n        >\n          Settings look good — no issues found.\n        </p>\n\n        <div v-else class=\"deforum-settings-stack\">\n          <LiveParametersPanel v-if=\"!engineMode\" :app=\"app\" />\n          <DeforumControlPanel\n            :app=\"app\"\n            visual-plugin-id=\"deforum\"\n            :show-macro-knobs=\"!engineMode\"\n            :show-motion-pads=\"!engineMode\"\n            :show-settings=\"true\"\n          />\n        </div>\n      </div>\n  </div>" };
 const DeforumPluginPanel = { props: ['app'], setup(props) { return __proxyAppView(props); }, components: { DeforumJobPanel: DeforumJobPanel }, template: "<DeforumJobPanel :app=\"app\" engine-mode />" };
-const WanPluginPanel = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: "<div class=\"wan-engine-controls animation-plugin-panel\" data-testid=\"wan-plugin-panel\">\n    <div class=\"framesync-subtitle\">WAN Video · steer generation</div>\n    <p class=\"framesync-subtitle wan-engine-controls__hint\">\n      Uses Deforum <code>animation_mode: Wan Video</code> on the Forge node. Prompts come from the Prompts tab.\n    </p>\n    <div class=\"wan-engine-controls__grid\">\n      <template v-for=\"field in wanEngineControlFields\" :key=\"'wan-field-' + field.key\">\n        <div v-if=\"field.type === 'boolean'\" class=\"wan-engine-controls__toggle\">\n          <label>\n            <input\n              type=\"checkbox\"\n              :checked=\"!!wanEngine[field.key]\"\n              :data-testid=\"'wan-field-' + field.key\"\n              @change=\"onWanEngineFieldChange(field.key, $event.target.checked, 'boolean')\"\n            >\n            <span>{{ field.label }}</span>\n          </label>\n        </div>\n        <div v-else class=\"framesync-stack wan-engine-controls__field\">\n          <div class=\"framesync-subtitle\">{{ field.label }}</div>\n          <select\n            v-if=\"field.type === 'select'\"\n            class=\"framesync-select\"\n            :data-testid=\"'wan-field-' + field.key\"\n            :value=\"wanEngine[field.key]\"\n            @change=\"onWanEngineFieldChange(field.key, $event.target.value, 'select')\"\n          >\n            <option v-for=\"opt in field.options\" :key=\"field.key + '-' + opt\" :value=\"opt\">{{ opt }}</option>\n          </select>\n          <input\n            v-else-if=\"field.type === 'number'\"\n            type=\"number\"\n            class=\"framesync-input\"\n            :data-testid=\"'wan-field-' + field.key\"\n            :min=\"field.min\"\n            :max=\"field.max\"\n            :step=\"field.step\"\n            :value=\"wanEngine[field.key]\"\n            @input=\"onWanEngineFieldChange(field.key, $event.target.value, 'number')\"\n          >\n          <input\n            v-else\n            type=\"text\"\n            class=\"framesync-input\"\n            :data-testid=\"'wan-field-' + field.key\"\n            :value=\"wanEngine[field.key]\"\n            @input=\"onWanEngineFieldChange(field.key, $event.target.value, 'text')\"\n          >\n        </div>\n      </template>\n    </div>\n  </div>" };
+const WanPluginPanel = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: "<div class=\"wan-engine-controls animation-plugin-panel\" data-testid=\"wan-plugin-panel\">\n    <div class=\"framesync-subtitle\">WAN Video · steer generation</div>\n    <p class=\"framesync-subtitle wan-engine-controls__hint\">\n      Uses Deforum <code>animation_mode: Wan Video</code> on Forge. Prompts come from the Prompts tab; models download on Forge when auto-download is enabled.\n    </p>\n\n    <div class=\"wan-engine-controls__speed\">\n      <div class=\"framesync-subtitle\">Speed preset</div>\n      <div class=\"chips\">\n        <button\n          v-for=\"name in wanSpeedPresetNames\"\n          :key=\"'wan-speed-' + name\"\n          type=\"button\"\n          class=\"chip\"\n          :class=\"{ active: wanEngine.wan_speed_preset === name, 'chip--live': name === 'Turbo' || name === 'Fast' }\"\n          :data-testid=\"'wan-speed-preset-' + name\"\n          @click=\"applyWanSpeedPreset(name)\"\n        >\n          {{ name }}\n        </button>\n      </div>\n      <p class=\"framesync-subtitle wan-engine-controls__hint\">\n        Turbo/Fast use fewer inference steps + flash attention (similar to LCM-style quick passes).\n      </p>\n    </div>\n\n    <div class=\"wan-engine-controls__motion\">\n      <div class=\"framesync-subtitle\">Motion preset</div>\n      <div class=\"motion-preset-row\">\n        <button\n          v-for=\"name in wanMotionPresetNames\"\n          :key=\"'wan-motion-' + name\"\n          type=\"button\"\n          class=\"chip\"\n          :class=\"{ active: wanEngine.wan_motion_preset === name }\"\n          :data-testid=\"'wan-motion-preset-' + name\"\n          @click=\"applyWanMotionPreset(name)\"\n        >\n          {{ name }}\n        </button>\n      </div>\n    </div>\n\n    <div class=\"animatelcm-plugin-panel__motion-loras wan-engine-controls__loras\">\n      <div class=\"framesync-subtitle\">Motion LoRA (prompt tags)</div>\n      <div class=\"chips\">\n        <button\n          v-for=\"lora in wanMotionLoras\"\n          :key=\"'wan-lora-' + lora.id\"\n          type=\"button\"\n          class=\"chip\"\n          :class=\"{ active: activeWanMotionLoras.includes(lora.id) }\"\n          :data-testid=\"'wan-motion-lora-' + lora.id\"\n          :title=\"lora.id\"\n          @click=\"toggleWanMotionLora(lora.id)\"\n        >\n          {{ lora.label }}\n        </button>\n      </div>\n      <div v-if=\"activeWanMotionLoras.length > 0\" class=\"animatelcm-plugin-panel__lora-weight\">\n        <div class=\"framesync-subtitle\">LoRA weight</div>\n        <input\n          type=\"number\"\n          class=\"framesync-input\"\n          data-testid=\"wan-motion-lora-weight\"\n          min=\"0\"\n          max=\"1.5\"\n          step=\"0.05\"\n          :value=\"wanEngine.motion_lora_weight\"\n          @input=\"onWanEngineFieldChange('motion_lora_weight', $event.target.value, 'number')\"\n        >\n      </div>\n    </div>\n\n    <div class=\"wan-engine-controls__init\" data-testid=\"wan-init-section\">\n      <div class=\"framesync-subtitle\">Image init (I2V)</div>\n      <p class=\"framesync-subtitle wan-engine-controls__hint\">\n        Start the first clip from a still image. Forge uses Deforum <code>use_init</code> + I2V chaining for later clips.\n      </p>\n      <label class=\"wan-engine-controls__toggle\">\n        <input\n          type=\"checkbox\"\n          :checked=\"!!wanEngine.wan_use_init_image\"\n          :disabled=\"!wanEngine.wan_init_image\"\n          data-testid=\"wan-field-wan_use_init_image\"\n          @change=\"onWanEngineFieldChange('wan_use_init_image', $event.target.checked, 'boolean')\"\n        >\n        <span>Use init image for first frame</span>\n      </label>\n      <div\n        class=\"img2img-dropzone wan-engine-controls__init-drop\"\n        :class=\"{ 'img2img-dropzone--filled': !!wanEngine.wan_init_image }\"\n        data-testid=\"wan-init-dropzone\"\n        @dragover.prevent\n        @drop.prevent=\"handleWanInitImageDrop\"\n      >\n        <input\n          type=\"file\"\n          accept=\"image/*\"\n          class=\"img2img-dropzone__input\"\n          data-testid=\"wan-init-file-input\"\n          @change=\"handleWanInitImageFile\"\n        >\n        <div v-if=\"wanEngine.wan_init_image\" class=\"img2img-dropzone__preview\">\n          <img :src=\"wanEngine.wan_init_image\" alt=\"Wan init preview\" class=\"img2img-dropzone__image\">\n        </div>\n        <div v-else class=\"img2img-dropzone__empty\">\n          <div class=\"img2img-dropzone__title\">Init image</div>\n          <div class=\"img2img-dropzone__hint\">Drag and drop or click to browse</div>\n        </div>\n      </div>\n      <div class=\"wan-engine-controls__init-actions\">\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :disabled=\"!img2img.dataUrl\"\n          data-testid=\"wan-init-from-img2img\"\n          @click=\"useImg2imgAsWanInit\"\n        >\n          Use Prompts → IMAGE input\n        </button>\n        <button\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :disabled=\"!wanEngine.wan_init_image\"\n          data-testid=\"wan-init-clear\"\n          @click=\"clearWanInitImage\"\n        >\n          Clear init\n        </button>\n      </div>\n      <div v-if=\"wanEngine.wan_init_image\" class=\"wan-engine-controls__init-i2v\">\n        <div class=\"framesync-stack wan-engine-controls__field\">\n          <div class=\"framesync-subtitle\">I2V model (first frame + chaining)</div>\n          <select\n            class=\"framesync-select\"\n            data-testid=\"wan-field-wan_i2v_model\"\n            :value=\"wanEngine.wan_i2v_model\"\n            @change=\"onWanEngineFieldChange('wan_i2v_model', $event.target.value, 'select')\"\n          >\n            <option v-for=\"opt in wanI2vModelOptions\" :key=\"'wan-i2v-' + opt\" :value=\"opt\">{{ opt }}</option>\n          </select>\n        </div>\n        <div class=\"framesync-stack wan-engine-controls__field\">\n          <div class=\"framesync-subtitle\">Init strength (I2V conditioning)</div>\n          <input\n            type=\"number\"\n            class=\"framesync-input\"\n            data-testid=\"wan-field-wan_i2v_init_strength\"\n            min=\"0\"\n            max=\"1\"\n            step=\"0.05\"\n            :value=\"wanEngine.wan_i2v_init_strength\"\n            @input=\"onWanEngineFieldChange('wan_i2v_init_strength', $event.target.value, 'number')\"\n          >\n        </div>\n      </div>\n    </div>\n\n    <div class=\"wan-engine-controls__download\" data-testid=\"wan-download-section\">\n      <div class=\"framesync-subtitle\">Models on Forge</div>\n      <div class=\"wan-engine-controls__download-row\">\n        <button\n          v-for=\"pkg in wanDownloadPackages\"\n          :key=\"'wan-dl-' + pkg.id\"\n          type=\"button\"\n          class=\"framesync-button framesync-button--compact\"\n          :disabled=\"wanDownloadBusy\"\n          :data-testid=\"'wan-download-' + pkg.id\"\n          :title=\"pkg.hfCommand\"\n          @click=\"requestWanModelDownload(pkg.id)\"\n        >\n          {{ wanDownloadBusy ? '…' : '↓' }} {{ pkg.label }}\n        </button>\n      </div>\n      <label class=\"wan-engine-controls__toggle\">\n        <input\n          type=\"checkbox\"\n          :checked=\"!!wanEngine.wan_auto_download\"\n          data-testid=\"wan-field-wan_auto_download\"\n          @change=\"onWanEngineFieldChange('wan_auto_download', $event.target.checked, 'boolean')\"\n        >\n        <span>Auto-download missing Wan models on Forge</span>\n      </label>\n      <label class=\"wan-engine-controls__toggle\">\n        <input\n          type=\"checkbox\"\n          :checked=\"!!wanEngine.wan_qwen_auto_download\"\n          data-testid=\"wan-field-wan_qwen_auto_download\"\n          @change=\"onWanEngineFieldChange('wan_qwen_auto_download', $event.target.checked, 'boolean')\"\n        >\n        <span>Auto-download Qwen enhancer models</span>\n      </label>\n      <p v-if=\"wanDownloadStatus\" class=\"framesync-subtitle wan-engine-controls__download-status\" data-testid=\"wan-download-status\">\n        {{ wanDownloadStatus }}\n      </p>\n    </div>\n\n    <details class=\"wan-engine-controls__advanced\">\n      <summary class=\"framesync-subtitle\">Advanced Wan settings</summary>\n      <div class=\"wan-engine-controls__grid\">\n        <template v-for=\"field in wanEngineControlFields\" :key=\"'wan-field-' + field.key\">\n          <div v-if=\"field.type === 'boolean'\" class=\"wan-engine-controls__toggle\">\n            <label>\n              <input\n                type=\"checkbox\"\n                :checked=\"!!wanEngine[field.key]\"\n                :data-testid=\"'wan-field-' + field.key\"\n                @change=\"onWanEngineFieldChange(field.key, $event.target.checked, 'boolean')\"\n              >\n              <span>{{ field.label }}</span>\n            </label>\n          </div>\n          <div v-else class=\"framesync-stack wan-engine-controls__field\">\n            <div class=\"framesync-subtitle\">{{ field.label }}</div>\n            <select\n              v-if=\"field.type === 'select'\"\n              class=\"framesync-select\"\n              :data-testid=\"'wan-field-' + field.key\"\n              :value=\"wanEngine[field.key]\"\n              @change=\"onWanEngineFieldChange(field.key, $event.target.value, 'select')\"\n            >\n              <option v-for=\"opt in field.options\" :key=\"field.key + '-' + opt\" :value=\"opt\">{{ opt }}</option>\n            </select>\n            <input\n              v-else-if=\"field.type === 'number'\"\n              type=\"number\"\n              class=\"framesync-input\"\n              :data-testid=\"'wan-field-' + field.key\"\n              :min=\"field.min\"\n              :max=\"field.max\"\n              :step=\"field.step\"\n              :value=\"wanEngine[field.key]\"\n              @input=\"onWanEngineFieldChange(field.key, $event.target.value, 'number')\"\n            >\n            <input\n              v-else\n              type=\"text\"\n              class=\"framesync-input\"\n              :data-testid=\"'wan-field-' + field.key\"\n              :value=\"wanEngine[field.key]\"\n              @input=\"onWanEngineFieldChange(field.key, $event.target.value, 'text')\"\n            >\n          </div>\n        </template>\n      </div>\n    </details>\n  </div>" };
 const AnimateLcmPluginPanel = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="animatelcm-plugin-panel"></div>' };
 const EngineLayerControls = { props: {
     app: { type: Object, required: true },
@@ -2164,6 +2445,8 @@ module.exports = {
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
+      wanDownloadStatus: '',
+      wanDownloadBusy: false,
       animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
@@ -3221,6 +3504,24 @@ module.exports = {
     },
     wanEngineControlFields() {
       return visibleWanControlFields(this.wanEngine);
+    },
+    wanSpeedPresetNames() {
+      return WAN_SPEED_PRESET_NAMES;
+    },
+    wanMotionPresetNames() {
+      return WAN_MOTION_PRESET_NAMES;
+    },
+    wanMotionLoras() {
+      return WAN_MOTION_LORAS;
+    },
+    wanDownloadPackages() {
+      return WAN_DOWNLOAD_PACKAGES;
+    },
+    wanI2vModelOptions() {
+      return WAN_I2V_MODEL_OPTIONS;
+    },
+    activeWanMotionLoras() {
+      return Array.isArray(this.wanEngine?.motion_loras) ? this.wanEngine.motion_loras : [];
     },
     isBlendLayerActive() {
       return this.activeVideoLayer?.kind === 'blend';
@@ -14052,6 +14353,138 @@ onWanEngineFieldChange(key, rawValue, type = 'text') {
   this.saveSessionState();
   this.queueDeforumSettingsSave();
   if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+readWanInitImage(file) {
+  if (!file || !file.type?.startsWith?.('image/')) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = String(reader.result || '');
+    if (!dataUrl) return;
+    this.applyWanInitImageDataUrl(dataUrl);
+  };
+  reader.onerror = () => {};
+  reader.readAsDataURL(file);
+},
+handleWanInitImageFile(evt) {
+  const f = evt?.target?.files?.[0];
+  if (f) this.readWanInitImage(f);
+  if (evt?.target) evt.target.value = '';
+},
+handleWanInitImageDrop(evt) {
+  const file = evt?.dataTransfer?.files?.[0];
+  if (file) this.readWanInitImage(file);
+},
+clearWanInitImage() {
+  this.wanEngine = normalizeWanEngine({
+    ...this.wanEngine,
+    wan_init_image: null,
+    wan_use_init_image: false,
+  });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+useImg2imgAsWanInit() {
+  const dataUrl = this.img2img?.dataUrl;
+  if (!dataUrl) return;
+  this.applyWanInitImageDataUrl(dataUrl);
+},
+applyWanInitImageDataUrl(dataUrl) {
+  const i2vModel = String(this.wanEngine?.wan_i2v_model || '');
+  const patch = {
+    wan_init_image: dataUrl,
+    wan_use_init_image: true,
+  };
+  if (!i2vModel || i2vModel === 'Use T2V Model (No Continuity)') {
+    patch.wan_i2v_model = '1.3B VACE';
+  }
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...patch });
+  this.syncWanInitResolutionFromDataUrl(dataUrl);
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+syncWanInitResolutionFromDataUrl(dataUrl) {
+  if (!dataUrl || typeof Image === 'undefined') return;
+  const img = new Image();
+  img.onload = () => {
+    const picked = pickWanResolutionForSize(img.naturalWidth, img.naturalHeight);
+    if (picked) {
+      this.wanEngine = normalizeWanEngine({ ...this.wanEngine, wan_resolution: picked });
+      const size = parseWanResolution(picked);
+      if (size) this.syncResolutionAcrossControls(size.width, size.height, { syncGpuModal: true });
+    }
+    this.syncDeforumSettingsJson();
+    this.saveSessionState();
+  };
+  img.src = dataUrl;
+},
+applyWanSpeedPreset(name) {
+  const preset = getWanSpeedPreset(name);
+  if (!preset) return;
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...preset });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+applyWanMotionPreset(name) {
+  const preset = getWanMotionPreset(name);
+  if (!preset) return;
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...preset });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+toggleWanMotionLora(id) {
+  const current = Array.isArray(this.wanEngine.motion_loras) ? this.wanEngine.motion_loras : [];
+  const next = current.includes(id) ? current.filter((l) => l !== id) : [...current, id];
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, motion_loras: next });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+async requestWanModelDownload(packageId = 'vace-1.3b') {
+  if (this.wanDownloadBusy) return;
+  this.wanDownloadBusy = true;
+  this.wanDownloadStatus = 'Queuing download on Forge…';
+  const patch = wanEngineForDownloadPackage(packageId, this.wanEngine);
+  this.wanEngine = normalizeWanEngine({ ...this.wanEngine, ...patch });
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  try {
+    const positive = this.buildMorphedPrompt() || String(this.prompts.pos || '').trim() || 'defora wan model download probe';
+    const res = await fetch('/api/wan/download-models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        packageId,
+        wanEngine: this.wanEngine,
+        prompt: positive,
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.error || data.detail || res.statusText || 'Download request failed');
+    }
+    const pkg = WAN_DOWNLOAD_PACKAGES.find((p) => p.id === packageId);
+    this.wanDownloadStatus = data.ok
+      ? `Download triggered via Forge (${data.batchId || 'preview job'}). ${pkg?.label || packageId}`
+      : (data.reason || 'Skipped');
+    if (data.manual && pkg?.hfCommand) {
+      this.wanDownloadStatus += ` — or run: ${pkg.hfCommand}`;
+    }
+  } catch (err) {
+    const pkg = WAN_DOWNLOAD_PACKAGES.find((p) => p.id === packageId);
+    this.wanDownloadStatus = `${err.message || err}${pkg?.hfCommand ? ` — manual: ${pkg.hfCommand}` : ''}`;
+  } finally {
+    this.wanDownloadBusy = false;
+    this.queueDeforumSettingsSave();
+  }
 },
 async maybeCaptureActiveStyleExample(imagePath) {
   if (!this.promptStyleAutoExample || !this.activePromptStyleId || !imagePath) return;

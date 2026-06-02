@@ -585,12 +585,27 @@ describe("Deforumation Web UI", () => {
     appVm.onWanEngineFieldChange("wan_inference_steps", 12, "number");
     expect(appVm.wanEngine.wan_inference_steps).to.equal(12);
 
+    appVm.applyWanSpeedPreset("Turbo");
+    expect(appVm.wanEngine.wan_speed_preset).to.equal("Turbo");
+    expect(appVm.wanEngine.wan_inference_steps).to.equal(8);
+
+    appVm.toggleWanMotionLora("v2_lora_PanLeft");
+    expect(appVm.wanEngine.motion_loras).to.include("v2_lora_PanLeft");
+
+    appVm.applyWanInitImageDataUrl("data:image/png;base64,iVBORw0KGgo=");
+    expect(appVm.wanEngine.wan_use_init_image).to.equal(true);
+    const withInit = appVm.effectiveDeforumSettingsForRender();
+    expect(withInit.use_init).to.equal(true);
+    expect(withInit.init_image).to.include("data:image/png");
+
     appVm.switchTab("LIVE");
     appVm.selectVideoLayer("wan");
     appVm.liveEngineDrawerOpen = true;
     await nextTick();
     expect(document.querySelector("[data-testid='wan-plugin-panel']")).to.exist;
     expect(document.querySelector("[data-testid='wan-field-wan_inference_steps']")).to.exist;
+    expect(document.querySelector("[data-testid='wan-init-section']")).to.exist;
+    expect(document.querySelector("[data-testid='wan-field-wan_i2v_model']")).to.exist;
   });
 
   it("shows 2D/3D mode toggle and locks 3D-only deforum fields in 2D", async () => {
@@ -1004,7 +1019,9 @@ describe("Deforumation Web UI", () => {
     const pageText = document.body.textContent;
     expect(pageText).to.include("img2img (Forge)");
     expect(pageText).to.include("Input image");
-    expect(document.querySelectorAll(".img2img-dropzone").length).to.equal(2);
+    const img2imgPanel = document.querySelector(".img2img-panel");
+    expect(img2imgPanel).to.exist;
+    expect(img2imgPanel.querySelectorAll(".img2img-dropzone").length).to.equal(2);
   });
 
   it("shows active LoRAs and opens a compatible picker with +", async () => {
