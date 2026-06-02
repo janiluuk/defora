@@ -51,10 +51,10 @@ try {
   await waitForNavTabs(page);
 
   await openRunsMonitor(page);
-  const log = page.locator('[data-testid="runs-job-log"]');
+  const log = page.locator('[data-testid="runs-job-log"]').first();
   await log.waitFor({ state: 'visible', timeout: 10000 });
 
-  await page.locator('[data-testid="runs-launch-test"]').click();
+  await page.locator('[data-testid="runs-launch-test"]').first().click();
   await page.waitForFunction(
     () => {
       const el = document.querySelector('[data-testid="runs-job-log"]');
@@ -64,7 +64,7 @@ try {
   );
 
   await page.waitForTimeout(1600);
-  await page.locator('[data-testid="runs-browser-tab-past"]').click();
+  await page.locator('[data-testid="runs-browser-tab-past"]').first().click();
   const pastTable = page.locator(
     '.runs-browser__table-wrap:not(.runs-browser__table-wrap--active) .runs-browser__table',
   );
@@ -83,7 +83,7 @@ try {
     timeout: 20000,
   });
 
-  await page.locator('.runs-detail-card__output-links button').filter({ hasText: /^Open in editor$/ }).click();
+  await page.locator('.runs-detail-card__output-links button').filter({ hasText: /^Open in editor$/ }).first().click();
   await page.waitForSelector('[data-testid="library-workspace"]', { timeout: 15000 });
   await page.waitForSelector('[data-testid="library-workspace-tab-editor"][aria-selected="true"]', {
     timeout: 15000,

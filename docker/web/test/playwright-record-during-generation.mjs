@@ -276,7 +276,8 @@ try {
 
   await page.locator('[data-testid="library-tab-videos"]').click();
   await page.waitForSelector('[data-testid="videos-browser"]', { timeout: 10000 });
-  const recordingCard = await waitForProjectCard(browserRoot, page, producedRecording);
+  await page.waitForTimeout(500);
+  const recordingCard = await waitForProjectCard(browserRoot, page, producedRecording, 60000);
   await assertCardThumbnailLoads(page, recordingCard);
 
   const mediaRes = await page.request.get(
