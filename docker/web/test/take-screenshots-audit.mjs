@@ -30,7 +30,7 @@ const repoRoot = path.resolve(import.meta.dirname, '../../..');
 const runId = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 const SHOTS_DIR = process.env.OUT_DIR
   ? path.resolve(process.env.OUT_DIR)
-  : path.join(repoRoot, 'screenshots', `audit-${runId}`);
+  : path.join(repoRoot, 'docs/design/screenshots', `audit-${runId}`);
 fs.mkdirSync(SHOTS_DIR, { recursive: true });
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'defora-audit-shots-'));

@@ -1,14 +1,3 @@
-#!/usr/bin/env python3
-"""
-Wrapper entrypoint for defora_cli.deforumation_runs_cli (curses UI).
-"""
-import curses
-from defora_cli import deforumation_runs_cli as _runs
-
-
-def _main():
-    curses.wrapper(_runs.main)
-
-
-if __name__ == "__main__":
-    _main()
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools/bin/deforumation_runs_cli" "$@"

@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+set -euo pipefail
+# Usage: run-python-cli <python-module> [args...]
+# Example: run-python-cli defora_cli.forge_cli img "a city at night"
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_env.sh"
+module="${1:?python module required}"
+shift
+exec python3 -m "${module}" "$@"

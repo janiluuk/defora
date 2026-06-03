@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Wrapper entrypoint for defora_cli.forge_cli.
-"""
-from defora_cli import forge_cli as _forge
-
-
-if __name__ == "__main__":
-    _forge.main()
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools/bin/forge_cli" "$@"

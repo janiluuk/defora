@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Wrapper entrypoint for defora_cli.deforumation_request_dispatcher.
-"""
-from defora_cli import deforumation_request_dispatcher as _dispatcher
-
-
-if __name__ == "__main__":
-    _dispatcher.main()
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools/bin/deforumation_request_dispatcher" "$@"

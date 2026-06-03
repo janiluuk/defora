@@ -92,7 +92,7 @@ You should see:
 
 ### 1. Deforum Mediator (Requirement 1: Connection)
 
-**Location:** `defora_cli/mediator_server.py`
+**Location:** `tools/defora_cli/mediator_server.py`
 
 **Ports:**
 - 8765 - Deforum bridge connection
@@ -192,7 +192,7 @@ environment:
 
 ### 4. Control Bridge
 
-**Location:** `defora_cli/control_bridge.py`
+**Location:** `tools/defora_cli/control_bridge.py`
 
 **Purpose:** Connects web UI to mediator
 1. Listens on RabbitMQ `controls` queue
@@ -347,7 +347,10 @@ defora/
 │   ├── web/                   # Web player + server
 │   ├── sd-forge/              # SD-Forge with Deforum
 │   └── frame-seeder/          # Test frame generator
-├── defora_cli/
+├── tools/
+│   ├── defora_cli/
+│   ├── bin/
+│   └── scripts/
 │   ├── control_bridge.py      # RabbitMQ → mediator relay
 │   └── mediator_client.py     # WebSocket client library
 ├── defora_data/               # Local config + presets

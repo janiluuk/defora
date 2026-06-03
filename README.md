@@ -15,60 +15,60 @@ Top-level tabs (web UI): **LIVE · PROMPTS · MOTION · MODULATION · AUDIO · S
 <tr>
 <td width="50%">
 <h4>LIVE</h4>
-<img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
+<img src="docs/design/screenshots/readme/live-tab.png" alt="Web UI Live Tab" width="100%" />
 <p>The stage fills the right half; the left panel switches between <b>Controls</b> (animation engine, layer selector, preview source) and <b>Deforum</b>. Stage HUDs: pinned params, modulating-now, morph crossfader, recent-runs rail. Layer bar at bottom cycles WebGL / Deforum / WAN / AnimateLCM / Both / Input.</p>
 </td>
 <td width="50%">
 <h4>PROMPTS</h4>
-<img src="screenshots/prompts-tab.png" alt="Web UI Prompts Tab" width="100%" />
+<img src="docs/design/screenshots/readme/prompts-tab.png" alt="Web UI Prompts Tab" width="100%" />
 <p>Sub-tabs PROMPTS / IMAGE / LORA / CONTROLNET / STORY. Style modifier, prompt morph enable, and plugin registry. A/B morph crossfader lives on the LIVE stage HUD — not duplicated here.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>MOTION</h4>
-<img src="screenshots/motion-tab.png" alt="Web UI Motion Tab" width="100%" />
+<img src="docs/design/screenshots/readme/motion-tab.png" alt="Web UI Motion Tab" width="100%" />
 <p>Preset pills above a full-view XY hero pad with accent puck glow. Fine-tune toggle reveals macro sliders. Animation sequencer timeline docks at the bottom; 3D path preview in advanced panel.</p>
 </td>
 <td width="50%">
 <h4>MODULATION</h4>
-<img src="screenshots/modulation-tab.png" alt="Web UI Modulation Tab" width="100%" />
+<img src="docs/design/screenshots/readme/modulation-tab.png" alt="Web UI Modulation Tab" width="100%" />
 <p>Waveform-first LFO cards — compact meta when collapsed, full controls when selected. Sub-tabs LFO / Audio / Reactive / Beat / Mappings. Teal active, dim idle chrome.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>AUDIO</h4>
-<img src="screenshots/audio-tab.png" alt="Web UI Audio Tab" width="100%" />
+<img src="docs/design/screenshots/readme/audio-tab.png" alt="Web UI Audio Tab" width="100%" />
 <p>First-class reactive tab: quick-band pills (sub · bass · mid · …) above a tall spectrum hero. Frequency-to-parameter mapping cards with live meters.</p>
 </td>
 <td width="50%">
 <h4>SETTINGS — Runs</h4>
-<img src="screenshots/runs-tab.png" alt="Web UI Runs monitor" width="100%" />
+<img src="docs/design/screenshots/readme/runs-tab.png" alt="Web UI Runs monitor" width="100%" />
 <p><b>Settings → Runs</b> — active jobs, past runs, and frames rail. Kill queued batches, inspect JSON diff, re-run or continue from the detail pane.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>MOTION — Sequencer</h4>
-<img src="screenshots/generate-tab.png" alt="Web UI Motion sequencer dock" width="100%" />
+<img src="docs/design/screenshots/readme/generate-tab.png" alt="Web UI Motion sequencer dock" width="100%" />
 <p><b>Motion tab</b> — animation sequencer timeline dock with playhead/duration/frame/FPS sync readout. Clips, keyframes, markers, and Apply-to-Deforum workflow (formerly the top-level GENERATE tab).</p>
 </td>
 <td width="50%">
 <h4>SETTINGS — Engine</h4>
-<img src="screenshots/settings-tab.png" alt="Web UI Settings Tab" width="100%" />
+<img src="docs/design/screenshots/readme/settings-tab.png" alt="Web UI Settings Tab" width="100%" />
 <p>Checkpoint GlassPanel with CFG/steps/sampler summary. Advanced sampling, resolution, LCM, and seed in progressive disclosure panel.</p>
 </td>
 </tr>
 <tr>
 <td width="50%">
 <h4>SETTINGS — Output</h4>
-<img src="screenshots/stream-tab.png" alt="Web UI Stream Output" width="100%" />
+<img src="docs/design/screenshots/readme/stream-tab.png" alt="Web UI Stream Output" width="100%" />
 <p>Stream preview, HLS/RTMP addresses, and active output destinations. Replaces the former top-level STREAM tab; HLS watch also available from the status strip on LIVE.</p>
 </td>
 <td width="50%">
 <h4>LIBRARY</h4>
-<img src="screenshots/library-tab.png" alt="Web UI Library workspace" width="100%" />
+<img src="docs/design/screenshots/readme/library-tab.png" alt="Web UI Library workspace" width="100%" />
 <p>Fullscreen workspace from the header <b>Library</b> icon. Tabs: <b>Projects</b>, <b>Videos</b>, <b>Audio</b>, <b>Files</b> (VideoSwarm), plus <b>Editor</b> (FreeCut handoff). Cloud connect and Open in video editor from project cards.</p>
 </td>
 </tr>
@@ -83,12 +83,12 @@ Browser-based stage with real-time layer switching:
 <tr>
 <td width="50%">
 <h4>Web UI — Stage + Controls</h4>
-<img src="screenshots/live-tab.png" alt="Web UI Live Tab" width="100%" />
+<img src="docs/design/screenshots/readme/live-tab.png" alt="Web UI Live Tab" width="100%" />
 <p>Animation engine picker, video layer selector (WebGL / Deforum / WAN Video / Both / Input), and preview source toggle. Status bar shows health, session ID, and live frame rate.</p>
 </td>
 <td width="50%">
 <h4>TUI — Terminal Control Center</h4>
-<img src="screenshots/tui-live.png" alt="TUI Live Tab" width="100%" />
+<img src="docs/design/screenshots/readme/tui-live.png" alt="TUI Live Tab" width="100%" />
 <p>Full ncurses interface with ASCII frame preview and parameter sliders. F1–F7 to switch tabs, ←/→ to adjust values.</p>
 </td>
 </tr>
@@ -100,11 +100,11 @@ A/B prompt blending, style modifiers, and LoRA crossfader:
 <table>
 <tr>
 <td width="50%">
-<img src="screenshots/prompts-tab.png" alt="Web UI Prompts" width="100%" />
+<img src="docs/design/screenshots/readme/prompts-tab.png" alt="Web UI Prompts" width="100%" />
 <p><b>Prompts tab:</b> Forge-compatible style presets with preview toggle, and a Prompt Morphing section with enable/disable and an A→B crossfader slider.</p>
 </td>
 <td width="50%">
-<img src="screenshots/lora-tab.png" alt="Web UI LoRA" width="100%" />
+<img src="docs/design/screenshots/readme/lora-tab.png" alt="Web UI LoRA" width="100%" />
 <p><b>LoRA sub-tab:</b> A-group / B-group palettes with a crossfader that can be driven manually or by any LFO slot for tempo-synced style morphing.</p>
 </td>
 </tr>
@@ -116,11 +116,11 @@ XY performance pads, presets, and the animation timeline:
 <table>
 <tr>
 <td width="50%">
-<img src="screenshots/motion-tab.png" alt="Web UI Motion" width="100%" />
+<img src="docs/design/screenshots/readme/motion-tab.png" alt="Web UI Motion" width="100%" />
 <p><b>Web UI:</b> Move and Look XY pads with Static / Orbit / Tunnel / Handheld / Chaos presets. Animation Sequencer timeline docks below the pads with loop, prompt, and LoRA controls.</p>
 </td>
 <td width="50%">
-<img src="screenshots/tui-motion.png" alt="TUI Motion" width="100%" />
+<img src="docs/design/screenshots/readme/tui-motion.png" alt="TUI Motion" width="100%" />
 <p><b>TUI:</b> Multi-lane Deforum schedule editor. Edit zoom, translation, and rotation curves from your terminal.</p>
 </td>
 </tr>
@@ -132,11 +132,11 @@ Six LFO slots routed to any parameter:
 <table>
 <tr>
 <td width="50%">
-<img src="screenshots/modulation-tab.png" alt="Web UI Modulation" width="100%" />
+<img src="docs/design/screenshots/readme/modulation-tab.png" alt="Web UI Modulation" width="100%" />
 <p><b>Modulation Patch Bay:</b> LFO / Audio / Reactive / Beat / Mappings tabs. Each slot shows waveform, BPM sync, speed, depth, and armed target. The Targets panel lists every active route.</p>
 </td>
 <td width="50%">
-<img src="screenshots/tui-audio.png" alt="TUI Audio" width="100%" />
+<img src="docs/design/screenshots/readme/tui-audio.png" alt="TUI Audio" width="100%" />
 <p><b>TUI:</b> Beat-synced parameter automation and audio-reactive schedule generation.</p>
 </td>
 </tr>
@@ -148,11 +148,11 @@ Checkpoint, sampler, and GPU pool configuration:
 <table>
 <tr>
 <td width="50%">
-<img src="screenshots/settings-tab.png" alt="Web UI Settings" width="100%" />
+<img src="docs/design/screenshots/readme/settings-tab.png" alt="Web UI Settings" width="100%" />
 <p><b>ENGINE sub-tab:</b> Active checkpoint card, inline CFG / steps / sampler / scheduler controls, LCM Engine toggle, resolution, seed mode, and model-specific profile buttons. CONTROLLERS / MIDI and GPU POOL sub-tabs also live here.</p>
 </td>
 <td width="50%">
-<img src="screenshots/cn-tab.png" alt="Web UI ControlNet" width="100%" />
+<img src="docs/design/screenshots/readme/cn-tab.png" alt="Web UI ControlNet" width="100%" />
 <p><b>ControlNet sub-tab (under PROMPTS):</b> Per-slot model picker filtered to the active checkpoint family, weight slider with visual strength indicator, and enable/disable toggle per slot.</p>
 </td>
 </tr>
@@ -352,8 +352,8 @@ Same pattern as Sparkki: rsync + remote Docker Compose via jumphost `pi@sparkki.
 GitHub Actions: [`.github/workflows/deploy-production.yml`](.github/workflows/deploy-production.yml) (after green CI on `main`, or manual dispatch). Requires secret `DEPLOY_SSH_PRIVATE_KEY`. See [`docs/deploy.md`](docs/deploy.md).
 
 ## Layout
-- CLI/package code: `defora_cli/`
-- Executable wrappers: `./forge_cli`, `./deforumation_request_dispatcher`, `./deforumation_runs_cli`, `./deforumation_cli_panel`, `./deforumation_dashboard`, `./defora_tui`, `./monitor_cli`, `./stream_helper`, `./audio_reactive_modulator`
+- CLI/package code: [`tools/defora_cli/`](tools/defora_cli/)
+- Executable wrappers: [`tools/bin/`](tools/bin/) (root stubs like `./forge_cli` delegate here)
 - Web UI & streaming stack: `docker-compose.yml`, `docker/web/` (Nginx+Node+Vue front-end, HLS, controls), `docker/bridge/` (mediator bridge)
 - Docs: `docs/` (workflows, server targeting, schema, streaming)
 - Tests: `tests/` (Python) and `docker/web/test` (web UI smoke tests)
