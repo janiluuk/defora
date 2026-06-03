@@ -32,9 +32,9 @@ Edit this table when you change the target layout in §10.
 
 ## 1. App shell (always visible)
 
-![App shell — LIVE tab, all panels closed](../screenshots/audit-2026-06-02/00-main-overview.png)
+![App shell — LIVE tab, all panels closed](../screenshots/audit-2026-06-03/00-main-overview.png)
 
-![LIVE — bottom drawer open](../screenshots/audit-2026-06-02/02b-live-bottom-drawer.png)
+![LIVE — bottom drawer open](../screenshots/audit-2026-06-03/02b-live-bottom-drawer.png)
 
 ```mermaid
 flowchart TB
