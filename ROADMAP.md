@@ -56,8 +56,8 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 | G1–G3 | GENERATE tab + timeline dock | **Done** | GENERATE tab + dedicated dock under preview with sync readout |
 | St1–St3 | STREAM tab vs design | **Done** | STREAM removed from nav; legacy alias → SETTINGS → OUTPUT |
 | X1 | Emoji buttons | **Done** | Library folder/play, Deforum toolbar, nav icons via UiIcon |
-| X2 | GlassPanel underused | **Partial** | Pinned + morph + modulating HUDs |
-| X3–X4 | `--live` / `--accent` on active states | **Partial** | LFO cards, motion puck, generate dock sync readout |
+| X2 | GlassPanel underused | **Done** | LIVE/Motion/Stream/Generate context panels use GlassPanel |
+| X3–X4 | `--live` / `--accent` on active states | **Done** | Sub-pill active uses `--accent`; stream live pill uses `--live` tokens |
 | X5–X6 | framesync-panel / inline hex | **Done** | CN layout → CSS classes; tab accents via `:root` aliases |
 | X7 | Perf drawer duplicate | **Done** | Template removed |
 | X8 | SYSTEM label collision | **Done** | Renamed to RUNS; legacy SYSTEM alias preserved |
@@ -66,7 +66,7 @@ Design reference was `design.zip` + `UX-AUDIT.md` (triaged into this section; bo
 
 1. **Preview compositor Phase 3** — Done (forge LFO mix, run frame rail, WebGL deforum backdrop)
 2. **Test plan** — GPU E2E (`npm run test:gpu-e2e`) and perf regression (`npm run test:perf-regression`) opt-in
-3. **X2 / X3–X4** — Further GlassPanel / token polish on secondary panels as needed
+3. **X2 / X3–X4** — Done (GlassPanel on secondary panels; sub-pill / stream status tokens)
 
 ---
 

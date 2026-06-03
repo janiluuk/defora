@@ -110,7 +110,7 @@
       </template>
 
       <template v-else-if="modulationPane === 'AV_SYNC'">
-        <div class="framesync-panel modulation-audio-panel">
+        <div class="modulation-audio-panel">
           <div class="framesync-header">
             <div class="framesync-title">Reference <span class="framesync-accent">Audio</span></div>
           </div>
@@ -223,7 +223,7 @@
           </label>
         </div>
 
-        <div class="framesync-panel audio-reactive-panel">
+        <div class="audio-reactive-panel">
           <div
             class="framesync-header audio-reactive-panel__header"
             :class="{ 'audio-reactive-panel__header--toolbar': isAudioTab }"
@@ -430,7 +430,7 @@
       </template>
 
       <template v-else-if="modulationPane === 'BEAT_MACROS'">
-        <div class="framesync-panel modulation-macros modulation-macros--audio" :class="{ 'modulation-macros--disabled': !audio.objectUrl }">
+        <div class="modulation-macros modulation-macros--audio" :class="{ 'modulation-macros--disabled': !audio.objectUrl }">
           <div class="framesync-header modulation-macros__header">
             <div class="framesync-title">Beat <span class="framesync-accent">Macros</span></div>
             <div class="modulation-panel__actions">

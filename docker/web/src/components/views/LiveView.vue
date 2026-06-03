@@ -1,10 +1,8 @@
 <template>
   <div class="live-view" data-testid="live-view">
     <div class="live-view__scroll">
-      <div class="framesync-panel live-view__summary" data-testid="live-context-summary">
-        <div class="framesync-header">
-          <div class="framesync-title">Live <span class="framesync-accent">summary</span></div>
-        </div>
+      <GlassPanel size="md" class="live-view__summary" data-testid="live-context-summary">
+        <template #header>Live summary</template>
         <div class="live-view__summary-grid">
           <div class="live-view__summary-row">
             <span class="framesync-subtitle">Preview layer</span>
@@ -30,12 +28,10 @@
         <p v-else class="framesync-subtitle live-view__summary-empty">
           Pin parameters from the panel below, or route LFO / audio in Modulation.
         </p>
-      </div>
+      </GlassPanel>
 
-      <div class="framesync-panel live-view__shortcuts">
-        <div class="framesync-header">
-          <div class="framesync-title">Engine <span class="framesync-accent">shortcuts</span></div>
-        </div>
+      <GlassPanel size="md" class="live-view__shortcuts">
+        <template #header>Engine shortcuts</template>
         <p class="framesync-subtitle live-view__shortcuts-copy">
           Full Deforum schedules (sampler, ControlNet, motion strings) live in the Engine drawer.
         </p>
@@ -65,16 +61,18 @@
             WebGL visual
           </button>
         </div>
-      </div>
+      </GlassPanel>
     </div>
   </div>
 </template>
 
 <script>
+import GlassPanel from '../GlassPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'LiveView',
+  components: { GlassPanel },
   props: {
     app: { type: Object, required: true },
   },

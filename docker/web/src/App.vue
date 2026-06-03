@@ -94,25 +94,6 @@
 
     <LibraryWorkspaceOverlay :app="appViewModel" />
 
-    <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav">
-      <div class="top-nav__inner">
-        <button
-          class="tab"
-          v-for="tab in tabs"
-          :key="tab.id"
-          :class="[ `tab--${tab.id.toLowerCase()}`, { active: currentTab === tab.id } ]"
-          @click="switchTab(tab.id)"
-        >
-          <span class="tab__icon-wrap" aria-hidden="true">
-            <UiIcon class="tab__icon" :name="tab.icon" />
-          </span>
-          <span class="tab__copy">
-            <span class="tab__label">{{ tab.label }}</span>
-          </span>
-        </button>
-      </div>
-    </nav>
-
     <div
       v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
       class="live-drawer-shell live-drawer-shell--dock-top"
