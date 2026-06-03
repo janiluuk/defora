@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.73] - 2026-06-03
+
+## What's Changed
+
+- feat(web): bottom drawer toggle, engine defaults, and UI flow docs (c3abaf2)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.72...v0.6.73
+
+
 ## [0.6.72] - 2026-06-02
 
 ## What's Changed
