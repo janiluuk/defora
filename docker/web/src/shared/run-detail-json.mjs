@@ -21,7 +21,7 @@ function firstPromptFromSettings(settings) {
   return settings.animation_prompts_positive || settings.prompt;
 }
 
-export function buildRunDetailCurrentContext({ deforumSettings, forgeModel } = {}) {
+export function buildRunDetailCurrentContext({ deforumSettings, forgeModel, promptStyles } = {}) {
   const settings = deforumSettings && typeof deforumSettings === 'object' ? deforumSettings : {};
   const byPath = new Map([
     ['model', settings.sd_model_name || settings.sd_model_checkpoint || forgeModel],
@@ -37,7 +37,13 @@ export function buildRunDetailCurrentContext({ deforumSettings, forgeModel } = {
     ['cfg', parseScheduleConstant(settings.cfg_scale_schedule)],
     ['strength', parseScheduleConstant(settings.strength_schedule)],
   ]);
-  return { settings, byPath };
+  if (promptStyles && typeof promptStyles === 'object') {
+    byPath.set('style_id', promptStyles.activeStyleId || promptStyles.activeStyle?.id);
+    byPath.set('style_name', promptStyles.activeStyle?.name);
+    byPath.set('style_positive_append', promptStyles.morphedAppend?.positive || promptStyles.activeStyle?.positive);
+    byPath.set('style_negative_append', promptStyles.morphedAppend?.negative || promptStyles.activeStyle?.negative);
+  }
+  return { settings, byPath, promptStyles: promptStyles || null };
 }
 
 export function valuesEqual(a, b) {
@@ -83,6 +89,17 @@ function lookupCurrentValue(path, ctx) {
   }
   const topKey = path.split(/[.[]/)[0];
   if (ctx.byPath && ctx.byPath.has(topKey)) return ctx.byPath.get(topKey);
+  if (topKey === 'promptStyles' && ctx.promptStyles) {
+    const sub = path.slice('promptStyles.'.length);
+    if (!sub || sub === 'promptStyles') return ctx.promptStyles;
+    const parts = sub.split('.');
+    let cur = ctx.promptStyles;
+    for (const part of parts) {
+      if (cur == null) return undefined;
+      cur = cur[part];
+    }
+    return cur;
+  }
   if (Object.prototype.hasOwnProperty.call(settings, path)) return settings[path];
   if (Object.prototype.hasOwnProperty.call(settings, topKey)) return settings[topKey];
   if (topKey === '_batch' && path.includes('model')) {

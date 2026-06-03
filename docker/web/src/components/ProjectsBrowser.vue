@@ -96,6 +96,12 @@
         <div class="library-browser__modal-head">
           <strong>{{ fullscreenProject.title }}</strong>
           <div class="library-browser__modal-actions">
+            <button type="button" class="framesync-button framesync-button--compact framesync-button--live" @click="useProjectAsSource(fullscreenProject)">
+              Use as source
+            </button>
+            <button type="button" class="framesync-button framesync-button--compact" @click="loadProjectToMotionSequence(fullscreenProject)">
+              Load to motion sequence
+            </button>
             <button type="button" class="framesync-button framesync-button--compact" @click="openProjectInEditor(fullscreenProject)">
               Open in editor
             </button>
@@ -251,6 +257,16 @@ export default {
         name: project.title,
         url: project.videoUrl,
       })
+    },
+    useProjectAsSource(project) {
+      if (!project?.videoPath) return
+      this.selectProject(project)
+      void this.app.applyLibrarySelectionAsSource()
+    },
+    loadProjectToMotionSequence(project) {
+      if (!project?.videoPath) return
+      this.selectProject(project)
+      void this.app.applyLibrarySelectionToMotionSequencer()
     },
     openUploadPicker() {
       this.$refs.uploadInputEl?.click()

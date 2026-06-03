@@ -57,12 +57,7 @@
 <script>
 import EditorShell from '../EditorShell.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
-import {
-  buildFreecutImportMessage,
-  deforaMediaFileUrl,
-  freecutEditorUrl,
-  freecutProjectsUrl,
-} from '../../shared/freecut-bridge.mjs'
+import { buildFreecutImportMessage } from '../../shared/freecut-bridge.mjs'
 
 export default {
   name: 'EditorView',
@@ -72,24 +67,6 @@ export default {
   },
   setup(props) {
     return proxyAppView(props)
-  },
-  computed: {
-    freecutFrameSrc() {
-      const route = String(this.editorFreecutRoute || 'projects').trim()
-      if (route.startsWith('editor/')) {
-        const projectId = route.slice('editor/'.length)
-        return freecutEditorUrl(projectId)
-      }
-      return freecutProjectsUrl()
-    },
-    editorImportUrl() {
-      const raw = String(this.editorPendingImportUrl || '').trim()
-      if (raw) return raw
-      const path = String(this.editorPendingImportPath || '').trim()
-      if (!path) return ''
-      const origin = typeof window !== 'undefined' ? window.location.origin : ''
-      return deforaMediaFileUrl(origin, path, this.editorPendingImportRootId)
-    },
   },
   methods: {
     navigateFreecut(route) {

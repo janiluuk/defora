@@ -164,6 +164,7 @@ export default {
     },
     clipLanes() {
       const defs = [
+        { type: 'video', label: 'Video source' },
         { type: 'prompt', label: 'Prompts' },
         { type: 'lora', label: 'LoRAs' },
         { type: 'controlnet', label: 'ControlNet' },

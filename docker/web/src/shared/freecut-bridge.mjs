@@ -15,6 +15,15 @@ export function freecutEditorUrl(projectId, basePath = '/freecut') {
   return `${base}/editor/${encodeURIComponent(id)}`;
 }
 
+/** Append ?deforaImport= so FreeCut defora-bridge.js can auto-open Import from URL. */
+export function appendDeforaImportParam(pageUrl, mediaUrl) {
+  const base = String(pageUrl || '').trim();
+  const url = String(mediaUrl || '').trim();
+  if (!base || !url) return base;
+  const sep = base.includes('?') ? '&' : '?';
+  return `${base}${sep}deforaImport=${encodeURIComponent(url)}`;
+}
+
 export function deforaMediaFileUrl(origin, filePath, rootId) {
   const path = String(filePath || '').trim();
   if (!path) return '';

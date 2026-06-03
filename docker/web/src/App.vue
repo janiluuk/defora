@@ -14,6 +14,25 @@
         </div>
       </div>
     </div>
+    <div v-if="extendProjectPromptOpen" class="restore-session-modal" @click="dismissExtendProjectPrompt(false)">
+      <div class="restore-session-modal__dialog framesync-panel" @click.stop>
+        <div class="framesync-header">
+          <div class="framesync-title">Extend <span class="framesync-accent">project length</span>?</div>
+        </div>
+        <div class="framesync-subtitle" style="margin-top:8px;">
+          <strong>{{ extendProjectPrompt.videoLabel }}</strong> is
+          {{ extendProjectPrompt.videoDurationSec }}s, but the motion sequence / project is
+          {{ extendProjectPrompt.projectDurationSec }}s.
+        </div>
+        <div class="framesync-subtitle" style="margin-top:6px;">
+          Extend the timeline and frame count to fit the full video, or keep the current project length.
+        </div>
+        <div class="framesync-footer" style="margin-top:12px; gap:10px; justify-content:flex-end;">
+          <button type="button" class="framesync-button" @click="dismissExtendProjectPrompt(false)">Keep current length</button>
+          <button type="button" class="framesync-button framesync-button--live" @click="dismissExtendProjectPrompt(true)">Extend project</button>
+        </div>
+      </div>
+    </div>
     <div class="app-chrome">
       <nav class="top-nav" aria-label="Main navigation" data-testid="top-nav" role="tablist">
         <div class="top-nav__inner">
@@ -59,6 +78,7 @@
           :playing="deforumPlaying"
           :recording="isRecording"
           :preview-generating="previewGenerating"
+          :preview-progress-pct="previewProgressPct"
           :frame-processing-active="showFrameProcessingInChrome"
           :frame-processing-label="frameProcessingLabel"
           :frame-processing-hint="frameProcessingHint"
@@ -748,6 +768,8 @@ import {
 import {
   DEFORUM_DEFAULT_SETTINGS,
   DEFORUM_FIELD_GROUPS,
+  DEFORUM_LAYER_FIELD_GROUPS,
+  DEFORUM_GLOBAL_ENGINE_GROUP,
   DEFORUM_FIELD_KEYS,
   DEFORUM_NON_TOGGLEABLE_KEYS,
   FALLBACK_FORGE_SAMPLERS,
@@ -772,7 +794,7 @@ import {
   buildRunDetailJsonRows,
   runDetailJsonPretty,
 } from './shared/run-detail-json.mjs'
-import { applyPromptStyleToPrompts, mergePromptParts } from './shared/prompt-styles.mjs'
+import { applyPromptStyleToPrompts, mergePromptParts, buildPromptStyleJobSnapshot, promptStyleJobSummary } from './shared/prompt-styles.mjs'
 import {
   DEFAULT_FORGE_MODEL,
   DEFAULT_LCM_ENGINE,
@@ -806,11 +828,77 @@ import {
   mergeAnimateLcmIntoDeforumSettings,
 } from './animation-plugins/animatelcm-engine-config.mjs'
 import {
+  DEFAULT_SVD_ENGINE,
+  SVD_ENGINE_CONTROL_FIELDS,
+  SVD_PRESET_NAMES,
+  buildSvdGeneratePayload,
+  getSvdPreset,
+  normalizeSvdEngine,
+  parseSvdResolution,
+  pickSvdResolutionForSize,
+  svdEngineSummary,
+  visibleSvdControlFields,
+} from './shared/svd-engine-config.mjs'
+import {
   COMMON_VISUAL_PARAMS,
   bindingFor,
   isCommonVisualEnabled,
   parseCommonVisualModKey,
 } from './animation-plugins/common-visual.mjs'
+import {
+  appendDeforaImportParam,
+  deforaMediaFileUrl,
+  freecutEditorUrl,
+  freecutProjectsUrl,
+} from './shared/freecut-bridge.mjs'
+import {
+  buildDeforumContinuationPatch,
+  canUndoContinuation,
+  continuationCheckpointFromThumb,
+  deforumContinuationStartFrame,
+  normalizeContinuationCheckpoint,
+  lastGeneratedThumb,
+  parseFrameNumberFromThumb,
+  popContinuationForUndo,
+  pushContinuationCheckpoint,
+  trimThumbsToContinuationFrame,
+} from './shared/deforum-continuation.mjs'
+import {
+  buildStoryOllamaApiBody,
+  normalizeStoryClientRequest,
+  stableJsonStringify,
+  storyLlmRequestLogEntry,
+} from './shared/story-llm-request.mjs'
+import { normalizeProtoplanetSettings } from './shared/protoplanet-gpgpu.mjs'
+import { normalizePeriodicTableSettings } from './shared/periodic-table-settings.mjs'
+import {
+  buildMotionSequencerVideoClip,
+  extendProjectDuration as extendLibraryProjectDuration,
+  normalizeLibraryVideoEntry,
+  projectDurationSec as libraryProjectDurationSec,
+  shouldOfferProjectExtension,
+} from './shared/library-video-source.mjs'
+import {
+  ENGINE_SETTINGS_SLOT_COUNT,
+  buildEngineSettingsSnapshot,
+  normalizeEngineSettingsSlot,
+  normalizeEngineSettingsSlots,
+} from './shared/engine-settings-snapshot.mjs'
+import {
+  CN_MODULE_PRESETS,
+  CN_PLUGIN_FIELD_META,
+  DEFORUM_CN_SLOT_COUNT,
+  applyModulePresetToSettings,
+  cnPrefix,
+  cnUnitFromSlotId,
+  filterModelsForModule,
+  inferModulePresetId,
+  modulePresetById,
+  scalarFromSchedule,
+  scheduleFromScalar,
+  syncCnSlotFromDeforumUnit,
+  syncDeforumUnitFromCnSlot,
+} from './shared/deforum-controlnet-config.mjs'
 
 function pluginByLayerKind(kind) {
   const plugins = [
@@ -818,6 +906,7 @@ function pluginByLayerKind(kind) {
     { id: 'deforum', layerKind: 'deforum' },
     { id: 'wan', layerKind: 'wan' },
     { id: 'animatelcm', layerKind: 'animatelcm' },
+    { id: 'svd', layerKind: 'svd' },
   ];
   return plugins.find((p) => p.layerKind === kind) || null;
 }
@@ -871,6 +960,9 @@ export default {
        deforumPlaying: false,
        deforumSessionStartedAt: null,
        previewGenerating: false,
+       forgeLivePreviewImage: "",
+       previewProgressPct: null,
+       previewProgressPollTimer: null,
        heldPreviewFramePath: "",
        previewDebounceTimer: null,
        previewRequestQueue: [],
@@ -905,6 +997,10 @@ export default {
       libraryFullscreen: false,
       libraryWorkspaceOpen: false,
       libraryWorkspacePane: 'browser',
+      librarySourceMode: false,
+      extendProjectPromptOpen: false,
+      extendProjectPrompt: { videoLabel: '', videoDurationSec: 0, projectDurationSec: 0 },
+      _extendProjectPromptResolver: null,
       liveBottomDrawerOpen: false,
       liveBottomDrawerTab: 'MODULATION', // MODULATION | CROSSFADER | SYSTEM
        deforumSettings: { ...DEFORUM_DEFAULT_SETTINGS },
@@ -914,12 +1010,14 @@ export default {
       deforumFieldGroups: [...DEFORUM_FIELD_GROUPS],
       deforumFieldEnabled: createDeforumFieldEnabledMap(),
        deforumActiveTab: 'canvas',
+      deforumControlTab: 'settings',
        deforumSectionOpen: {},
        deforumAdvancedOpen: false,
        sessionDeforumSettingsLoaded: false,
        deforumSettingsJson: '',
        deforumSettingsJsonError: '',
        deforumSettingsStatus: '',
+      deforumContinuationCheckpoints: [],
        deforumVerifyResults: null,
        deforumSaveTimer: null,
        deforumPreviewTimer: null,
@@ -971,6 +1069,11 @@ export default {
       currentPreset: null,
       newPresetName: '',
       presetStatus: '',
+      engineSettingsSlots: normalizeEngineSettingsSlots(null),
+      engineSettingsSlotStatus: '',
+      deforumActiveCnUnit: 1,
+      cnModules: [],
+      cnModulesSource: '',
       sharedPresets: [],
       sharedPresetName: '',
       sharedPresetBy: '',
@@ -1045,6 +1148,7 @@ export default {
         status: '',
         lastPath: null,
         result: null,
+        llmRequestLog: null,
       },
       session: "clown_set_01",
       _syncingGlobalFps: false,
@@ -1072,12 +1176,15 @@ export default {
         { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true },
         { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true },
         { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true },
+        { id: 'svd', kind: 'svd', label: 'SVD', builtin: true },
         { id: 'input', kind: 'input', label: 'Input', builtin: true, playbackUrl: null },
       ],
       wanEngine: { ...DEFAULT_WAN_ENGINE },
       wanDownloadStatus: '',
       wanDownloadBusy: false,
       animateLcmEngine: { ...DEFAULT_ANIMATELCM_ENGINE },
+      svdEngine: { ...DEFAULT_SVD_ENGINE },
+      svdStatus: '',
       _userPickedPreviewLayer: false,
       activeVideoLayerId: 'webgl',
       videoLayerAddOpen: false,
@@ -1086,6 +1193,7 @@ export default {
       defaultSceneName: 'default',
       inputLayerPlaybackUrl: null,
       inputLayerLabel: 'Input',
+      inputLayerSourceMeta: null,
       inputVideoReady: false,
       cloudDriveDraft: { url: '', provider: 'google_drive' },
       systemFiles: {
@@ -1529,7 +1637,7 @@ export default {
       beatCount: 0,
       beatPhase: 0,
       lastMacroTrigger: {},
-      sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [], clips: [], bpmSync: false, bpm: 120, bars: 4, beatsPerBar: 4 },
+      sequencer: { version: 1, durationSec: 8, fps: 24, loop: true, tracks: [], markers: [], clips: [], sourceVideo: null, bpmSync: false, bpm: 120, bars: 4, beatsPerBar: 4 },
       sequencerPlayhead: 0,
       jobPlaybackTimeSec: 0,
       sequencerPlaying: false,
@@ -1761,9 +1869,10 @@ export default {
       const nextPollMs = Math.max(0, Number(this.framesRefreshBackoffMs) || 0);
       const etaSec = nextPollMs ? Math.max(1, Math.round(nextPollMs / 1000)) : 0;
       if (this.previewGenerating) {
+        const pctLabel = this.previewProgressPct != null ? `${this.previewProgressPct}%` : null;
         return {
-          label: 'Rendering…',
-          detail: etaSec ? `Next check ~${etaSec}s` : 'Checking soon',
+          label: pctLabel ? `Rendering · ${pctLabel}` : 'Rendering…',
+          detail: this.forgeLivePreviewImage ? 'Live Forge preview' : (etaSec ? `Next check ~${etaSec}s` : 'Checking soon'),
           kind: 'loading',
         };
       }
@@ -1806,6 +1915,17 @@ export default {
       if (count === 1) return `1 frame generated (#${latestNum})`;
       return `${count} frames generated · latest #${latestNum}`;
     },
+    deforumContinuationCanUndo() {
+      return canUndoContinuation(this.deforumContinuationCheckpoints) && !this.deforumPlaying;
+    },
+    deforumContinuationUndoTitle() {
+      const stack = this.deforumContinuationCheckpoints || [];
+      if (stack.length < 2) {
+        return 'Undo last animation segment (available after pausing with new frames)';
+      }
+      const prev = stack[stack.length - 2];
+      return `Undo to frame ${prev.frame}, then change settings and Play to redo`;
+    },
     latestGeneratedFramePath() {
       const thumbs = this.frameStripThumbs;
       if (!thumbs.length) return '';
@@ -1837,6 +1957,7 @@ export default {
       return this.performance.lastPreviewPath || this.generator.lastPath || '';
     },
     displayedPreviewStillPath() {
+      if (this.previewGenerating && this.forgeLivePreviewImage) return this.forgeLivePreviewImage;
       if (this.heldPreviewFramePath) return this.heldPreviewFramePath;
       return this.activePreviewStillPath;
     },
@@ -1850,6 +1971,7 @@ export default {
     showFrameProcessingOnStage() {
       if (!this.showFrameProcessing) return false;
       if (this.isWebglSoloPreview) return false;
+      if (this.previewGenerating && this.forgeLivePreviewImage) return false;
       if (this.showPreviewStill) return true;
       if (this.deforumPlaying && !this.showDeforumVideo && !!this.displayedPreviewStillPath) return true;
       return false;
@@ -1860,12 +1982,20 @@ export default {
       return this.showFrameProcessing && !this.showFrameProcessingOnStage && !this.previewGenerating;
     },
     frameProcessingLabel() {
-      if (this.previewGenerating) return 'Rendering preview frame';
+      if (this.previewGenerating) {
+        if (this.previewProgressPct != null) {
+          return `Rendering preview frame · ${this.previewProgressPct}%`;
+        }
+        return 'Rendering preview frame';
+      }
       if (this.deforumPlaying) return 'Generating frames';
       return 'Processing';
     },
     frameProcessingHint() {
       if (this.previewGenerating) {
+        if (this.forgeLivePreviewImage) {
+          return 'Showing live Forge preview while the frame finishes.';
+        }
         return 'Keeping the current frame visible until the new preview is ready.';
       }
       if (this.deforumPlaying) {
@@ -2016,6 +2146,9 @@ export default {
       if (!this.activePromptStyleId) return null;
       return (this.promptStyles || []).find((style) => style.id === this.activePromptStyleId) || null;
     },
+    jobStyleSummary() {
+      return promptStyleJobSummary(this.buildPromptStyleJobSnapshot());
+    },
     seedRandomEnabled() {
       return Number(this.deforumSettings?.seed) === -1;
     },
@@ -2053,7 +2186,7 @@ export default {
     effectiveForgeLayerOpacity() {
       if (this.isWebglSoloPreview) return 0;
       const layer = this.activeVideoLayer;
-      if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
+      if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'svd' || layer.kind === 'blend')) {
         const stored = this.readVideoLayerOpacity(layer);
         if (this.isVideoLayerPreviewVisible(layer) && stored <= 0.001) {
           if (layer.kind === 'deforum' && this.shouldAutoRevealDeforumVideo) return 1;
@@ -2113,6 +2246,9 @@ export default {
     isAnimateLcmLayerActive() {
       return this.activeVideoLayer?.kind === 'animatelcm';
     },
+    isSvdLayerActive() {
+      return this.activeVideoLayer?.kind === 'svd';
+    },
     animateLcmMotionTypes() {
       return ANIMATELCM_MOTION_TYPES;
     },
@@ -2122,9 +2258,18 @@ export default {
     animateLcmControlFields() {
       return ANIMATELCM_CONTROL_FIELDS;
     },
+    svdEngineControlFields() {
+      return visibleSvdControlFields(this.svdEngine);
+    },
+    svdPresetNames() {
+      return SVD_PRESET_NAMES;
+    },
+    svdEngineSummary() {
+      return svdEngineSummary(this.svdEngine);
+    },
     isForgeAnimationLayerActive() {
       const kind = this.activeVideoLayer?.kind;
-      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm';
+      return kind === 'deforum' || kind === 'wan' || kind === 'animatelcm' || kind === 'svd';
     },
     activeAnimationPlugin() {
       return pluginByLayerKind(this.activeVideoLayer?.kind) || null;
@@ -2199,6 +2344,18 @@ export default {
         if (this.deforumPlaying) return `WAN generating · ${model}${frameSuffix}`;
         return `WAN Video · ${model}`;
       }
+      if (layer.kind === 'svd') {
+        const frames = this.deforumGeneratedFrameCount;
+        const frameSuffix = frames ? ` · ${frames} frame${frames === 1 ? '' : 's'}` : '';
+        const summary = this.svdEngineSummary;
+        const ckpt = String(this.svdEngine?.svd_checkpoint || 'SVD').trim();
+        if (this.showDeforumVideo) return `SVD live · ${summary?.modelFamily || 'SVD'}${frameSuffix}`;
+        if (this.deforumPlaying) return `SVD generating · ${ckpt}${frameSuffix}`;
+        return `SVD · ${summary?.modelFamily || ckpt}`;
+      }
+      if (layer.kind === 'animatelcm') {
+        return this.deforumPlaying ? 'AnimateLCM · generating' : 'AnimateLCM · idle';
+      }
       if (layer.kind === 'input') {
         return this.activeLayerPlaybackUrl ? `Input · ${this.inputLayerLabel || 'Video'}` : 'Input · no source';
       }
@@ -2209,7 +2366,7 @@ export default {
     showPreviewStill() {
       if (this.isWebglSoloPreview) return false;
       const layer = this.activeVideoLayer;
-      if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
+      if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'svd' || layer.kind === 'blend')) {
         const stored = this.readVideoLayerOpacity(layer);
         if (stored <= 0.001 && (this.showDeforumVideo || this.shouldAutoRevealDeforumVideo)) return false;
       } else if (this.effectiveForgeLayerOpacity <= 0) {
@@ -2217,7 +2374,8 @@ export default {
       }
       const shouldSurfaceStill = this.currentTab !== 'LIVE'
         || this.isForgeAnimationLayerActive
-        || this.isBlendLayerActive;
+        || this.isBlendLayerActive
+        || (this.previewGenerating && !!this.forgeLivePreviewImage);
       return !!(!this.showDeforumVideo && this.displayedPreviewStillPath && shouldSurfaceStill);
     },
     backgroundAudioMetrics() {
@@ -2306,6 +2464,16 @@ export default {
       const fps = this.storyGeneratorFps;
       const frames = this.storyGeneratorFrameCount;
       return `${(frames / fps).toFixed(1)}s timeline`;
+    },
+    storyLlmRequestJsonForUi() {
+      const log = this.generator && this.generator.llmRequestLog;
+      if (!log || !log.ollamaRequest) return '';
+      return stableJsonStringify(log.ollamaRequest);
+    },
+    runsJobLogStoryOllamaJson() {
+      const entry = (this.runsJobLog || []).find((row) => row.kind === 'story_llm_request' && row.ollamaRequest);
+      if (!entry) return '';
+      return stableJsonStringify(entry.ollamaRequest);
     },
     storyGeneratorResolutionLabel() {
       const w = Number(this.deforumSettings && this.deforumSettings.W)
@@ -2526,8 +2694,42 @@ export default {
       if (healthy > 0) return { label: `${healthy}/${nodes.length} ok`, ok: false };
       return { label: 'unreachable', ok: false };
     },
+    deforumLayerFieldGroups() {
+      return this.deforumFieldGroups.filter((g) => g && g.id !== 'global');
+    },
+    deforumGlobalEngineGroup() {
+      return DEFORUM_GLOBAL_ENGINE_GROUP;
+    },
+    deforumControlTabs() {
+      return [
+        { id: 'settings', label: 'Settings' },
+        { id: 'controlnet', label: 'ControlNet' },
+        { id: 'motion', label: 'Motion' },
+        { id: 'macros', label: 'Macros' },
+      ];
+    },
+    deforumCnUnits() {
+      return Array.from({ length: DEFORUM_CN_SLOT_COUNT }, (_, i) => i + 1);
+    },
+    editorImportUrl() {
+      const raw = String(this.editorPendingImportUrl || '').trim();
+      if (raw) return raw;
+      const filePath = String(this.editorPendingImportPath || '').trim();
+      if (!filePath) return '';
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      return deforaMediaFileUrl(origin, filePath, this.editorPendingImportRootId);
+    },
+    freecutFrameSrc() {
+      const route = String(this.editorFreecutRoute || 'projects').trim();
+      let src = freecutProjectsUrl();
+      if (route.startsWith('editor/')) {
+        src = freecutEditorUrl(route.slice('editor/'.length));
+      }
+      return appendDeforaImportParam(src, this.editorImportUrl);
+    },
     activeDeforumFieldGroup() {
-      return this.deforumFieldGroups.find((group) => group.id === this.deforumActiveTab) || this.deforumFieldGroups[0] || null;
+      const groups = this.deforumLayerFieldGroups;
+      return groups.find((group) => group.id === this.deforumActiveTab) || groups[0] || null;
     },
     deforumMode2d3d() {
       return normalizeDeforumMode2d3d(this.deforumSettings?.animation_mode);
@@ -2611,6 +2813,10 @@ export default {
         interactive_points: 'Interactive points',
         interactive_raycast_points: 'Raycast points',
         lensflares: 'Lens flares',
+        transition: 'Scene transition',
+        protoplanet: 'GPGPU protoplanet',
+        periodic_table: 'Periodic table (CSS3D)',
+        customlights: 'Custom lights',
       };
       return `Standby — ${labels[mode] || 'Instancing'}`;
     },
@@ -3063,7 +3269,10 @@ export default {
     sequencerClipSummary() {
       const clips = this.sortedSequencerClips;
       const count = (type) => clips.filter((c) => c.type === type).length;
-      return { prompt: count('prompt'), lora: count('lora'), controlnet: count('controlnet') };
+      return { prompt: count('prompt'), lora: count('lora'), controlnet: count('controlnet'), video: count('video') };
+    },
+    hasLibraryVideoSelection() {
+      return !!this.resolveLibraryVideoEntry();
     },
     masterFps() {
       const n = Number(this.deforumSettings && this.deforumSettings.fps);
@@ -3396,6 +3605,7 @@ export default {
     this.refreshSharedPresets();
     this.refreshGpuPool(false);
     this.loadControlNetModels();
+    this.loadControlNetModules();
     this.refreshPlugins();
     void this.loadPromptStyles();
     this.syncDeforumSettingsJson();
@@ -3469,6 +3679,7 @@ export default {
     if (this.beatTimer) clearInterval(this.beatTimer);
     if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
     if (this.deforumPreviewTimer) clearTimeout(this.deforumPreviewTimer);
+    this.stopForgePreviewProgressPoll();
     this.previewRequestQueue = [];
     this.previewQueueProcessing = false;
     if (this.frameRefreshTimer) clearTimeout(this.frameRefreshTimer);
@@ -3645,16 +3856,100 @@ export default {
     }
   },
   appendRunsJobLog(message, level = 'info') {
-    const entry = {
-      id: `log-${++this._runsJobLogSeq}`,
-      ts: new Date().toISOString(),
-      message: String(message || ''),
-      level,
-    };
-    this.runsJobLog = [entry, ...this.runsJobLog].slice(0, 80);
+    let entry;
+    if (message && typeof message === 'object' && (message.kind || message.message)) {
+      entry = {
+        id: message.id || `log-${++this._runsJobLogSeq}`,
+        ts: message.ts || new Date().toISOString(),
+        level: message.level || level,
+        kind: message.kind || null,
+        message: String(message.message || message.kind || 'log'),
+        clientRequest: message.clientRequest || null,
+        ollamaRequest: message.ollamaRequest || null,
+        promptStyles: message.promptStyles || null,
+      };
+    } else {
+      entry = {
+        id: `log-${++this._runsJobLogSeq}`,
+        ts: new Date().toISOString(),
+        message: String(message || ''),
+        level,
+        kind: null,
+        clientRequest: null,
+        ollamaRequest: null,
+      };
+    }
+    this.mergeRunsJobLogEntry(entry);
+  },
+  mergeRunsJobLogEntry(entry) {
+    if (!entry || !entry.id) return;
+    const prev = (this.runsJobLog || []).filter((row) => row.id !== entry.id);
+    this.runsJobLog = [entry, ...prev].slice(0, 80);
   },
   clearRunsJobLog() {
     this.runsJobLog = [];
+    if (typeof fetch === 'function') {
+      void fetch('/api/runs/job-log', { method: 'DELETE' }).catch(() => {});
+    }
+  },
+  applyStoryLlmRequestLog(llmLog) {
+    if (!llmLog || !llmLog.ollamaRequest) return;
+    this.generator.llmRequestLog = {
+      clientRequest: llmLog.clientRequest || null,
+      ollamaRequest: llmLog.ollamaRequest,
+      logId: llmLog.logId || null,
+    };
+    const entry = storyLlmRequestLogEntry(llmLog.clientRequest, llmLog.ollamaRequest, { id: llmLog.logId });
+    this.mergeRunsJobLogEntry(entry);
+  },
+  async persistStoryLlmRequestLog(clientPayload, { model = '' } = {}) {
+    const clientRequest = normalizeStoryClientRequest(clientPayload);
+    const ollamaRequest = buildStoryOllamaApiBody(clientRequest, { model });
+    if (typeof fetch !== 'function') {
+      this.applyStoryLlmRequestLog({ clientRequest, ollamaRequest });
+      return { clientRequest, ollamaRequest };
+    }
+    try {
+      const res = await fetch('/api/runs/job-log', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'story_llm_request', clientRequest, ollamaRequest }),
+      });
+      const data = await res.json();
+      if (res.ok && data.llmLog) {
+        this.applyStoryLlmRequestLog(data.llmLog);
+        return data.llmLog;
+      }
+      if (res.ok && data.entry) {
+        this.applyStoryLlmRequestLog({
+          clientRequest: data.entry.clientRequest,
+          ollamaRequest: data.entry.ollamaRequest,
+          logId: data.entry.id,
+        });
+      }
+    } catch (_e) {
+      this.applyStoryLlmRequestLog({ clientRequest, ollamaRequest });
+    }
+    return { clientRequest, ollamaRequest };
+  },
+  async refreshRunsJobLogFromServer() {
+    if (typeof fetch !== 'function') return;
+    try {
+      const res = await fetch('/api/runs/job-log?limit=80', { cache: 'no-store' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const entries = Array.isArray(data.entries) ? data.entries : [];
+      if (!entries.length) return;
+      this.runsJobLog = entries.slice().reverse();
+      const latestStory = entries.filter((row) => row.kind === 'story_llm_request').pop();
+      if (latestStory && latestStory.ollamaRequest) {
+        this.generator.llmRequestLog = {
+          clientRequest: latestStory.clientRequest,
+          ollamaRequest: latestStory.ollamaRequest,
+          logId: latestStory.id,
+        };
+      }
+    } catch (_e) { /* ignore */ }
   },
   formatRunsLogTime(ts) {
     if (!ts) return '';
@@ -3823,6 +4118,7 @@ export default {
       }
       this.applyRunsFilters();
       this.runsLastRefreshedAt = Date.now();
+      if (this.runsMonitorActive) void this.refreshRunsJobLogFromServer();
       this.noteRunsActivityAfterRefresh();
     } catch (_e) {
       this.runsStatus = "Failed to load runs";
@@ -4226,9 +4522,11 @@ export default {
     return this.formatDurationShort(remaining / rate);
   },
   runDetailCurrentContext() {
+    const styleSnap = this.buildPromptStyleJobSnapshot();
     return buildRunDetailCurrentContext({
       deforumSettings: this.normalizedDeforumSettings(),
       forgeModel: this.forge?.selectedModel || this.forge?.currentModel,
+      promptStyles: styleSnap,
     });
   },
   runDetailJsonRows(run) {
@@ -4477,8 +4775,19 @@ export default {
      }
    }
    this.applyCrossfadeMorph();
+   this.applyDeforumControlNetForRun();
    if (this.deforumSettings) this.deforumSettings.batch_name = this.session;
-   const startFrame = this.parseFrameNumber(this.thumbs[0]?.name) || 0;
+   this.queueDeforumSettingsSave();
+   const styleSnap = this.buildPromptStyleJobSnapshot();
+   if (styleSnap) {
+     this.appendRunsJobLog({
+       kind: 'job_prompt_styles',
+       message: `Prompt styles: ${promptStyleJobSummary(styleSnap) || styleSnap.activeStyleId}`,
+       promptStyles: styleSnap,
+     });
+   }
+   this.persistDeforumContinuationFromLatest({ queueSave: false, saveSession: false });
+   const startFrame = this.deforumContinuationStartFrameValue();
    this.sendControl('liveParam', { start_frame: startFrame, should_resume: 1 });
    this.pinHeldPreviewFrame();
    this.frameRailFollowLatest = true;
@@ -4490,12 +4799,14 @@ export default {
    this.scheduleFrameRefresh(0);
  },
  pauseDeforumAnimation() {
+   this.persistDeforumContinuationFromLatest({ checkpoint: true });
    this.sendControl('liveParam', { is_paused_rendering: 1 });
    this.deforumPlaying = false;
    this.performance.status = 'Animation paused — parameter changes update preview';
    this.isPlaying = false;
  },
  stopDeforumPlay() {
+   this.persistDeforumContinuationFromLatest({ checkpoint: true });
    this.sendControl('liveParam', { is_paused_rendering: 1, should_resume: 0 });
    this.deforumPlaying = false;
    this.clearHeldPreviewFrame();
@@ -4728,7 +5039,7 @@ async stopOutboundStream() {
 },
 normalizeDefaultAnimationSettings(input = {}) {
   const next = input && typeof input === 'object' ? input : {};
-  const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean', 'customlights'].includes(next.mode) ? next.mode : 'customlights';
+  const mode = ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean', 'customlights', 'transition', 'protoplanet', 'periodic_table'].includes(next.mode) ? next.mode : 'customlights';
   return {
     preferDeforumVideo: !!next.preferDeforumVideo,
     showStandbyClip: !!next.showStandbyClip,
@@ -4782,7 +5093,24 @@ normalizeDefaultAnimationSettings(input = {}) {
     forgeLayerOpacityLfoBase: Math.max(0, Math.min(1, Number.isFinite(Number(next.forgeLayerOpacityLfoBase)) ? Number(next.forgeLayerOpacityLfoBase) : (Number(next.forgeLayerOpacity) || 0))),
     deforumBackdropEnabled: next.deforumBackdropEnabled !== false,
     deforumBackdropMix: Math.max(0, Math.min(1, Number.isFinite(Number(next.deforumBackdropMix)) ? Number(next.deforumBackdropMix) : 0.35)),
+    txTransition: Math.max(0, Math.min(1, Number.isFinite(Number(next.txTransition)) ? Number(next.txTransition) : 0.5)),
+    txTransitionAnimate: next.txTransitionAnimate !== false,
+    txSceneAnimate: next.txSceneAnimate !== false,
+    txUseTexture: next.txUseTexture !== false,
+    txTexture: Math.max(0, Math.min(5, Math.round(Number(next.txTexture) || 0))),
+    txCycle: next.txCycle !== false,
+    txThreshold: Math.max(0, Math.min(1, Number.isFinite(Number(next.txThreshold)) ? Number(next.txThreshold) : 0.1)),
+    ...normalizeProtoplanetSettings(next),
+    ppRestartSerial: Math.max(0, Math.round(Number(next.ppRestartSerial) || 0)),
+    ...normalizePeriodicTableSettings(next),
   };
+},
+restartProtoplanetSimulation() {
+  this.defaultAnimation = this.normalizeDefaultAnimationSettings({
+    ...this.defaultAnimation,
+    ppRestartSerial: (Number(this.defaultAnimation.ppRestartSerial) || 0) + 1,
+  });
+  this.saveSessionState();
 },
 onDefaultAnimationInput() {
   this.defaultAnimation = this.normalizeDefaultAnimationSettings(this.defaultAnimation);
@@ -5060,7 +5388,7 @@ rebuildVideoLayers() {
     if (layer && Number.isFinite(Number(layer.opacity))) {
       return Math.max(0, Math.min(1, Number(layer.opacity)));
     }
-    if (kind === 'deforum' || kind === 'wan' || kind === 'blend') {
+    if (kind === 'deforum' || kind === 'wan' || kind === 'animatelcm' || kind === 'svd' || kind === 'blend') {
       const raw = Number(this.defaultAnimation?.forgeLayerOpacity);
       return Number.isFinite(raw) ? Math.max(0, Math.min(1, raw)) : 0;
     }
@@ -5080,6 +5408,8 @@ rebuildVideoLayers() {
     { id: 'webgl', kind: 'webgl', label: 'WebGL', builtin: true, previewVisible: prevVisible('webgl'), opacity: prevOpacity('webgl', 'webgl') },
     { id: 'deforum', kind: 'deforum', label: 'Deforum', builtin: true, previewVisible: prevVisible('deforum'), opacity: prevOpacity('deforum', 'deforum') },
     { id: 'wan', kind: 'wan', label: 'WAN Video', builtin: true, previewVisible: prevVisible('wan'), opacity: prevOpacity('wan', 'wan') },
+    { id: 'animatelcm', kind: 'animatelcm', label: 'AnimateLCM', builtin: true, previewVisible: prevVisible('animatelcm'), opacity: prevOpacity('animatelcm', 'animatelcm') },
+    { id: 'svd', kind: 'svd', label: 'SVD', builtin: true, previewVisible: prevVisible('svd'), opacity: prevOpacity('svd', 'svd') },
     {
       id: 'input',
       kind: 'input',
@@ -5099,7 +5429,7 @@ readVideoLayerOpacity(layer) {
   if (!layer) return 1;
   const raw = Number(layer.opacity);
   if (Number.isFinite(raw)) return Math.max(0, Math.min(1, raw));
-  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm' || layer.kind === 'svd' || layer.kind === 'blend') {
     const forgeRaw = Number(this.defaultAnimation?.forgeLayerOpacity);
     return Number.isFinite(forgeRaw) ? Math.max(0, Math.min(1, forgeRaw)) : 0;
   }
@@ -5128,7 +5458,7 @@ setVideoLayerOpacity(layerId, value) {
   if (!layer || !layer.builtin) return;
   const next = Math.max(0, Math.min(1, Number(value)));
   layer.opacity = next;
-  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm' || layer.kind === 'svd' || layer.kind === 'blend') {
     this.applyForgeLayerOpacity(next, { commitBase: true });
   } else {
     this.saveSessionState();
@@ -5242,6 +5572,49 @@ pinHeldPreviewFrame() {
   const path = this.activePreviewStillPath || this.displayedPreviewStillPath;
   if (path) this.heldPreviewFramePath = path;
 },
+resetForgePreviewProgress() {
+  this.forgeLivePreviewImage = '';
+  this.previewProgressPct = null;
+},
+stopForgePreviewProgressPoll() {
+  if (this.previewProgressPollTimer) {
+    clearInterval(this.previewProgressPollTimer);
+    this.previewProgressPollTimer = null;
+  }
+},
+async pollForgePreviewProgress({ batchId = null, maxFrames = 1 } = {}) {
+  if (!this.previewGenerating) return;
+  try {
+    const params = new URLSearchParams({ includeImage: '1', maxFrames: String(Math.max(1, Number(maxFrames) || 1)) });
+    if (batchId) params.set('batchId', String(batchId));
+    const res = await fetch(`/api/forge/progress?${params.toString()}`);
+    const data = await res.json().catch(() => ({}));
+    if (!this.previewGenerating || !res.ok || !data.ok) return;
+    if (data.previewImage) {
+      this.forgeLivePreviewImage = data.previewImage;
+    }
+    if (data.progressPct != null) {
+      this.previewProgressPct = data.progressPct;
+    }
+    if (data.progressLabel) {
+      this.performance.status = `Rendering preview · ${data.progressLabel}`;
+    } else if (data.progressPct != null) {
+      this.performance.status = `Rendering preview · ${data.progressPct}%`;
+    }
+  } catch (_err) {
+    /* forge may be offline mid-poll */
+  }
+},
+startForgePreviewProgressPoll({ batchId = null, maxFrames = 1 } = {}) {
+  this.stopForgePreviewProgressPoll();
+  this.resetForgePreviewProgress();
+  const poll = () => {
+    void this.pollForgePreviewProgress({ batchId, maxFrames });
+  };
+  poll();
+  const delay = this.wsStatus === 'connected' ? 400 : 750;
+  this.previewProgressPollTimer = setInterval(poll, delay);
+},
 clearHeldPreviewFrame() {
   this.heldPreviewFramePath = "";
 },
@@ -5306,6 +5679,7 @@ followLatestGeneratedFrame() {
     this.performance.lastPreviewPath = path;
     this.generator.lastPath = path;
   }
+  this.persistDeforumContinuationFromLatest({ queueSave: true, saveSession: false });
 },
 updateHeldPreviewFromLatestFrame() {
   if (!this.deforumPlaying || this.showDeforumVideo) return;
@@ -5326,7 +5700,7 @@ applyStartupVideoPreview() {
     (this.videoLayers || []).forEach((layer) => {
       if (!layer || !layer.builtin) return;
       if (layer.id === 'webgl') return;
-      if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend') {
+      if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm' || layer.kind === 'svd' || layer.kind === 'blend') {
         layer.opacity = 0;
         if (layer.id !== 'deforum') layer.previewVisible = false;
       } else if (layer.kind === 'input') {
@@ -5366,11 +5740,18 @@ applyContextPanelStartupDefaults() {
 promoteToDeforum() {
   this.selectVideoLayer('deforum', { userInitiated: true });
 },
+setDeforumControlTab(tabId = 'settings') {
+  const allowed = ['settings', 'controlnet', 'motion', 'macros'];
+  if (!allowed.includes(tabId)) return;
+  this.deforumControlTab = tabId;
+  this.saveSessionState();
+},
 openEngineDeforumSettingsTab(tabId = 'canvas') {
-  const allowed = (this.deforumFieldGroups || []).map((g) => g.id);
+  const allowed = (this.deforumLayerFieldGroups || []).map((g) => g.id);
   const next = allowed.includes(tabId) ? tabId : 'canvas';
   this.liveEngineDrawerOpen = true;
   this.promoteToDeforum();
+  this.deforumControlTab = 'settings';
   this.deforumActiveTab = next;
   this.saveSessionState();
 },
@@ -5381,7 +5762,7 @@ applyForgeLayerOpacity(value, { commitBase = false, fromModulation = false } = {
     this.defaultAnimation.forgeLayerOpacityLfoBase = next;
   }
   (this.videoLayers || []).forEach((layer) => {
-    if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'blend')) {
+    if (layer && (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm' || layer.kind === 'svd' || layer.kind === 'blend')) {
       layer.opacity = next;
     }
   });
@@ -5637,7 +6018,7 @@ toggleVideoStageSize(next) {
 isVideoLayerRunning(layer) {
   if (!layer) return false;
   if (layer.kind === 'webgl') return this.layerKindVisible('webgl');
-  if (layer.kind === 'deforum' || layer.kind === 'wan') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm' || layer.kind === 'svd') {
     return (
       this.deforumPlaying
       || this.videoReady
@@ -5666,10 +6047,11 @@ layerStatus(layer) {
     if (this.deforumPlaying || this.videoReady) return 'yellow';
     return 'green';
   }
-  if (layer.kind === 'deforum' || layer.kind === 'wan') {
+  if (layer.kind === 'deforum' || layer.kind === 'wan' || layer.kind === 'animatelcm' || layer.kind === 'svd') {
     if (this.videoReady) return 'green';
     if (this.deforumPlaying || (this.defaultAnimation && this.defaultAnimation.preferDeforumVideo)) return 'yellow';
     if (layer.kind === 'wan') return 'yellow';
+    if (layer.kind === 'svd' || layer.kind === 'animatelcm') return 'yellow';
     return 'red';
   }
   if (layer.kind === 'input') {
@@ -5702,6 +6084,17 @@ animationLayerDescription(layer) {
     if (this.videoReady) return `WAN Video · ${model} · live`;
     return `WAN Video · ${model} · idle`;
   }
+  if (layer.kind === 'svd') {
+    const summary = this.svdEngineSummary;
+    if (this.deforumPlaying) return `SVD · ${summary?.modelFamily || 'XT 1.1'} · generating`;
+    if (this.videoReady) return `SVD · ${summary?.modelFamily || 'XT 1.1'} · live`;
+    return `SVD · ${summary?.modelFamily || 'XT 1.1'} · img2vid`;
+  }
+  if (layer.kind === 'animatelcm') {
+    if (this.deforumPlaying) return 'AnimateLCM · generating';
+    if (this.videoReady) return 'AnimateLCM · live';
+    return 'AnimateLCM · idle';
+  }
   if (layer.kind === 'blend') return 'Composite · WebGL under Deforum';
   if (layer.kind === 'input') {
     return this.inputLayerPlaybackUrl
@@ -5721,13 +6114,208 @@ assignInputFromSelection() {
     this.liveSourceStatus = 'Select a video in the library grid first';
     return;
   }
-  this.inputLayerPlaybackUrl = this.systemFilePlaybackUrl(video);
-  this.inputLayerLabel = video.name || 'Input';
+  const entry = normalizeLibraryVideoEntry(video, (item) => this.systemFilePlaybackUrl(item));
+  if (!entry) return;
+  void this.applyLibraryVideoAsSource(entry, { closeLibrary: false });
+  this.videoLayerAddOpen = false;
+},
+libraryVideoPlaybackUrl(entry) {
+  if (!entry) return '';
+  if (entry.videoUrl) return entry.videoUrl;
+  return this.systemFilePlaybackUrl({
+    path: entry.videoPath,
+    rootId: entry.rootId || 'uploads',
+    url: entry.url,
+  });
+},
+resolveLibraryVideoEntry() {
+  if (this.librarySelectedProject?.videoPath) {
+    return normalizeLibraryVideoEntry(this.librarySelectedProject, (item) => this.libraryVideoPlaybackUrl(item));
+  }
+  if (this.librarySelectedVideo?.videoPath) {
+    return normalizeLibraryVideoEntry(this.librarySelectedVideo, (item) => this.libraryVideoPlaybackUrl(item));
+  }
+  const paths = this.systemFiles.selectedPaths || [];
+  if (paths.length === 1) {
+    const video = (this.systemFiles.videos || []).find((v) => v.path === paths[0]);
+    if (video) {
+      return normalizeLibraryVideoEntry(
+        { ...video, title: video.name, videoPath: video.path },
+        (item) => this.systemFilePlaybackUrl(item),
+      );
+    }
+  }
+  return null;
+},
+async probeLibraryVideoDuration(url) {
+  if (!url || typeof document === 'undefined') return null;
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    const cleanup = () => {
+      video.removeAttribute('src');
+      try { video.load(); } catch (_e) { /* ignore */ }
+    };
+    const finish = (value) => {
+      cleanup();
+      resolve(value);
+    };
+    video.onloadedmetadata = () => {
+      const duration = Number(video.duration);
+      finish(Number.isFinite(duration) && duration > 0 ? duration : null);
+    };
+    video.onerror = () => finish(null);
+    video.src = url;
+  });
+},
+maybeConfirmExtendProjectForVideo(videoDurationSec, videoLabel = 'Video') {
+  const projectDur = libraryProjectDurationSec(this);
+  if (!shouldOfferProjectExtension(videoDurationSec, projectDur)) {
+    return Promise.resolve({ extended: false, projectDurationSec: projectDur });
+  }
+  return new Promise((resolve) => {
+    this.extendProjectPrompt = {
+      videoLabel: String(videoLabel || 'Video'),
+      videoDurationSec: Math.round(Number(videoDurationSec) * 100) / 100,
+      projectDurationSec: Math.round(projectDur * 100) / 100,
+    };
+    this.extendProjectPromptOpen = true;
+    this._extendProjectPromptResolver = resolve;
+  });
+},
+dismissExtendProjectPrompt(extend) {
+  this.extendProjectPromptOpen = false;
+  const resolver = this._extendProjectPromptResolver;
+  this._extendProjectPromptResolver = null;
+  if (!resolver) return;
+  let projectDurationSecValue = libraryProjectDurationSec(this);
+  if (extend) {
+    const result = extendLibraryProjectDuration(this, this.extendProjectPrompt.videoDurationSec, {
+      onDeforumMaxFrames: (frames) => {
+        this.onDeforumFieldInput('max_frames', frames, 'number');
+      },
+      clampSequencerClips: () => this.clampSequencerClips(),
+    });
+    projectDurationSecValue = result.durationSec;
+    this.syncDeforumSettingsJson();
+    this.queueDeforumSettingsSave();
+    this.sequencerStatus = `Project extended to ${result.durationSec}s (${result.frameCount} frames)`;
+    this.saveSessionState();
+  }
+  resolver({ extended: !!extend, projectDurationSec: projectDurationSecValue });
+},
+applyLibraryVideoAsSource(entry, { closeLibrary = true } = {}) {
+  const normalized = normalizeLibraryVideoEntry(entry, (item) => this.libraryVideoPlaybackUrl(item));
+  if (!normalized?.videoPath) {
+    this.liveSourceStatus = 'Select a video in the library first';
+    return Promise.resolve(false);
+  }
+  const url = normalized.videoUrl;
+  this.inputLayerPlaybackUrl = url;
+  this.inputLayerLabel = normalized.title || normalized.name || 'Input';
+  this.inputLayerSourceMeta = {
+    path: normalized.videoPath,
+    rootId: normalized.rootId,
+    url,
+    label: this.inputLayerLabel,
+  };
   this.rebuildVideoLayers();
   this.selectVideoLayer('input');
-  this.liveSourceStatus = `Assigned to Input layer: ${this.inputLayerLabel}`;
-  this.videoLayerAddOpen = false;
+  if (this.currentTab !== 'LIVE') this.switchTab('LIVE');
+  this.liveSourceStatus = `Source · ${this.inputLayerLabel}`;
+  this.$nextTick(() => this.attachInputVideo(url));
+  if (closeLibrary && this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
+  else this.librarySourceMode = false;
   this.saveSessionState();
+  return Promise.resolve(true);
+},
+applyLibraryVideoToMotionSequencer(entry, { durationSec = null, projectDurationSecValue = null } = {}) {
+  const normalized = normalizeLibraryVideoEntry(entry, (item) => this.libraryVideoPlaybackUrl(item));
+  if (!normalized?.videoPath) {
+    this.liveSourceStatus = 'Select a video in the library first';
+    return false;
+  }
+  const url = normalized.videoUrl;
+  const label = normalized.title || normalized.name || 'Video';
+  const projectDur = projectDurationSecValue != null
+    ? Number(projectDurationSecValue)
+    : libraryProjectDurationSec(this);
+  const videoDur = durationSec != null && Number.isFinite(Number(durationSec)) && Number(durationSec) > 0
+    ? Number(durationSec)
+    : projectDur;
+  const sourceVideo = {
+    path: normalized.videoPath,
+    rootId: normalized.rootId,
+    url,
+    label,
+    durationSec: videoDur,
+  };
+  void this.applyLibraryVideoAsSource(normalized, { closeLibrary: true });
+  this.sequencer.sourceVideo = sourceVideo;
+  const clip = buildMotionSequencerVideoClip(sourceVideo, projectDur);
+  const kept = (this.sequencer.clips || []).filter((c) => c && c.type !== 'video');
+  if (clip) this.sequencer.clips = [...kept, clip].sort((a, b) => a.t - b.t);
+  else this.sequencer.clips = kept;
+  this.sequencerSelectedClipId = clip?.id || this.sequencerSelectedClipId;
+  this.sequencerStatus = `Motion sequence · ${label} (${Math.min(projectDur, videoDur).toFixed(1)}s)`;
+  this.motionSequencerSideOpen = true;
+  if (this.currentTab !== 'MOTION' && this.currentTab !== 'GENERATE') this.switchTab('MOTION');
+  this.syncSequencerSourceVideo(0);
+  this.saveSessionState();
+  this.$nextTick(() => this.drawTimeline?.());
+  return true;
+},
+async applyLibrarySelectionAsSource() {
+  const audio = this.librarySelectedAudio;
+  if (audio?.audioPath) {
+    this.useLibraryAudio(audio, { webgl: true });
+    return;
+  }
+  const entry = this.resolveLibraryVideoEntry();
+  if (!entry?.videoPath) {
+    this.liveSourceStatus = 'Select audio or video in the library first';
+    return;
+  }
+  await this.applyLibraryVideoAsSource(entry, { closeLibrary: true });
+},
+async applyLibrarySelectionToMotionSequencer() {
+  const entry = this.resolveLibraryVideoEntry();
+  if (!entry?.videoPath) {
+    this.liveSourceStatus = 'Select a video in the library first';
+    return;
+  }
+  const url = entry.videoUrl || this.libraryVideoPlaybackUrl(entry);
+  const videoDurationSec = await this.probeLibraryVideoDuration(url);
+  const label = entry.title || entry.name || 'Video';
+  const choice = await this.maybeConfirmExtendProjectForVideo(videoDurationSec, label);
+  this.applyLibraryVideoToMotionSequencer(entry, {
+    durationSec: videoDurationSec,
+    projectDurationSecValue: choice.projectDurationSec,
+  });
+},
+syncSequencerSourceVideo(tSec) {
+  const src = this.sequencer?.sourceVideo;
+  if (!src?.url) return;
+  if (this.inputLayerPlaybackUrl !== src.url) {
+    this.inputLayerPlaybackUrl = src.url;
+    this.inputLayerLabel = src.label || 'Input';
+    this.rebuildVideoLayers();
+  }
+  if (this.activeVideoLayerId !== 'input') this.selectVideoLayer('input');
+  this.$nextTick(() => {
+    this.attachInputVideo(src.url);
+    const video = this.$refs?.inputVideoEl;
+    if (!video) return;
+    const maxTime = Number.isFinite(Number(src.durationSec)) && src.durationSec > 0
+      ? src.durationSec
+      : (Number.isFinite(Number(video.duration)) ? video.duration : Number(tSec) || 0);
+    const target = Math.max(0, Math.min(Number(tSec) || 0, maxTime));
+    try {
+      if (Math.abs((video.currentTime || 0) - target) > 0.04) video.currentTime = target;
+    } catch (_e) { /* ignore seek errors */ }
+    if (this.sequencerPlaying) video.play?.().catch?.(() => {});
+    else video.pause?.();
+  });
 },
 toggleLibraryWorkspace() {
   if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
@@ -5862,31 +6450,6 @@ applyAudioAsWebglSource() {
   this.audioStatus = 'Audio driving WebGL visualizer';
   if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
   else this.librarySourceMode = false;
-},
-applyLibrarySelectionAsSource() {
-  const audio = this.librarySelectedAudio;
-  if (audio?.audioPath) {
-    this.useLibraryAudio(audio, { webgl: true });
-    return;
-  }
-  const entry = this.librarySelectedProject?.videoPath
-    ? this.librarySelectedProject
-    : this.librarySelectedVideo;
-  if (!entry?.videoPath) {
-    this.liveSourceStatus = 'Select audio or video in the library first';
-    return;
-  }
-  this.inputLayerPlaybackUrl = entry.videoUrl || this.systemFilePlaybackUrl({
-    path: entry.videoPath,
-    rootId: entry.rootId || 'uploads',
-  });
-  this.inputLayerLabel = entry.title || entry.name || 'Input';
-  this.rebuildVideoLayers();
-  this.selectVideoLayer('input');
-  this.liveSourceStatus = `Assigned to Input layer: ${this.inputLayerLabel}`;
-  if (this.libraryWorkspaceOpen) this.closeLibraryWorkspace();
-  else this.librarySourceMode = false;
-  this.saveSessionState();
 },
 isCloudStorageRoot(rootId) {
   return String(rootId || this.systemFiles.rootId || '').startsWith('cloud:');
@@ -6226,6 +6789,19 @@ toggleSystemFileSelection(filePath) {
   if (idx >= 0) paths.splice(idx, 1);
   else paths.push(filePath);
   this.systemFiles.selectedPaths = paths;
+  if (paths.length === 1) {
+    const video = (this.systemFiles.videos || []).find((v) => v.path === paths[0]);
+    if (video) {
+      const entry = normalizeLibraryVideoEntry(
+        { ...video, title: video.name, videoPath: video.path },
+        (item) => this.systemFilePlaybackUrl(item),
+      );
+      this.librarySelectedVideo = entry;
+      this.librarySelectedProject = entry;
+    }
+  } else if (!paths.length) {
+    this.librarySelectedVideo = null;
+  }
 },
 openSystemFileFullscreen(index) {
   const list = this.systemFiles.videos || [];
@@ -6959,6 +7535,16 @@ toggleCollaboration() {
   if (msg.type === "run_demo_done") {
     this.appendRunsJobLog(`Demo run ${msg.status || 'done'}: ${msg.runId || '—'}`, 'success');
     void this.refreshRuns({ fromPoll: true });
+  }
+  if (msg.type === "runs_job_log" && msg.entry) {
+    this.mergeRunsJobLogEntry(msg.entry);
+    if (msg.entry.kind === 'story_llm_request' && msg.entry.ollamaRequest) {
+      this.applyStoryLlmRequestLog({
+        clientRequest: msg.entry.clientRequest,
+        ollamaRequest: msg.entry.ollamaRequest,
+        logId: msg.entry.id,
+      });
+    }
   }
   if (msg.type === "deforum_settings") {
     this.loadDeforumSettings({ syncServerModel: false });
@@ -8382,7 +8968,7 @@ emitMotionLiveParam(key, val) {
  },
  subTabIdsForCurrentTab() {
    if (this.currentTab === 'PROMPTS') {
-     return ['PROMPTS', 'IMAGE', 'LORA', 'CONTROLNET', 'STORY'];
+     return ['PROMPTS', 'STYLES', 'IMAGE', 'LORA', 'CONTROLNET', 'STORY'];
    }
    if (this.currentTab === 'SETTINGS') {
      return ['ENGINE', 'OUTPUT', 'GPUS', 'RUNS', 'MIDI', 'STYLES', 'PLUGINS', 'COLLAB'];
@@ -8798,16 +9384,60 @@ readImg2imgAsset(file, { mask = false } = {}) {
       return;
     }
     this.img2img.dataUrl = reader.result;
-    this.img2img.status = "Input image loaded";
+    this.applyInitImageFromUpload(reader.result);
+    this.img2img.status = "Input image loaded — set as Deforum init";
   };
   reader.onerror = () => {
     this.img2img.status = mask ? "Could not read mask file" : "Could not read input image";
   };
   reader.readAsDataURL(file);
 },
+applyInitImageFromUpload(dataUrl) {
+  if (!dataUrl) return;
+  this.applyDeforumInitFromDataUrl(dataUrl);
+  this.syncImg2imgDimensionsFromDataUrl(dataUrl);
+  if (this.isWanLayerActive) {
+    this.applyWanInitImageDataUrl(dataUrl);
+  } else if (this.isSvdLayerActive) {
+    this.syncSvdInitResolutionFromDataUrl(dataUrl);
+    this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, svd_init_image: dataUrl });
+    this.svdStatus = 'Init image linked from upload';
+    this.saveSessionState();
+  }
+},
+applyDeforumInitFromDataUrl(dataUrl) {
+  if (!dataUrl || !this.deforumSettings) return;
+  const strength = Number(this.deforumSettings.strength);
+  this.deforumSettings = {
+    ...this.deforumSettings,
+    init_image: dataUrl,
+    use_init: true,
+    strength: Number.isFinite(strength) && strength > 0 ? strength : 0.65,
+  };
+  this.syncDeforumSettingsJson();
+  this.saveSessionState();
+  this.queueDeforumSettingsSave();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+syncImg2imgDimensionsFromDataUrl(dataUrl) {
+  if (!dataUrl || typeof Image === 'undefined') return;
+  const img = new Image();
+  img.onload = () => {
+    const w = img.naturalWidth;
+    const h = img.naturalHeight;
+    if (!w || !h) return;
+    this.img2img.width = w;
+    this.img2img.height = h;
+    if (!this.isSvdLayerActive) {
+      this.syncResolutionAcrossControls(w, h, { syncGpuModal: true });
+    }
+  };
+  img.src = dataUrl;
+},
 handleImg2imgFile(evt) {
   const f = evt.target.files && evt.target.files[0];
   this.readImg2imgAsset(f);
+  if (evt.target) evt.target.value = '';
 },
 handleImg2imgMask(evt) {
   const f = evt.target.files && evt.target.files[0];
@@ -8820,7 +9450,18 @@ handleImg2imgDrop(evt, kind = 'input') {
   this.readImg2imgAsset(file, { mask: kind === 'mask' });
 },
 clearImg2imgInput() {
+  const prev = this.img2img.dataUrl;
   this.img2img.dataUrl = null;
+  if (prev && this.deforumSettings && this.deforumSettings.init_image === prev) {
+    this.deforumSettings = {
+      ...this.deforumSettings,
+      init_image: null,
+      use_init: false,
+    };
+    this.syncDeforumSettingsJson();
+    this.saveSessionState();
+    this.queueDeforumSettingsSave();
+  }
   this.img2img.status = "Input image cleared";
 },
  clearImg2imgMask() {
@@ -9462,6 +10103,106 @@ audioBandWindowStyle(mapping) {
      this.presetStatus = `Error deleting preset: ${err.message}`;
    }
  },
+ captureEngineSettingsSnapshot() {
+   return buildEngineSettingsSnapshot({
+     activeVideoLayerId: this.activeVideoLayerId,
+     videoLayerOpacity: Object.fromEntries(
+       (this.videoLayers || [])
+         .filter((layer) => layer && layer.builtin)
+         .map((layer) => [layer.id, this.readVideoLayerOpacity(layer)]),
+     ),
+     videoLayerPreviewVisible: Object.fromEntries(
+       (this.videoLayers || [])
+         .filter((layer) => layer && layer.builtin)
+         .map((layer) => [layer.id, this.isVideoLayerPreviewVisible(layer)]),
+     ),
+     currentPreset: this.currentPreset,
+     defaultAnimation: this.normalizeDefaultAnimationSettings(this.defaultAnimation),
+     deforumSettings: this.normalizedDeforumSettings(),
+     lcmEngine: this.lcmEngine ? { ...this.lcmEngine } : {},
+     wanEngine: normalizeWanEngine(this.wanEngine),
+     animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
+     svdEngine: normalizeSvdEngine(this.svdEngine),
+   });
+ },
+ applyEngineSettingsSnapshot(snapshot) {
+   const snap = normalizeEngineSettingsSlot(snapshot);
+   if (!snap) return;
+   if (snap.activeVideoLayerId) this.activeVideoLayerId = snap.activeVideoLayerId;
+   (this.videoLayers || []).forEach((layer) => {
+     if (!layer || !layer.builtin) return;
+     if (Object.prototype.hasOwnProperty.call(snap.videoLayerPreviewVisible, layer.id)) {
+       layer.previewVisible = snap.videoLayerPreviewVisible[layer.id] !== false;
+     }
+     if (Object.prototype.hasOwnProperty.call(snap.videoLayerOpacity, layer.id)) {
+       this.setVideoLayerOpacity(layer.id, snap.videoLayerOpacity[layer.id]);
+     }
+   });
+   if (snap.defaultAnimation && typeof snap.defaultAnimation === 'object') {
+     this.defaultAnimation = this.normalizeDefaultAnimationSettings(snap.defaultAnimation);
+   }
+   if (snap.deforumSettings && typeof snap.deforumSettings === 'object' && Object.keys(snap.deforumSettings).length) {
+     this.deforumSettings = mergeDeforumSettings({ ...DEFORUM_DEFAULT_SETTINGS }, snap.deforumSettings);
+     this.deforumSettings = this.normalizedDeforumSettings();
+     this.syncResolutionAcrossControls(this.deforumSettings.W, this.deforumSettings.H, { syncGpuModal: false });
+     this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
+     this.syncDeforumSettingsJson();
+   }
+   if (snap.lcmEngine && typeof snap.lcmEngine === 'object' && Object.keys(snap.lcmEngine).length) {
+     this.lcmEngine = {
+       enabled: !!snap.lcmEngine.enabled,
+       steps: Math.max(1, Math.round(Number(snap.lcmEngine.steps) || DEFAULT_LCM_ENGINE.steps)),
+       loraTag: String(snap.lcmEngine.loraTag || DEFAULT_LCM_LORA_TAG).trim() || DEFAULT_LCM_LORA_TAG,
+     };
+     if (this.lcmEngine.enabled) this.applyLcmEngineToDeforum({ saveSession: false });
+   }
+   if (snap.wanEngine && typeof snap.wanEngine === 'object' && Object.keys(snap.wanEngine).length) {
+     this.wanEngine = normalizeWanEngine(snap.wanEngine);
+   }
+   if (snap.animateLcmEngine && typeof snap.animateLcmEngine === 'object' && Object.keys(snap.animateLcmEngine).length) {
+     this.animateLcmEngine = normalizeAnimateLcmEngine(snap.animateLcmEngine);
+   }
+   if (snap.svdEngine && typeof snap.svdEngine === 'object' && Object.keys(snap.svdEngine).length) {
+     this.svdEngine = normalizeSvdEngine(snap.svdEngine);
+   }
+   this.currentPreset = snap.currentPreset || null;
+   this.onDefaultAnimationInput();
+   if (this.deforumPlaying) this.scheduleDeforumPreview();
+ },
+ onEngineSettingsSlotClick(index, event) {
+   const i = Number(index);
+   if (!Number.isFinite(i) || i < 0 || i >= ENGINE_SETTINGS_SLOT_COUNT) return;
+   const filled = !!this.engineSettingsSlots[i];
+   const overwrite = !!(event && event.shiftKey);
+   if (!filled || overwrite) {
+     this.saveEngineSettingsToSlot(i, overwrite);
+   } else {
+     this.loadEngineSettingsFromSlot(i);
+   }
+ },
+ saveEngineSettingsToSlot(index, overwrite = false) {
+   const snap = this.captureEngineSettingsSnapshot();
+   this.engineSettingsSlots.splice(index, 1, snap);
+   this.engineSettingsSlotStatus = overwrite
+     ? `Overwrote slot ${index + 1}`
+     : `Saved to slot ${index + 1}`;
+   this.flashEngineSettingsSlotStatus();
+   this.saveSessionState();
+ },
+ loadEngineSettingsFromSlot(index) {
+   const snap = this.engineSettingsSlots[index];
+   if (!snap) return;
+   this.applyEngineSettingsSnapshot(snap);
+   this.engineSettingsSlotStatus = `Loaded slot ${index + 1}`;
+   this.flashEngineSettingsSlotStatus();
+   this.saveSessionState();
+ },
+ flashEngineSettingsSlotStatus() {
+   if (this._engineSettingsSlotStatusTimer) clearTimeout(this._engineSettingsSlotStatusTimer);
+   this._engineSettingsSlotStatusTimer = setTimeout(() => {
+     this.engineSettingsSlotStatus = '';
+   }, 2500);
+ },
  invalidateAudioSpectrogram() {
    this._spectrogramGen = (this._spectrogramGen || 0) + 1;
    this.audioSpectrogramDataUrl = null;
@@ -9882,8 +10623,156 @@ onAudioUpload(evt) {
      this.cnLoading = false;
    }
  },
+ async loadControlNetModules() {
+   try {
+     const { data } = await apiFetch("/api/controlnet/modules", {}, "controlnet modules");
+     this.cnModules = data.modules || [];
+     this.cnModulesSource = data.source || "unknown";
+   } catch (_) {
+     this.cnModules = [];
+     this.cnModulesSource = "unknown";
+   }
+ },
+ getDeforumCnField(unit, field) {
+   const p = cnPrefix(unit);
+   const key = String(field || "").startsWith("cn_") ? field : `${p}${field}`;
+   return this.deforumSettings?.[key];
+ },
+ onDeforumCnField(unit, field, raw, kind) {
+   const p = cnPrefix(unit);
+   const key = String(field || "").startsWith("cn_") ? field : `${p}${field}`;
+   let value = raw;
+   if (kind === "number") {
+     const n = parseFloat(raw);
+     value = Number.isFinite(n) ? n : 0;
+   } else if (kind === "bool") {
+     value = !!raw;
+   }
+   this.deforumSettings = { ...(this.deforumSettings || {}), [key]: value };
+   this.syncDeforumCnSlotFromUnit(unit);
+   this.syncDeforumSettingsJson();
+   this.saveSessionState();
+   this.queueDeforumSettingsSave();
+ },
+ setDeforumCnEnabled(unit, enabled) {
+   const p = cnPrefix(unit);
+   this.deforumSettings = { ...(this.deforumSettings || {}), [`${p}enabled`]: !!enabled };
+   this.ensureDeforumCnFieldsEnabled(unit, !!enabled);
+   this.syncDeforumCnSlotFromUnit(unit);
+   this.syncDeforumSettingsJson();
+   this.saveSessionState();
+   this.queueDeforumSettingsSave();
+ },
+ setDeforumCnModulePreset(unit, presetId) {
+   this.deforumSettings = applyModulePresetToSettings(this.deforumSettings, unit, presetId);
+   if (presetId && presetId !== "none") {
+     this.ensureDeforumCnFieldsEnabled(unit, true);
+   }
+   this.syncDeforumCnSlotFromUnit(unit);
+   this.syncDeforumSettingsJson();
+   this.saveSessionState();
+   this.queueDeforumSettingsSave();
+ },
+ setDeforumCnScalar(unit, field, raw) {
+   const p = cnPrefix(unit);
+   const key = `${p}${field}`;
+   this.deforumSettings = {
+     ...(this.deforumSettings || {}),
+     [key]: scheduleFromScalar(raw, field === "weight" ? 1 : field === "guidance_end" ? 1 : 0),
+   };
+   this.syncDeforumCnSlotFromUnit(unit);
+   this.syncDeforumSettingsJson();
+   this.saveSessionState();
+   this.queueDeforumSettingsSave();
+ },
+ getDeforumCnScalar(unit, field, fallback = null) {
+   const p = cnPrefix(unit);
+   return scalarFromSchedule(this.deforumSettings?.[`${p}${field}`], fallback);
+ },
+ inferDeforumCnPresetId(unit) {
+   return inferModulePresetId(this.deforumSettings, unit);
+ },
+ deforumCnModelChoices(unit) {
+   const module = this.getDeforumCnField(unit, "module");
+   return filterModelsForModule(this.cn.availableModels, module);
+ },
+ isDeforumCnUnitEnabled(unit) {
+   return !!this.getDeforumCnField(unit, "enabled");
+ },
+ ensureDeforumCnFieldsEnabled(unit, enabled) {
+   const p = cnPrefix(unit);
+   const next = createDeforumFieldEnabledMap(this.deforumFieldEnabled);
+   DEFORUM_FIELD_KEYS.forEach((key) => {
+     if (String(key).startsWith(p)) next[key] = enabled !== false;
+   });
+   this.deforumFieldEnabled = next;
+ },
+ syncDeforumCnSlotFromUnit(unit) {
+   const slotId = `CN${unit}`;
+   const idx = this.cn.slots.findIndex((s) => s.id === slotId);
+   if (idx < 0) return;
+   const synced = syncCnSlotFromDeforumUnit(this.deforumSettings, unit, this.cn.slots[idx]);
+   this.cn.slots.splice(idx, 1, { ...this.cn.slots[idx], ...synced });
+ },
+ syncDeforumCnSlotsFromSettings() {
+   for (let unit = 1; unit <= DEFORUM_CN_SLOT_COUNT; unit += 1) {
+     this.syncDeforumCnSlotFromUnit(unit);
+   }
+ },
+ pushDeforumCnUnitToMediator(unit) {
+   this.syncDeforumCnSlotFromUnit(unit);
+   const slot = this.cn.slots.find((s) => s.id === `CN${unit}`);
+   if (slot) this.updateControlNet(slot);
+ },
+ applyDeforumControlNetForRun() {
+   for (let unit = 1; unit <= DEFORUM_CN_SLOT_COUNT; unit += 1) {
+     const enabled = this.isDeforumCnUnitEnabled(unit);
+     this.ensureDeforumCnFieldsEnabled(unit, enabled);
+     this.syncDeforumCnSlotFromUnit(unit);
+     if (enabled) {
+       const slot = this.cn.slots.find((s) => s.id === `CN${unit}`);
+       if (slot) {
+         const payload = {
+           controlnet_slot: slot.id,
+           controlnet_model: slot.model,
+           controlnet_weight: slot.weight,
+           controlnet_start: slot.start,
+           controlnet_end: slot.end,
+           controlnet_enabled: slot.enabled,
+         };
+         this.sendControl("controlNet", payload);
+       }
+     }
+   }
+   this.queueDeforumSettingsSave();
+ },
+ async uploadDeforumCnGuideImage(unit, file) {
+   if (!file) return;
+   const slotId = `CN${unit}`;
+   const formData = new FormData();
+   formData.append("image", file);
+   formData.append("slot", slotId);
+   try {
+     const res = await fetch("/api/controlnet/upload-image", { method: "POST", body: formData });
+     const data = await res.json();
+     if (data.error) {
+       console.error("Deforum ControlNet upload:", data.error);
+       return;
+     }
+     this.pushDeforumCnUnitToMediator(unit);
+   } catch (err) {
+     console.error("Deforum ControlNet upload failed", err);
+   }
+ },
  updateControlNet(slot) {
-   // Send ControlNet parameters to mediator
+   const unit = cnUnitFromSlotId(slot?.id);
+   if (unit) {
+     this.deforumSettings = syncDeforumUnitFromCnSlot(this.deforumSettings, unit, {
+       ...slot,
+       modulePreset: slot.modulePreset || inferModulePresetId(this.deforumSettings, unit),
+     });
+     this.queueDeforumSettingsSave();
+   }
    const payload = {
      controlnet_slot: slot.id,
      controlnet_model: slot.model,
@@ -9893,7 +10782,6 @@ onAudioUpload(evt) {
      controlnet_enabled: slot.enabled,
    };
    this.sendControl("controlNet", payload);
-   console.log("Updated ControlNet slot:", slot.id, payload);
  },
  uploadControlNetImage(slot) {
    this.cn.active = slot.id;
@@ -10098,6 +10986,9 @@ onAudioUpload(evt) {
      fps: Number(this.sequencer.fps),
      loop: !!this.sequencer.loop,
      markers,
+     sourceVideo: this.sequencer.sourceVideo && typeof this.sequencer.sourceVideo === 'object'
+       ? { ...this.sequencer.sourceVideo }
+       : null,
      clips: this.normalizeSequencerClipsForSave(this.sequencer.clips),
      tracks: this.sequencer.tracks.map((tr) => ({
        id: tr.id,
@@ -10107,7 +10998,7 @@ onAudioUpload(evt) {
    };
  },
  normalizeSequencerClipsForSave(clips) {
-   const allowed = new Set(['prompt', 'lora', 'controlnet']);
+   const allowed = new Set(['prompt', 'lora', 'controlnet', 'video']);
    const d = Number(this.sequencer.durationSec) || 0;
    if (!Array.isArray(clips)) return [];
    return clips
@@ -10179,7 +11070,7 @@ onAudioUpload(evt) {
    };
  },
  addSequencerClip(type) {
-   const allowed = new Set(['prompt', 'lora', 'controlnet']);
+   const allowed = new Set(['prompt', 'lora', 'controlnet', 'video']);
    if (!allowed.has(type)) return;
    this.clampSequencerPlayhead();
    const d = Math.max(0, Number(this.sequencer.durationSec) || 0);
@@ -10286,10 +11177,23 @@ onAudioUpload(evt) {
        if (snap.enabled != null) slot.enabled = snap.enabled;
        this.updateControlNet(slot);
      }
+     return;
+   }
+   if (clip.type === 'video' && clip.payload?.url) {
+     this.sequencer.sourceVideo = { ...clip.payload };
+     this.applyLibraryVideoAsSource(
+       {
+         videoPath: clip.payload.path,
+         rootId: clip.payload.rootId,
+         videoUrl: clip.payload.url,
+         title: clip.payload.label,
+       },
+       { closeLibrary: false },
+     );
    }
  },
  applySequencerClipsAt(tSec) {
-   for (const type of ['prompt', 'lora', 'controlnet']) {
+   for (const type of ['prompt', 'lora', 'controlnet', 'video']) {
      const clip = this.activeSequencerClipAt(tSec, type);
      if (clip) this.applySequencerClip(clip);
    }
@@ -10298,6 +11202,7 @@ onAudioUpload(evt) {
    if (type === 'prompt') return 'Prompt';
    if (type === 'lora') return 'LoRA';
    if (type === 'controlnet') return 'ControlNet';
+   if (type === 'video') return 'Video';
    return type;
  },
  clipSummaryText(clip) {
@@ -10315,6 +11220,9 @@ onAudioUpload(evt) {
    if (clip.type === 'controlnet') {
      const enabled = (clip.payload?.slots || []).filter((s) => s.enabled).length;
      return `${enabled} slot${enabled === 1 ? '' : 's'} on`;
+   }
+   if (clip.type === 'video') {
+     return String(clip.payload?.label || clip.label || 'Library video');
    }
    return '';
  },
@@ -10442,6 +11350,7 @@ onAudioUpload(evt) {
    if (Object.keys(payload).length) this.sendControl("liveParam", payload);
    Object.values(cnUpdates).forEach(slot => this.updateControlNet(slot));
    this.applySequencerClipsAt(tSec);
+   this.syncSequencerSourceVideo(tSec);
  },
  previewSequencerFrame() {
    this.clampSequencerPlayhead();
@@ -10640,6 +11549,10 @@ onAudioUpload(evt) {
          }))
        : [];
      this.sequencer.clips = this.normalizeSequencerClipsForSave(tl.clips || []);
+     const videoClip = this.sequencer.clips.find((c) => c && c.type === 'video');
+     this.sequencer.sourceVideo = tl.sourceVideo && typeof tl.sourceVideo === 'object'
+       ? tl.sourceVideo
+       : (videoClip?.payload || null);
      this.sequencerSelectedClipId = this.sequencer.clips[0] ? this.sequencer.clips[0].id : null;
      this.sequencerSaveName = name;
      this.sequencerSelectedTrackId = this.sequencer.tracks[0] ? this.sequencer.tracks[0].id : null;
@@ -11227,7 +12140,7 @@ generatorRequestBody() {
   const fps = Number(this.sequencer && this.sequencer.fps) || Number(this.framesync && this.framesync.fps) || Number(this.generator.fps) || 24;
   const totalFrames = Number(this.deforumSettings && this.deforumSettings.max_frames) || Number(this.framesync && this.framesync.frameCount) || Number(this.generator.totalFrames) || 96;
   const numScenes = Math.max(2, Number(this.generator.numScenes) || 4);
-  return {
+  return normalizeStoryClientRequest({
     theme: this.generator.theme.trim() || this._genRnd(this.genData.defaultThemes),
     style,
     width,
@@ -11235,7 +12148,7 @@ generatorRequestBody() {
     fps,
     totalFrames,
     numScenes,
-  };
+  });
 },
  _buildScene(theme, style, idx, total) {
    const r = (a) => this._genRnd(a);
@@ -11422,10 +12335,12 @@ async generateStory() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       }, 'generate story');
+      if (data && data.llmLog) this.applyStoryLlmRequestLog(data.llmLog);
       g.result = data;
       const source = data && data.source && data.source.model ? ` via ${data.source.model}` : '';
       g.status = `Story ready${source} — review and apply below.`;
     } catch (err) {
+      await this.persistStoryLlmRequestLog(payload);
       g.result = this.buildLocalStoryResult();
       g.status = `Story ready via local fallback (${err.message})`;
     }
@@ -11719,7 +12634,19 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
      if (typeof s.paramPanelOpen === 'boolean') this.paramPanelOpen = s.paramPanelOpen;
      if (typeof s.deforumPanelOpen === 'boolean') this.deforumPanelOpen = s.deforumPanelOpen;
-    if (typeof s.deforumActiveTab === 'string') this.deforumActiveTab = s.deforumActiveTab;
+    if (typeof s.deforumActiveTab === 'string') {
+      const layerIds = DEFORUM_LAYER_FIELD_GROUPS.map((g) => g.id);
+      this.deforumActiveTab = layerIds.includes(s.deforumActiveTab)
+        ? s.deforumActiveTab
+        : (s.deforumActiveTab === 'sampling' ? 'canvas' : 'canvas');
+    }
+    if (typeof s.deforumControlTab === 'string' && ['settings', 'controlnet', 'motion', 'macros'].includes(s.deforumControlTab)) {
+      this.deforumControlTab = s.deforumControlTab;
+    }
+    if (Number.isFinite(Number(s.deforumActiveCnUnit))) {
+      const unit = Math.round(Number(s.deforumActiveCnUnit));
+      if (unit >= 1 && unit <= DEFORUM_CN_SLOT_COUNT) this.deforumActiveCnUnit = unit;
+    }
      if (typeof s.generateDockExpanded === 'boolean') this.generateDockExpanded = s.generateDockExpanded;
     if (typeof s.motionSequencerSideOpen === 'boolean') this.motionSequencerSideOpen = s.motionSequencerSideOpen;
     if (s.deforumFieldEnabled && typeof s.deforumFieldEnabled === 'object') {
@@ -11742,6 +12669,11 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        this.syncDeforumSettingsJson();
       this.sessionDeforumSettingsLoaded = true;
      }
+    if (Array.isArray(s.deforumContinuationCheckpoints)) {
+      this.deforumContinuationCheckpoints = s.deforumContinuationCheckpoints
+        .map((entry) => normalizeContinuationCheckpoint(entry))
+        .filter(Boolean);
+    }
      if (s.lastModel) {
        this.forge.lastModel = s.lastModel;
        this.forge.selectedModel = s.lastModel;
@@ -11779,6 +12711,12 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
     }
     if (s.animateLcmEngine && typeof s.animateLcmEngine === 'object') {
       this.animateLcmEngine = normalizeAnimateLcmEngine(s.animateLcmEngine);
+    }
+    if (s.svdEngine && typeof s.svdEngine === 'object') {
+      this.svdEngine = normalizeSvdEngine(s.svdEngine);
+    }
+    if (Array.isArray(s.engineSettingsSlots)) {
+      this.engineSettingsSlots = normalizeEngineSettingsSlots(s.engineSettingsSlots);
     }
     if (s.motionSmoothness && typeof s.motionSmoothness === 'object') {
       this.motionSmoothness.enabled = !!s.motionSmoothness.enabled;
@@ -11852,6 +12790,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
        paramPanelOpen: this.paramPanelOpen,
        deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
+      deforumControlTab: this.deforumControlTab,
+      deforumActiveCnUnit: this.deforumActiveCnUnit,
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
@@ -11875,6 +12815,8 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
       animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
+      svdEngine: normalizeSvdEngine(this.svdEngine),
+      engineSettingsSlots: normalizeEngineSettingsSlots(this.engineSettingsSlots),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
@@ -11883,6 +12825,9 @@ hasRecentSessionResumeToken({ now = Date.now(), maxAgeMs = 24 * 60 * 60 * 1000 }
       seedFixedBackup: Number.isFinite(Number(this.seedFixedBackup)) && this.seedFixedBackup >= 0
         ? this.seedFixedBackup
         : null,
+      deforumContinuationCheckpoints: Array.isArray(this.deforumContinuationCheckpoints)
+        ? this.deforumContinuationCheckpoints
+        : [],
      };
      window.localStorage.setItem(this.sessionStorageKey(), JSON.stringify(blob));
     window.localStorage.setItem(this.sessionStorageTouchedKey(), String(Date.now()));
@@ -11944,6 +12889,8 @@ getCurrentSessionSnapshotRaw() {
       paramPanelOpen: this.paramPanelOpen,
       deforumPanelOpen: this.deforumPanelOpen,
       deforumActiveTab: this.deforumActiveTab,
+      deforumControlTab: this.deforumControlTab,
+      deforumActiveCnUnit: this.deforumActiveCnUnit,
       deforumFieldEnabled: createDeforumFieldEnabledMap(this.deforumFieldEnabled),
       generateDockExpanded: this.generateDockExpanded,
       motionSequencerSideOpen: this.motionSequencerSideOpen,
@@ -11967,10 +12914,15 @@ getCurrentSessionSnapshotRaw() {
       },
       wanEngine: normalizeWanEngine(this.wanEngine),
       animateLcmEngine: normalizeAnimateLcmEngine(this.animateLcmEngine),
+      svdEngine: normalizeSvdEngine(this.svdEngine),
+      engineSettingsSlots: normalizeEngineSettingsSlots(this.engineSettingsSlots),
       motionSmoothness: {
         enabled: !!(this.motionSmoothness && this.motionSmoothness.enabled),
         frames: Math.max(1, Math.round(Number(this.motionSmoothness && this.motionSmoothness.frames) || 1)),
       },
+      deforumContinuationCheckpoints: Array.isArray(this.deforumContinuationCheckpoints)
+        ? this.deforumContinuationCheckpoints
+        : [],
     };
     return JSON.stringify(blob);
   } catch (_e) {
@@ -12042,6 +12994,75 @@ normalizedDeforumSettings() {
     merged.use_init = false;
   }
   return merged;
+},
+deforumContinuationStartFrameValue() {
+  return deforumContinuationStartFrame(this.frameStripThumbs, {
+    fallback: 0,
+    initImage: this.deforumSettings && this.deforumSettings.init_image,
+  });
+},
+persistDeforumContinuationFromLatest({ queueSave = true, saveSession = true, checkpoint = false } = {}) {
+  const thumb = lastGeneratedThumb(this.frameStripThumbs);
+  if (!thumb) return false;
+  return this.persistDeforumContinuationFromThumb(thumb, { queueSave, saveSession, checkpoint });
+},
+persistDeforumContinuationFromThumb(thumb, { queueSave = true, saveSession = true, checkpoint = false } = {}) {
+  const patch = buildDeforumContinuationPatch(thumb);
+  if (!patch || !this.deforumSettings) return false;
+  this.deforumSettings = { ...this.deforumSettings, ...patch };
+  this.syncDeforumSettingsJson();
+  if (checkpoint) this.recordDeforumContinuationCheckpoint(thumb);
+  if (saveSession) this.saveSessionState();
+  if (queueSave) this.queueDeforumSettingsSave();
+  return true;
+},
+recordDeforumContinuationCheckpoint(thumb = null) {
+  const entry = continuationCheckpointFromThumb(
+    thumb || lastGeneratedThumb(this.frameStripThumbs),
+    this.frameStripThumbs.length,
+  );
+  if (!entry) return false;
+  this.deforumContinuationCheckpoints = pushContinuationCheckpoint(
+    this.deforumContinuationCheckpoints,
+    entry,
+  );
+  return true;
+},
+undoDeforumContinuationSegment() {
+  if (this.deforumPlaying) {
+    this.performance.status = 'Pause animation before undoing a segment';
+    return false;
+  }
+  const { stack, restored } = popContinuationForUndo(this.deforumContinuationCheckpoints);
+  if (!restored) {
+    this.deforumSettingsStatus = 'Nothing to undo';
+    return false;
+  }
+  this.deforumContinuationCheckpoints = stack;
+  const trimmed = trimThumbsToContinuationFrame(this.thumbs || [], restored.frame);
+  this.thumbs = trimmed;
+  this.saveCachedFrameThumbs(trimmed);
+  this.deforumSettings = {
+    ...this.deforumSettings,
+    init_image: restored.init_image,
+    use_init: restored.use_init,
+  };
+  this.syncDeforumSettingsJson();
+  const idx = trimmed.findIndex((t) => parseFrameNumberFromThumb(t) === restored.frame);
+  if (idx >= 0) this.selectFrame(idx, { scroll: true });
+  const path = restored.init_image;
+  if (path) {
+    this.heldPreviewFramePath = path;
+    this.performance.lastPreviewPath = path;
+    this.generator.lastPath = path;
+  }
+  this.sendControl('liveParam', { start_frame: restored.frame, should_resume: 1 });
+  this.deforumSettingsStatus = `Undone to frame ${restored.frame} — change settings and press Play to redo`;
+  this.performance.status = this.deforumSettingsStatus;
+  this.queueDeforumSettingsSave();
+  this.saveSessionState();
+  this.syncDeforumBackdropToWebGL();
+  return true;
 },
 currentResolution({ fallbackWidth = 1024, fallbackHeight = 576 } = {}) {
   const width = Number(this.deforumSettings && this.deforumSettings.W)
@@ -12323,6 +13344,14 @@ applyModelOptimizedDefaults(modelLike) {
   if (cfgParam) cfgParam.val = defaults.cfgScale;
   const strengthParam = this.liveVibe.find((param) => param.key === 'strength');
   if (strengthParam) strengthParam.val = defaults.strength;
+  const family = this.detectModelFamilyFromValue(
+    (modelLike && modelLike.metadata) || this.forge.modelInfo,
+    this.normalizeModelName(this.forge.selectedModel || this.forge.currentModel),
+  );
+  if (family === 'svd') {
+    this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, ...getSvdPreset('XT 1.1') });
+    this.syncResolutionAcrossControls(this.svdEngine.width, this.svdEngine.height, { syncGpuModal: true });
+  }
   this.syncDeforumSettingsJson();
   this.deforumSettingsStatus = `${this.normalizeModelName(this.forge.selectedModel || this.forge.currentModel)} optimized for ${defaults.profileLabel}`;
   return true;
@@ -12654,6 +13683,19 @@ reapplyEngineModelDefaults() {
      negative: partsNeg.filter(Boolean).join(', '),
    };
  },
+ buildPromptStyleJobSnapshot() {
+   const styleSlots = (this.performance.slots || [])
+     .filter((slot) => slot.type === 'style')
+     .map((slot) => this.normalizeSlotForMorph(slot));
+   const morph = this.buildMorphedStyleAppend();
+   return buildPromptStyleJobSnapshot({
+     activeStyleId: this.activePromptStyleId,
+     activeStyle: this.activePromptStyle,
+     crossfader: this.performance.crossfader,
+     styleCrossfaderSlots: styleSlots,
+     morphedAppend: morph,
+   });
+ },
  applyCrossfadeMorph() {
    const t = this.performance.crossfader;
    const live = {};
@@ -12765,7 +13807,8 @@ async importPromptStylesFromForge() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || res.statusText);
     this.promptStyles = Array.isArray(data.styles) ? data.styles : [];
-    this.promptStylesStatus = `Imported ${data.added || 0} new, updated ${data.updated || 0} (${data.total || this.promptStyles.length} total)`;
+    const seedNote = data.persistedSeed !== false ? " — saved permanently" : "";
+    this.promptStylesStatus = `Imported ${data.added || 0} new, updated ${data.updated || 0} (${data.total || this.promptStyles.length} total)${seedNote}`;
   } catch (err) {
     this.promptStylesStatus = `Import failed: ${err.message || err}`;
   } finally {
@@ -12934,7 +13977,7 @@ effectiveNegativePrompt(base) {
 },
 effectiveDeforumSettingsForRender() {
   const settings = JSON.parse(JSON.stringify(this.activeDeforumSettings()));
-  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive)
+  const basePositive = (this.isWanLayerActive || this.isAnimateLcmLayerActive || this.isSvdLayerActive)
     ? (this.buildMorphedPrompt() || String(this.prompts.pos || "").trim())
     : (
       getNestedValue(settings, "prompts.0")
@@ -12945,7 +13988,7 @@ effectiveDeforumSettingsForRender() {
   const positive = this.effectivePositivePrompt(basePositive);
   setNestedValue(settings, "prompts.0", positive);
   settings.negative_prompts = this.effectiveNegativePrompt(baseNegative);
-  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive) {
+  if (this.lcmEngineEnabled && !this.isWanLayerActive && !this.isAnimateLcmLayerActive && !this.isSvdLayerActive) {
     const steps = Math.max(1, Math.round(Number(this.lcmEngine.steps) || 1));
     settings.steps = steps;
     settings.steps_schedule = `0: (${steps})`;
@@ -12955,6 +13998,9 @@ effectiveDeforumSettingsForRender() {
   }
   if (this.isAnimateLcmLayerActive) {
     return mergeAnimateLcmIntoDeforumSettings(settings, this.animateLcmEngine, { positivePrompt: positive });
+  }
+  if (this.isSvdLayerActive) {
+    return settings;
   }
   if (settings.animation_mode === WAN_ANIMATION_MODE) {
     settings.animation_mode = this.deforumSettings?.animation_mode || '2D';
@@ -13010,6 +14056,158 @@ applyAnimateLcmMotionPreset(name) {
   this.saveSessionState();
   this.queueDeforumSettingsSave();
   if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+onSvdEngineFieldChange(key, rawValue, type = 'text') {
+  if (!key || !this.svdEngine) return;
+  let next = rawValue;
+  if (type === 'number') {
+    const num = Number(rawValue);
+    if (!Number.isFinite(num)) return;
+    next = num;
+  } else {
+    next = String(rawValue ?? '');
+  }
+  this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, [key]: next });
+  if (key === 'width' || key === 'height') {
+    this.syncResolutionAcrossControls(this.svdEngine.width, this.svdEngine.height, { syncGpuModal: true });
+  }
+  this.saveSessionState();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+onSvdResolutionPresetChange(value) {
+  const parsed = parseSvdResolution(value);
+  const patch = { svd_resolution: value };
+  if (parsed) {
+    patch.width = parsed.width;
+    patch.height = parsed.height;
+    this.syncResolutionAcrossControls(parsed.width, parsed.height, { syncGpuModal: true });
+  }
+  this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, ...patch });
+  this.saveSessionState();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+applySvdPreset(name) {
+  const preset = getSvdPreset(name);
+  if (!preset) return;
+  this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, ...preset, svd_preset: name });
+  this.syncResolutionAcrossControls(this.svdEngine.width, this.svdEngine.height, { syncGpuModal: true });
+  this.saveSessionState();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+applySvdInitFromPromptsImage() {
+  const dataUrl = this.img2img?.dataUrl || null;
+  if (!dataUrl) {
+    this.svdStatus = 'No image in Prompts → IMAGE — generate or upload first';
+    return;
+  }
+  this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, svd_init_image: dataUrl });
+  this.syncSvdInitResolutionFromDataUrl(dataUrl);
+  this.svdStatus = 'Init image linked from Prompts';
+  this.saveSessionState();
+  if (!this.deforumPlaying) this.scheduleDeforumPreview();
+},
+clearSvdInitImage() {
+  this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, svd_init_image: null });
+  this.svdStatus = '';
+  this.saveSessionState();
+},
+syncSvdInitResolutionFromDataUrl(dataUrl) {
+  if (!dataUrl || typeof Image === 'undefined') return;
+  const img = new Image();
+  img.onload = () => {
+    const picked = pickSvdResolutionForSize(img.naturalWidth, img.naturalHeight);
+    const size = parseSvdResolution(picked);
+    const patch = { svd_init_image: dataUrl, svd_resolution: picked };
+    if (size) {
+      patch.width = size.width;
+      patch.height = size.height;
+      this.syncResolutionAcrossControls(size.width, size.height, { syncGpuModal: true });
+    }
+    this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, ...patch });
+    this.saveSessionState();
+  };
+  img.src = dataUrl;
+},
+async ensureSvdInitImage() {
+  if (this.svdEngine?.svd_init_image) return this.svdEngine.svd_init_image;
+  const w = Math.round(Number(this.svdEngine?.width) || 1024);
+  const h = Math.round(Number(this.svdEngine?.height) || 576);
+  const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
+  const strength = this.liveVibe.find((p) => p.key === 'strength');
+  const steps = this.deforumSettings.steps || 20;
+  const seed = this.deforumSettings.seed != null ? this.deforumSettings.seed : this.hud.seed;
+  const sampler = this.deforumSettings.sampler || 'Euler a';
+  const basePrompt = this.buildMorphedPrompt() || String(this.prompts.pos || '').trim();
+  const prompt = this.effectivePositivePrompt(basePrompt);
+  const neg = this.effectiveNegativePrompt(this.prompts.neg || '');
+  const res = await fetch('/api/txt2img', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt,
+      negative_prompt: neg,
+      width: w,
+      height: h,
+      steps,
+      seed,
+      sampler_name: sampler,
+      cfg_scale: cfg ? Number(cfg.val) : 7,
+      denoising_strength: strength ? Number(strength.val) : 0.65,
+    }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.images?.[0]) {
+    throw new Error(data.error || 'Failed to generate SVD init image');
+  }
+  const dataUrl = `data:image/png;base64,${data.images[0]}`;
+  this.svdEngine = normalizeSvdEngine({ ...this.svdEngine, svd_init_image: dataUrl });
+  this.saveSessionState();
+  return dataUrl;
+},
+async generateSvdPreviewFrame() {
+  if (this.deforumPlaying) {
+    this.performance.status = 'Stop animation to preview SVD';
+    return false;
+  }
+  if (this.previewGenerating) return false;
+  this.pinHeldPreviewFrame();
+  this.applyCrossfadeMorph();
+  this.previewGenerating = true;
+  this.performance.status = 'Rendering SVD clip…';
+  this.svdStatus = 'Rendering…';
+  try {
+    const initImage = await this.ensureSvdInitImage();
+    const payload = buildSvdGeneratePayload(this.svdEngine, { initImageBase64: initImage, preview: true });
+    const res = await fetch('/api/svd/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ svdEngine: this.svdEngine, payload }),
+    });
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      this.performance.status = data.error || 'SVD preview failed';
+      this.svdStatus = data.error || 'Preview failed';
+      return false;
+    }
+    const path = data.path || data.first_frame_path;
+    if (path) {
+      this.performance.lastPreviewPath = path;
+      this.generator.lastPath = path;
+      this.heldPreviewFramePath = path;
+    }
+    this.performance.status = 'SVD preview ready';
+    this.svdStatus = data.xt11_available === false
+      ? 'Rendered — XT 1.1 checkpoint not detected on Forge; verify models/svd'
+      : 'SVD preview ready';
+    this.scheduleFrameRefresh(40);
+    return true;
+  } catch (err) {
+    this.performance.status = String(err.message || err);
+    this.svdStatus = 'Preview failed';
+    return false;
+  } finally {
+    this.previewGenerating = false;
+  }
 },
 onWanEngineFieldChange(key, rawValue, type = 'text') {
   if (!key || !this.wanEngine) return;
@@ -13336,6 +14534,10 @@ async processPreviewQueue() {
 },
 async runPreviewJob(kind) {
   if (this.deforumPlaying) return;
+  if (this.isSvdLayerActive) {
+    await this.generateSvdPreviewFrame();
+    return;
+  }
   if (kind === 'deforum') {
     await this.generateDeforumPreviewFrame();
     return;
@@ -13735,6 +14937,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
     this.syncStepsAcrossControls(this.deforumSettings.steps, { syncGpuModal: false });
     this.syncSelectedModelFromDeforumSettings();
      this.syncDeforumSettingsJson();
+    this.syncDeforumCnSlotsFromSettings();
     this.deforumSettingsStatus = this.sessionDeforumSettingsLoaded ? 'Loaded local session' : 'Loaded';
     if (syncServerModel) {
       await this.restoreLastModel();
@@ -13754,10 +14957,11 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
   this.deforumSettingsSaving = true;
    try {
     const settings = this.activeDeforumSettings();
+    const promptStyles = this.buildPromptStyleJobSnapshot();
      const res = await fetch('/api/deforum/settings', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ settings }),
+       body: JSON.stringify({ settings, promptStyles }),
      });
      const data = await res.json();
      if (!res.ok || data.error) {
@@ -13784,15 +14988,18 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    if (this.previewGenerating) return false;
    this.pinHeldPreviewFrame();
    this.applyCrossfadeMorph();
+   this.applyDeforumControlNetForRun();
    this.previewGenerating = true;
    this.performance.status = 'Rendering Deforum frame…';
    this.deforumSettingsStatus = 'Rendering…';
+   this.startForgePreviewProgressPoll({ maxFrames: 1 });
    try {
     const settings = this.effectiveDeforumSettingsForRender();
+    const promptStyles = this.buildPromptStyleJobSnapshot();
      const res = await fetch('/api/deforum/preview', {
        method: 'POST',
        headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({ settings }),
+       body: JSON.stringify({ settings, promptStyles }),
      });
      const data = await res.json();
      if (!res.ok || data.error) {
@@ -13800,19 +15007,27 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
        this.deforumSettingsStatus = 'Preview failed';
        return false;
      }
-     this.performance.lastPreviewPath = data.path;
-     this.generator.lastPath = data.path;
-     this.heldPreviewFramePath = data.path;
+     const finalPath = data.path;
+     this.performance.lastPreviewPath = finalPath;
+     this.generator.lastPath = finalPath;
+     this.heldPreviewFramePath = finalPath;
+     this.forgeLivePreviewImage = '';
+     this.persistDeforumContinuationFromThumb(
+       { src: finalPath, path: finalPath, name: String(finalPath || '').split('/').pop() || '' },
+       { queueSave: true, saveSession: true, checkpoint: true },
+     );
      this.performance.status = 'Deforum frame ready';
      this.deforumSettingsStatus = 'Frame ready';
     this.scheduleFrameRefresh(40);
-     void this.maybeCaptureActiveStyleExample(data.path);
+     void this.maybeCaptureActiveStyleExample(finalPath);
      return true;
    } catch (err) {
      this.performance.status = String(err.message || err);
      this.deforumSettingsStatus = 'Preview failed';
      return false;
    } finally {
+     this.stopForgePreviewProgressPoll();
+     this.previewProgressPct = null;
      this.previewGenerating = false;
    }
  },
@@ -13832,6 +15047,7 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    this.applyCrossfadeMorph();
    this.previewGenerating = true;
    this.performance.status = 'Generating preview frame…';
+   this.startForgePreviewProgressPoll({ maxFrames: 1 });
    const cfg = this.liveVibe.find((p) => p.key === 'cfgscale') || this.liveVibe.find((p) => p.key === 'cfg');
    const strength = this.liveVibe.find((p) => p.key === 'strength');
    const w = this.deforumSettings.W || 1024;
@@ -13870,12 +15086,15 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
      this.performance.lastPreviewPath = data.path;
      this.generator.lastPath = data.path;
      this.heldPreviewFramePath = data.path;
+     this.forgeLivePreviewImage = '';
      this.performance.status = 'Preview frame ready';
     this.scheduleFrameRefresh(120);
      void this.maybeCaptureActiveStyleExample(data.path);
    } catch (err) {
      this.performance.status = String(err.message || err);
    } finally {
+     this.stopForgePreviewProgressPoll();
+     this.previewProgressPct = null;
      this.previewGenerating = false;
    }
  },

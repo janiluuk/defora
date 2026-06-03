@@ -97,6 +97,11 @@
           <time class="runs-job-log__time">{{ formatRunsLogTime(entry.ts) }}</time>
           <span class="runs-job-log__msg">{{ entry.message }}</span>
         </div>
+        <pre
+          v-if="runsJobLogStoryOllamaJson"
+          class="runs-job-log__json"
+          data-testid="runs-job-log-ollama-json"
+        >{{ runsJobLogStoryOllamaJson }}</pre>
         <p v-if="!runsJobLog.length" class="runs-job-log__empty">No log entries yet — launch a test job to see activity.</p>
       </div>
 
@@ -380,6 +385,18 @@
         <div>
           <div class="framesync-subtitle">Tag</div>
           <div>{{ runsDetailView.tag || '-' }}</div>
+        </div>
+        <div v-if="runsDetailView.style_name || runsDetailView.style_id">
+          <div class="framesync-subtitle">Style</div>
+          <div>{{ runsDetailView.style_name || runsDetailView.style_id }}</div>
+        </div>
+        <div v-if="runsDetailView.style_positive_append" class="runs-detail-card__full">
+          <div class="framesync-subtitle">Style positive append</div>
+          <div class="runs-detail-card__prompt">{{ runsDetailView.style_positive_append }}</div>
+        </div>
+        <div v-if="runsDetailView.style_negative_append" class="runs-detail-card__full">
+          <div class="framesync-subtitle">Style negative append</div>
+          <div class="runs-detail-card__prompt">{{ runsDetailView.style_negative_append }}</div>
         </div>
         <div>
           <div class="framesync-subtitle">GPU</div>

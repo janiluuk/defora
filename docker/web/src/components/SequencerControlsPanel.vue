@@ -294,7 +294,7 @@
               <span>Timeline content</span>
             </div>
             <code class="modulation-lfo-card__meta">
-              {{ sequencerClipSummary.prompt }}p · {{ sequencerClipSummary.lora }}l · {{ sequencerClipSummary.controlnet }}c
+              {{ sequencerClipSummary.prompt }}p · {{ sequencerClipSummary.lora }}l · {{ sequencerClipSummary.controlnet }}c · {{ sequencerClipSummary.video }}v
             </code>
           </div>
           <div class="modulation-lfo-card__controls">

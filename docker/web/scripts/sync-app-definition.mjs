@@ -13,7 +13,7 @@ const appVuePath = join(root, 'src', 'App.vue');
 const outPath = join(root, 'src', 'app-definition.js');
 
 // Single-line imports must be processed before multi-line blocks (api-utils regex is greedy).
-const UTIL_MODULES = ['animation-plugins/motion-loras.mjs', 'utils/morph-utils.mjs', 'utils/deforum-settings-schema.mjs', 'utils/deforum-settings-verify.mjs', 'utils/api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/wan-engine-config.mjs', 'animation-plugins/animatelcm-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
+const UTIL_MODULES = ['animation-plugins/motion-loras.mjs', 'utils/morph-utils.mjs', 'utils/deforum-settings-schema.mjs', 'utils/deforum-settings-verify.mjs', 'utils/api-utils.js', 'shared/run-detail-json.mjs', 'shared/prompt-styles.mjs', 'shared/engine-config.mjs', 'shared/freecut-bridge.mjs', 'shared/deforum-continuation.mjs', 'shared/story-llm-request.mjs', 'shared/protoplanet-gpgpu.mjs', 'shared/periodic-table-settings.mjs', 'shared/engine-settings-snapshot.mjs', 'shared/deforum-controlnet-config.mjs', 'shared/wan-engine-config.mjs', 'shared/svd-engine-config.mjs', 'animation-plugins/animatelcm-engine-config.mjs', 'animation-plugins/common-visual.mjs'];
 
 function extractVueTemplate(src, label) {
   const templateOpen = src.indexOf('<template>');
@@ -69,8 +69,11 @@ script = script.replace(/import\s+['"]\.\/style\.css['"];?\s*/g, '');
 let inlinedUtils = '';
 let motionLorasInlined = false;
 for (const mod of UTIL_MODULES) {
+  const escapedMod = mod.replace(/\./g, '\\.');
+  // Disallow crossing into the next import block (multiline `import {` is non-greedy but
+  // still pairs the first `import {` with a later `from` clause).
   const re = new RegExp(
-    `import\\s+\\{([\\s\\S]*?)\\}\\s+from\\s+['"]\\.\\/${mod.replace('.', '\\.')}['"];?`
+    `import\\s+\\{((?:(?!\\bimport\\s+\\{)[\\s\\S])*?)\\}\\s+from\\s+['"]\\.\\/${escapedMod}['"];?`
   );
   const m = script.match(re);
   if (m) {
@@ -148,7 +151,9 @@ function extractDataFunctionClause(scriptBody) {
 }
 
 function extractComponentDefinition(scriptBody) {
-  const usesProxy = /\bproxyAppView\b/.test(scriptBody) && scriptBody.includes('return proxyAppView');
+  const usesProxy =
+    /\bproxyAppView\b/.test(scriptBody)
+    && (scriptBody.includes('return proxyAppView') || /\.\.\.\s*proxyAppView\s*\(/.test(scriptBody));
   const propsMatch = scriptBody.match(/props:\s*\{([\s\S]*?)\n\s*\},/);
   let propsClause = "props: ['app']";
   if (propsMatch) {
@@ -184,6 +189,7 @@ const FULL_STUB_SUFFIXES = [
   'LiveEngineControlsDock.vue',
   'CrossfaderPanel.vue',
   'DeforumJobPanel.vue',
+  'DeforumJobToolbar.vue',
   'LiveParametersPanel.vue',
   'DeforumMotionPads.vue',
   'DeforumControlPanel.vue',
@@ -272,6 +278,26 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
       } else if (nestedRel.endsWith('AnimateLcmPluginPanel.vue')) {
         if (!emittedComponentStubs.has(importName)) {
           lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="animatelcm-plugin-panel"></div>' };`);
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('SvdPluginPanel.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="svd-plugin-panel"></div>' };`);
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('EngineGlobalConfigPanel.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="engine-global-config"></div>' };`);
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('DeforumJobToolbar.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="deforum-job-toolbar"></div>' };`);
+          emittedComponentStubs.add(importName);
+        }
+      } else if (nestedRel.endsWith('DeforumPluginPanel.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="deforum-plugin-panel"></div>' };`);
           emittedComponentStubs.add(importName);
         }
       } else if (!emittedComponentStubs.has(importName)) {

@@ -2,6 +2,7 @@
   <div>
     <div class="sub-pills">
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='PROMPTS'}" @click="switchSubTab('PROMPTS','PROMPTS')">PROMPTS</button>
+      <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='STYLES'}" @click="switchSubTab('PROMPTS','STYLES')">STYLES</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='IMAGE'}" @click="switchSubTab('PROMPTS','IMAGE')">IMAGE</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='LORA'}" @click="switchSubTab('PROMPTS','LORA')">LORA</button>
       <button class="sub-pill" :class="{active: currentSubTab.PROMPTS==='CONTROLNET'}" @click="switchSubTab('PROMPTS','CONTROLNET')">CONTROLNET</button>
@@ -15,7 +16,7 @@
             <button
               type="button"
               class="framesync-button framesync-button--compact"
-              @click="switchTab('SETTINGS'); switchSubTab('SETTINGS', 'STYLES')"
+              @click="switchSubTab('PROMPTS', 'STYLES')"
             >
               Manage styles
             </button>
@@ -166,6 +167,10 @@
       </div>
     </div>
 
+    <div v-else-if="currentSubTab.PROMPTS==='STYLES'">
+      <StylesSettingsPanel :app="app" />
+    </div>
+
     <div v-else-if="currentSubTab.PROMPTS==='IMAGE'">
       <div class="rack">
         <div class="framesync-panel">
@@ -176,7 +181,11 @@
           <div v-if="img2img.show" class="img2img-panel">
             <div class="framesync-subtitle img2img-panel__summary">
               Use an <strong>input image</strong> with optional <strong>mask</strong> for inpainting. Drag files into the boxes below or click to browse.
+              Uploaded images are automatically set as the <strong>Deforum init image</strong> (<code>use_init</code>).
             </div>
+            <p v-if="deforumSettings.use_init && img2img.dataUrl" class="framesync-subtitle img2img-panel__init-hint" data-testid="img2img-init-hint">
+              Init image active for Deforum{{ isWanLayerActive ? ' / WAN I2V' : '' }}{{ isSvdLayerActive ? ' / SVD' : '' }}.
+            </p>
             <div class="img2img-dropgrid">
               <label
                 class="img2img-dropzone"
@@ -327,6 +336,7 @@
               <div class="framesync-subtitle">Theme / story concept</div>
               <input
                 class="framesync-input generate-story__theme-input"
+                data-testid="story-theme-input"
                 v-model="generator.theme"
                 placeholder="e.g. A Space Traveler, Ancient Forest, Cyberpunk City…"
               >
@@ -377,6 +387,7 @@
             <button
               type="button"
               class="framesync-button framesync-button--live"
+              data-testid="story-generate-btn"
               :disabled="generator.isGenerating"
               @click="generateStory"
             >
@@ -386,6 +397,11 @@
           </div>
 
           <div v-if="generator.status" class="generate-sequencer__status-text">{{ generator.status }}</div>
+
+          <div v-if="storyLlmRequestJsonForUi" class="generate-story__llm-log" data-testid="story-llm-request-panel">
+            <div class="framesync-subtitle generate-story__section-title">LLM request JSON</div>
+            <pre class="generate-story__llm-json" data-testid="story-llm-request-json">{{ storyLlmRequestJsonForUi }}</pre>
+          </div>
 
           <div v-if="generator.result" class="generate-story__story-result">
             <div class="framesync-header">
@@ -619,11 +635,12 @@
 
 <script>
 import ModelSourcePill from '../ModelSourcePill.vue'
+import StylesSettingsPanel from '../StylesSettingsPanel.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'PromptsView',
-  components: { ModelSourcePill },
+  components: { ModelSourcePill, StylesSettingsPanel },
   props: {
     app: { type: Object, required: true },
   },

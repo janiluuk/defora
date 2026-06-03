@@ -14,6 +14,10 @@
       <span class="live-frame-processing-banner__hint">{{ frameProcessingHint }}</span>
     </div>
 
+    <EngineGlobalConfigPanel :app="app" />
+
+    <EngineSettingsSlotsBar :app="app" />
+
     <div class="animation-engine-panel__head">
       <div class="animation-engine-panel__title-block">
         <div class="framesync-title">
@@ -134,13 +138,15 @@
 
 <script>
 import UiIcon from './UiIcon.vue'
+import EngineGlobalConfigPanel from './EngineGlobalConfigPanel.vue'
+import EngineSettingsSlotsBar from './EngineSettingsSlotsBar.vue'
 import EngineLayerControls from './animation-plugins/EngineLayerControls.vue'
 import CompositorControls from './animation-plugins/CompositorControls.vue'
 import { proxyAppView } from './views/app-view-proxy.mjs'
 
 export default {
   name: 'AnimationEnginePanel',
-  components: { UiIcon, EngineLayerControls, CompositorControls },
+  components: { UiIcon, EngineGlobalConfigPanel, EngineSettingsSlotsBar, EngineLayerControls, CompositorControls },
   props: { app: { type: Object, required: true } },
   setup(props) { return proxyAppView(props) },
 }

@@ -141,28 +141,30 @@ export const DEFORUM_DEFAULT_SETTINGS = {
   cn_5_loopback_mode: false,
 };
 
-/** @type {{ id: string, label: string, fields: Array<{ key: string, label: string, type?: string, min?: number, max?: number, step?: number, rows?: number, options?: string[] }> }>[]} */
-export const DEFORUM_FIELD_GROUPS = [
+/** Shared across all Forge engines (LIVE engine drawer → Global config). */
+export const DEFORUM_GLOBAL_ENGINE_GROUP = {
+  id: 'global',
+  label: 'Global',
+  fields: [
+    { key: 'W', label: 'Width', type: 'number', min: 256, max: 4096, step: 64 },
+    { key: 'H', label: 'Height', type: 'number', min: 256, max: 4096, step: 64 },
+    { key: 'fps', label: 'FPS', type: 'select', options: ['8', '12', '24', '30'] },
+    { key: 'seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
+    { key: 'sampler', label: 'Sampler', type: 'select' },
+    { key: 'scheduler', label: 'Scheduler', type: 'select' },
+    { key: 'steps', label: 'Steps', type: 'slider', min: 2, max: 150, step: 1 },
+    { key: 'sd_model_name', label: 'Checkpoint', type: 'text' },
+  ],
+};
+
+/** Deforum-layer settings (pill tabs under Deforum controls). */
+export const DEFORUM_LAYER_FIELD_GROUPS = [
   {
     id: 'canvas',
     label: 'Canvas',
     fields: [
-      { key: 'W', label: 'Width', type: 'number', min: 256, max: 4096, step: 64 },
-      { key: 'H', label: 'Height', type: 'number', min: 256, max: 4096, step: 64 },
-      { key: 'fps', label: 'FPS', type: 'select', options: ['8', '12', '24', '30'] },
       { key: 'max_frames', label: 'Max frames', type: 'number', min: 1, max: 99999, step: 1 },
       { key: 'batch_name', label: 'Batch name', type: 'text' },
-    ],
-  },
-  {
-    id: 'sampling',
-    label: 'Sampling',
-    fields: [
-      { key: 'seed', label: 'Seed', type: 'number', min: -1, max: 2147483647, step: 1 },
-      { key: 'sampler', label: 'Sampler', type: 'select' },
-      { key: 'scheduler', label: 'Scheduler', type: 'select' },
-      { key: 'steps', label: 'Steps', type: 'slider', min: 2, max: 150, step: 1 },
-      { key: 'sd_model_name', label: 'Checkpoint', type: 'text' },
     ],
   },
   {
@@ -240,13 +242,19 @@ function controlNetFieldGroup(index) {
   };
 }
 
-DEFORUM_FIELD_GROUPS.push(
+DEFORUM_LAYER_FIELD_GROUPS.push(
   controlNetFieldGroup(1),
   controlNetFieldGroup(2),
   controlNetFieldGroup(3),
   controlNetFieldGroup(4),
   controlNetFieldGroup(5),
 );
+
+/** Full schema (global + layer) for persistence, verify, and field keys. */
+export const DEFORUM_FIELD_GROUPS = [
+  DEFORUM_GLOBAL_ENGINE_GROUP,
+  ...DEFORUM_LAYER_FIELD_GROUPS,
+];
 
 /** Eight performance macros — flat schedule @ frame 0 (keep in sync with CommonVisualStrip / common-visual.mjs). */
 export const DEFORUM_MACRO_KNOBS = [

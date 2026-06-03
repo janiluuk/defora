@@ -38,6 +38,7 @@ function isForgeApiPath(pathname) {
   return (
     path.startsWith("/sdapi/")
     || path.startsWith("/deforum_api/")
+    || path.startsWith("/svd_api/")
     || path.startsWith("/controlnet")
   );
 }

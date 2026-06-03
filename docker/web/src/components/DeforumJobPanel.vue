@@ -17,6 +17,9 @@
           Batch <strong>{{ deforumSettings.batch_name || '—' }}</strong>
           · {{ deforumSettings.max_frames || 0 }} frames @ {{ deforumSettings.fps || 24 }} fps
         </p>
+        <p v-if="jobStyleSummary" class="framesync-subtitle deforum-job-panel__style" data-testid="deforum-job-style-summary">
+          Style: <strong>{{ jobStyleSummary }}</strong>
+        </p>
         <div class="deforum-job-panel__transport">
           <button type="button" class="framesync-button" :class="{ active: deforumPlaying }" @click="toggleDeforumPlay">
             {{ deforumPlaying ? 'Pause job' : 'Play job' }}
@@ -50,7 +53,7 @@
           >
             <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button">
               <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-              <span>Regenerate frame</span>
+              <span>{{ previewProgressPct != null ? `Regenerating · ${previewProgressPct}%` : 'Regenerating frame' }}</span>
             </span>
             <template v-else>🖼 Regenerate frame</template>
           </button>

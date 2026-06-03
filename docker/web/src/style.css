@@ -1598,6 +1598,7 @@
     .live-view__tab-add { border-style: dashed; }
     .deforum-job-panel__head { margin-bottom: 0; }
     .deforum-job-panel__summary { margin: 8px 0 0; }
+    .deforum-job-panel__style { margin: 6px 0 0; opacity: 0.92; }
     .deforum-job-panel__transport { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
     .deforum-job-panel__status { margin-top: 8px; opacity: 0.9; }
     .live-add-source__status { margin-top: 8px; }
@@ -3498,6 +3499,201 @@
       opacity: 0.45;
       cursor: not-allowed;
     }
+    .deforum-control-panel__tabs {
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .deforum-plugin-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .deforum-job-toolbar {
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .deforum-job-toolbar__actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .deforum-job-toolbar__summary {
+      margin: 0;
+    }
+    .engine-global-config {
+      margin-bottom: 14px;
+      padding: 12px;
+    }
+    .engine-global-config__grid {
+      margin-top: 10px;
+    }
+    .engine-global-config__summary {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .engine-global-config__model {
+      flex: 1 1 200px;
+      text-align: left;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 8px 10px;
+      background: var(--bg-2);
+      cursor: pointer;
+    }
+    .engine-global-config__model-value {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+    .engine-global-config__footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .engine-settings-slots {
+      margin-bottom: 14px;
+      padding: 10px 12px;
+      border: 0.5px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-1);
+    }
+    .engine-settings-slots__head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .engine-settings-slots__label {
+      margin: 0;
+      font-weight: 600;
+    }
+    .engine-settings-slots__hint {
+      font-size: 11px;
+      color: var(--text-muted, rgba(232, 236, 244, 0.55));
+    }
+    .engine-settings-slots__row {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .engine-settings-slots__slot {
+      min-height: 52px;
+      border: 0.5px dashed var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--bg-2);
+      color: var(--text);
+      cursor: pointer;
+      padding: 6px 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: border-color 0.15s ease, background 0.15s ease;
+    }
+    .engine-settings-slots__slot:hover {
+      border-color: var(--accent, #5af2a9);
+      background: rgba(90, 242, 169, 0.08);
+    }
+    .engine-settings-slots__slot--filled {
+      border-style: solid;
+      border-color: rgba(90, 242, 169, 0.35);
+    }
+    .engine-settings-slots__plus {
+      font-size: 22px;
+      line-height: 1;
+      opacity: 0.75;
+    }
+    .engine-settings-slots__label-text {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+      width: 100%;
+      min-width: 0;
+    }
+    .engine-settings-slots__index {
+      font-size: 10px;
+      font-weight: 700;
+      opacity: 0.65;
+    }
+    .engine-settings-slots__name {
+      font-size: 10px;
+      line-height: 1.2;
+      text-align: center;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      max-width: 100%;
+    }
+    .engine-settings-slots__status {
+      margin: 6px 0 0;
+      font-size: 11px;
+      opacity: 0.85;
+    }
+    .deforum-controlnet-panel {
+      margin-top: 8px;
+      padding: 10px;
+      background: var(--bg-1);
+      border-radius: 6px;
+    }
+    .deforum-controlnet-panel__hint {
+      margin: 0 0 10px;
+      opacity: 0.85;
+    }
+    .deforum-controlnet-panel__toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .deforum-controlnet-panel__source {
+      font-size: 11px;
+      opacity: 0.75;
+    }
+    .deforum-controlnet-panel__units {
+      margin-bottom: 12px;
+    }
+    .deforum-controlnet-panel__body {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .deforum-controlnet-panel__row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .deforum-controlnet-panel__toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+    }
+    .deforum-controlnet-panel__readout {
+      min-width: 2.5rem;
+      font-size: 12px;
+      text-align: right;
+      opacity: 0.85;
+    }
+    .deforum-controlnet-panel__footer {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 4px;
+    }
+    .deforum-controlnet-panel__file-input {
+      display: none;
+    }
     .deforum-settings-tabs {
       margin-bottom: 10px;
       flex-wrap: wrap;
@@ -4339,6 +4535,11 @@
     .img2img-panel__status,
     .img2img-panel__output {
       text-align: center;
+    }
+    .img2img-panel__init-hint {
+      margin: 0;
+      text-align: center;
+      color: var(--live-text);
     }
     .img2img-dropgrid {
       display: grid;
@@ -5751,6 +5952,32 @@
     .runs-job-log__msg {
       flex: 1;
       word-break: break-word;
+    }
+    .runs-job-log__json {
+      margin: 4px 0 0;
+      max-height: 120px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-dim);
+      font-size: 9px;
+    }
+    .generate-story__llm-log {
+      margin-top: 10px;
+    }
+    .generate-story__llm-json {
+      margin: 6px 0 0;
+      max-height: 160px;
+      overflow: auto;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.25);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 10px;
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: var(--text-dim);
     }
     .runs-browser__filters {
       margin-top: 12px;

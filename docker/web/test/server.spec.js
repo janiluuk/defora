@@ -121,6 +121,18 @@ describe("web server frames API", () => {
     expect(String(res.body.settings.animation_prompts || "")).to.include("ocean");
   });
 
+  it("POST /api/svd/merge-settings returns XT 1.1 SVD payload", async () => {
+    const res = await request
+      .post("/api/svd/merge-settings")
+      .send({ svdEngine: { svd_preset: "XT 1.1" }, preview: true });
+    expect(res.status).to.equal(200);
+    expect(res.body.payload.width).to.equal(1024);
+    expect(res.body.payload.height).to.equal(576);
+    expect(res.body.payload.video_frames).to.be.at.most(4);
+    expect(res.body.payload.motion_bucket_id).to.equal(127);
+    expect(res.body.summary.modelFamily).to.equal("SVD XT 1.1");
+  });
+
   it("sequencer API lists, saves, loads timelines", async () => {
     let res = await request.get("/api/sequencer");
     expect(res.status).to.equal(200);
@@ -617,6 +629,19 @@ describe("ollama story generator", () => {
     const generateCall = fetchCalls.find((call) => call.url.endsWith("/api/generate"));
     expect(generateCall).to.exist;
     expect(JSON.parse(generateCall.body).model).to.equal("llama3.1:8b");
+
+    expect(res.body.llmLog).to.exist;
+    expect(res.body.llmLog.clientRequest.theme).to.equal("Sky temples");
+    expect(res.body.llmLog.ollamaRequest.model).to.equal("llama3.1:8b");
+
+    const logRes = await request.get("/api/runs/job-log");
+    expect(logRes.status).to.equal(200);
+    const storyEntries = (logRes.body.entries || []).filter((e) => e.kind === "story_llm_request");
+    expect(storyEntries.length).to.be.greaterThan(0);
+    const latest = storyEntries[storyEntries.length - 1];
+    expect(latest.clientRequest.theme).to.equal("Sky temples");
+    expect(latest.ollamaRequest.prompt).to.include("Sky temples");
+    expect(JSON.parse(generateCall.body).prompt).to.equal(latest.ollamaRequest.prompt);
   });
 });
 
@@ -743,8 +768,16 @@ describe("FreeCut SPA embed", () => {
     const res = await request.get("/freecut/projects");
     expect(res.status).to.equal(200);
     expect(res.text).to.include("defora-freecut-path-fix");
+    expect(res.text).to.include("defora-bridge.js");
     expect(res.text).to.include('var r="/projects"');
     expect(res.text).to.include('id="root"');
+  });
+
+  it("serves defora-bridge.js for FreeCut handoff", async () => {
+    const res = await request.get("/freecut/defora-bridge.js");
+    expect(res.status).to.equal(200);
+    expect(res.text).to.include("defora:import-url");
+    expect(res.text).to.include("deforaImport");
   });
 
   it("still serves hashed freecut assets", async () => {

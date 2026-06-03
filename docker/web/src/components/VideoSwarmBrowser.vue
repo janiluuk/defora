@@ -345,6 +345,8 @@
       :style="{ top: contextMenu.y + 'px', left: contextMenu.x + 'px' }"
     >
       <button type="button" class="framesync-button framesync-button--compact" @click="openContextFullscreen">Open</button>
+      <button type="button" class="framesync-button framesync-button--compact framesync-button--live" @click="useContextVideoAsSource">Use as source</button>
+      <button type="button" class="framesync-button framesync-button--compact" @click="loadContextVideoToMotionSequence">Load to motion sequence</button>
       <button type="button" class="framesync-button framesync-button--compact" @click="openInVideoEditor(contextMenu.video)">Open in editor</button>
       <button type="button" class="framesync-button framesync-button--compact" @click="copySystemFilePath(contextMenu.video?.path)">Copy path</button>
       <button type="button" class="framesync-button framesync-button--danger framesync-button--compact" @click="deleteContextVideo">Delete</button>
@@ -636,6 +638,15 @@ export default {
         return
       }
       this.systemFiles.selectedPaths = [video.path]
+      const entry = {
+        videoPath: video.path,
+        rootId: video.rootId || this.systemFiles.rootId || 'uploads',
+        title: video.name,
+        name: video.name,
+        videoUrl: this.systemFileMediaUrl(video.path),
+      }
+      this.app.librarySelectedVideo = entry
+      this.app.librarySelectedProject = entry
     },
     onTileDblClick(event, index) {
       event?.preventDefault?.()
@@ -661,6 +672,36 @@ export default {
     },
     openContextFullscreen() {
       if (this.contextMenu.index >= 0) this.openSystemFileFullscreen(this.contextMenu.index)
+      this.closeContextMenu()
+    },
+    useContextVideoAsSource() {
+      const video = this.contextMenu.video
+      if (!video) return
+      const entry = {
+        videoPath: video.path,
+        rootId: video.rootId || this.systemFiles.rootId || 'uploads',
+        title: video.name,
+        name: video.name,
+        videoUrl: this.systemFileMediaUrl(video.path),
+      }
+      this.app.librarySelectedVideo = entry
+      this.app.librarySelectedProject = entry
+      void this.app.applyLibrarySelectionAsSource()
+      this.closeContextMenu()
+    },
+    loadContextVideoToMotionSequence() {
+      const video = this.contextMenu.video
+      if (!video) return
+      const entry = {
+        videoPath: video.path,
+        rootId: video.rootId || this.systemFiles.rootId || 'uploads',
+        title: video.name,
+        name: video.name,
+        videoUrl: this.systemFileMediaUrl(video.path),
+      }
+      this.app.librarySelectedVideo = entry
+      this.app.librarySelectedProject = entry
+      void this.app.applyLibrarySelectionToMotionSequencer()
       this.closeContextMenu()
     },
     deleteContextVideo() {

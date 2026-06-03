@@ -77,6 +77,40 @@ describe("preview compositor", () => {
     expect(appVm.defaultAnimation.forgeLayerOpacityLfoLink).to.equal(null);
   });
 
+  it("normalizeDefaultAnimationSettings clamps periodic table controls", () => {
+    appVm.defaultAnimation.mode = "periodic_table";
+    appVm.defaultAnimation.ptLayout = "bogus";
+    appVm.defaultAnimation.ptTransitionMs = 100;
+    appVm.defaultAnimation = appVm.normalizeDefaultAnimationSettings(appVm.defaultAnimation);
+    expect(appVm.defaultAnimation.mode).to.equal("periodic_table");
+    expect(appVm.defaultAnimation.ptLayout).to.equal("table");
+    expect(appVm.defaultAnimation.ptTransitionMs).to.equal(400);
+  });
+
+  it("normalizeDefaultAnimationSettings clamps protoplanet controls", () => {
+    appVm.defaultAnimation.mode = "protoplanet";
+    appVm.defaultAnimation.ppGravityConstant = 9999;
+    appVm.defaultAnimation.ppRadius = 2;
+    appVm.defaultAnimation = appVm.normalizeDefaultAnimationSettings(appVm.defaultAnimation);
+    expect(appVm.defaultAnimation.mode).to.equal("protoplanet");
+    expect(appVm.defaultAnimation.ppGravityConstant).to.equal(1000);
+    expect(appVm.defaultAnimation.ppRadius).to.equal(10);
+  });
+
+  it("normalizeDefaultAnimationSettings clamps scene transition controls", () => {
+    appVm.defaultAnimation.mode = "transition";
+    appVm.defaultAnimation.txTransition = 2;
+    appVm.defaultAnimation.txTexture = 9;
+    appVm.defaultAnimation.txThreshold = -1;
+    appVm.defaultAnimation = appVm.normalizeDefaultAnimationSettings(appVm.defaultAnimation);
+    expect(appVm.defaultAnimation.mode).to.equal("transition");
+    expect(appVm.defaultAnimation.txTransition).to.equal(1);
+    expect(appVm.defaultAnimation.txTexture).to.equal(5);
+    expect(appVm.defaultAnimation.txThreshold).to.equal(0);
+    expect(appVm.defaultAnimation.txTransitionAnimate).to.equal(true);
+    expect(appVm.defaultAnimation.txUseTexture).to.equal(true);
+  });
+
   it("normalizeDefaultAnimationSettings clamps deforum backdrop mix", () => {
     appVm.defaultAnimation.deforumBackdropMix = 4;
     appVm.defaultAnimation = appVm.normalizeDefaultAnimationSettings(appVm.defaultAnimation);

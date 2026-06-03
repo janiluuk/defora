@@ -5,6 +5,7 @@
 import { buildCommonVisualModulationTargets } from './common-visual.mjs';
 import { ANIMATELCM_CONTROL_FIELDS } from './animatelcm-engine-config.mjs';
 import { WAN_ENGINE_CONTROL_FIELDS } from '../shared/wan-engine-config.mjs';
+import { SVD_ENGINE_CONTROL_FIELDS } from '../shared/svd-engine-config.mjs';
 
 /** @type {import('./types').AnimationPluginDef[]} */
 export const ANIMATION_PLUGINS = [
@@ -47,6 +48,16 @@ export const ANIMATION_PLUGINS = [
     builtin: true,
     mixable: true,
     panel: 'AnimateLcmPluginPanel',
+  },
+  {
+    id: 'svd',
+    label: 'SVD',
+    layerKind: 'svd',
+    layerId: 'svd',
+    backend: 'forge-svd',
+    builtin: true,
+    mixable: true,
+    panel: 'SvdPluginPanel',
   },
 ];
 
@@ -98,6 +109,19 @@ function animatelcmModTargets() {
   }));
 }
 
+function svdModTargets() {
+  return SVD_ENGINE_CONTROL_FIELDS.filter((f) => f.type === 'number').map((f) => ({
+    key: `svd.${f.key}`,
+    label: `SVD · ${f.label}`,
+    min: f.min ?? 0,
+    max: f.max ?? 1,
+    step: f.step ?? 0.01,
+    default: 0,
+    group: 'SVD',
+    pluginId: 'svd',
+  }));
+}
+
 /** All plugin-scoped modulation targets for LFO / macros / MIDI */
 export function allPluginModulationTargets() {
   const out = [];
@@ -106,6 +130,7 @@ export function allPluginModulationTargets() {
   }
   out.push(...wanModTargets());
   out.push(...animatelcmModTargets());
+  out.push(...svdModTargets());
   return out;
 }
 

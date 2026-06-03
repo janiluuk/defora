@@ -16,13 +16,22 @@
       </div>
       <div class="library-storage-browser__actions">
         <button
-          v-if="workspace && librarySourceMode"
+          v-if="hasLibraryVideoSelection"
           type="button"
           class="framesync-button framesync-button--compact framesync-button--live"
           data-testid="use-library-as-source"
           @click="applyLibrarySelectionAsSource()"
         >
           Use as source
+        </button>
+        <button
+          v-if="hasLibraryVideoSelection"
+          type="button"
+          class="framesync-button framesync-button--compact"
+          data-testid="load-library-to-motion-sequence"
+          @click="applyLibrarySelectionToMotionSequencer()"
+        >
+          Load to motion sequence
         </button>
         <button
           type="button"
