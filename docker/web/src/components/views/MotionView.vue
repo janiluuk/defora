@@ -1,9 +1,9 @@
 <template>
   <div class="rack motion-view motion-view--hero" data-testid="motion-controls-panel">
-    <div class="framesync-panel motion-panel">
-      <div class="framesync-header">
-        <div class="framesync-title">Motion <span class="framesync-accent">Performance</span></div>
-        <div class="motion-panel__header-actions">
+    <GlassPanel size="lg" class="motion-panel-glass">
+      <template #header>
+        <span class="motion-panel-glass__header">
+          <span>Motion performance</span>
           <button
             type="button"
             class="framesync-button framesync-button--compact"
@@ -13,9 +13,9 @@
           >
             ↺ Reset to default
           </button>
-        </div>
-      </div>
-
+        </span>
+      </template>
+      <div class="motion-panel">
       <div class="motion-preset-row motion-preset-row--hero">
         <button
           v-for="name in motionQuickPresets"
@@ -131,13 +131,15 @@
           :prefer-live-values="true"
         />
       </details>
-    </div>
+      </div>
+    </GlassPanel>
 
     <GenerateView :app="app" />
   </div>
 </template>
 
 <script>
+import GlassPanel from '../GlassPanel.vue'
 import UiIcon from '../UiIcon.vue'
 import MotionPathPreview from '../MotionPathPreview.vue'
 import DeforumControlPanel from '../DeforumControlPanel.vue'
@@ -147,7 +149,7 @@ import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'MotionView',
-  components: { UiIcon, MotionPathPreview, DeforumControlPanel, DeforumMotionPads, GenerateView },
+  components: { GlassPanel, UiIcon, MotionPathPreview, DeforumControlPanel, DeforumMotionPads, GenerateView },
   props: {
     app: { type: Object, required: true },
   },

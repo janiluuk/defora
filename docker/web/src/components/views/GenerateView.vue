@@ -28,14 +28,16 @@
   </div>
 
   <div v-else class="rack generate-view generate-view--dock" data-testid="generate-view-dock">
-    <div class="framesync-panel generate-dock-panel">
-      <div class="framesync-header">
-        <div class="framesync-title">Animation <span class="framesync-accent">Sequencer</span></div>
-        <span class="generate-sequencer__status" :class="{ 'generate-sequencer__status--live': sequencerPlaying }">
-          {{ sequencerPlaying ? 'Playing' : 'Stopped' }}
+    <GlassPanel size="lg" class="generate-dock-panel-glass">
+      <template #header>
+        <span class="generate-dock-panel-glass__header">
+          <span>Animation sequencer</span>
+          <span class="generate-sequencer__status" :class="{ 'generate-sequencer__status--live': sequencerPlaying }">
+            {{ sequencerPlaying ? 'Playing' : 'Stopped' }}
+          </span>
         </span>
-      </div>
-
+      </template>
+      <div class="generate-dock-panel">
       <div class="generate-dock-sync" data-testid="generate-dock-sync">
         <div class="generate-dock-sync__metric">
           <span class="generate-dock-sync__label">Playhead</span>
@@ -73,17 +75,19 @@
           Motion controls
         </button>
       </div>
-    </div>
+      </div>
+    </GlassPanel>
   </div>
 </template>
 
 <script>
+import GlassPanel from '../GlassPanel.vue'
 import UiIcon from '../UiIcon.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
 
 export default {
   name: 'GenerateView',
-  components: { UiIcon },
+  components: { GlassPanel, UiIcon },
   props: {
     app: { type: Object, required: true },
     storyOnly: { type: Boolean, default: false },

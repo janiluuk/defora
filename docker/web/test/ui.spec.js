@@ -800,8 +800,8 @@ describe("Deforumation Web UI", () => {
     appVm.switchTab("MOTION");
     appVm.rightPanelOpen = true;
     await nextTick();
-    const titles = [...document.querySelectorAll(".framesync-title")].map(t => t.textContent);
-    expect(titles.join(" ")).to.include("Motion");
+    const motionPanel = document.querySelector("[data-testid='motion-controls-panel']");
+    expect(motionPanel && motionPanel.textContent).to.include("Motion");
     appVm.switchTab("LIVE");
     appVm.liveEngineDrawerOpen = true;
     appVm.selectVideoLayer("deforum");

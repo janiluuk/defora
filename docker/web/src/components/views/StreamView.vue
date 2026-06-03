@@ -1,12 +1,14 @@
 <template>
   <div class="stream-shell">
-    <div class="framesync-panel stream-card stream-card--preview">
-      <div class="framesync-header">
-        <div class="framesync-title">Stream <span class="framesync-accent">Preview</span></div>
-        <span class="stream-status-pill" :class="`stream-status-pill--${statusTone}`">
-          {{ streamStatusLabel }}
+    <GlassPanel size="lg" class="stream-card stream-card--preview">
+      <template #header>
+        <span class="stream-card__header">
+          <span>Stream preview</span>
+          <span class="stream-status-pill" :class="`stream-status-pill--${statusTone}`">
+            {{ streamStatusLabel }}
+          </span>
         </span>
-      </div>
+      </template>
       <div class="framesync-subtitle" style="margin-top:10px;">
         Configure the live HLS feed and enable main-stage streaming from <strong>Settings → Output</strong> or the status strip once the preview is valid.
       </div>
@@ -49,7 +51,7 @@
       </div>
 
       <div v-if="app.streaming.status" class="stream-card__status">{{ app.streaming.status }}</div>
-    </div>
+    </GlassPanel>
 
     <div class="stream-active-section">
       <div class="stream-active-header">
@@ -128,16 +130,18 @@
       </div>
     </div>
 
-    <div
+    <GlassPanel
       v-if="addDestinationOpen"
-      class="framesync-panel stream-card stream-card--destinations"
+      size="lg"
+      class="stream-card stream-card--destinations"
       data-testid="stream-destination-form"
     >
-      <div class="framesync-header">
-        <div class="framesync-title">Possible <span class="framesync-accent">destinations</span></div>
-        <button type="button" class="framesync-button" @click="closeAddDestinationForm()">Cancel</button>
-      </div>
-
+      <template #header>
+        <span class="stream-card__header">
+          <span>Possible destinations</span>
+          <button type="button" class="framesync-button framesync-button--compact" @click="closeAddDestinationForm()">Cancel</button>
+        </span>
+      </template>
       <div class="stream-quick-add">
         <span class="framesync-subtitle" style="margin:0;">Protocol</span>
         <button type="button" class="framesync-button" @click="draft.protocol = 'rtmp'">RTMP</button>
@@ -198,11 +202,12 @@
           Save destination
         </button>
       </div>
-    </div>
+    </GlassPanel>
   </div>
 </template>
 
 <script>
+import GlassPanel from '../GlassPanel.vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiIcon from '../UiIcon.vue'
 import { proxyAppView } from './app-view-proxy.mjs'
@@ -210,6 +215,7 @@ import { proxyAppView } from './app-view-proxy.mjs'
 export default {
   name: 'StreamView',
   components: {
+    GlassPanel,
     UiIcon,
   },
   props: {
@@ -724,8 +730,8 @@ export default {
 
 .stream-status-pill--live {
   color: var(--live-text);
-  border-color: rgba(29, 158, 117, 0.5);
-  background: rgba(29, 158, 117, 0.16);
+  border-color: color-mix(in srgb, var(--live) 50%, var(--border));
+  background: color-mix(in srgb, var(--live) 16%, var(--bg-2));
 }
 
 .stream-status-pill--error {
