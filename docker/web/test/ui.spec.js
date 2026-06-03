@@ -668,17 +668,15 @@ describe("Deforumation Web UI", () => {
 
     appVm.selectVideoLayer("deforum");
     await nextTick();
-    expect(document.querySelector("[data-testid='deforum-settings-panel']")).to.exist;
+    expect(document.querySelector("[data-testid='deforum-control-panel']")).to.exist;
+    expect(document.querySelector("[data-testid='deforum-settings-body']")).to.exist;
     expect(document.body.textContent).to.include("Deforum");
-    const deforumFields = document.querySelectorAll(".deforum-settings-grid .deforum-field");
+    const deforumFields = document.querySelectorAll("[data-testid='deforum-settings-body'] .deforum-field");
     expect(deforumFields.length).to.be.greaterThan(0);
-    expect(document.body.textContent).to.include("Width");
-    const widthField = document.querySelector("[data-testid='deforum-field-W']");
-    const heightField = document.querySelector("[data-testid='deforum-field-H']");
-    expect(widthField).to.exist;
-    expect(heightField).to.exist;
-    expect(Number(widthField.value)).to.be.greaterThan(0);
-    expect(Number(heightField.value)).to.be.greaterThan(0);
+    expect(document.querySelector("[data-testid='engine-global-config']")).to.exist;
+    expect(document.body.textContent).to.include("Global config");
+    expect(Number(appVm.deforumSettings.W)).to.be.greaterThan(0);
+    expect(Number(appVm.deforumSettings.H)).to.be.greaterThan(0);
     expect(appVm.deforumSettings.use_init).to.equal(false);
 
     appVm.selectVideoLayer("webgl");
@@ -741,6 +739,14 @@ describe("Deforumation Web UI", () => {
     appVm.switchSubTab("PROMPTS", "PROMPTS");
     await nextTick();
     expect(document.querySelector("[data-testid='prompt-style-bar']")).to.exist;
+
+    appVm.switchSubTab("PROMPTS", "STYLES");
+    await nextTick();
+    expect(document.querySelector("[data-testid='styles-settings-panel']")).to.exist;
+    expect(document.querySelector("[data-testid='prompt-style-new']")).to.exist;
+
+    const jobSnap = appVm.buildPromptStyleJobSnapshot();
+    expect(jobSnap.activeStyle.name).to.equal("Cubism");
   });
 
   it("shows preview layer tabs only for running engines on the main player", async () => {
@@ -791,24 +797,30 @@ describe("Deforumation Web UI", () => {
     await nextTick();
     await nextTick();
     expect(document.querySelector("[data-testid='deforum-settings-body']")).to.exist;
+    appVm.deforumActiveTab = "prompts";
+    await nextTick();
     const deforumFields = document.querySelectorAll("[data-testid='deforum-settings-body'] .deforum-field");
-    expect(deforumFields.length).to.be.greaterThan(3);
-    appVm.deforumActiveTab = "sampling";
+    expect(deforumFields.length).to.be.greaterThan(2);
+    appVm.deforumActiveTab = "controlnet";
     await nextTick();
     const deforumSliders = document.querySelectorAll("[data-testid='deforum-settings-body'] input[type='range']");
     expect(deforumSliders.length).to.be.greaterThan(0);
+    appVm.setDeforumControlTab("settings");
+    await nextTick();
+    const deforumControlTabs = [...document.querySelectorAll("[data-testid^='deforum-control-tab-']")].map((t) => t.textContent.trim());
+    expect(deforumControlTabs.join(" ")).to.match(/Settings|ControlNet|Motion|Macros/);
+    appVm.setDeforumControlTab("controlnet");
+    await nextTick();
+    expect(document.querySelector("[data-testid='deforum-controlnet-panel']")).to.exist;
+    expect(document.querySelector("[data-testid='deforum-cn-unit-1']")).to.exist;
+    const deforumTabLabels = [...document.querySelectorAll(".deforum-settings-tabs .sub-pill")].map((t) => t.textContent.trim());
+    expect(deforumTabLabels.join(" ")).to.match(/Canvas|ControlNet|Schedules/);
+    expect(document.querySelector("[data-testid='engine-global-config']")).to.exist;
     appVm.switchTab("MOTION");
     appVm.rightPanelOpen = true;
     await nextTick();
     const motionPanel = document.querySelector("[data-testid='motion-controls-panel']");
     expect(motionPanel && motionPanel.textContent).to.include("Motion");
-    appVm.switchTab("LIVE");
-    appVm.liveEngineDrawerOpen = true;
-    appVm.selectVideoLayer("deforum");
-    await nextTick();
-    await nextTick();
-    const deforumTabLabels = [...document.querySelectorAll(".deforum-settings-tabs .sub-pill")].map((t) => t.textContent.trim());
-    expect(deforumTabLabels.join(" ")).to.match(/Sampling|ControlNet/);
   });
 
   it("shows prompt morph controls", async () => {
@@ -1044,6 +1056,14 @@ describe("Deforumation Web UI", () => {
     const img2imgPanel = document.querySelector(".img2img-panel");
     expect(img2imgPanel).to.exist;
     expect(img2imgPanel.querySelectorAll(".img2img-dropzone").length).to.equal(2);
+
+    const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    appVm.img2img.dataUrl = png;
+    appVm.applyInitImageFromUpload(png);
+    await nextTick();
+    expect(appVm.deforumSettings.use_init).to.equal(true);
+    expect(appVm.deforumSettings.init_image).to.equal(png);
+    expect(document.querySelector("[data-testid='img2img-init-hint']")).to.exist;
   });
 
   it("shows active LoRAs and opens a compatible picker with +", async () => {
@@ -2747,6 +2767,61 @@ describe("Reference A/V sync mounted e2e", () => {
     expect(ct).to.equal(9);
     delete global.fetch;
     removeFileReaderMock();
+  });
+
+  it("persists last frame and resumes from it when continuing animation", () => {
+    const instance = instantiate(loadAppDefinition());
+    instance.guardDeforumSettingsBeforeRun = () => true;
+    instance.applyCrossfadeMorph = () => {};
+    instance.queueDeforumSettingsSave = () => {};
+    instance.saveSessionState = () => {};
+    instance.openFramesInRunsPanel = () => {};
+    instance.scheduleFrameRefresh = () => {};
+    instance.pinHeldPreviewFrame = () => {};
+    instance.session = "test-session";
+    instance.thumbs = [
+      { name: "00000001.png", src: "/frames/00000001.png?v=1", frame: 1 },
+      { name: "00000025.png", src: "/frames/00000025.png?v=2", frame: 25 },
+    ];
+    instance.deforumSettings = { ...instance.deforumSettings, use_init: false, init_image: null };
+    let liveParam;
+    instance.sendControl = (_type, payload) => { liveParam = payload; };
+
+    instance.persistDeforumContinuationFromLatest();
+    expect(instance.deforumSettings.use_init).to.equal(true);
+    expect(instance.deforumSettings.init_image).to.equal("/frames/00000025.png");
+
+    instance.startDeforumAnimation();
+    expect(liveParam.start_frame).to.equal(25);
+    expect(liveParam.should_resume).to.equal(1);
+  });
+
+  it("undoes the last animation segment so user can redo with other settings", () => {
+    const instance = instantiate(loadAppDefinition());
+    instance.sendControl = () => {};
+    instance.queueDeforumSettingsSave = () => {};
+    instance.saveSessionState = () => {};
+    instance.saveCachedFrameThumbs = () => {};
+    instance.selectFrame = () => {};
+    instance.syncDeforumBackdropToWebGL = () => {};
+    instance.deforumSettings = { ...instance.deforumSettings, use_init: false, init_image: null };
+    instance.deforumContinuationCheckpoints = [];
+    instance.thumbs = [{ name: "00000010.png", src: "/frames/00000010.png", frame: 10 }];
+    instance.persistDeforumContinuationFromLatest({ checkpoint: true });
+    instance.thumbs = [
+      { name: "00000010.png", src: "/frames/00000010.png", frame: 10 },
+      { name: "00000025.png", src: "/frames/00000025.png", frame: 25 },
+    ];
+    instance.persistDeforumContinuationFromLatest({ checkpoint: true });
+    expect(instance.deforumContinuationCanUndo).to.equal(true);
+
+    let undoParam;
+    instance.sendControl = (_type, payload) => { undoParam = payload; };
+    instance.undoDeforumContinuationSegment();
+    expect(instance.thumbs.length).to.equal(1);
+    expect(instance.deforumSettings.init_image).to.equal("/frames/00000010.png");
+    expect(undoParam.start_frame).to.equal(10);
+    expect(instance.deforumContinuationCanUndo).to.equal(false);
   });
 
   after(async () => {

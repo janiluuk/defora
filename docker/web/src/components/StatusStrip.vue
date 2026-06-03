@@ -73,7 +73,9 @@
       >
         <span v-if="previewGenerating" class="lazy-loading-indicator lazy-loading-indicator--button header-transport__preview-loading">
           <span class="lazy-loading-indicator__spinner" aria-hidden="true"></span>
-          <span class="header-transport__preview-label">Frame</span>
+          <span class="header-transport__preview-label">
+            {{ previewProgressPct != null ? `${previewProgressPct}%` : 'Frame' }}
+          </span>
           <span class="lazy-loading-indicator__dots" aria-hidden="true"><span></span><span></span><span></span></span>
         </span>
         <template v-else>
@@ -315,6 +317,7 @@ export default {
     hlsWatchEnabled: { type: Boolean, default: false },
     hlsPreviewValid: { type: Boolean, default: false },
     previewGenerating: { type: Boolean, default: false },
+    previewProgressPct: { type: Number, default: null },
     frameProcessingActive: { type: Boolean, default: false },
     frameProcessingLabel: { type: String, default: '' },
     frameProcessingHint: { type: String, default: '' },

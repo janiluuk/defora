@@ -19,6 +19,8 @@ const {
 } = require("./modules/ci-offline");
 const { resolveStoragePaths } = require("./modules/storage-paths");
 const promptStylesStore = require("./modules/prompt-styles-store");
+const { createRunsJobLog } = require("./modules/runs-job-log");
+const { pathToFileURL } = require("url");
 
 async function start(opts = {}) {
   const runtimeEnv = opts.env || process.env;
@@ -233,16 +235,30 @@ async function start(opts = {}) {
     return lines.join("\n");
   }
 
+  const storyLlm = await import(pathToFileURL(path.join(webRoot, "src/shared/story-llm-request.mjs")).href);
+  const runsJobLogStore = createRunsJobLog(runsDir);
+
+  async function persistStoryLlmRequestLog(body = {}, modelName = "") {
+    const clientRequest = storyLlm.normalizeStoryClientRequest(body);
+    const ollamaRequest = storyLlm.buildStoryOllamaApiBody(clientRequest, { model: modelName });
+    const entry = storyLlm.storyLlmRequestLogEntry(clientRequest, ollamaRequest);
+    const saved = await runsJobLogStore.append(entry);
+    if (saved) broadcast({ type: "runs_job_log", entry: saved });
+    return { clientRequest, ollamaRequest, logId: saved?.id || entry.id };
+  }
+
   async function generateStoryWithOllama(body = {}) {
-    const theme = String(body.theme || "").trim() || "Cinematic visual journey";
-    const style = String(body.style || "Masterpiece, Realistic").trim() || "Masterpiece, Realistic";
-    const width = Math.max(64, parseInt(body.width, 10) || 1024);
-    const height = Math.max(64, parseInt(body.height, 10) || 576);
-    const fps = Math.max(1, parseInt(body.fps, 10) || 24);
-    const totalFrames = Math.max(8, parseInt(body.totalFrames, 10) || 96);
-    const numScenes = Math.max(2, parseInt(body.numScenes, 10) || 4);
-    const framesPerScene = Math.max(1, Math.floor(totalFrames / numScenes));
-    const frameStarts = Array.from({ length: numScenes }, (_, idx) => idx * framesPerScene);
+    const clientRequest = storyLlm.normalizeStoryClientRequest(body);
+    const {
+      theme,
+      style,
+      width,
+      height,
+      fps,
+      totalFrames,
+      numScenes,
+    } = clientRequest;
+    const frameStarts = storyLlm.storyFrameStarts(totalFrames, numScenes);
     const target = gpuPool.resolveOllamaTarget({ body });
     try {
       let model = body.model || target.node?.model || target.model || process.env.OLLAMA_MODEL || "";
@@ -258,22 +274,8 @@ async function start(opts = {}) {
         target.node.model = model;
         target.node.currentModel = model;
       }
-      const prompt = [
-        "Create a Deforum-ready story plan as JSON only.",
-        `Theme: ${theme}`,
-        `Style: ${style}`,
-        `Canvas: ${width}x${height}`,
-        `FPS: ${fps}`,
-        `Total frames: ${totalFrames}`,
-        `Scenes: ${numScenes}`,
-        `Frame starts: ${frameStarts.join(", ")}`,
-        "Return an object with keys: theme, style, summary, scenes, motion.",
-        `The "scenes" object must contain exactly these frame keys: ${frameStarts.join(", ")}.`,
-        "Each scene value should be a concise SD/Deforum prompt fragment with continuity across scenes.",
-        'The "motion" object should include a few useful Deforum schedules like Zoom, Translation X, Translation Y, Rotation Z, or Transform Center X/Y when appropriate.',
-        "Values in motion must be schedule strings such as 0:(1.0), 24:(1.02), 96:(1.0).",
-        "Do not include markdown or code fences.",
-      ].join("\n");
+      const llmLog = await persistStoryLlmRequestLog(body, model);
+      const ollamaBody = storyLlm.buildStoryOllamaApiBody(clientRequest, { model });
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 60000);
       let response;
@@ -285,15 +287,7 @@ async function start(opts = {}) {
             "Content-Type": "application/json",
             Accept: "application/json",
           },
-          body: JSON.stringify({
-            model,
-            stream: false,
-            format: "json",
-            options: { temperature: 0.7 },
-            prompt,
-            system:
-              "You are a cinematic prompt planner for Deforum animations. Respond with valid JSON only and keep prompts production-ready.",
-          }),
+          body: JSON.stringify(ollamaBody),
         });
       } finally {
         clearTimeout(timer);
@@ -328,6 +322,7 @@ async function start(opts = {}) {
         },
       };
       result.formatted = formatStoryResult(result);
+      result.llmLog = llmLog;
       return result;
     } finally {
       target.release();
@@ -607,6 +602,49 @@ async function start(opts = {}) {
     return base;
   }
 
+  async function fetchForgeProgressFromTarget(target, { includeImage = true, timeoutMs = 8000 } = {}) {
+    if (typeof fetch === "undefined") {
+      throw new Error("fetch not available");
+    }
+    const skipImage = includeImage ? "false" : "true";
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${target.url}/sdapi/v1/progress?skip_current_image=${skipImage}`, {
+        headers: { Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const err = new Error("Forge progress request failed");
+        err.status = response.status;
+        err.detail = data;
+        throw err;
+      }
+      return data;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function fetchDeforumBatchStatusFromTarget(target, batchId, timeoutMs = 8000) {
+    if (!batchId || typeof fetch === "undefined") return null;
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      const response = await fetch(`${target.url}/deforum_api/batches/${encodeURIComponent(batchId)}`, {
+        headers: { Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+      if (!response.ok) return null;
+      return await response.json().catch(() => null);
+    } catch (_err) {
+      return null;
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
   async function renderDeforumPreview(settings, target, optionsOverrides = {}) {
     if (externalBlocked()) {
       return { ok: false, skipped: true, reason: "ci_offline" };
@@ -759,6 +797,7 @@ async function start(opts = {}) {
       prompt_positive: String(promptPositive || ""),
       prompt_negative: String(promptNegative || ""),
       fps: snap.fps != null ? snap.fps : settings.fps != null ? settings.fps : null,
+      ...extractStyleMetaFromSnapshot(snap),
     };
   }
 
@@ -914,7 +953,11 @@ async function start(opts = {}) {
         }
         const innerRoute = freecutInnerRouteFromRequest(req);
         const inject = `<script>(function(){try{var r=${JSON.stringify(innerRoute)};if(window.location.pathname!==r){history.replaceState(null,"",r+window.location.search+window.location.hash);}}catch(_e){}})();</script>`;
-        const html = freecutIndexTemplate.replace("<head>", `<head>\n<!-- defora-freecut-path-fix -->\n${inject}\n`);
+        const bridge = `<script src="/freecut/defora-bridge.js"></script>`;
+        let html = freecutIndexTemplate.replace("<head>", `<head>\n<!-- defora-freecut-path-fix -->\n${inject}\n`);
+        html = html.includes("defora-bridge.js")
+          ? html
+          : html.replace("</body>", `${bridge}\n</body>`);
         res.type("html").send(html);
       } catch (err) {
         console.error("[web] freecut SPA error", err);
@@ -1191,6 +1234,25 @@ async function start(opts = {}) {
 
   app.use("/uploads", express.static(uploadsDir, { maxAge: "60s" }));
   await promptStylesStore.ensurePromptStylesStore(webRoot);
+  void (async () => {
+    if (process.env.PROMPT_STYLES_AUTO_IMPORT === "0") return;
+    const forgeUrl =
+      String(process.env.FORGE_URL || process.env.SD_FORGE_URL || "").trim()
+      || "http://127.0.0.1:7860";
+    try {
+      const result = await promptStylesStore.importFromForge(forgeUrl, webRoot, {
+        merge: true,
+        persistSeed: process.env.PROMPT_STYLES_PERSIST_SEED !== "0",
+      });
+      if (result.added || result.updated) {
+        console.log(
+          `[prompt-styles] Auto-imported from Forge: +${result.added} new, ~${result.updated} updated (${result.total} total)`,
+        );
+      }
+    } catch (err) {
+      console.log(`[prompt-styles] Auto-import skipped: ${err.message}`);
+    }
+  })();
   app.use(
     "/style-examples",
     express.static(promptStylesStore.examplesDir(webRoot), { maxAge: "3600s" }),
@@ -2304,11 +2366,11 @@ async function start(opts = {}) {
     if (body.clips != null) {
       if (!Array.isArray(body.clips)) return "clips must be an array";
       if (body.clips.length > 96) return "too many clips (max 96)";
-      const clipTypes = new Set(["prompt", "lora", "controlnet"]);
+      const clipTypes = new Set(["prompt", "lora", "controlnet", "video"]);
       const clipNameOk = /^[a-zA-Z0-9_ \-.]{1,48}$/;
       for (const cl of body.clips) {
         if (!cl || typeof cl !== "object") return "invalid clip";
-        if (!clipTypes.has(cl.type)) return "invalid clip.type (prompt|lora|controlnet)";
+        if (!clipTypes.has(cl.type)) return "invalid clip.type (prompt|lora|controlnet|video)";
         if (typeof cl.t !== "number") return "clip requires numeric t";
         if (cl.t < 0 || cl.t > body.durationSec) return "clip t outside 0..durationSec";
         if (cl.endT != null && (typeof cl.endT !== "number" || cl.endT < cl.t || cl.endT > body.durationSec)) {
@@ -2604,14 +2666,53 @@ async function start(opts = {}) {
 
   // Deforum animation settings (full JSON preset for hidden LIVE panel)
   const deforumSettingsFile = path.join(__dirname, "deforum-settings.json");
+  const deforumJobMetaFile = path.join(__dirname, "deforum-job-meta.json");
+
+  async function readDeforumJobMeta() {
+    try {
+      if (!fs.existsSync(deforumJobMetaFile)) return {};
+      return JSON.parse(await fsp.readFile(deforumJobMetaFile, "utf-8"));
+    } catch (_e) {
+      return {};
+    }
+  }
+
+  async function writeDeforumJobMeta(patch = {}) {
+    const prev = await readDeforumJobMeta();
+    const next = { ...prev, ...patch, updatedAt: new Date().toISOString() };
+    await fsp.writeFile(deforumJobMetaFile, JSON.stringify(next, null, 2), "utf-8");
+    return next;
+  }
+
+  function mergePromptStylesIntoSnapshot(snapshot, promptStyles) {
+    const snap = snapshot && typeof snapshot === "object" ? { ...snapshot } : {};
+    if (promptStyles && typeof promptStyles === "object") {
+      snap.promptStyles = promptStyles;
+    }
+    return snap;
+  }
+
+  function extractStyleMetaFromSnapshot(snapshot) {
+    const ps = snapshot?.promptStyles;
+    if (!ps || typeof ps !== "object") return {};
+    const active = ps.activeStyle && typeof ps.activeStyle === "object" ? ps.activeStyle : null;
+    const morph = ps.morphedAppend && typeof ps.morphedAppend === "object" ? ps.morphedAppend : {};
+    return {
+      style_id: ps.activeStyleId || active?.id || null,
+      style_name: active?.name || null,
+      style_positive_append: morph.positive || active?.positive || null,
+      style_negative_append: morph.negative || active?.negative || null,
+    };
+  }
 
   app.get("/api/deforum/settings", async (_req, res) => {
     try {
-      if (!fs.existsSync(deforumSettingsFile)) {
-        return res.json({ settings: null });
+      let settings = null;
+      if (fs.existsSync(deforumSettingsFile)) {
+        settings = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8"));
       }
-      const data = JSON.parse(await fsp.readFile(deforumSettingsFile, "utf-8"));
-      res.json({ settings: data });
+      const meta = await readDeforumJobMeta();
+      res.json({ settings, promptStyles: meta.promptStyles || null });
     } catch (err) {
       console.error("[api] deforum settings read error", err);
       res.status(500).json({ error: "could not read deforum settings" });
@@ -2619,7 +2720,7 @@ async function start(opts = {}) {
   });
 
   app.post("/api/deforum/settings", async (req, res) => {
-    const { settings } = req.body || {};
+    const { settings, promptStyles } = req.body || {};
     if (!settings || typeof settings !== "object") {
       return res.status(400).json({ error: "settings object required" });
     }
@@ -2634,6 +2735,9 @@ async function start(opts = {}) {
         }
       }
       await fsp.writeFile(deforumSettingsFile, JSON.stringify(settings, null, 2), "utf-8");
+      if (promptStyles && typeof promptStyles === "object") {
+        await writeDeforumJobMeta({ promptStyles });
+      }
       const previousModel = typeof previousSettings?.sd_model_name === "string"
         ? previousSettings.sd_model_name.trim()
         : "";
@@ -2674,6 +2778,7 @@ async function start(opts = {}) {
     try {
       const result = await promptStylesStore.importFromForge(forgeUrl, webRoot, {
         merge: body.replace !== true,
+        persistSeed: body.persistSeed !== false,
       });
       const styles = await promptStylesStore.readStyles(webRoot);
       res.json({ ok: true, forgeUrl, ...result, styles });
@@ -2983,6 +3088,132 @@ async function start(opts = {}) {
     }
   });
 
+  /** Merge SVD engine UI state into Forge /svd_api/generate payload (no GPU). */
+  app.post("/api/svd/merge-settings", async (req, res) => {
+    const body = req.body || {};
+    try {
+      const { buildSvdGeneratePayload, normalizeSvdEngine, svdEngineSummary } = await import(
+        "./src/shared/svd-engine-config.mjs"
+      );
+      const svdEngine = normalizeSvdEngine(
+        body.svdEngine && typeof body.svdEngine === "object" ? body.svdEngine : {},
+      );
+      const payload = buildSvdGeneratePayload(svdEngine, {
+        initImageBase64: body.initImage || svdEngine.svd_init_image || null,
+        preview: !!body.preview,
+      });
+      res.json({ payload, svdEngine, summary: svdEngineSummary(svdEngine) });
+    } catch (err) {
+      res.status(500).json({ error: String(err.message || err) });
+    }
+  });
+
+  /** List SVD checkpoints on Forge and XT 1.1 availability. */
+  app.get("/api/svd/checkpoints", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({ ok: false, skipped: true, reason: "ci_offline", checkpoints: [], xt11_available: false });
+    }
+    const target = previewForgeTarget(req);
+    try {
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available" });
+      }
+      const response = await fetch(`${target.url}/svd_api/checkpoints`, {
+        headers: { Accept: "application/json" },
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(502).json({ error: "svd checkpoints failed", detail: data });
+      }
+      res.json({ ok: true, ...data });
+    } catch (err) {
+      res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
+    }
+  });
+
+  /** Generate SVD video via Forge /svd_api/generate. */
+  app.post("/api/svd/generate", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({ ok: false, skipped: true, reason: "ci_offline" });
+    }
+    const body = req.body || {};
+    const target = previewForgeTarget(req);
+    try {
+      const { buildSvdGeneratePayload, normalizeSvdEngine } = await import(
+        "./src/shared/svd-engine-config.mjs"
+      );
+      const svdEngine = normalizeSvdEngine(
+        body.svdEngine && typeof body.svdEngine === "object" ? body.svdEngine : {},
+      );
+      const payload =
+        body.payload && typeof body.payload === "object"
+          ? body.payload
+          : buildSvdGeneratePayload(svdEngine, {
+              initImageBase64: body.initImage || svdEngine.svd_init_image || null,
+              preview: !!body.preview,
+            });
+      if (!payload.init_image) {
+        return res.status(400).json({ error: "init_image required for SVD generation" });
+      }
+      if (typeof fetch === "undefined") {
+        return res.status(500).json({ error: "fetch not available" });
+      }
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), body.preview ? 120000 : 600000);
+      let response;
+      try {
+        response = await fetch(`${target.url}/svd_api/generate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(payload),
+          signal: ctrl.signal,
+        });
+      } finally {
+        clearTimeout(t);
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        return res.status(502).json({ error: data.error || "svd generate failed", detail: data });
+      }
+      res.json({ ok: true, ...data, svdEngine });
+    } catch (err) {
+      console.error("[api] svd generate error", err);
+      res.status(502).json({ error: String(err.message || err) });
+    } finally {
+      target.release();
+    }
+  });
+
+  /** Live SD-Forge sampling progress + preview image for in-flight preview renders. */
+  app.get("/api/forge/progress", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({ ok: false, skipped: true, reason: "ci_offline", progressPct: null, previewImage: null });
+    }
+    const target = previewForgeTarget(req);
+    const includeImage = req.query?.includeImage !== "0" && req.query?.skip_current_image !== "true";
+    const batchId = String(req.query?.batchId || "").trim();
+    const maxFrames = Math.max(1, parseInt(req.query?.maxFrames, 10) || 1);
+    try {
+      const { computeForgePreviewProgress } = await import("./src/shared/forge-preview-progress.mjs");
+      const forgeProgress = await fetchForgeProgressFromTarget(target, { includeImage });
+      const batchData = batchId ? await fetchDeforumBatchStatusFromTarget(target, batchId) : null;
+      const computed = computeForgePreviewProgress(forgeProgress, batchData, { maxFrames });
+      res.json({
+        ok: true,
+        node: target.node ? { name: target.node.name, id: target.node.id, url: target.node.url } : null,
+        forge: forgeProgress,
+        batch: batchData,
+        ...computed,
+      });
+    } catch (err) {
+      res.status(502).json({ ok: false, error: String(err.message || err), progressPct: null, previewImage: null });
+    } finally {
+      target.release();
+    }
+  });
+
   /** Render a single Deforum frame via Forge /deforum_api/batches (max_frames=1). */
   app.post("/api/deforum/preview", async (req, res) => {
     const body = req.body || {};
@@ -3000,12 +3231,13 @@ async function start(opts = {}) {
         return res.json(result);
       }
       if (result && result.batchId) {
-        persistRunJobSnapshot(result.batchId, {
+        const meta = await readDeforumJobMeta();
+        persistRunJobSnapshot(result.batchId, mergePromptStylesIntoSnapshot({
           kind: "deforum_preview",
           settings,
           options_overrides: body.options_overrides || {},
           node: result.node || null,
-        });
+        }, body.promptStyles || meta.promptStyles || null));
         const previewStatus = normalizeForgeRunStatus(result.status || "completed");
         await updateRunManifest(result.batchId, {
           status: previewStatus,
@@ -3094,13 +3326,14 @@ async function start(opts = {}) {
       warmupBatchId = data.batch_id || null;
       warmupRunning = true;
       if (warmupBatchId) {
-        persistRunJobSnapshot(warmupBatchId, {
+        const meta = await readDeforumJobMeta();
+        persistRunJobSnapshot(warmupBatchId, mergePromptStylesIntoSnapshot({
           kind: "deforum_warmup",
           maxFrames,
           fps,
           settings,
           node: target.node ? { name: target.node.name, url: target.node.url } : null,
-        });
+        }, meta.promptStyles || null));
       }
       broadcast({ type: "warmup_started", batchId: warmupBatchId, maxFrames, fps });
       console.log(`[warmup] Started ${maxFrames}-frame batch at ${fps}fps, batchId=${warmupBatchId}`);
@@ -3851,6 +4084,49 @@ async function start(opts = {}) {
     }
 
     res.json({ models: placeholderModels, source: 'placeholder', cached: false });
+  });
+
+  const controlNetModuleFallback = [
+    'none', 'canny', 'depth_midas', 'openpose', 'lineart_realistic', 'softedge_hed',
+    'mlsd', 'normal_map', 'tile_colorfix', 'ip2p', 'reference_only',
+  ];
+
+  app.get("/api/controlnet/modules", async (req, res) => {
+    if (externalBlocked()) {
+      return res.json({ modules: controlNetModuleFallback, source: "placeholder", ciOffline: true });
+    }
+
+    const target = forgeTarget(req);
+    const forgeUrl = target.url;
+
+    try {
+      if (typeof fetch === 'undefined') {
+        throw new Error('fetch not available');
+      }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2000);
+      const response = await fetch(`${forgeUrl}/controlnet/module_list`, {
+        signal: controller.signal,
+        headers: { Accept: 'application/json' },
+      });
+      clearTimeout(timeout);
+      if (response.ok) {
+        const data = await response.json();
+        const modules = data.module_list || data.modules || [];
+        console.log(`[controlnet] Fetched ${modules.length} modules from SD-Forge`);
+        return res.json({
+          modules,
+          moduleDetail: data.module_detail || {},
+          source: 'sd-forge',
+        });
+      }
+    } catch (err) {
+      console.log(`[controlnet] module_list unavailable: ${err.message}`);
+    } finally {
+      target.release();
+    }
+
+    res.json({ modules: controlNetModuleFallback, source: 'placeholder' });
   });
 
   // Helper function to categorize ControlNet models
@@ -5201,6 +5477,47 @@ async function start(opts = {}) {
       res.json(story);
     } catch (err) {
       res.status(502).json({ error: err.message });
+    }
+  });
+
+  app.get("/api/runs/job-log", async (req, res) => {
+    try {
+      const limit = Math.max(1, Math.min(200, parseInt(req.query.limit, 10) || 80));
+      const entries = await runsJobLogStore.read(limit);
+      res.json({ entries, count: entries.length });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post("/api/runs/job-log", async (req, res) => {
+    const body = req.body || {};
+    try {
+      let saved = null;
+      if (body.kind === "story_llm_request" && body.clientRequest) {
+        const model = body.ollamaRequest?.model || body.model || "";
+        const log = await persistStoryLlmRequestLog(body.clientRequest, model);
+        const recent = await runsJobLogStore.read(20);
+        saved = recent.find((row) => row.id === log.logId)
+          || storyLlm.storyLlmRequestLogEntry(log.clientRequest, log.ollamaRequest, { id: log.logId });
+      } else {
+        saved = await runsJobLogStore.append(body);
+        if (saved) broadcast({ type: "runs_job_log", entry: saved });
+      }
+      res.json({ ok: true, entry: saved, llmLog: saved?.kind === "story_llm_request"
+        ? { clientRequest: saved.clientRequest, ollamaRequest: saved.ollamaRequest, logId: saved.id }
+        : null });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete("/api/runs/job-log", async (_req, res) => {
+    try {
+      await runsJobLogStore.clear();
+      res.json({ ok: true });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
     }
   });
 

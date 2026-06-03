@@ -14,6 +14,37 @@ import { Water } from 'three/addons/objects/Water.js'
 import { Sky } from 'three/addons/objects/Sky.js'
 import { Lensflare, LensflareElement } from 'three/addons/objects/Lensflare.js'
 import * as BufferGeometryUtils from 'three/addons/utils/BufferGeometryUtils.js'
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js'
+import { RenderTransitionPass } from 'three/addons/postprocessing/RenderTransitionPass.js'
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js'
+import { GPUComputationRenderer } from 'three/addons/misc/GPUComputationRenderer.js'
+import {
+  PROTOPLANET_SIM_WIDTH,
+  PROTOPLANET_COMPUTE_POSITION,
+  PROTOPLANET_COMPUTE_VELOCITY,
+  PROTOPLANET_PARTICLE_VERTEX,
+  PROTOPLANET_PARTICLE_FRAGMENT,
+  protoplanetDefaults,
+  normalizeProtoplanetSettings,
+  protoplanetStaticSignature,
+  fillProtoplanetTextures,
+  getProtoplanetCameraConstant,
+} from '../shared/protoplanet-gpgpu.mjs'
+import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js'
+import {
+  periodicTableDefaults,
+  normalizePeriodicTableSettings,
+  injectPeriodicTableStyles,
+  removePeriodicTableStyles,
+  createPeriodicElement,
+  buildPeriodicLayoutTargets,
+  targetsForLayout,
+  beginPeriodicTransform,
+  stepPeriodicTweens,
+  applyPeriodicElementStyles,
+  PERIODIC_LAYOUTS,
+  PERIODIC_TABLE_DATA,
+} from '../shared/css3d-periodic-table.mjs'
 
 function clamp01(value) {
   const n = Number(value)
@@ -44,7 +75,13 @@ const WEBGL_ANIMATION_MODES = [
   'interactive_points',
   'interactive_raycast_points',
   'lensflares',
+  'transition',
+  'protoplanet',
+  'periodic_table',
 ]
+
+const TRANSITION_TEXTURE_COUNT = 6
+const TRANSITION_INSTANCING_MAX = 2000
 
 const INTERACTIVE_POINTS_VERTEX = `
 attribute float size;
@@ -148,6 +185,16 @@ function defaultSettings() {
     ocCloudCoverage: 0.4,
     ocCloudDensity: 0.5,
     ocCloudElevation: 0.5,
+    txTransition: 0.5,
+    txTransitionAnimate: true,
+    txSceneAnimate: true,
+    txUseTexture: true,
+    txTexture: 0,
+    txCycle: true,
+    txThreshold: 0.1,
+    ...protoplanetDefaults(),
+    ppRestartSerial: 0,
+    ...periodicTableDefaults(),
   }
 }
 
@@ -275,6 +322,37 @@ export default {
     this.deforumBackdropTexture = null
     this.deforumBackdropUrl = ''
     this.deforumBackdropOpacity = 0
+    this.transitionComposer = null
+    this.transitionRenderPass = null
+    this.transitionTextures = []
+    this.transitionFxA = null
+    this.transitionFxB = null
+    this.transitionAnimPhase = 0
+    this.transitionLastMix = -1
+    this.transitionRuntimeMix = 0.5
+    this.transitionCycleTextureIndex = 0
+    this.protoplanetScene = null
+    this.protoplanetCamera = null
+    this.protoplanetParticles = null
+    this.protoplanetGpuCompute = null
+    this.protoplanetVelocityVariable = null
+    this.protoplanetPositionVariable = null
+    this.protoplanetVelocityUniforms = null
+    this.protoplanetParticleUniforms = null
+    this.protoplanetInitError = null
+    this.protoplanetStaticSignature = ''
+    this.protoplanetLastRestartSerial = -1
+    this.periodicScene = null
+    this.periodicCamera = null
+    this.periodicCss3dRenderer = null
+    this.periodicObjects = []
+    this.periodicTargets = null
+    this.periodicTweens = []
+    this.periodicLastLayout = ''
+    this.periodicLastSpacing = -1
+    this.periodicStyleKey = ''
+    this.periodicAutoCycleTimer = 0
+    this.periodicAutoCycleLayoutIndex = 0
   },
   mounted() {
     if (typeof window === 'undefined') return
@@ -432,6 +510,9 @@ export default {
       this.createInteractivePointsScene()
       this.createInteractiveRaycastScene()
       this.createLensflaresScene()
+      this.createTransitionPostprocess()
+      this.createProtoplanetScene()
+      this.createPeriodicTableScene()
       this.createLfoGroups()
       this.raycaster = new THREE.Raycaster()
       this.bindPointerHandlers()
@@ -965,7 +1046,7 @@ export default {
     resolvedSettings() {
       const merged = { ...defaultSettings(), ...(this.settings || {}) }
       return {
-        mode: ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean', 'customlights'].includes(merged.mode) ? merged.mode : 'instancing',
+        mode: ['instancing', 'volume', 'orbital', 'nebula', 'raycast', 'marching', 'ocean', 'customlights', 'transition', 'protoplanet', 'periodic_table'].includes(merged.mode) ? merged.mode : 'instancing',
         instCount: clamp(Math.round(Number(merged.instCount) || defaultSettings().instCount), 1000, INSTANCING_MAX),
         beamCount: clamp(Math.round(Number(merged.beamCount) || 7), 3, 12),
         speed: clamp(Number(merged.speed) || 0.75, 0.1, 2.5),
@@ -999,7 +1080,592 @@ export default {
         ocCloudCoverage: clamp01(merged.ocCloudCoverage == null ? 0.4 : Number(merged.ocCloudCoverage)),
         ocCloudDensity: clamp01(merged.ocCloudDensity == null ? 0.5 : Number(merged.ocCloudDensity)),
         ocCloudElevation: clamp01(merged.ocCloudElevation == null ? 0.5 : Number(merged.ocCloudElevation)),
+        txTransition: clamp01(merged.txTransition == null ? 0.5 : Number(merged.txTransition)),
+        txTransitionAnimate: merged.txTransitionAnimate !== false,
+        txSceneAnimate: merged.txSceneAnimate !== false,
+        txUseTexture: merged.txUseTexture !== false,
+        txTexture: clamp(Math.round(Number(merged.txTexture) || 0), 0, TRANSITION_TEXTURE_COUNT - 1),
+        txCycle: merged.txCycle !== false,
+        txThreshold: clamp01(merged.txThreshold == null ? 0.1 : Number(merged.txThreshold)),
+        ...normalizeProtoplanetSettings(merged),
+        ppRestartSerial: Math.max(0, Math.round(Number(merged.ppRestartSerial) || 0)),
+        ...normalizePeriodicTableSettings(merged),
       }
+    },
+    transitionTextureUrl(index) {
+      const i = clamp(Math.round(Number(index) || 0), 0, TRANSITION_TEXTURE_COUNT - 1) + 1
+      return `/textures/transition/transition${i}.png`
+    },
+    loadTransitionTextures() {
+      if (this.transitionTextures.length >= TRANSITION_TEXTURE_COUNT) return
+      const loader = new THREE.TextureLoader()
+      this.transitionTextures = []
+      for (let i = 0; i < TRANSITION_TEXTURE_COUNT; i += 1) {
+        const texture = loader.load(
+          this.transitionTextureUrl(i),
+          undefined,
+          undefined,
+          () => {
+            texture.dispose()
+          },
+        )
+        texture.colorSpace = THREE.SRGBColorSpace
+        this.transitionTextures.push(texture)
+      }
+    },
+    buildTransitionInstancedMesh(geometry, material, count) {
+      const mesh = new THREE.InstancedMesh(geometry, material, count)
+      const dummy = new THREE.Object3D()
+      const color = new THREE.Color()
+      const isBox = geometry.type === 'BoxGeometry'
+
+      for (let i = 0; i < count; i += 1) {
+        dummy.position.set(
+          Math.random() * 100 - 50,
+          Math.random() * 60 - 30,
+          Math.random() * 80 - 40,
+        )
+        dummy.rotation.set(
+          Math.random() * Math.PI * 2,
+          Math.random() * Math.PI * 2,
+          Math.random() * Math.PI * 2,
+        )
+        dummy.scale.x = Math.random() * 2 + 1
+        if (isBox) {
+          dummy.scale.y = Math.random() * 2 + 1
+          dummy.scale.z = Math.random() * 2 + 1
+        } else {
+          dummy.scale.y = dummy.scale.x
+          dummy.scale.z = dummy.scale.x
+        }
+        dummy.updateMatrix()
+        mesh.setMatrixAt(i, dummy.matrix)
+        mesh.setColorAt(i, color.setScalar(0.1 + Math.random() * 0.9))
+      }
+      mesh.instanceMatrix.needsUpdate = true
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+      return mesh
+    },
+    createTransitionFXScene(geometry, rotationSpeed, backgroundColor, meshColor) {
+      const camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100)
+      camera.position.z = 20
+
+      const scene = new THREE.Scene()
+      scene.background = new THREE.Color(backgroundColor)
+      scene.add(new THREE.AmbientLight(0xaaaaaa, 3))
+
+      const light = new THREE.DirectionalLight(0xffffff, 3)
+      light.position.set(0, 1, 4)
+      scene.add(light)
+
+      const material = new THREE.MeshPhongMaterial({ color: meshColor, flatShading: true })
+      const mesh = this.buildTransitionInstancedMesh(geometry, material, TRANSITION_INSTANCING_MAX)
+
+      scene.add(mesh)
+
+      return {
+        scene,
+        camera,
+        mesh,
+        rotationSpeed,
+        resize(aspect) {
+          camera.aspect = aspect
+          camera.updateProjectionMatrix()
+        },
+        update(delta, animateScene) {
+          if (!animateScene) return
+          mesh.rotation.x += rotationSpeed.x * delta
+          mesh.rotation.y += rotationSpeed.y * delta
+          mesh.rotation.z += rotationSpeed.z * delta
+        },
+      }
+    },
+    createTransitionPostprocess() {
+      if (this.transitionComposer || !this.renderer) return
+
+      this.loadTransitionTextures()
+
+      const hue = 0.6
+      this.transitionFxA = this.createTransitionFXScene(
+        new THREE.BoxGeometry(2, 2, 2),
+        new THREE.Vector3(0, -0.4, 0),
+        0x05070d,
+        new THREE.Color().setHSL(hue * 0.55, 0.85, 0.45).getHex(),
+      )
+      this.transitionFxB = this.createTransitionFXScene(
+        new THREE.IcosahedronGeometry(1, 1),
+        new THREE.Vector3(0, 0.2, 0.1),
+        0x0a1020,
+        new THREE.Color().setHSL((hue + 0.35) % 1, 0.9, 0.5).getHex(),
+      )
+
+      this.transitionComposer = new EffectComposer(this.renderer)
+      this.transitionRenderPass = new RenderTransitionPass(
+        this.transitionFxA.scene,
+        this.transitionFxA.camera,
+        this.transitionFxB.scene,
+        this.transitionFxB.camera,
+      )
+      if (this.transitionTextures[0]) {
+        this.transitionRenderPass.setTexture(this.transitionTextures[0])
+      }
+      this.transitionComposer.addPass(this.transitionRenderPass)
+      this.transitionComposer.addPass(new OutputPass())
+    },
+    resizeTransitionViews(width, height) {
+      const aspect = width / height
+      if (this.transitionFxA) this.transitionFxA.resize(aspect)
+      if (this.transitionFxB) this.transitionFxB.resize(aspect)
+      if (this.transitionComposer) this.transitionComposer.setSize(width, height)
+    },
+    syncTransitionInstanceCount(config) {
+      const count = clamp(
+        Math.round(Number(config.instCount) || defaultSettings().instCount),
+        100,
+        TRANSITION_INSTANCING_MAX,
+      )
+      if (this.transitionFxA?.mesh) this.transitionFxA.mesh.count = count
+      if (this.transitionFxB?.mesh) this.transitionFxB.mesh.count = count
+    },
+    updateTransitionScenes(delta, config, audioLevel) {
+      if (!this.transitionRenderPass) this.createTransitionPostprocess()
+      if (!this.transitionRenderPass) return
+
+      this.syncTransitionInstanceCount(config)
+
+      const speed = Math.max(0.1, Number(config.speed) || 0.75)
+      const sceneRate = speed * (1 + audioLevel * 0.35)
+      const rotScale = 0.35 + clamp(Number(config.spread) || 0.68, 0.2, 2.5) * 0.35
+
+      if (this.transitionFxA) {
+        this.transitionFxA.rotationSpeed.set(0, -0.4 * rotScale, 0)
+        this.transitionFxA.update(delta, config.txSceneAnimate)
+      }
+      if (this.transitionFxB) {
+        this.transitionFxB.rotationSpeed.set(0, 0.2 * rotScale, 0.1 * rotScale)
+        this.transitionFxB.update(delta, config.txSceneAnimate)
+      }
+
+      let mix = clamp01(config.txTransition == null ? 0.5 : Number(config.txTransition))
+      if (config.txTransitionAnimate) {
+        this.transitionAnimPhase += delta * (0.22 + speed * 0.35)
+        mix = (Math.sin(this.transitionAnimPhase) + 1) * 0.5
+      }
+
+      const textureIndex = clamp(Math.round(Number(config.txTexture) || 0), 0, TRANSITION_TEXTURE_COUNT - 1)
+      if (!config.txTransitionAnimate || !config.txCycle) {
+        this.transitionCycleTextureIndex = textureIndex
+      } else if (config.txCycle && config.txTransitionAnimate && this.transitionTextures.length) {
+        const atEndpoint = mix <= 0.02 || mix >= 0.98
+        const wasAtEndpoint = this.transitionLastMix <= 0.02 || this.transitionLastMix >= 0.98
+        if (atEndpoint && !wasAtEndpoint) {
+          this.transitionCycleTextureIndex = (this.transitionCycleTextureIndex + 1) % TRANSITION_TEXTURE_COUNT
+        }
+      }
+      this.transitionLastMix = mix
+      this.transitionRuntimeMix = mix
+
+      this.transitionRenderPass.setTransition(mix)
+      this.transitionRenderPass.useTexture(!!config.txUseTexture)
+      this.transitionRenderPass.setTextureThreshold(clamp01(config.txThreshold))
+      const activeTexture = config.txCycle && config.txTransitionAnimate
+        ? this.transitionCycleTextureIndex
+        : textureIndex
+      if (this.transitionTextures[activeTexture]) {
+        this.transitionRenderPass.setTexture(this.transitionTextures[activeTexture])
+      }
+    },
+    renderTransitionFrame() {
+      if (!this.renderer || !this.transitionRenderPass) return
+      const mix = this.transitionRuntimeMix
+
+      if (mix <= 0.001 && this.transitionFxB) {
+        this.renderer.render(this.transitionFxB.scene, this.transitionFxB.camera)
+      } else if (mix >= 0.999 && this.transitionFxA) {
+        this.renderer.render(this.transitionFxA.scene, this.transitionFxA.camera)
+      } else if (this.transitionComposer) {
+        this.transitionComposer.render()
+      }
+    },
+    disposeTransitionPostprocess() {
+      if (this.transitionRenderPass) {
+        this.transitionRenderPass.dispose()
+        this.transitionRenderPass = null
+      }
+      if (this.transitionComposer) {
+        this.transitionComposer.passes.slice().forEach((pass) => {
+          if (pass !== this.transitionRenderPass && typeof pass.dispose === 'function') pass.dispose()
+        })
+        this.transitionComposer = null
+      }
+      this.transitionTextures.forEach((tex) => {
+        if (tex && typeof tex.dispose === 'function') tex.dispose()
+      })
+      this.transitionTextures = []
+
+      const disposeFx = (fx) => {
+        if (!fx) return
+        if (fx.mesh) {
+          if (fx.mesh.geometry) fx.mesh.geometry.dispose()
+          if (fx.mesh.material) fx.mesh.material.dispose()
+        }
+        fx.scene?.traverse((obj) => {
+          if (obj.geometry && obj !== fx.mesh && typeof obj.geometry.dispose === 'function') obj.geometry.dispose()
+          if (obj.material && obj !== fx.mesh) {
+            const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+            mats.forEach((mat) => { if (mat && typeof mat.dispose === 'function') mat.dispose() })
+          }
+        })
+      }
+      disposeFx(this.transitionFxA)
+      disposeFx(this.transitionFxB)
+      this.transitionFxA = null
+      this.transitionFxB = null
+      this.transitionAnimPhase = 0
+      this.transitionLastMix = -1
+    },
+    createProtoplanetScene() {
+      if (this.protoplanetScene || !this.renderer) return
+
+      this.protoplanetScene = new THREE.Scene()
+      this.protoplanetScene.background = new THREE.Color(0x05070d)
+
+      this.protoplanetCamera = new THREE.PerspectiveCamera(75, 1, 5, 15000)
+      this.protoplanetCamera.position.set(0, 120, 400)
+
+      const width = PROTOPLANET_SIM_WIDTH
+      const particles = width * width
+      const geometry = new THREE.BufferGeometry()
+      const positions = new Float32Array(particles * 3)
+      let p = 0
+      const radius = protoplanetDefaults().ppRadius
+      for (let i = 0; i < particles; i += 1) {
+        positions[p++] = (Math.random() * 2 - 1) * radius
+        positions[p++] = 0
+        positions[p++] = (Math.random() * 2 - 1) * radius
+      }
+      const uvs = new Float32Array(particles * 2)
+      p = 0
+      for (let j = 0; j < width; j += 1) {
+        for (let i = 0; i < width; i += 1) {
+          uvs[p++] = i / (width - 1)
+          uvs[p++] = j / (width - 1)
+        }
+      }
+      geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+      geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2))
+
+      this.protoplanetParticleUniforms = {
+        texturePosition: { value: null },
+        textureVelocity: { value: null },
+        cameraConstant: { value: 1 },
+        density: { value: protoplanetDefaults().ppDensity },
+        hueTint: { value: protoplanetDefaults().ppHue },
+      }
+
+      const material = new THREE.ShaderMaterial({
+        uniforms: this.protoplanetParticleUniforms,
+        vertexShader: PROTOPLANET_PARTICLE_VERTEX,
+        fragmentShader: PROTOPLANET_PARTICLE_FRAGMENT,
+        glslVersion: THREE.GLSL1,
+      })
+
+      this.protoplanetParticles = new THREE.Points(geometry, material)
+      this.protoplanetParticles.matrixAutoUpdate = false
+      this.protoplanetParticles.updateMatrix()
+      this.protoplanetScene.add(this.protoplanetParticles)
+
+      this.protoplanetGpuCompute = new GPUComputationRenderer(width, width, this.renderer)
+      const dtPosition = this.protoplanetGpuCompute.createTexture()
+      const dtVelocity = this.protoplanetGpuCompute.createTexture()
+
+      this.protoplanetVelocityVariable = this.protoplanetGpuCompute.addVariable(
+        'textureVelocity',
+        PROTOPLANET_COMPUTE_VELOCITY,
+        dtVelocity,
+      )
+      this.protoplanetPositionVariable = this.protoplanetGpuCompute.addVariable(
+        'texturePosition',
+        PROTOPLANET_COMPUTE_POSITION,
+        dtPosition,
+      )
+
+      this.protoplanetGpuCompute.setVariableDependencies(this.protoplanetVelocityVariable, [
+        this.protoplanetPositionVariable,
+        this.protoplanetVelocityVariable,
+      ])
+      this.protoplanetGpuCompute.setVariableDependencies(this.protoplanetPositionVariable, [
+        this.protoplanetPositionVariable,
+        this.protoplanetVelocityVariable,
+      ])
+
+      this.protoplanetVelocityUniforms = this.protoplanetVelocityVariable.material.uniforms
+      this.protoplanetVelocityUniforms.gravityConstant = { value: protoplanetDefaults().ppGravityConstant }
+      this.protoplanetVelocityUniforms.density = { value: protoplanetDefaults().ppDensity }
+
+      this.protoplanetInitError = this.protoplanetGpuCompute.init()
+      if (this.protoplanetInitError) {
+        console.error('[ThreeBackground] protoplanet GPGPU init failed:', this.protoplanetInitError)
+        return
+      }
+
+      this.restartProtoplanetSimulation(this.resolvedSettings())
+    },
+    restartProtoplanetSimulation(config) {
+      if (!this.protoplanetGpuCompute || this.protoplanetInitError) return
+
+      const params = normalizeProtoplanetSettings(config)
+      const dtPosition = this.protoplanetGpuCompute.createTexture()
+      const dtVelocity = this.protoplanetGpuCompute.createTexture()
+      fillProtoplanetTextures(dtPosition, dtVelocity, params, PROTOPLANET_SIM_WIDTH)
+
+      this.protoplanetGpuCompute.renderTexture(dtPosition, this.protoplanetPositionVariable.renderTargets[0])
+      this.protoplanetGpuCompute.renderTexture(dtPosition, this.protoplanetPositionVariable.renderTargets[1])
+      this.protoplanetGpuCompute.renderTexture(dtVelocity, this.protoplanetVelocityVariable.renderTargets[0])
+      this.protoplanetGpuCompute.renderTexture(dtVelocity, this.protoplanetVelocityVariable.renderTargets[1])
+
+      this.protoplanetStaticSignature = protoplanetStaticSignature(params)
+      this.applyProtoplanetDynamicUniforms(params)
+    },
+    applyProtoplanetDynamicUniforms(params) {
+      if (!this.protoplanetVelocityUniforms || !this.protoplanetParticleUniforms) return
+      const p = normalizeProtoplanetSettings(params)
+      this.protoplanetVelocityUniforms.gravityConstant.value = p.ppGravityConstant
+      this.protoplanetVelocityUniforms.density.value = p.ppDensity
+      this.protoplanetParticleUniforms.density.value = p.ppDensity
+      this.protoplanetParticleUniforms.hueTint.value = p.ppHue
+    },
+    updateProtoplanetScene(elapsed, config) {
+      if (!this.protoplanetScene || !this.protoplanetCamera || this.protoplanetInitError) return
+      if (!this.protoplanetGpuCompute) this.createProtoplanetScene()
+      if (!this.protoplanetGpuCompute || this.protoplanetInitError) return
+
+      const params = normalizeProtoplanetSettings(config)
+      const staticSig = protoplanetStaticSignature(params)
+      const restartSerial = Math.round(Number(config.ppRestartSerial) || 0)
+
+      if (
+        restartSerial !== this.protoplanetLastRestartSerial
+        || staticSig !== this.protoplanetStaticSignature
+      ) {
+        this.restartProtoplanetSimulation(config)
+        this.protoplanetLastRestartSerial = restartSerial
+      } else {
+        this.applyProtoplanetDynamicUniforms(params)
+      }
+
+      this.protoplanetGpuCompute.compute()
+
+      this.protoplanetParticleUniforms.texturePosition.value = this.protoplanetGpuCompute
+        .getCurrentRenderTarget(this.protoplanetPositionVariable).texture
+      this.protoplanetParticleUniforms.textureVelocity.value = this.protoplanetGpuCompute
+        .getCurrentRenderTarget(this.protoplanetVelocityVariable).texture
+
+      const orbitRate = Math.max(0.05, Number(config.speed) || 0.75) * 0.12
+      const dist = 280 + clamp01(config.orbit == null ? 0.52 : Number(config.orbit)) * 220
+      const orbit = elapsed * orbitRate
+      this.protoplanetCamera.position.set(
+        Math.sin(orbit) * dist * 0.35,
+        90 + Math.sin(elapsed * orbitRate * 0.7) * 35,
+        Math.cos(orbit) * dist,
+      )
+      this.protoplanetCamera.lookAt(0, 0, 0)
+
+      const host = this.$refs.host
+      const heightPx = host ? Math.max(1, host.clientHeight) : 1
+      this.protoplanetParticleUniforms.cameraConstant.value = getProtoplanetCameraConstant(
+        this.protoplanetCamera,
+        heightPx,
+      )
+    },
+    renderProtoplanetFrame() {
+      if (!this.renderer || !this.protoplanetScene || !this.protoplanetCamera) return
+      this.renderer.render(this.protoplanetScene, this.protoplanetCamera)
+    },
+    disposeProtoplanetScene() {
+      if (this.protoplanetGpuCompute) {
+        if (this.protoplanetVelocityVariable?.renderTargets) {
+          this.protoplanetVelocityVariable.renderTargets.forEach((rt) => rt?.dispose?.())
+        }
+        if (this.protoplanetPositionVariable?.renderTargets) {
+          this.protoplanetPositionVariable.renderTargets.forEach((rt) => rt?.dispose?.())
+        }
+      }
+      if (this.protoplanetParticles) {
+        if (this.protoplanetParticles.geometry) this.protoplanetParticles.geometry.dispose()
+        if (this.protoplanetParticles.material) this.protoplanetParticles.material.dispose()
+      }
+      this.protoplanetScene = null
+      this.protoplanetCamera = null
+      this.protoplanetParticles = null
+      this.protoplanetGpuCompute = null
+      this.protoplanetVelocityVariable = null
+      this.protoplanetPositionVariable = null
+      this.protoplanetVelocityUniforms = null
+      this.protoplanetParticleUniforms = null
+      this.protoplanetInitError = null
+      this.protoplanetStaticSignature = ''
+      this.protoplanetLastRestartSerial = -1
+    },
+    createPeriodicTableScene() {
+      if (this.periodicScene || typeof document === 'undefined') return
+      const host = this.$refs.host
+      if (!host) return
+
+      injectPeriodicTableStyles()
+
+      const objectCount = PERIODIC_TABLE_DATA.length / 5
+      this.periodicScene = new THREE.Scene()
+      this.periodicCamera = new THREE.PerspectiveCamera(40, 1, 1, 10000)
+      this.periodicCamera.position.z = 3000
+
+      this.periodicObjects = []
+      const style = periodicTableDefaults()
+
+      for (let i = 0; i < objectCount; i += 1) {
+        const element = createPeriodicElement(i, {
+          opacity: style.ptCardOpacity,
+          hue: style.ptHue,
+          scale: style.ptCardScale,
+        })
+        const objectCSS = new CSS3DObject(element)
+        objectCSS.position.set(
+          Math.random() * 4000 - 2000,
+          Math.random() * 4000 - 2000,
+          Math.random() * 4000 - 2000,
+        )
+        this.periodicScene.add(objectCSS)
+        this.periodicObjects.push(objectCSS)
+      }
+
+      this.periodicTargets = buildPeriodicLayoutTargets(objectCount, style.ptSpacing)
+
+      this.periodicCss3dRenderer = new CSS3DRenderer()
+      const dom = this.periodicCss3dRenderer.domElement
+      dom.style.position = 'absolute'
+      dom.style.inset = '0'
+      dom.style.width = '100%'
+      dom.style.height = '100%'
+      dom.style.pointerEvents = 'none'
+      dom.style.display = 'none'
+      dom.style.overflow = 'hidden'
+      host.appendChild(dom)
+
+      const width = Math.max(1, host.clientWidth || 1)
+      const height = Math.max(1, host.clientHeight || 1)
+      this.periodicCamera.aspect = width / height
+      this.periodicCamera.updateProjectionMatrix()
+      this.periodicCss3dRenderer.setSize(width, height)
+
+      this.periodicLastLayout = ''
+      this.periodicLastSpacing = -1
+      this.periodicAutoCycleTimer = 0
+      this.periodicAutoCycleLayoutIndex = 0
+    },
+    periodicTransformToLayout(layout, config) {
+      if (!this.periodicTargets || !this.periodicObjects.length) return
+      const params = normalizePeriodicTableSettings(config)
+      const targetList = targetsForLayout(this.periodicTargets, layout)
+      this.periodicTweens = beginPeriodicTransform(
+        this.periodicObjects,
+        targetList,
+        params.ptTransitionMs,
+      )
+      this.periodicLastLayout = layout
+      const layoutIndex = PERIODIC_LAYOUTS.indexOf(layout)
+      if (layoutIndex >= 0) this.periodicAutoCycleLayoutIndex = layoutIndex
+    },
+    rebuildPeriodicTargets(config) {
+      const params = normalizePeriodicTableSettings(config)
+      const objectCount = this.periodicObjects.length
+      this.periodicTargets = buildPeriodicLayoutTargets(objectCount, params.ptSpacing)
+      this.periodicLastSpacing = params.ptSpacing
+    },
+    updatePeriodicTableScene(elapsed, config, delta) {
+      if (!this.periodicScene) this.createPeriodicTableScene()
+      if (!this.periodicScene || !this.periodicCamera || !this.periodicCss3dRenderer) return
+
+      const params = normalizePeriodicTableSettings(config)
+      const styleKey = `${params.ptCardOpacity}|${params.ptHue}|${params.ptCardScale}`
+      if (styleKey !== this.periodicStyleKey) {
+        applyPeriodicElementStyles(this.periodicObjects, {
+          opacity: params.ptCardOpacity,
+          hue: params.ptHue,
+          scale: params.ptCardScale,
+        })
+        this.periodicStyleKey = styleKey
+      }
+
+      if (params.ptSpacing !== this.periodicLastSpacing) {
+        this.rebuildPeriodicTargets(config)
+        this.periodicTransformToLayout(params.ptLayout, config)
+      } else if (params.ptLayout !== this.periodicLastLayout) {
+        this.periodicTransformToLayout(params.ptLayout, config)
+      }
+
+      const tweensActive = stepPeriodicTweens(this.periodicTweens, delta * 1000)
+
+      if (params.ptAutoCycle && !tweensActive) {
+        this.periodicAutoCycleTimer += delta
+        if (this.periodicAutoCycleTimer >= params.ptAutoCycleSec) {
+          this.periodicAutoCycleTimer = 0
+          this.periodicAutoCycleLayoutIndex = (this.periodicAutoCycleLayoutIndex + 1) % PERIODIC_LAYOUTS.length
+          const nextLayout = PERIODIC_LAYOUTS[this.periodicAutoCycleLayoutIndex]
+          this.periodicTransformToLayout(nextLayout, config)
+        }
+      } else if (!params.ptAutoCycle) {
+        this.periodicAutoCycleTimer = 0
+      }
+
+      const orbitRate = Math.max(0.05, Number(config.speed) || 0.75) * 0.1
+      const dist = 2200 + clamp01(config.orbit == null ? 0.52 : Number(config.orbit)) * 1400
+      const orbit = elapsed * orbitRate
+      this.periodicCamera.position.set(
+        Math.sin(orbit) * dist * 0.45,
+        120 + Math.sin(elapsed * orbitRate * 0.65) * 60,
+        Math.cos(orbit) * dist,
+      )
+      this.periodicCamera.lookAt(0, 0, 0)
+
+      if (this.renderer?.domElement) this.renderer.domElement.style.display = 'none'
+      if (this.periodicCss3dRenderer.domElement) {
+        this.periodicCss3dRenderer.domElement.style.display = 'block'
+      }
+    },
+    renderPeriodicTableFrame() {
+      if (!this.periodicCss3dRenderer || !this.periodicScene || !this.periodicCamera) return
+      this.periodicCss3dRenderer.render(this.periodicScene, this.periodicCamera)
+    },
+    setPeriodicRendererVisible(visible) {
+      if (this.periodicCss3dRenderer?.domElement) {
+        this.periodicCss3dRenderer.domElement.style.display = visible ? 'block' : 'none'
+      }
+      if (this.renderer?.domElement) {
+        this.renderer.domElement.style.display = visible ? 'none' : ''
+      }
+    },
+    disposePeriodicTableScene() {
+      if (this.periodicScene) {
+        this.periodicObjects.forEach((obj) => {
+          this.periodicScene.remove(obj)
+          if (obj.element?.parentNode) obj.element.parentNode.removeChild(obj.element)
+        })
+      }
+      if (this.periodicCss3dRenderer?.domElement?.parentNode) {
+        this.periodicCss3dRenderer.domElement.parentNode.removeChild(this.periodicCss3dRenderer.domElement)
+      }
+      removePeriodicTableStyles()
+      this.periodicScene = null
+      this.periodicCamera = null
+      this.periodicCss3dRenderer = null
+      this.periodicObjects = []
+      this.periodicTargets = null
+      this.periodicTweens = []
+      this.periodicLastLayout = ''
+      this.periodicLastSpacing = -1
+      this.periodicStyleKey = ''
+      this.periodicAutoCycleTimer = 0
+      this.setPeriodicRendererVisible(false)
     },
     handleResize() {
       if (!this.renderer || !this.camera || !this.$refs.host) return
@@ -1008,6 +1674,22 @@ export default {
       this.camera.aspect = width / height
       this.camera.updateProjectionMatrix()
       this.renderer.setSize(width, height, false)
+      if (this.transitionComposer) this.resizeTransitionViews(width, height)
+      if (this.protoplanetCamera) {
+        this.protoplanetCamera.aspect = width / height
+        this.protoplanetCamera.updateProjectionMatrix()
+        if (this.protoplanetParticleUniforms) {
+          this.protoplanetParticleUniforms.cameraConstant.value = getProtoplanetCameraConstant(
+            this.protoplanetCamera,
+            height,
+          )
+        }
+      }
+      if (this.periodicCamera && this.periodicCss3dRenderer) {
+        this.periodicCamera.aspect = width / height
+        this.periodicCamera.updateProjectionMatrix()
+        this.periodicCss3dRenderer.setSize(width, height)
+      }
     },
     shapeSample(shape, phase) {
       const p = phase % (Math.PI * 2)
@@ -1272,6 +1954,20 @@ export default {
         this.camera.position.set(0, 0, 1.5)
         this.camera.lookAt(0, 0, 0)
         return
+      } else if (config.mode === 'transition') {
+        if (this.camera.fov !== 50) {
+          this.camera.fov = 50
+          this.camera.near = 0.1
+          this.camera.far = 100
+          this.camera.updateProjectionMatrix()
+        }
+        this.camera.position.set(0, 0, 20)
+        this.camera.lookAt(0, 0, 0)
+        return
+      } else if (config.mode === 'protoplanet') {
+        return
+      } else if (config.mode === 'periodic_table') {
+        return
       } else {
         if (this.camera.fov !== 45) {
           this.camera.fov = 45
@@ -1301,7 +1997,10 @@ export default {
         const oceanMode = config.mode === 'ocean'
         const instancingMode = config.mode === 'instancing'
         const customLightsMode = config.mode === 'customlights'
-        const presetMode = raycastMode || marchingMode || oceanMode || instancingMode || customLightsMode
+        const transitionMode = config.mode === 'transition'
+        const protoplanetMode = config.mode === 'protoplanet'
+        const periodicTableMode = config.mode === 'periodic_table'
+        const presetMode = raycastMode || marchingMode || oceanMode || instancingMode || customLightsMode || transitionMode || protoplanetMode || periodicTableMode
         const delta = this.clock.getDelta()
 
         if (this.scene?.fog) {
@@ -1396,7 +2095,49 @@ export default {
           if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
           this.lfoGroups.forEach((group) => { group.visible = false })
           this.updateLensflares(elapsed, config)
+        } else if (transitionMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
+          if (this.customLightsRoot) this.customLightsRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.setPeriodicRendererVisible(false)
+          this.updateTransitionScenes(delta, config, audioLevel * tabBoost)
+        } else if (protoplanetMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
+          if (this.customLightsRoot) this.customLightsRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.setPeriodicRendererVisible(false)
+          this.updateProtoplanetScene(elapsed, config)
+        } else if (periodicTableMode) {
+          if (this.fatLineRoot) this.fatLineRoot.visible = false
+          if (this.marchingRoot) this.marchingRoot.visible = false
+          if (this.oceanRoot) this.oceanRoot.visible = false
+          if (this.instancingRoot) this.instancingRoot.visible = false
+          if (this.interactivePointsRoot) this.interactivePointsRoot.visible = false
+          if (this.interactiveRaycastRoot) this.interactiveRaycastRoot.visible = false
+          if (this.lensflareRoot) this.lensflareRoot.visible = false
+          if (this.customLightsRoot) this.customLightsRoot.visible = false
+          this.restoreRendererToneMapping()
+          if (this.scene) this.scene.environment = null
+          this.lfoGroups.forEach((group) => { group.visible = false })
+          this.updatePeriodicTableScene(elapsed, config, delta)
         } else {
+          this.setPeriodicRendererVisible(false)
           if (this.instancingRoot) this.instancingRoot.visible = false
           if (this.fatLineRoot) this.fatLineRoot.visible = false
           if (this.marchingRoot) this.marchingRoot.visible = false
@@ -1424,7 +2165,15 @@ export default {
           }
         }
 
-        this.renderer.render(this.scene, this.camera)
+        if (transitionMode) {
+          this.renderTransitionFrame()
+        } else if (protoplanetMode) {
+          this.renderProtoplanetFrame()
+        } else if (periodicTableMode) {
+          this.renderPeriodicTableFrame()
+        } else {
+          this.renderer.render(this.scene, this.camera)
+        }
         this.rafId = requestAnimationFrame(tick)
       }
       if (this.rafId != null && typeof cancelAnimationFrame === 'function') {
@@ -1490,6 +2239,9 @@ export default {
         if (this.deforumBackdropMesh.geometry) this.deforumBackdropMesh.geometry.dispose()
         if (this.deforumBackdropMesh.material) this.deforumBackdropMesh.material.dispose()
       }
+      this.disposeTransitionPostprocess()
+      this.disposeProtoplanetScene()
+      this.disposePeriodicTableScene()
 
       this.renderer = null
       this.scene = null

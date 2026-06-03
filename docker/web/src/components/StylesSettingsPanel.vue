@@ -13,16 +13,16 @@
               data-testid="prompt-styles-import-forge"
               @click="importPromptStylesFromForge()"
             >
-              {{ promptStylesImporting ? 'Importing…' : 'Import from Forge' }}
+              {{ promptStylesImporting ? 'Importing…' : 'Import from Forge (permanent)' }}
             </button>
-            <button type="button" class="framesync-button framesync-button--compact" @click="startNewPromptStyle()">
+            <button type="button" class="framesync-button framesync-button--compact" data-testid="prompt-style-new" @click="startNewPromptStyle()">
               + New style
             </button>
           </div>
         </div>
         <p class="framesync-subtitle styles-settings__intro">
-          Select a style to edit its name, description, preview scene, and prompt modifiers.
-          Missing preview images are generated with txt2img using the preview scene plus this style’s append text.
+          Create and edit prompt style modifiers. Active styles append to positive/negative prompts on jobs and previews.
+          Crossfader style slots (Modulation tab) are recorded in job metadata when animating.
         </p>
         <div v-if="promptStylesStatus" class="framesync-subtitle styles-settings__status">{{ promptStylesStatus }}</div>
         <input

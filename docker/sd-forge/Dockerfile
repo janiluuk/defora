@@ -11,7 +11,13 @@ RUN apt-get update && \
 WORKDIR /stable-diffusion-webui
 
 RUN git clone --depth=1 https://github.com/lllyasviel/stable-diffusion-webui-forge.git . && \
-    git clone --depth=1 https://github.com/Tok/sd-forge-deforum.git extensions/sd-forge-deforum
+    git clone --depth=1 https://github.com/Tok/sd-forge-deforum.git extensions/sd-forge-deforum && \
+    git clone --depth=1 https://github.com/lllyasviel/forge-legacy-extensions.git /tmp/forge-legacy && \
+    cp -r /tmp/forge-legacy/sd_forge_svd extensions/sd_forge_svd && \
+    rm -rf /tmp/forge-legacy
+
+# SVD REST API for Defora (/svd_api/*) + sd_forge_svd UI tab.
+COPY docker/sd-forge/svd-patches/svd_rest_api.py extensions/sd_forge_svd/scripts/svd_rest_api.py
 
 # Apply Deforumation patches: mediator protocol + animation/render hooks.
 COPY docker/sd-forge/deforumation-patches/ extensions/sd-forge-deforum/scripts/deforum_helpers/

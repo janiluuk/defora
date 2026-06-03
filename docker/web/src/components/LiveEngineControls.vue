@@ -108,6 +108,9 @@
           <option value="raycast">Fat lines raycast</option>
           <option value="volume">Volume lighting</option>
           <option value="instancing">GPU instancing</option>
+          <option value="transition">Scene transition (post)</option>
+          <option value="protoplanet">GPGPU protoplanet</option>
+          <option value="periodic_table">Periodic table (CSS3D)</option>
         </select>
       </div>
       <template v-if="defaultAnimation.mode === 'instancing'">
@@ -162,6 +165,179 @@
           </div>
         </div>
       </template>
+      <template v-else-if="defaultAnimation.mode === 'periodic_table'">
+        <div v-if="!compact" class="framesync-stack" style="margin-top:10px;">
+          <div class="framesync-subtitle">Layout</div>
+          <div class="chips">
+            <button
+              v-for="layout in ['table', 'sphere', 'helix', 'grid']"
+              :key="'pt-layout-' + layout"
+              type="button"
+              class="chip"
+              :class="{ active: defaultAnimation.ptLayout === layout }"
+              :data-testid="'pt-layout-' + layout"
+              @click="defaultAnimation.ptLayout = layout; onDefaultAnimationInput()"
+            >
+              {{ layout }}
+            </button>
+          </div>
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Transition (ms)</span>
+          <input class="framesync-input" type="range" min="400" max="6000" step="100" v-model.number="defaultAnimation.ptTransitionMs" data-testid="pt-transition-ms" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Layout spacing</span>
+          <input class="framesync-input" type="range" min="0.5" max="1.5" step="0.01" v-model.number="defaultAnimation.ptSpacing" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Card opacity</span>
+          <input class="framesync-input" type="range" min="0.15" max="0.85" step="0.01" v-model.number="defaultAnimation.ptCardOpacity" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Card scale</span>
+          <input class="framesync-input" type="range" min="0.6" max="1.4" step="0.01" v-model.number="defaultAnimation.ptCardScale" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Card tint</span>
+          <input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ptHue" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Camera distance</span>
+          <input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.orbit" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Camera speed</span>
+          <input class="framesync-input" type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+        </div>
+        <div v-if="!compact" class="framesync-stack" style="margin-top:10px;">
+          <div class="framesync-subtitle">Auto cycle</div>
+          <div class="chips">
+            <button type="button" class="chip" :class="{ active: defaultAnimation.ptAutoCycle }" data-testid="pt-auto-cycle" @click="defaultAnimation.ptAutoCycle = !defaultAnimation.ptAutoCycle; onDefaultAnimationInput()">Cycle layouts</button>
+          </div>
+        </div>
+        <div v-if="defaultAnimation.ptAutoCycle" class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Cycle interval (s)</span>
+          <input class="framesync-input" type="range" min="3" max="30" step="1" v-model.number="defaultAnimation.ptAutoCycleSec" @input="onDefaultAnimationInput">
+        </div>
+        <p v-if="!compact" class="framesync-subtitle live-engine-controls__hint">
+          118 element cards in 3D layouts using CSS3DRenderer — from the
+          <a href="https://threejs.org/examples/#css3d_periodictable" target="_blank" rel="noopener noreferrer">three.js CSS3D periodic table</a> example.
+        </p>
+      </template>
+      <template v-else-if="defaultAnimation.mode === 'protoplanet'">
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Gravity</span>
+          <input class="framesync-input" type="range" min="0" max="1000" step="1" v-model.number="defaultAnimation.ppGravityConstant" data-testid="pp-gravity" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Density</span>
+          <input class="framesync-input" type="range" min="0.001" max="10" step="0.001" v-model.number="defaultAnimation.ppDensity" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Disk radius</span>
+          <input class="framesync-input" type="range" min="10" max="1000" step="1" v-model.number="defaultAnimation.ppRadius" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Initial velocity</span>
+          <input class="framesync-input" type="range" min="0" max="150" step="0.5" v-model.number="defaultAnimation.ppVelocity" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Vertical spread</span>
+          <input class="framesync-input" type="range" min="0" max="50" step="0.1" v-model.number="defaultAnimation.ppHeight" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Radial exponent</span>
+          <input class="framesync-input" type="range" min="0" max="2" step="0.01" v-model.number="defaultAnimation.ppExponent" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Max particle mass</span>
+          <input class="framesync-input" type="range" min="1" max="50" step="0.1" v-model.number="defaultAnimation.ppMaxMass" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Debris tint</span>
+          <input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ppHue" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Camera orbit</span>
+          <input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.orbit" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Camera speed</span>
+          <input class="framesync-input" type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+        </div>
+        <div v-if="!compact" class="framesync-stack" style="margin-top:10px;">
+          <button
+            type="button"
+            class="framesync-button framesync-button--compact"
+            data-testid="pp-restart-simulation"
+            @click="restartProtoplanetSimulation"
+          >
+            Restart simulation
+          </button>
+        </div>
+        <p v-if="!compact" class="framesync-subtitle live-engine-controls__hint">
+          GPU particle disk with gravity and merging — from the
+          <a href="https://threejs.org/examples/#webgl_gpgpu_protoplanet" target="_blank" rel="noopener noreferrer">three.js GPGPU protoplanet</a> example.
+          Disk layout changes apply on restart; gravity and density update live.
+        </p>
+      </template>
+      <template v-else-if="defaultAnimation.mode === 'transition'">
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Mix (A↔B)</span>
+          <input
+            class="framesync-input"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            v-model.number="defaultAnimation.txTransition"
+            data-testid="tx-transition-mix"
+            :disabled="defaultAnimation.txTransitionAnimate"
+            @input="onDefaultAnimationInput"
+          >
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Mask threshold</span>
+          <input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.txThreshold" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Instance count</span>
+          <input class="framesync-input" type="range" min="100" max="2000" step="50" v-model.number="defaultAnimation.instCount" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Scene spin</span>
+          <input class="framesync-input" type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput">
+        </div>
+        <div class="slider-row">
+          <span class="framesync-subtitle" style="margin:0;">Spin spread</span>
+          <input class="framesync-input" type="range" min="0.2" max="2.5" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput">
+        </div>
+        <div v-if="!compact" class="framesync-stack" style="margin-top:10px;">
+          <div class="framesync-subtitle">Dissolve mask</div>
+          <select class="framesync-select" v-model.number="defaultAnimation.txTexture" data-testid="tx-transition-texture" @change="onDefaultAnimationInput">
+            <option :value="0">Perlin</option>
+            <option :value="1">Squares</option>
+            <option :value="2">Cells</option>
+            <option :value="3">Distort</option>
+            <option :value="4">Gradient</option>
+            <option :value="5">Radial</option>
+          </select>
+        </div>
+        <div v-if="!compact" class="framesync-stack" style="margin-top:10px;">
+          <div class="framesync-subtitle">Transition</div>
+          <div class="chips">
+            <button type="button" class="chip" :class="{ active: defaultAnimation.txSceneAnimate }" data-testid="tx-scene-animate" @click="defaultAnimation.txSceneAnimate = !defaultAnimation.txSceneAnimate; onDefaultAnimationInput()">Animate scenes</button>
+            <button type="button" class="chip" :class="{ active: defaultAnimation.txTransitionAnimate }" data-testid="tx-transition-animate" @click="defaultAnimation.txTransitionAnimate = !defaultAnimation.txTransitionAnimate; onDefaultAnimationInput()">Animate mix</button>
+            <button type="button" class="chip" :class="{ active: defaultAnimation.txUseTexture }" @click="defaultAnimation.txUseTexture = !defaultAnimation.txUseTexture; onDefaultAnimationInput()">Use mask texture</button>
+            <button type="button" class="chip" :class="{ active: defaultAnimation.txCycle }" :disabled="!defaultAnimation.txTransitionAnimate" @click="defaultAnimation.txCycle = !defaultAnimation.txCycle; onDefaultAnimationInput()">Cycle masks</button>
+          </div>
+        </div>
+        <p v-if="!compact" class="framesync-subtitle live-engine-controls__hint">
+          Cross-fades two instanced scenes (cubes vs icosahedra) with optional dissolve masks — based on the
+          <a href="https://threejs.org/examples/#webgl_postprocessing_transition" target="_blank" rel="noopener noreferrer">three.js postprocessing transition</a> example.
+        </p>
+      </template>
       <template v-else-if="defaultAnimation.mode === 'ocean'">
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Sun elevation</span><input class="framesync-input" type="range" min="0" max="90" step="0.1" v-model.number="defaultAnimation.ocElevation" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Sun azimuth</span><input class="framesync-input" type="range" min="-180" max="180" step="0.1" v-model.number="defaultAnimation.ocAzimuth" @input="onDefaultAnimationInput"></div>
@@ -172,7 +348,7 @@
         <div v-if="!compact" class="slider-row"><span class="framesync-subtitle" style="margin:0;">Cloud density</span><input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudDensity" @input="onDefaultAnimationInput"></div>
         <div v-if="!compact" class="slider-row"><span class="framesync-subtitle" style="margin:0;">Cloud elevation</span><input class="framesync-input" type="range" min="0" max="1" step="0.01" v-model.number="defaultAnimation.ocCloudElevation" @input="onDefaultAnimationInput"></div>
       </template>
-      <template v-else-if="!['raycast', 'marching', 'ocean', 'instancing', 'interactive_points', 'interactive_raycast_points', 'lensflares'].includes(defaultAnimation.mode)">
+      <template v-else-if="!['raycast', 'marching', 'ocean', 'instancing', 'transition', 'protoplanet', 'periodic_table', 'interactive_points', 'interactive_raycast_points', 'lensflares'].includes(defaultAnimation.mode)">
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Speed</span><input class="framesync-input" type="range" min="0.1" max="2.5" step="0.01" v-model.number="defaultAnimation.speed" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Spread</span><input class="framesync-input" type="range" min="0.2" max="1.4" step="0.01" v-model.number="defaultAnimation.spread" @input="onDefaultAnimationInput"></div>
         <div class="slider-row"><span class="framesync-subtitle" style="margin:0;">Glow</span><input class="framesync-input" type="range" min="0.1" max="1.4" step="0.01" v-model.number="defaultAnimation.glow" @input="onDefaultAnimationInput"></div>

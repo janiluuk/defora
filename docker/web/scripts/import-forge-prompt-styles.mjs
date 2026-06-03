@@ -16,27 +16,12 @@ const webRoot = join(__dirname, "..");
 const { importFromForge, readStyles, writeStyles } = require("../modules/prompt-styles-store.js");
 
 const forgeUrl = process.env.FORGE_URL || process.env.FORGE_BASE_URL || "http://192.168.2.104:7860";
-const writeLive = process.argv.includes("--write");
 
 async function main() {
-  const result = await importFromForge(forgeUrl, webRoot, { merge: true });
+  const result = await importFromForge(forgeUrl, webRoot, { merge: true, persistSeed: true });
   console.log(`Imported from ${forgeUrl}:`, result);
-  if (writeLive) {
-    const styles = await readStyles(webRoot);
-    console.log(`Live store now has ${styles.length} styles`);
-  } else {
-    const styles = await readStyles(webRoot);
-    const seedPath = join(webRoot, "data", "prompt-styles-seed.json");
-    await writeStyles(webRoot, styles);
-    const fs = await import("fs/promises");
-    const seed = JSON.parse(await fs.readFile(seedPath, "utf8").catch(() => '{"styles":[]}'));
-    seed.styles = styles;
-    seed.importedFrom = `${forgeUrl}/sdapi/v1/prompt-styles`;
-    seed.count = styles.length;
-    seed.updatedAt = new Date().toISOString();
-    await fs.writeFile(seedPath, JSON.stringify(seed, null, 2), "utf8");
-    console.log(`Updated seed: ${seedPath} (${styles.length} styles)`);
-  }
+  const styles = await readStyles(webRoot);
+  console.log(`Live store now has ${styles.length} styles (seed updated)`);
 }
 
 main().catch((err) => {

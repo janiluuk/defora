@@ -91,4 +91,46 @@ describe("prompt styles", () => {
     assert.equal(again[1].description, "Soft watercolor look");
     assert.equal(again[1].previewPrompt, "dragon in clouds");
   });
+
+  it("writes forge import to live store and seed file", async () => {
+    const webRoot = fs.mkdtempSync(path.join(os.tmpdir(), "defora-styles-seed-"));
+    const seedPath = path.join(webRoot, "data", "prompt-styles-seed.json");
+    fs.mkdirSync(path.dirname(seedPath), { recursive: true });
+    fs.writeFileSync(seedPath, JSON.stringify({ styles: [] }), "utf8");
+    const styles = [
+      { id: "cubism", name: "Cubism", positive: "cubist", negative: "photo", source: "forge" },
+    ];
+    await promptStylesStore.writeStyles(webRoot, styles);
+    await promptStylesStore.writeSeedStyles(webRoot, styles, {
+      importedFrom: "http://forge/sdapi/v1/prompt-styles",
+    });
+    const seed = JSON.parse(fs.readFileSync(seedPath, "utf8"));
+    assert.equal(seed.count, 1);
+    assert.equal(seed.styles[0].name, "Cubism");
+    assert.match(seed.importedFrom, /prompt-styles/);
+  });
+
+  it("builds job snapshot with active and crossfader styles", async () => {
+    const { buildPromptStyleJobSnapshot, promptStyleJobSummary } = await loadEsm(
+      "..",
+      "src",
+      "shared",
+      "prompt-styles.mjs",
+    );
+    const snap = buildPromptStyleJobSnapshot({
+      activeStyleId: "cubism",
+      activeStyle: { id: "cubism", name: "Cubism", positive: "cubist", negative: "photo" },
+      crossfader: 0.5,
+      styleCrossfaderSlots: [{
+        id: "slot1",
+        label: "Style A→B",
+        valueA: { id: "a", name: "A", positive: "anime", negative: "" },
+        valueB: { id: "b", name: "B", positive: "photo", negative: "" },
+      }],
+      morphedAppend: { positive: "blend", negative: "" },
+    });
+    assert.equal(snap.activeStyle.name, "Cubism");
+    assert.equal(snap.crossfaderSlots.length, 1);
+    assert.match(promptStyleJobSummary(snap), /Cubism/);
+  });
 });

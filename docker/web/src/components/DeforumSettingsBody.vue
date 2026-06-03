@@ -1,7 +1,7 @@
 <template>
   <section class="deforum-settings-body-wrap" data-testid="deforum-settings-body">
     <p class="deforum-settings-body-wrap__intro framesync-subtitle">
-      Sampler, schedules, canvas, motion, and ControlNet units (CN1–CN5).
+      Deforum batch, motion schedules, prompts, and ControlNet (CN1–CN5). Resolution and sampling are under Global config.
     </p>
     <div class="deforum-settings-groups">
       <div
@@ -34,7 +34,7 @@
       </p>
       <div class="sub-pills deforum-settings-tabs">
         <button
-          v-for="group in deforumFieldGroups"
+          v-for="group in deforumLayerFieldGroups"
           :key="'deforum-tab-' + group.id"
           type="button"
           class="sub-pill"

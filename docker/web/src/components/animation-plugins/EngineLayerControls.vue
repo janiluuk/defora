@@ -4,6 +4,7 @@
     <DeforumPluginPanel v-else-if="findVideoLayer(layerId)?.kind === 'deforum'" :app="app" />
     <WanPluginPanel v-else-if="findVideoLayer(layerId)?.kind === 'wan'" :app="app" />
     <AnimateLcmPluginPanel v-else-if="findVideoLayer(layerId)?.kind === 'animatelcm'" :app="app" />
+    <SvdPluginPanel v-else-if="findVideoLayer(layerId)?.kind === 'svd'" :app="app" />
     <div v-else-if="findVideoLayer(layerId)?.kind === 'blend'" class="engine-layer-controls__blend">
       <p class="framesync-subtitle engine-layer-controls__hint">
         Composites WebGL under a Forge layer using screen blend.
@@ -35,11 +36,12 @@ import WebGLPluginPanel from './WebGLPluginPanel.vue'
 import DeforumPluginPanel from './DeforumPluginPanel.vue'
 import WanPluginPanel from './WanPluginPanel.vue'
 import AnimateLcmPluginPanel from './AnimateLcmPluginPanel.vue'
+import SvdPluginPanel from './SvdPluginPanel.vue'
 import { proxyAppView } from '../views/app-view-proxy.mjs'
 
 export default {
   name: 'EngineLayerControls',
-  components: { WebGLPluginPanel, DeforumPluginPanel, WanPluginPanel, AnimateLcmPluginPanel },
+  components: { WebGLPluginPanel, DeforumPluginPanel, WanPluginPanel, AnimateLcmPluginPanel, SvdPluginPanel },
   props: {
     app: { type: Object, required: true },
     layerId: { type: String, required: true },

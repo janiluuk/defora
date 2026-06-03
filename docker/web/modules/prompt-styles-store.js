@@ -114,6 +114,20 @@ async function writeStyles(webRoot, styles) {
   return normalized;
 }
 
+async function writeSeedStyles(webRoot, styles, { importedFrom = null } = {}) {
+  const normalized = dedupeStyleIds(styles).map((style) => normalizeStyleRecord(style));
+  const seed = {
+    version: 1,
+    updatedAt: new Date().toISOString(),
+    count: normalized.length,
+    styles: normalized,
+  };
+  if (importedFrom) seed.importedFrom = importedFrom;
+  await fsp.mkdir(path.dirname(seedFilePath(webRoot)), { recursive: true });
+  await fsp.writeFile(seedFilePath(webRoot), JSON.stringify(seed, null, 2), "utf-8");
+  return normalized;
+}
+
 function forgeStyleToRecord(entry, index = 0) {
   const name = String(entry?.name || "").trim();
   if (!name || /^-{3,}/.test(name)) return null;
@@ -133,9 +147,10 @@ function forgeStyleToRecord(entry, index = 0) {
   });
 }
 
-async function importFromForge(forgeUrl, webRoot, { merge = true } = {}) {
+async function importFromForge(forgeUrl, webRoot, { merge = true, persistSeed = true } = {}) {
   const base = String(forgeUrl || "").replace(/\/$/, "");
   if (!base) throw new Error("forgeUrl required");
+  const importedFrom = `${base}/sdapi/v1/prompt-styles`;
   const res = await fetch(`${base}/sdapi/v1/prompt-styles`);
   if (!res.ok) {
     const text = await res.text();
@@ -149,7 +164,8 @@ async function importFromForge(forgeUrl, webRoot, { merge = true } = {}) {
   );
   if (!merge) {
     await writeStyles(webRoot, imported);
-    return { count: imported.length, added: imported.length, updated: 0, total: imported.length };
+    if (persistSeed) await writeSeedStyles(webRoot, imported, { importedFrom });
+    return { count: imported.length, added: imported.length, updated: 0, total: imported.length, persistedSeed: persistSeed };
   }
   const existing = await readStyles(webRoot);
   const byName = new Map(existing.map((style) => [style.name.toLowerCase(), style]));
@@ -176,7 +192,8 @@ async function importFromForge(forgeUrl, webRoot, { merge = true } = {}) {
   }
   const merged = dedupeStyleIds([...byName.values()]);
   await writeStyles(webRoot, merged);
-  return { count: imported.length, added, updated, total: merged.length };
+  if (persistSeed) await writeSeedStyles(webRoot, merged, { importedFrom });
+  return { count: imported.length, added, updated, total: merged.length, persistedSeed: persistSeed };
 }
 
 async function setStyleExampleFromPath(webRoot, id, sourcePath, uploadsDir) {
@@ -258,6 +275,7 @@ module.exports = {
   ensurePromptStylesStore,
   readStyles,
   writeStyles,
+  writeSeedStyles,
   importFromForge,
   setStyleExampleFromPath,
   clearStyleExample,

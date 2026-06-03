@@ -65,6 +65,17 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 
+from defora_cli.engine_defaults import (
+    DEFAULT_DURATION_SEC,
+    DEFAULT_NEGATIVE,
+    DEFAULT_PROMPT,
+    ENGINE_IDS,
+    optimal_deforum_lcm,
+)
+from defora_cli.animation_engines import EngineSkip, merge_engine_via_node, run_engine_job
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
 DEFAULT_BASE_URL = os.getenv("FORGE_API_BASE", "http://127.0.0.1:7860")
 DEFAULT_OUT_DIR = os.getenv("FORGE_OUT_DIR", "forge_cli_output")
 
@@ -534,6 +545,7 @@ def build_deforum_settings_from_scratch(
     zoom: float,
     noise: float,
     strength: float,
+    scheduler: str = "automatic",
 ) -> Dict[str, Any]:
     """
     Build a minimal-but-sane Deforum settings dict for /deforum_api/batches.
@@ -549,6 +561,7 @@ def build_deforum_settings_from_scratch(
     s["H"] = height
     s["seed"] = seed
     s["sampler"] = sampler
+    s["scheduler"] = scheduler
     s["steps"] = steps
     s["scale"] = cfg_scale
     s["strength"] = strength
@@ -640,6 +653,33 @@ def load_preset(path: str) -> Dict[str, Any]:
     return data
 
 
+def apply_deforum_init_image(settings: Dict[str, Any], init_image_path: Optional[str]) -> None:
+    if not init_image_path:
+        return
+    path = Path(init_image_path)
+    if not path.is_file():
+        print(f"[error] init image not found: {init_image_path}", file=sys.stderr)
+        sys.exit(1)
+    settings["use_init"] = True
+    settings["init_image"] = base64.b64encode(path.read_bytes()).decode("ascii")
+
+
+def apply_deforum_timing_overrides(settings: Dict[str, Any], args: argparse.Namespace) -> None:
+    if args.frames is not None:
+        settings["max_frames"] = int(args.frames)
+    elif args.duration is not None:
+        fps = args.fps if args.fps is not None else int(settings.get("fps", 24))
+        settings["max_frames"] = round(args.duration * fps)
+    if args.fps is not None:
+        settings["fps"] = int(args.fps)
+    if args.width is not None:
+        settings["W"] = int(args.width)
+    if args.height is not None:
+        settings["H"] = int(args.height)
+    if args.seed is not None:
+        settings["seed"] = int(args.seed)
+
+
 def cmd_deforum(args: argparse.Namespace) -> None:
     base_url = args.base_url
 
@@ -672,22 +712,32 @@ def cmd_deforum(args: argparse.Namespace) -> None:
         if args.negative:
             settings["animation_prompts_negative"] = args.negative
 
-        # These overrides are applied ONLY if user explicitly provides them.
-        # Handle duration: if --frames is provided, use it; elif --duration is provided, calculate frames
-        if args.frames is not None:
-            settings["max_frames"] = int(args.frames)
-        elif args.duration is not None:
-            # Calculate frames from duration. Need fps from args or preset
-            fps = args.fps if args.fps is not None else settings.get("fps", 24)
-            settings["max_frames"] = round(args.duration * fps)
-        if args.fps is not None:
-            settings["fps"] = int(args.fps)
-        if args.width is not None:
-            settings["W"] = int(args.width)
-        if args.height is not None:
-            settings["H"] = int(args.height)
-        if args.seed is not None:
-            settings["seed"] = int(args.seed)
+        apply_deforum_timing_overrides(settings, args)
+        if args.lcm:
+            lcm = optimal_deforum_lcm(args.prompt, args.negative or "", args.duration or DEFAULT_DURATION_SEC)
+            for key in ("steps", "sampler", "scheduler", "scale", "cfg_scale_schedule", "steps_schedule", "sd_model_name"):
+                if key in lcm:
+                    settings[key] = lcm[key]
+
+    elif getattr(args, "lcm", False):
+        duration = args.duration if args.duration is not None else DEFAULT_DURATION_SEC
+        settings = optimal_deforum_lcm(args.prompt, args.negative or "", duration)
+        apply_deforum_timing_overrides(settings, args)
+        if args.steps is not None:
+            settings["steps"] = int(args.steps)
+            settings["steps_schedule"] = f"0:({int(args.steps)})"
+        if args.cfg_scale is not None:
+            settings["scale"] = float(args.cfg_scale)
+            settings["cfg_scale_schedule"] = f"0:({float(args.cfg_scale)})"
+        if args.sampler is not None:
+            settings["sampler"] = args.sampler
+        if getattr(args, "scheduler", None) is not None:
+            settings["scheduler"] = args.scheduler
+        if not args.quiet:
+            print(
+                "[info] Deforum LCM mode: steps=4, cfg=1, Euler+sgm_uniform, turbo checkpoint",
+                file=sys.stderr,
+            )
 
     else:
         params = resolve_deforum_params(args, profile)
@@ -716,7 +766,11 @@ def cmd_deforum(args: argparse.Namespace) -> None:
             zoom=params["zoom"],
             noise=params["noise"],
             strength=params["strength"],
+            scheduler=getattr(args, "scheduler", None) or "automatic",
         )
+
+    apply_deforum_init_image(settings, getattr(args, "init_image", None))
+    settings["skip_video_creation"] = False
 
     payload = {
         "deforum_settings": settings,
@@ -783,6 +837,254 @@ def cmd_deforum(args: argparse.Namespace) -> None:
         )
 
 
+# --- Command: wan / svd / animatelcm / demo ------------------------------------
+
+
+def _add_engine_run_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("prompt", nargs="?", default=DEFAULT_PROMPT, help="Positive prompt.")
+    parser.add_argument("-N", "--negative", default=DEFAULT_NEGATIVE, help="Negative prompt.")
+    parser.add_argument(
+        "-d",
+        "--duration",
+        type=float,
+        default=DEFAULT_DURATION_SEC,
+        help=f"Clip duration in seconds (default {DEFAULT_DURATION_SEC}).",
+    )
+    parser.add_argument("--init-image", dest="init_image", help="Init image path (I2V / continue).")
+    parser.add_argument("--poll", action="store_true", help="Poll until batch completes.")
+    parser.add_argument("--poll-interval", type=float, default=10.0)
+    parser.add_argument("--dry-run", action="store_true", help="Print merged settings/payload only.")
+
+
+def cmd_wan(args: argparse.Namespace) -> None:
+    try:
+        if args.dry_run:
+            merged = merge_engine_via_node("wan", prompt=args.prompt, negative=args.negative, duration_sec=args.duration)
+            print(json.dumps(merged, indent=2))
+            return
+        out = run_engine_job(
+            "wan",
+            args.base_url,
+            prompt=args.prompt,
+            negative=args.negative,
+            duration_sec=args.duration,
+            init_image_path=args.init_image,
+            poll=args.poll,
+            poll_interval=args.poll_interval,
+        )
+        print(json.dumps(out["result"], indent=2))
+    except EngineSkip as exc:
+        print(f"[skip] {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
+def cmd_animatelcm(args: argparse.Namespace) -> None:
+    try:
+        if args.dry_run:
+            merged = merge_engine_via_node(
+                "animatelcm", prompt=args.prompt, negative=args.negative, duration_sec=args.duration
+            )
+            print(json.dumps(merged, indent=2))
+            return
+        out = run_engine_job(
+            "animatelcm",
+            args.base_url,
+            prompt=args.prompt,
+            negative=args.negative,
+            duration_sec=args.duration,
+            init_image_path=args.init_image,
+            poll=args.poll,
+            poll_interval=args.poll_interval,
+        )
+        print(json.dumps(out["result"], indent=2))
+    except EngineSkip as exc:
+        print(f"[skip] {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
+def cmd_svd(args: argparse.Namespace) -> None:
+    try:
+        if args.dry_run:
+            merged = merge_engine_via_node("svd", prompt=args.prompt, duration_sec=args.duration)
+            print(json.dumps(merged, indent=2))
+            return
+        out = run_engine_job(
+            "svd",
+            args.base_url,
+            prompt=args.prompt,
+            negative=args.negative,
+            duration_sec=args.duration,
+            init_image_path=args.init_image,
+            poll=False,
+        )
+        print(json.dumps(out["result"], indent=2))
+    except EngineSkip as exc:
+        print(f"[skip] {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
+def cmd_demo(args: argparse.Namespace) -> None:
+    """Run 5-second demos for each animation engine (best-effort)."""
+    out_dir = Path(args.outdir).expanduser().resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+    manifest: Dict[str, Any] = {"duration_sec": args.duration, "engines": {}}
+    engines = [e.strip() for e in args.engines.split(",") if e.strip()] if args.engines else list(ENGINE_IDS)
+
+    for engine in engines:
+        print(f"\n=== {engine} ===", file=sys.stderr)
+        entry: Dict[str, Any] = {"engine": engine}
+        try:
+            if engine == "deforum":
+                ns = argparse.Namespace(**vars(args))
+                ns.command = "deforum"
+                ns.preset = None
+                ns.lcm = False
+                ns.quiet = args.quiet
+                ns.duration = args.duration
+                ns.frames = None
+                ns.poll = args.poll
+                ns.poll_interval = args.poll_interval
+                ns.negative = args.negative
+                ns.prompt = args.prompt
+                ns.init_image = args.init_image
+                ns.scheduler = None
+                ns.steps = None
+                ns.cfg_scale = None
+                ns.sampler = None
+                ns.fps = None
+                ns.width = None
+                ns.height = None
+                ns.seed = -1
+                ns.zoom = None
+                ns.noise = None
+                ns.strength = None
+                cmd_deforum(ns)
+                entry["status"] = "submitted"
+            elif engine == "deforum-lcm":
+                ns = argparse.Namespace(**vars(args))
+                ns.command = "deforum"
+                ns.preset = None
+                ns.lcm = True
+                ns.quiet = args.quiet
+                ns.duration = args.duration
+                ns.frames = None
+                ns.poll = args.poll
+                ns.poll_interval = args.poll_interval
+                ns.negative = args.negative
+                ns.prompt = args.prompt
+                ns.init_image = args.init_image
+                ns.scheduler = None
+                ns.steps = None
+                ns.cfg_scale = None
+                ns.sampler = None
+                ns.fps = None
+                ns.width = None
+                ns.height = None
+                ns.seed = -1
+                ns.zoom = None
+                ns.noise = None
+                ns.strength = None
+                cmd_deforum(ns)
+                entry["status"] = "submitted"
+            elif engine == "webgl":
+                script = REPO_ROOT / "docker" / "web" / "scripts" / "capture-webgl-demos.mjs"
+                if not script.is_file():
+                    raise EngineSkip(f"missing {script}")
+                import subprocess
+
+                webgl_out = out_dir / "webgl"
+                webgl_env = {**os.environ}
+                if os.getenv("BASE_URL"):
+                    webgl_env["BASE_URL"] = os.getenv("BASE_URL")
+                proc = subprocess.run(
+                    [
+                        "node",
+                        str(script),
+                        "--duration",
+                        str(args.duration),
+                        "--out",
+                        str(webgl_out),
+                    ],
+                    cwd=str(REPO_ROOT / "docker" / "web"),
+                    env=webgl_env,
+                    check=False,
+                )
+                if proc.returncode != 0:
+                    raise RuntimeError(f"webgl capture exited {proc.returncode}")
+                entry["status"] = "ok"
+                entry["output_dir"] = str(webgl_out)
+            else:
+                out = run_engine_job(
+                    engine,
+                    args.base_url,
+                    prompt=args.prompt,
+                    negative=args.negative,
+                    duration_sec=args.duration,
+                    init_image_path=args.init_image,
+                    poll=args.poll,
+                    poll_interval=args.poll_interval,
+                )
+                entry["status"] = "ok"
+                entry["result"] = out.get("result")
+        except EngineSkip as exc:
+            entry["status"] = "skipped"
+            entry["reason"] = str(exc)
+            print(f"[skip] {engine}: {exc}", file=sys.stderr)
+        except Exception as exc:  # noqa: BLE001
+            entry["status"] = "error"
+            entry["reason"] = str(exc)
+            print(f"[error] {engine}: {exc}", file=sys.stderr)
+        manifest["engines"][engine] = entry
+
+    manifest_path = out_dir / "demo_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    gallery_path = out_dir / "index.html"
+    _write_demo_gallery(gallery_path, manifest, out_dir)
+    print(f"\nManifest: {manifest_path}", file=sys.stderr)
+    print(f"Gallery:  {gallery_path}", file=sys.stderr)
+
+
+def _write_demo_gallery(path: Path, manifest: Dict[str, Any], out_dir: Path) -> None:
+    rows = []
+    for engine, entry in manifest.get("engines", {}).items():
+        status = entry.get("status", "?")
+        if engine == "webgl" and status == "ok":
+            webgl_dir = Path(entry.get("output_dir", out_dir / "webgl"))
+            videos = sorted(webgl_dir.glob("*.webm")) + sorted(webgl_dir.glob("*.mp4"))
+            named = [v for v in videos if not _is_playwright_temp_video(v)]
+            named = [v.resolve() for v in (named or videos)]
+            for vid in named:
+                if not vid.is_file():
+                    continue
+                try:
+                    rel = vid.relative_to(out_dir.resolve())
+                except ValueError:
+                    rel = Path("webgl") / vid.name
+                rows.append(
+                    f'<section><h2>WebGL · {vid.stem}</h2>'
+                    f'<video controls loop muted playsinline src="{rel.as_posix()}"></video></section>'
+                )
+        else:
+            rows.append(
+                f"<section><h2>{engine}</h2><p>Status: <code>{status}</code>"
+                f"{('<br>' + entry['reason']) if entry.get('reason') else ''}</p></section>"
+            )
+    html = f"""<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Defora engine demos</title>
+<style>body{{font-family:system-ui;background:#0a0c12;color:#e8ecf4;padding:24px}}
+video{{max-width:min(960px,100%);border:1px solid #334;border-radius:8px;background:#000}}
+section{{margin-bottom:32px}}</style></head><body>
+<h1>Animation engine demos (~{manifest.get('duration_sec', 5)}s)</h1>
+{''.join(rows)}
+</body></html>"""
+    path.write_text(html, encoding="utf-8")
+
+
+def _is_playwright_temp_video(path: Path) -> bool:
+    stem = path.stem
+    return len(stem) == 32 and all(c in "0123456789abcdef" for c in stem)
+
+
 # --- CLI parser ----------------------------------------------------------------
 
 
@@ -813,6 +1115,10 @@ Examples:
             "  img       Generate still images (txt2img) with model-aware defaults.\n"
             "  img2img   Transform a reference image (sdapi/v1/img2img).\n"
             "  deforum   Submit Deforum animation batches (supports JSON presets).\n"
+            "  wan       Wan Video via Deforum API (Turbo/LCM-aligned defaults).\n"
+            "  animatelcm  AnimateLCM via Deforum API (4-step LCM defaults).\n"
+            "  svd       Stable Video Diffusion via /svd_api/generate.\n"
+            "  demo      Run ~5s demos for all engines (Forge + WebGL capture).\n"
             "  models    List available models and their detected profiles.\n"
         ),
         epilog=epilog,
@@ -1130,6 +1436,22 @@ Examples:
         help="Base strength schedule value. Default 0.65 if no preset.",
     )
     p_def.add_argument(
+        "--lcm",
+        action="store_true",
+        help="Use UI-aligned LCM Deforum defaults (4 steps, cfg 1, Euler, sgm_uniform, turbo + LCM LoRA).",
+    )
+    p_def.add_argument(
+        "--scheduler",
+        default=None,
+        help="Scheduler name (e.g. sgm_uniform, karras). Default automatic unless --lcm.",
+    )
+    p_def.add_argument(
+        "--init-image",
+        dest="init_image",
+        default=None,
+        help="Path to init/continue frame (sets use_init + base64 init_image).",
+    )
+    p_def.add_argument(
         "--poll",
         action="store_true",
         help="Poll Deforum API for batch status until finished.",
@@ -1141,6 +1463,35 @@ Examples:
         help="Seconds between status checks when --poll is set.",
     )
     p_def.set_defaults(func=cmd_deforum)
+
+    p_wan = subparsers.add_parser("wan", help="Wan Video animation (Deforum Wan mode).")
+    _add_engine_run_args(p_wan)
+    p_wan.set_defaults(func=cmd_wan)
+
+    p_alcm = subparsers.add_parser("animatelcm", help="AnimateLCM video (4-step LCM).")
+    _add_engine_run_args(p_alcm)
+    p_alcm.set_defaults(func=cmd_animatelcm)
+
+    p_svd = subparsers.add_parser("svd", help="Stable Video Diffusion img2vid.")
+    _add_engine_run_args(p_svd)
+    p_svd.set_defaults(func=cmd_svd)
+
+    p_demo = subparsers.add_parser(
+        "demo",
+        help="Run ~5s clip demos for deforum, wan, animatelcm, svd, webgl.",
+    )
+    p_demo.add_argument(
+        "--engines",
+        default="",
+        help=f"Comma-separated engines (default: all). Choices: {','.join(ENGINE_IDS)}",
+    )
+    p_demo.add_argument(
+        "--outdir",
+        default=os.path.join(DEFAULT_OUT_DIR, "engine_demos"),
+        help="Output directory for manifest + WebGL videos.",
+    )
+    _add_engine_run_args(p_demo)
+    p_demo.set_defaults(func=cmd_demo)
 
     # ------- models --------
     p_models = subparsers.add_parser(
@@ -1162,6 +1513,10 @@ def main() -> None:
         "img",
         "img2img",
         "deforum",
+        "wan",
+        "animatelcm",
+        "svd",
+        "demo",
         "models",
         "-h",
         "--help",

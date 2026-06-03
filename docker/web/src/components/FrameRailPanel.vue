@@ -13,6 +13,14 @@
       </div>
       <div class="frame-rail__actions">
         <div class="frame-rail__controls" v-if="frameStripThumbs.length">
+          <button
+            type="button"
+            class="frame-rail__step frame-rail__step--undo"
+            data-testid="deforum-undo-segment"
+            :disabled="!deforumContinuationCanUndo"
+            :title="deforumContinuationUndoTitle"
+            @click="undoDeforumContinuationSegment"
+          >Undo</button>
           <button type="button" class="frame-rail__step" @click="stepFrameSelection(-1)" :disabled="selectedFrameIndex <= 0">Prev</button>
           <input
             class="frame-rail__scrubber"
