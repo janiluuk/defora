@@ -3,6 +3,23 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.74] - 2026-06-03
+
+## What's Changed
+
+- fix(test): add DeforumControlNetPanel stub with data-testid to app-definition (784e118)
+- ci: upgrade Node.js from 18 to 22 LTS (0a11bfb)
+- fix(test): convert ESM spec files to CJS+loadEsm for Node 18 CI (2f63fac)
+- fix(ci): resolve symlink before computing repo root in run_tests.sh (4048ef9)
+- feat(web): ControlNet, styles, Forge preview progress, and library video source (5f75827)
+- feat(web): GlassPanel polish and remove duplicate top nav (X2/X3–X4) (d730c26)
+- feat(web): process preview requests through a FIFO queue (80fa093)
+- docs: refresh UI screenshots for current shell layout (3c3a0c4)
+- Reorganize repo: tools/, design docs, and screenshot cleanup (208e3e3)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.73...v0.6.74
+
+
 ## [0.6.73] - 2026-06-03
 
 ## What's Changed
