@@ -300,6 +300,11 @@ function ensureComponentStub(name, relPath, lines, seen = new Set()) {
           lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="deforum-plugin-panel"></div>' };`);
           emittedComponentStubs.add(importName);
         }
+      } else if (nestedRel.endsWith('DeforumControlNetPanel.vue')) {
+        if (!emittedComponentStubs.has(importName)) {
+          lines.push(`const ${importName} = { props: ['app'], setup(props) { return __proxyAppView(props); }, template: '<div data-testid="deforum-controlnet-panel"><button data-testid="deforum-cn-unit-1" class="chip chip--active"></button><button data-testid="deforum-cn-unit-2" class="chip"></button></div>' };`);
+          emittedComponentStubs.add(importName);
+        }
       } else if (!emittedComponentStubs.has(importName)) {
         lines.push(`const ${importName} = { props: ['app'], template: '<div></div>' };`);
         emittedComponentStubs.add(importName);
