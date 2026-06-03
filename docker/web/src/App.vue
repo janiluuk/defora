@@ -892,7 +892,9 @@ export default {
        previewGenerating: false,
        heldPreviewFramePath: "",
        previewDebounceTimer: null,
-       previewQueuedKind: null,
+       previewRequestQueue: [],
+       previewQueueProcessing: false,
+       previewQueueMaxSize: 4,
       videoReady: false,
        framesRefreshBackoffMs: 1000,
        frameRefreshTimer: null,
@@ -3486,6 +3488,8 @@ export default {
     if (this.beatTimer) clearInterval(this.beatTimer);
     if (this.previewDebounceTimer) clearTimeout(this.previewDebounceTimer);
     if (this.deforumPreviewTimer) clearTimeout(this.deforumPreviewTimer);
+    this.previewRequestQueue = [];
+    this.previewQueueProcessing = false;
     if (this.frameRefreshTimer) clearTimeout(this.frameRefreshTimer);
     if (this.wsReconnectTimer) clearTimeout(this.wsReconnectTimer);
     this.stopRunsPolling();
@@ -13324,42 +13328,55 @@ stopSpeechPrompt() {
   } catch (_e) {}
   this.speechPromptListening = false;
 },
+enqueuePreviewRequest(kind) {
+  if (this.deforumPlaying) return;
+  const nextKind = kind === 'deforum' ? 'deforum' : 'auto';
+  while (this.previewRequestQueue.length >= this.previewQueueMaxSize) {
+    this.previewRequestQueue.shift();
+  }
+  this.previewRequestQueue.push({ kind: nextKind });
+},
+async processPreviewQueue() {
+  if (this.previewQueueProcessing || this.deforumPlaying) return;
+  if (!this.previewRequestQueue.length) return;
+  this.previewQueueProcessing = true;
+  try {
+    while (this.previewRequestQueue.length > 0 && !this.deforumPlaying) {
+      const job = this.previewRequestQueue.shift();
+      if (!job) continue;
+      await this.runPreviewJob(job.kind);
+    }
+  } finally {
+    this.previewQueueProcessing = false;
+    if (this.previewRequestQueue.length && !this.deforumPlaying) {
+      void this.processPreviewQueue();
+    }
+  }
+},
+async runPreviewJob(kind) {
+  if (this.deforumPlaying) return;
+  if (kind === 'deforum') {
+    await this.generateDeforumPreviewFrame();
+    return;
+  }
+  if (this.deforumPanelOpen) {
+    const ok = await this.generateDeforumPreviewFrame();
+    if (!ok) await this.generateImage();
+  } else {
+    await this.generateImage();
+  }
+},
 queuePreviewRequest(kind, delay) {
   if (this.deforumPlaying) return;
   const nextKind = kind === 'deforum' ? 'deforum' : 'auto';
-  this.previewQueuedKind = nextKind;
   clearTimeout(this.previewDebounceTimer);
   clearTimeout(this.deforumPreviewTimer);
-  if (this.previewGenerating) return;
   const timerKey = nextKind === 'deforum' ? 'deforumPreviewTimer' : 'previewDebounceTimer';
-  this[timerKey] = setTimeout(async () => {
+  this[timerKey] = setTimeout(() => {
     this[timerKey] = null;
-    const queuedKind = this.previewQueuedKind;
-    this.previewQueuedKind = null;
-    if (queuedKind === 'deforum') {
-      await this.generateDeforumPreviewFrame();
-      this.flushQueuedPreview();
-    } else {
-      await this.generatePreviewFrame();
-    }
+    this.enqueuePreviewRequest(nextKind);
+    void this.processPreviewQueue();
   }, delay);
-},
-flushQueuedPreview() {
-  if (this.deforumPlaying || this.previewGenerating || !this.previewQueuedKind) return;
-  const queuedKind = this.previewQueuedKind;
-  this.previewQueuedKind = null;
-  clearTimeout(this.previewDebounceTimer);
-  clearTimeout(this.deforumPreviewTimer);
-  const timerKey = queuedKind === 'deforum' ? 'deforumPreviewTimer' : 'previewDebounceTimer';
-  this[timerKey] = setTimeout(async () => {
-    this[timerKey] = null;
-    if (queuedKind === 'deforum') {
-      await this.generateDeforumPreviewFrame();
-      this.flushQueuedPreview();
-    } else {
-      await this.generatePreviewFrame();
-    }
-  }, 0);
 },
  schedulePreviewFrame() {
   this.queuePreviewRequest('auto', 180);
@@ -13819,21 +13836,10 @@ async loadDeforumSettings({ syncServerModel = true } = {}) {
    }
  },
  async generatePreviewFrame() {
-  if (this.previewGenerating) {
-    this.previewQueuedKind = this.deforumPanelOpen ? 'deforum' : 'auto';
-    return false;
-  }
-  try {
-    if (this.deforumPanelOpen) {
-      const ok = await this.generateDeforumPreviewFrame();
-      if (!ok) await this.generateImage();
-    } else {
-      await this.generateImage();
-    }
-    return true;
-  } finally {
-    this.flushQueuedPreview();
-  }
+  if (this.deforumPlaying) return false;
+  this.enqueuePreviewRequest(this.deforumPanelOpen ? 'deforum' : 'auto');
+  await this.processPreviewQueue();
+  return !this.previewRequestQueue.length;
  },
  async generateImage() {
    if (this.deforumPlaying) {
