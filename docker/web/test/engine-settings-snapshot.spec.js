@@ -1,15 +1,10 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import {
-  ENGINE_SETTINGS_SLOT_COUNT,
-  buildEngineSettingsSnapshot,
-  engineSettingsSlotLabel,
-  normalizeEngineSettingsSlot,
-  normalizeEngineSettingsSlots,
-} from '../src/shared/engine-settings-snapshot.mjs';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { loadEsm } = require('./load-esm');
 
 describe('engine-settings-snapshot', () => {
-  it('builds snapshot with opacity, preset, and engine params', () => {
+  it('builds snapshot with opacity, preset, and engine params', async () => {
+    const { buildEngineSettingsSnapshot } = await loadEsm('..', 'src', 'shared', 'engine-settings-snapshot.mjs');
     const snap = buildEngineSettingsSnapshot({
       activeVideoLayerId: 'wan',
       videoLayerOpacity: { wan: 0.75, webgl: 1 },
@@ -24,7 +19,8 @@ describe('engine-settings-snapshot', () => {
     assert.equal(typeof snap.savedAt, 'number');
   });
 
-  it('normalizes slot array to fixed length', () => {
+  it('normalizes slot array to fixed length', async () => {
+    const { ENGINE_SETTINGS_SLOT_COUNT, normalizeEngineSettingsSlots } = await loadEsm('..', 'src', 'shared', 'engine-settings-snapshot.mjs');
     const slots = normalizeEngineSettingsSlots([
       { activeVideoLayerId: 'webgl', defaultAnimation: { mode: 'ocean' } },
       null,
@@ -36,7 +32,8 @@ describe('engine-settings-snapshot', () => {
     assert.equal(slots[2], null);
   });
 
-  it('labels slots from layer, preset, or webgl mode', () => {
+  it('labels slots from layer, preset, or webgl mode', async () => {
+    const { engineSettingsSlotLabel, normalizeEngineSettingsSlot } = await loadEsm('..', 'src', 'shared', 'engine-settings-snapshot.mjs');
     assert.equal(engineSettingsSlotLabel(null), '');
     assert.match(
       engineSettingsSlotLabel(normalizeEngineSettingsSlot({

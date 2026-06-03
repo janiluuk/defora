@@ -1,16 +1,6 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import {
-  buildDeforumContinuationPatch,
-  canUndoContinuation,
-  deforumContinuationStartFrame,
-  framePathForDeforumInit,
-  lastGeneratedThumb,
-  parseFrameNumberFromThumb,
-  popContinuationForUndo,
-  pushContinuationCheckpoint,
-  trimThumbsToContinuationFrame,
-} from '../src/shared/deforum-continuation.mjs';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { loadEsm } = require('./load-esm');
 
 describe('deforum-continuation', () => {
   const thumbs = [
@@ -18,19 +8,22 @@ describe('deforum-continuation', () => {
     { name: '00000042.png', src: '/frames/00000042.png?v=99', frame: 42 },
   ];
 
-  it('uses the last thumb for continuation start frame', () => {
+  it('uses the last thumb for continuation start frame', async () => {
+    const { deforumContinuationStartFrame, lastGeneratedThumb } = await loadEsm('..', 'src', 'shared', 'deforum-continuation.mjs');
     assert.equal(deforumContinuationStartFrame(thumbs), 42);
     assert.equal(lastGeneratedThumb(thumbs).name, '00000042.png');
   });
 
-  it('falls back to init_image path when thumbs are empty', () => {
+  it('falls back to init_image path when thumbs are empty', async () => {
+    const { deforumContinuationStartFrame } = await loadEsm('..', 'src', 'shared', 'deforum-continuation.mjs');
     assert.equal(
       deforumContinuationStartFrame([], { initImage: '/frames/00000007.png' }),
       7,
     );
   });
 
-  it('strips cache-busting query from init paths', () => {
+  it('strips cache-busting query from init paths', async () => {
+    const { framePathForDeforumInit, buildDeforumContinuationPatch } = await loadEsm('..', 'src', 'shared', 'deforum-continuation.mjs');
     assert.equal(
       framePathForDeforumInit('/frames/00000042.png?v=123'),
       '/frames/00000042.png',
@@ -40,11 +33,18 @@ describe('deforum-continuation', () => {
     assert.equal(patch.use_init, true);
   });
 
-  it('parses frame numbers from thumb names', () => {
+  it('parses frame numbers from thumb names', async () => {
+    const { parseFrameNumberFromThumb } = await loadEsm('..', 'src', 'shared', 'deforum-continuation.mjs');
     assert.equal(parseFrameNumberFromThumb({ name: 'frame_00000123.png' }), 123);
   });
 
-  it('supports undo via checkpoint stack', () => {
+  it('supports undo via checkpoint stack', async () => {
+    const {
+      canUndoContinuation,
+      popContinuationForUndo,
+      pushContinuationCheckpoint,
+      trimThumbsToContinuationFrame,
+    } = await loadEsm('..', 'src', 'shared', 'deforum-continuation.mjs');
     let stack = pushContinuationCheckpoint([], {
       frame: 10,
       init_image: '/frames/00000010.png',
