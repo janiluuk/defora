@@ -1,0 +1,17 @@
+#!/usr/bin/env python3
+"""Wrapper entrypoint for defora_cli.deforumation_dashboard (curses UI)."""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+import curses
+from defora_cli import deforumation_dashboard as _dashboard
+
+
+def _main():
+    curses.wrapper(_dashboard.main)
+
+
+if __name__ == "__main__":
+    _main()

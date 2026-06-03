@@ -1,5 +1,5 @@
 /**
- * Capture README screenshots (screenshots/*.png) with seeded E2E server.
+ * Capture README screenshots (docs/design/screenshots/readme/*.png) with seeded E2E server.
  * Usage: cd docker/web && node scripts/capture-web-ui.mjs
  * Fast:  E2E_FAST=1 node scripts/capture-web-ui.mjs
  */
@@ -30,7 +30,7 @@ const webRoot = path.join(__dirname, '..');
 const repoRoot = path.resolve(webRoot, '..', '..');
 const outDir = process.env.OUT_DIR
   ? path.resolve(process.env.OUT_DIR)
-  : path.join(repoRoot, 'screenshots');
+  : path.join(repoRoot, 'docs/design/screenshots/readme');
 fs.mkdirSync(outDir, { recursive: true });
 
 const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'defora-readme-shots-'));

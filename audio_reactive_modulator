@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Wrapper entrypoint for defora_cli.audio_reactive_modulator.
-"""
-from defora_cli import audio_reactive_modulator as _arm
-
-
-if __name__ == "__main__":
-    _arm.main()
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools/bin/audio_reactive_modulator" "$@"

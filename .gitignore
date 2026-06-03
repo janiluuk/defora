@@ -45,3 +45,6 @@ npm-debug.log
 yarn-error.log
 deforumation/
 design.zip
+
+# Legacy screenshot output (now docs/design/screenshots/)
+/screenshots/

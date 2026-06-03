@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-"""
-Wrapper entrypoint for defora_cli.deforumation_dashboard.
-"""
-from defora_cli import deforumation_dashboard as _dashboard
-
-
-if __name__ == "__main__":
-    _dashboard.main()
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools/bin/deforumation_dashboard" "$@"
