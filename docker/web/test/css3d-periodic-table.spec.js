@@ -1,16 +1,10 @@
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import {
-  normalizePeriodicTableSettings,
-  PERIODIC_LAYOUTS,
-} from '../src/shared/periodic-table-settings.mjs';
-import {
-  buildPeriodicLayoutTargets,
-  PERIODIC_TABLE_DATA,
-} from '../src/shared/css3d-periodic-table.mjs';
+const { describe, it } = require('node:test');
+const assert = require('node:assert/strict');
+const { loadEsm } = require('./load-esm');
 
 describe('css3d-periodic-table', () => {
-  it('normalizePeriodicTableSettings clamps layout and timing', () => {
+  it('normalizePeriodicTableSettings clamps layout and timing', async () => {
+    const { normalizePeriodicTableSettings } = await loadEsm('..', 'src', 'shared', 'periodic-table-settings.mjs');
     const out = normalizePeriodicTableSettings({
       ptLayout: 'invalid',
       ptTransitionMs: 50,
@@ -23,7 +17,9 @@ describe('css3d-periodic-table', () => {
     assert.equal(out.ptAutoCycleSec, 3);
   });
 
-  it('buildPeriodicLayoutTargets returns four layouts for all elements', () => {
+  it('buildPeriodicLayoutTargets returns four layouts for all elements', async () => {
+    const { PERIODIC_LAYOUTS } = await loadEsm('..', 'src', 'shared', 'periodic-table-settings.mjs');
+    const { buildPeriodicLayoutTargets, PERIODIC_TABLE_DATA } = await loadEsm('..', 'src', 'shared', 'css3d-periodic-table.mjs');
     const count = PERIODIC_TABLE_DATA.length / 5;
     const targets = buildPeriodicLayoutTargets(count, 1);
     assert.equal(targets.table.length, count);
