@@ -115,7 +115,7 @@
     <LibraryWorkspaceOverlay :app="appViewModel" />
 
     <div
-      v-if="!(libraryEditorOpen && currentTab === 'LIBRARY')"
+      v-if="libraryWorkspaceOpen && !(libraryEditorOpen && currentTab === 'LIBRARY')"
       class="live-drawer-shell live-drawer-shell--dock-top"
       :class="{ 'live-drawer-shell--open': rightPanelOpen }"
       data-testid="right-panel-drawer"
