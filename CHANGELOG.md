@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [0.6.75] - 2026-06-17
+
+## What's Changed
+
+- docs: restore README tour screenshots from pre-refresh captures (76aaafe)
+
+**Full Changelog**: https://github.com/janiluuk/defora/compare/v0.6.74...v0.6.75
+
+
 ## [0.6.74] - 2026-06-03
 
 ## What's Changed
